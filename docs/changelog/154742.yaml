@@ -1,0 +1,5 @@
+area: "Performance"
+issues: []
+pr: 154742
+summary: Improve `LongSwissHash` insert throughput
+type: enhancement

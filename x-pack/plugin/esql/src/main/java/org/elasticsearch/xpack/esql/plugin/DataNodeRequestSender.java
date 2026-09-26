@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
@@ -137,30 +138,27 @@ abstract class DataNodeRequestSender {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            // Reached downstream of ComputeService.execute(), which itself may be invoked on the external blob-store
+            // pool after ExternalSourceResolver completes on that pool.
+            EsqlPlugin.externalBlobStorePool()
         );
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
-            try (
-                var computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    runOnTaskFailure,
-                    listener.map(completionInfo -> {
-                        final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
-                        final int failedShards = shardFailures.size();
-                        final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
-                        return new ComputeResponse(
-                            completionInfo,
-                            timeValueNanos(System.nanoTime() - startTimeInNanos),
-                            targetShards.totalShards(),
-                            successfulShards,
-                            totalSkipShards,
-                            failedShards,
-                            selectFailures()
-                        );
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(runOnTaskFailure, listener.map(completionInfo -> {
+                final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
+                final int failedShards = shardFailures.size();
+                final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
+                return new ComputeResponse(
+                    completionInfo,
+                    timeValueNanos(System.nanoTime() - startTimeInNanos),
+                    targetShards.totalShards(),
+                    successfulShards,
+                    totalSkipShards,
+                    failedShards,
+                    selectFailures()
+                );
+            }))) {
                 pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }
@@ -195,7 +193,8 @@ abstract class DataNodeRequestSender {
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH)
+            || (rootTask.isCancelled() && Transports.isTransportThread(Thread.currentThread()));
         changed.set(true);
         final ActionListener<Void> listener = computeListener.acquireAvoid();
         try {

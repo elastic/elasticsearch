@@ -680,7 +680,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
                 while (leader.deliverBlackholedRequests()) {
                     // two tasks: (i) deliver the error response, and then (ii) handle it
-                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 2, "processing blackholed cluster state update requests");
+                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 2 + 1, "processing blackholed cluster state update requests");
                 }
 
                 assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
@@ -1875,15 +1875,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
 
                 mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "lag warning",
-                        LagDetector.class.getCanonicalName(),
-                        Level.WARN,
-                        "node ["
-                            + brokenNode
-                            + "] is lagging at cluster state version [*], "
-                            + "although publication of cluster state version [*] completed [*] ago"
-                    )
+                    new MockLog.SeenEventExpectation("lag warning", LagDetector.class.getCanonicalName(), Level.WARN, Strings.format("""
+                        node [%s] is lagging at cluster state version [*], although publication of cluster state version [*] \
+                        completed [*] ago; see https://*/troubleshoot/*-lagging for further information""", brokenNode))
                 );
 
                 mockLog.addExpectation(

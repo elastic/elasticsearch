@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseTimeout;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_UPDATE_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_UPDATE_PATH;
@@ -56,7 +57,9 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             content,
             restRequest.getXContentType(),
             taskType,
-            RestUtils.getMasterNodeTimeout(restRequest)
+            parseTimeout(restRequest),
+            RestUtils.getMasterNodeTimeout(restRequest),
+            RestUtils.getAckTimeout(restRequest)
         );
         return channel -> client.execute(
             UpdateInferenceModelAction.INSTANCE,

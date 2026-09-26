@@ -49,4 +49,22 @@ public class LocaleUtilsTests extends ESTestCase {
         assertEquals(Locale.ROOT, LocaleUtils.parse("root"));
         assertEquals(Locale.ROOT, LocaleUtils.parse(""));
     }
+
+    public void testParseLanguageTagAcceptsWellFormedTags() {
+        assertEquals(Locale.FRENCH, LocaleUtils.parseLanguageTag("fr"));
+        assertEquals(Locale.FRANCE, LocaleUtils.parseLanguageTag("fr-FR"));
+        assertEquals(Locale.forLanguageTag("zh-Hant-TW"), LocaleUtils.parseLanguageTag("zh-Hant-TW"));
+    }
+
+    public void testParseLanguageTagRejectsUnderscoreSeparators() {
+        // Unlike parse(...), the strict parser does not accept underscores as separators.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parseLanguageTag("en_US"));
+        assertThat(e.getMessage(), Matchers.containsString("[en_US] is not a valid language tag"));
+        assertThat(e.getCause(), Matchers.instanceOf(java.util.IllformedLocaleException.class));
+    }
+
+    public void testParseLanguageTagRejectsGarbage() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parseLanguageTag("!!!"));
+        assertThat(e.getMessage(), Matchers.containsString("[!!!] is not a valid language tag"));
+    }
 }

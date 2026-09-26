@@ -41,6 +41,7 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -97,9 +98,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         return TestIndexNameExpressionResolver.newInstance(threadContext);
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndexNameExpressionResolver() throws Exception {
         threadContext = createThreadContext();
         indexNameExpressionResolver = createIndexNameExpressionResolver(threadContext);
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
@@ -3438,6 +3438,38 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             viewRequest(defaultDatasetOptions, "my-dataset-index")
         );
         assertThat(datasets, empty());
+    }
+
+    public void testDatasetListIgnoresCoresidentDataStream() {
+        // Repro for the GET _query/dataset 404 reported 2026-06-30: listing datasets with "*" must not blow up just
+        // because the cluster also holds an unrelated data stream (here the Entity Store's entities-updates-default).
+        // datasets() resolves the whole namespace and filters to Type.DATASET afterward, so a data-stream-related
+        // abstraction throws index_not_found_exception (excluded_ds=true) mid-walk, before the filter ever runs.
+        final String datasetName = "cloudtrail_logs";
+        Dataset dataset = new Dataset(
+            datasetName,
+            new DataSourceReference("aws_s3_logs"),
+            "s3://bucket/cloudtrail/*.json.gz",
+            null,
+            Map.of()
+        );
+
+        final String dataStreamName = "entities-updates-default";
+        IndexMetadata backingIndex = createBackingIndex(dataStreamName, 1).build();
+
+        ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .put(backingIndex, false)
+            .put(newInstance(dataStreamName, List.of(backingIndex.getIndex())))
+            .datasets(Map.of(datasetName, dataset))
+            .build();
+
+        final IndicesOptions datasetOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
+            .build();
+
+        List<String> datasets = indexNameExpressionResolver.datasets(project, datasetOptions, viewRequest(datasetOptions, "*"));
+        assertThat(datasets, contains(datasetName));
     }
 
     public void testResolveAllIncludesDatasetsWithFlag() {

@@ -1,4 +1,8 @@
 ### Equality [esql-equals]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 **Syntax**
 

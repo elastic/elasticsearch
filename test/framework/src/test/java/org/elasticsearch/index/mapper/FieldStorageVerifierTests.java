@@ -271,6 +271,56 @@ public class FieldStorageVerifierTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("storage mismatch"));
     }
 
+    public void testVerifyPassesWhenOnFailureExpectedAndOnFailurePresent() {
+        LuceneDocument doc = new LuceneDocument();
+        doc.add(new BinaryDocValuesField("myfield" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX, new BytesRef("test value")));
+
+        FieldStorageVerifier.forField("myfield", doc).expectOnFailure().verify();
+    }
+
+    public void testVerifyFailsWhenOnFailureExpectedButNotPresent() {
+        LuceneDocument doc = new LuceneDocument();
+
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> FieldStorageVerifier.forField("myfield", doc).expectOnFailure().verify()
+        );
+
+        assertThat(error.getMessage(), containsString("myfield"));
+        assertThat(error.getMessage(), containsString("storage mismatch"));
+    }
+
+    public void testVerifyFailsWhenNoStorageExpectedButOnFailurePresent() {
+        LuceneDocument doc = new LuceneDocument();
+        doc.add(new BinaryDocValuesField("myfield" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX, new BytesRef("test value")));
+
+        AssertionError error = expectThrows(AssertionError.class, () -> FieldStorageVerifier.forField("myfield", doc).verify());
+
+        assertThat(error.getMessage(), containsString("myfield"));
+        assertThat(error.getMessage(), containsString("storage mismatch"));
+    }
+
+    public void testVerifyPassesWithDocValuesAndOnFailure() {
+        LuceneDocument doc = new LuceneDocument();
+        doc.add(new BinaryDocValuesField("myfield", new BytesRef("primary value")));
+        doc.add(new BinaryDocValuesField("myfield" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX, new BytesRef("violation")));
+
+        FieldStorageVerifier.forField("myfield", doc).expectDocValues().expectOnFailure().verify();
+    }
+
+    public void testVerifyFailsWhenDocValuesExpectedButOnlyOnFailurePresent() {
+        LuceneDocument doc = new LuceneDocument();
+        doc.add(new BinaryDocValuesField("myfield" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX, new BytesRef("violation")));
+
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> FieldStorageVerifier.forField("myfield", doc).expectDocValues().verify()
+        );
+
+        assertThat(error.getMessage(), containsString("myfield"));
+        assertThat(error.getMessage(), containsString("storage mismatch"));
+    }
+
     private void addToIgnoredSource(LuceneDocument doc, String fieldName, String value) {
         var nameValue = new IgnoredSourceFieldMapper.NameValue(fieldName, 0, new BytesRef(value), doc);
         BytesRef encoded = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(nameValue));

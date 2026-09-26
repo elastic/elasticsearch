@@ -259,6 +259,29 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion ES95_TSDB_CODEC_FEATURE_FLAG = def(9_098_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SHARD_OBLIVIOUS_SLICING = def(9_099_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES = def(9_100_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion MAPPING_ID_MODE_DEFAULT = def(9_101_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG = def(9_102_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES = def(9_103_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_0 = def(9_104_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion DISK_BBQ_ES950_AUTO_CALIBRATE = def(9_105_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT = def(9_106_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES_NO_FF = def(9_107_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY = def(9_108_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT = def(9_109_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS = def(9_110_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_1 = def(9_111_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
+    // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
+    // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
+    public static final IndexVersion DEDUPLICATED_FIELD_INFOS_CODEC = def(9_113_0_00, Version.LUCENE_10_5_1);
+    // Deliberately unreferenced: defining it raises IndexVersion.current(), which keeps segments whose stored fields or synthetic
+    // ids only the current codec can read off nodes that cannot read them (see IndexVersionAllocationDecider).
+    public static final IndexVersion ELASTICSEARCH_STORED_FIELDS_FORMAT = def(9_114_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion MALFORMED_VALUES_IN_ON_FAILURE_COLUMN = def(9_115_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
@@ -299,17 +300,15 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMinToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.SeparateCount", 1)
+            // MV_MIN pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // minimum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MinFromColumnarPayload", 1)
         );
     }
 
@@ -322,6 +321,22 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
             matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMinToIpHighCardinality() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "ip").endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            // Like keyword, high-cardinality ip stores values as ArrayOrderInlineNull binary doc values, so MV_MIN must push down into
+            // the array-order reader. Reading these with the SeparateCount reader misparses the [valueLen+1] slot prefixes.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
 
@@ -424,17 +439,41 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMaxToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.SeparateCount", 1)
+            // MV_MAX pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // maximum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromColumnarPayload", 1)
+        );
+    }
+
+    public void testLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            // The trailing null makes the slot count 2 (nulls are counted but not stored), forcing the array-order length reader rather
+            // than the single-value fast path, while the single non-null value keeps LENGTH single-valued.
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload", 1)
+        );
+    }
+
+    public void testByteLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = BYTE_LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload", 1)
         );
     }
 
@@ -447,6 +486,20 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
             matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMaxToIpHighCardinality() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "ip").endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
 
@@ -898,6 +951,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("EvalOperator")
                     .item("ValuesSourceReaderOperator")
                     .item(lookupOperatorName())
+                    .item("FilterOperator")
                     .item("EvalOperator")
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -1198,7 +1252,67 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
-        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null, null);
+    }
+
+    /**
+     * Runs a function-pushdown test against a strict-columnar index, where the field gets HIGH-cardinality binary doc values and the
+     * pushdown lands on a binary loader rather than a SortedSet ordinal one.
+     *
+     * <p>Which binary layout the index writes follows {@code index.columnar_codec.enabled} — the in-order column with its companion
+     * count, or the ColumNAR codec's payload — and each has its own loader, so the expected one is read off the index rather than
+     * assumed. A field whose loader is the same either way passes the same matcher twice.
+     */
+    private void testHighCardinality(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String eval,
+        Matcher<?> expectedValue,
+        MapMatcher expectedInlineLoaders,
+        MapMatcher expectedPayloadLoaders
+    ) throws IOException {
+        indexValue(mapping, doc, IndexMode.COLUMNAR.getName());
+        final MapMatcher expectedLoaders = usesColumnarCodec("test") ? expectedPayloadLoaders : expectedInlineLoaders;
+        assertPushdown(
+            """
+                FROM test
+                """ + eval + """
+                | STATS test = MV_SORT(VALUES(test))
+                """,
+            expectedValue,
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(expectedLoaders)),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            ),
+            null
+        );
+    }
+
+    /**
+     * Whether {@code index} writes its doc values with the ColumNAR codec. Read off the index: the setting's default has moved, and
+     * it is not registered at all on a build where the feature flag is off.
+     */
+    private static boolean usesColumnarCodec(String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings/index.columnar_codec.enabled");
+        request.addParameter("flat_settings", "true");
+        request.addParameter("include_defaults", "true");
+        Map<String, Object> response = entityToMap(client().performRequest(request).getEntity(), XContentType.JSON);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> forIndex = (Map<String, Object>) response.get(index);
+        for (String section : new String[] { "settings", "defaults" }) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> settings = (Map<String, Object>) forIndex.get(section);
+            if (settings != null && settings.get("index.columnar_codec.enabled") != null) {
+                return Booleans.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
+            }
+        }
+        return false;
     }
 
     private void test(
@@ -1211,7 +1325,35 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Consumer<List<String>> assertDataNodeSig,
         Settings pragmas
     ) throws IOException {
-        indexValue(mapping, doc);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas, null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        String indexMode
+    ) throws IOException {
+        indexValue(mapping, doc, indexMode);
+        assertPushdown(query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas);
+    }
+
+    /**
+     * Runs {@code query} against the index just indexed into and asserts what it read and which loaders it built.
+     */
+    private void assertPushdown(
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas
+    ) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);
@@ -1237,6 +1379,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,
@@ -1270,6 +1413,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private void indexValue(CheckedConsumer<XContentBuilder, IOException> mapping, CheckedConsumer<XContentBuilder, IOException> doc)
         throws IOException {
+        indexValue(mapping, doc, null);
+    }
+
+    private void indexValue(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String indexMode
+    ) throws IOException {
         try {
             // Delete the index if it has already been created.
             client().performRequest(new Request("DELETE", "test"));
@@ -1287,6 +1438,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 config.startObject("index");
                 config.field("number_of_shards", 1);
                 config.field("mapping.use_doc_values_skipper", true);
+                if (indexMode != null) {
+                    config.field("mode", indexMode);
+                }
                 config.endObject();
             }
             config.endObject();
@@ -1363,7 +1517,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     private static String lookupOperatorName() {
-        return Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
+        // Streaming lookup is enabled by default via the esql.query.lookup_join_streaming setting
+        return "StreamingLookupOperator";
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {
@@ -1382,7 +1537,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         List<String> sig = new ArrayList<>();
         for (Map<String, Object> operator : operators) {
             String name = (String) operator.get("operator");
-            name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
+            name = PushQueriesStringIT.TO_NAME.matcher(name).replaceAll("");
             if (name.equals("ValuesSourceReaderOperator")) {
                 assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
                 MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))

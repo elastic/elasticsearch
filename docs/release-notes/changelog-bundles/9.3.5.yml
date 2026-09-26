@@ -126,6 +126,11 @@ changelogs:
     type: bug
     issues:
       - 147171
+  - pr: 147424
+    summary: Bump bundled JDK to Java 26.0.1
+    area: Packaging
+    type: upgrade
+    issues: []
   - pr: 147427
     summary: "Aggs: Fix auto_date_histogram/date_histogram inside a global agg"
     area: Aggregations

@@ -80,9 +80,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode frozenNode;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void startClusterService() throws Exception {
         dataNode = DiscoveryNodeUtils.builder("data_node")
             .name("data_node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
@@ -97,8 +95,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -131,6 +128,19 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(xContentToMap(indicatorResult.details()), Map.of());
     }
 
+    public void testNoHealthMetadata() throws IOException {
+        var clusterService = createClusterService(
+            createClusterState(randomValidMaxShards(), randomValidMaxShards(), null, createIndexInDataNode(100))
+        );
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+
+        assertEquals(HealthStatus.UNKNOWN, indicatorResult.status());
+        assertTrue(indicatorResult.impacts().isEmpty());
+        assertTrue(indicatorResult.diagnosisList().isEmpty());
+        assertEquals("Unable to determine shard capacity status.", indicatorResult.symptom());
+        assertEquals(xContentToMap(indicatorResult.details()), Map.of());
+    }
+
     public void testIndicatorYieldsGreenInCaseThereIsRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
         int maxShardsPerNodeFrozen = randomValidMaxShards();
@@ -151,6 +161,27 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                 )
             )
+        );
+    }
+
+    public void testClosedIndicesAreIgnored() throws IOException {
+        int maxShardsPerNodeFrozen = randomValidMaxShards();
+        // 11 primaries + 1 replica is 22 shards in total. This would make the indicator RED if the closed index were counted, since we
+        // could not add 5 more primaries (10 shards including replicas) without exceeding the node threshold of 25 shards
+        var clusterService = createClusterService(
+            25,
+            maxShardsPerNodeFrozen,
+            createIndex(11, NORMAL_GROUP).state(IndexMetadata.State.CLOSE)
+        );
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+
+        assertEquals(GREEN, indicatorResult.status());
+        assertTrue(indicatorResult.impacts().isEmpty());
+        assertTrue(indicatorResult.diagnosisList().isEmpty());
+        assertEquals("The cluster has enough room to add new shards.", indicatorResult.symptom());
+        assertThat(
+            xContentToMap(indicatorResult.details()),
+            is(Map.of("data", Map.of("max_shards_in_cluster", 25), "frozen", Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)))
         );
     }
 
@@ -530,8 +561,10 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         HealthMetadata healthMetadata,
         IndexMetadata.Builder... indexMetadata
     ) {
-        var clusterState = ClusterStateCreationUtils.state(dataNode, dataNode, dataNode, new DiscoveryNode[] { dataNode, frozenNode })
-            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        var clusterState = ClusterStateCreationUtils.state(dataNode, dataNode, dataNode, new DiscoveryNode[] { dataNode, frozenNode });
+        if (healthMetadata != null) {
+            clusterState = clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        }
 
         var metadata = Metadata.builder()
             .persistentSettings(

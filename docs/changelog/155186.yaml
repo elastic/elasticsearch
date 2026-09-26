@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 138019
+pr: 155186
+summary: Load numeric values from stored fields
+type: bug

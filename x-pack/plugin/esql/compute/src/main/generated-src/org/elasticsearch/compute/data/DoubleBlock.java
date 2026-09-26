@@ -100,7 +100,12 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     }
 
     @Override
-    DoubleBlock filter(boolean mayContainDuplicates, int... positions);
+    DoubleBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

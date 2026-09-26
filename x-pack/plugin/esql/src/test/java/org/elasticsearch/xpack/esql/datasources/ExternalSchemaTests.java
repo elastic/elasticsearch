@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -102,6 +103,84 @@ public class ExternalSchemaTests extends ESTestCase {
             )
         );
         assertTrue("all metadata, nothing survives", filtered.isEmpty());
+    }
+
+    /**
+     * Bound external metadata is a {@link ExternalMetadataAttribute}, not a {@link MetadataAttribute}.
+     * The data-only view must drop it the same way, or split discovery counts the name as a
+     * projected physical column.
+     */
+    public void testDataAttributesOfStripsExternalMetadata() {
+        Attribute id = attr("id");
+        Attribute filePath = new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD);
+        Attribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(List.of(id, filePath, index));
+
+        assertEquals(1, filtered.size());
+        assertEquals("id", filtered.get(0).name());
+        assertFalse(filtered.names().contains(FileMetadataColumns.PATH));
+        assertFalse(filtered.names().contains("_index"));
+    }
+
+    public void testDataAttributesOfExcludesPartitionColumns() {
+        // Hive partition columns are appended after the data columns by the resolver. The data-only
+        // view must drop them so its width matches the file-backed ColumnMapping.
+        Attribute id = attr("id");
+        Attribute value = attr("value");
+        Attribute year = attr("year");
+
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(List.of(id, value, year), Set.of("year"));
+
+        assertEquals("partition column dropped", 2, filtered.size());
+        assertEquals(List.of("id", "value"), filtered.attributes().stream().map(Attribute::name).toList());
+        assertFalse(filtered.names().contains("year"));
+    }
+
+    public void testDataAttributesOfExcludesVirtualAndPartitionColumns() {
+        // Both classes of non-data column must be stripped together: virtual (metadata) and partition.
+        Attribute id = attr("id");
+        Attribute index = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute region = attr("region");
+        Attribute value = attr("value");
+
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(List.of(id, index, region, value), Set.of("region"));
+
+        assertEquals("virtual and partition columns dropped", 2, filtered.size());
+        assertEquals("relative order preserved", List.of("id", "value"), filtered.attributes().stream().map(Attribute::name).toList());
+        assertFalse(filtered.names().contains("_index"));
+        assertFalse(filtered.names().contains("region"));
+    }
+
+    public void testDataAttributesOfShadowedCollisionExcludesPartition() {
+        // Collision shape: a partition key 'year' shadows a same-named physical column. On the data
+        // node the resolver already dropped the physical 'year' and appended the partition 'year' at
+        // the tail, so the data-only view must exclude it to agree with the file-backed mapping width.
+        Attribute id = attr("id");
+        Attribute value = attr("value");
+        Attribute yearPartition = attr("year");
+
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(List.of(id, value, yearPartition), Set.of("year"));
+
+        assertEquals("colliding partition column excluded", 2, filtered.size());
+        assertEquals(List.of("id", "value"), filtered.attributes().stream().map(Attribute::name).toList());
+    }
+
+    public void testDataAttributesOfSingleArgEqualsEmptyPartitionSet() {
+        List<Attribute> attributes = List.of(attr("a"), attr("b"));
+        assertEquals(
+            "single-arg overload is the empty-partition-set case",
+            ExternalSchema.dataAttributesOf(attributes),
+            ExternalSchema.dataAttributesOf(attributes, Set.of())
+        );
+    }
+
+    public void testDataAttributesOfEmptyPartitionSetKeepsAllData() {
+        // A partition-column set that does not match any attribute name leaves the data columns intact.
+        List<Attribute> attributes = List.of(attr("a"), attr("b"));
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(attributes, Set.of("does_not_exist"));
+        assertEquals(2, filtered.size());
+        assertEquals(Set.of("a", "b"), filtered.names());
     }
 
     private static ExternalSchema schema(String... names) {

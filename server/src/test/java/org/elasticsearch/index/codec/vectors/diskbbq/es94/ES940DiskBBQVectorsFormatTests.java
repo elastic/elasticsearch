@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -41,13 +39,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -64,15 +60,17 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVec
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
@@ -81,78 +79,12 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = RandomPicks.randomFrom(
-            random(),
-            List.of(
-                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
-                ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
-            )
-        );
-        boolean disableFlatOnFlush = random().nextBoolean();
-        if (rarely()) {
-            int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ES940DiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold
-            );
-        } else if (rarely()) {
-            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ES940DiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                flatVectorThreshold
-            );
-        } else {
-            // run with low numbers to force many clusters with parents
-            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ES940DiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold
-            );
-        }
-        super.setUp();
-    }
-
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return RandomPicks.randomFrom(
-            random(),
-            List.of(
-                VectorSimilarityFunction.DOT_PRODUCT,
-                VectorSimilarityFunction.EUCLIDEAN,
-                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
-            )
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
         );
     }
 
@@ -168,6 +100,62 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            ES940DiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(
+                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
+                ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
+            );
+            boolean disableFlatOnFlush = random().nextBoolean();
+            if (rarely()) {
+                int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES940DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold
+                );
+            } else if (rarely()) {
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES940DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    true,
+                    random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                    flatVectorThreshold
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ES940DiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ES940DiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold
+                );
+            }
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -182,7 +170,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            assertThat(offHeap.size(), equalTo(3));
+            assertThat(offHeap, aMapWithSize(3));
             assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
@@ -219,6 +207,40 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         expectThrows(
             IllegalArgumentException.class,
             () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                false
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+                false
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
                 ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
                 64,
                 2,
@@ -229,7 +251,8 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_START
+                ES940DiskBBQVectorsFormat.VERSION_START,
+                false
             )
         );
         expectThrows(
@@ -245,7 +268,26 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_CURRENT
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+                false
+            )
+        );
+        // the on_disk_merge flag needs a version that records it in the meta
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
+                true
             )
         );
     }
@@ -266,8 +308,43 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(3, offHeap.size());
+                    assertThat(offHeap, aMapWithSize(3));
                 }
+            }
+        }
+    }
+
+    /**
+     * Version 3 is the last meta layout without the {@code on_disk_merge} byte, and what released segments carry. Opening
+     * the reader is the assertion: it parses that meta behind the current version gate, which must not read a byte that is
+     * not there.
+     */
+    public void testVersion3SegmentsReadBackWithoutTheOnDiskMergeByte() throws IOException {
+        KnnVectorsFormat version3 = new ES940DiskBBQVectorsFormat(
+            ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
+            64,
+            2,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
+            false
+        );
+        float[] vector = randomVector(random().nextInt(12, 500));
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(version3));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                var values = getOnlyLeafReader(reader).getFloatVectorValues("f");
+                assertEquals(1, values.size());
+                assertArrayEquals(vector, values.vectorValue(0), 0f);
             }
         }
     }
@@ -303,7 +380,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                         AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
                         Integer.MAX_VALUE
                     );
-                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
                 }
 
             }
@@ -337,7 +414,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                         AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
                         Integer.MAX_VALUE
                     );
-                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
                 }
 
             }
@@ -428,10 +505,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc())
                 );
                 TopDocs topDocs = collector.topDocs();
-                assertEquals(3, topDocs.scoreDocs.length);
-                assertEquals(0, topDocs.scoreDocs[0].doc);
-                assertEquals(1, topDocs.scoreDocs[1].doc);
-                assertEquals(2, topDocs.scoreDocs[2].doc);
+                assertThat(topDocs.scoreDocs, transformedArrayItemsMatch(sd -> sd.doc, arrayContaining(0, 1, 2)));
             }
         }
     }
@@ -543,7 +617,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
                     assertThat(document.getField("k").binaryValue().utf8ToString(), equalTo("B"));
                 }
-                assertEquals(matchingDocs, uniqueDocIds.size());
+                assertThat(uniqueDocIds, hasSize(matchingDocs));
             }
         }
     }
@@ -554,4 +628,5 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
         writer.addDocument(doc);
     }
+
 }

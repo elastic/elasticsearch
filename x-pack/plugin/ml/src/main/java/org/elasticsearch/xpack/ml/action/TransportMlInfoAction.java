@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
@@ -43,6 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
@@ -52,6 +57,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
     private final Map<String, Object> nativeCodeInfo;
+    private final Client client;
+    private final ExecutorService executor;
 
     @Inject
     public TransportMlInfoAction(
@@ -59,11 +66,15 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         ActionFilters actionFilters,
         ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
-        MlControllerHolder mlControllerHolder
+        MlControllerHolder mlControllerHolder,
+        Client client,
+        ThreadPool threadPool
     ) {
         super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
+        this.client = client;
+        this.executor = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
 
         try {
             nativeCodeInfo = mlControllerHolder.getMlController().getNativeCodeInfo();
@@ -74,18 +85,29 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     @Override
     protected void doExecute(Task task, MlInfoAction.Request request, ActionListener<MlInfoAction.Response> listener) {
-        Map<String, Object> info = new HashMap<>();
-        info.put("defaults", defaults());
-        info.put("limits", limits());
-        info.put("native_code", nativeCodeInfo);
-        info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
-        listener.onResponse(new MlInfoAction.Response(info));
+        MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(
+            clusterService.getClusterSettings(),
+            client,
+            executor,
+            listener.delegateFailureAndWrap((delegate, architectures) -> {
+                Map<String, Object> info = new HashMap<>();
+                info.put("defaults", defaults(architectures));
+                info.put("limits", limits());
+                info.put("native_code", nativeCodeInfo);
+                info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
+                delegate.onResponse(new MlInfoAction.Response(info));
+            })
+        );
     }
 
-    private Map<String, Object> defaults() {
+    private Map<String, Object> defaults(Set<String> mlNodeArchitectures) {
         Map<String, Object> defaults = new HashMap<>();
         defaults.put("anomaly_detectors", anomalyDetectorsDefaults());
         defaults.put("datafeeds", datafeedsDefaults());
+        defaults.put(
+            "model_platform_variant",
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(mlNodeArchitectures, clusterService.getClusterSettings())
+        );
         return defaults;
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -47,6 +48,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -226,6 +228,12 @@ public abstract class Plugin implements Closeable {
 
         /** A utility for recording lifecycle errors for data stream lifecycles */
         DataStreamLifecycleErrorStore dlmErrorStore();
+
+        /** The IP location service for IP-geolocation database lookups and lifecycle management */
+        IpLocationService ipLocationService();
+
+        /** The usage service for tracking cluster and endpoint usage statistics */
+        UsageService usageService();
     }
 
     /**

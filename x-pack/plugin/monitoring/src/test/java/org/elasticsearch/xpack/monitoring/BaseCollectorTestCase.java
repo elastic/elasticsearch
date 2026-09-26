@@ -27,6 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
+import org.junit.Before;
 
 import java.util.function.Function;
 
@@ -46,9 +47,8 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected Client client;
     protected Settings settings;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMocks() {
         clusterName = mock(ClusterName.class);
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);

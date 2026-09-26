@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -78,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -107,6 +111,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -137,6 +142,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -155,9 +161,11 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+        Map.entry(DATE_PERIOD, ToDatePeriod::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(DOUBLE_RANGE, ToDoubleRange::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),
@@ -169,10 +177,10 @@ public class EsqlDataTypeConverter {
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
         Map.entry(TDIGEST, ToTDigest::new),
+        // TODO: `ToText` conversion needs to be added, but it break implicit conversion for unmapped fields
+        Map.entry(TIME_DURATION, ToTimeDuration::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        Map.entry(VERSION, ToVersion::new),
-        Map.entry(DATE_PERIOD, ToDatePeriod::new),
-        Map.entry(TIME_DURATION, ToTimeDuration::new)
+        Map.entry(VERSION, ToVersion::new)
     );
 
     /**
@@ -271,13 +279,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DataType.IP) {
@@ -645,8 +653,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {
@@ -658,6 +670,12 @@ public class EsqlDataTypeConverter {
             return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
+        } catch (ArithmeticException e) {
+            // An in-range epoch (e.g. a huge epoch_second) can parse to a valid Instant and then overflow when
+            // Instant.toEpochMilli scales it. Remap so it flows through the readers' per-cell error policy (null/warn
+            // or fail_fast) rather than escaping as an ArithmeticException that hard-fails the whole read — the same
+            // contract coerceToUnsignedLong keeps for its overflow.
+            throw new IllegalArgumentException("epoch value overflows a long when scaled to milliseconds: " + dateTime, e);
         }
     }
 
@@ -665,9 +683,15 @@ public class EsqlDataTypeConverter {
         return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
-    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+    /**
+     * Null {@code formatter} means ISO-8601 ({@link #DEFAULT_DATE_NANOS_FORMATTER}), matching
+     * {@link #dateTimeToLong(String, DateFormatter)}. The two sibling converters must agree on the null contract:
+     * a caller that threads an optional declared format through cannot be made to null-check one and not the other.
+     */
+    public static long dateNanosToLong(String dateNano, @Nullable DateFormatter formatter) {
         try {
-            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            DateFormatter effective = formatter == null ? DEFAULT_DATE_NANOS_FORMATTER : formatter;
+            Instant parsed = DateFormatters.from(effective.parse(dateNano)).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
@@ -731,8 +755,78 @@ public class EsqlDataTypeConverter {
         return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
     }
 
+    /**
+     * Parses the string representation used for double range response values.
+     */
+    public static DoubleRangeBlockBuilder.DoubleRange parseDoubleRange(String value) {
+        String[] bounds = value.split("\\.\\.", -1);
+        if (bounds.length != 2) {
+            throw new IllegalArgumentException("expected double range in the form 'from..to', got [" + value + "]");
+        }
+        double from = Double.parseDouble(bounds[0]);
+        double to = Double.parseDouble(bounds[1]);
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("double range 'from' [" + bounds[0] + "] must be less than 'to' [" + bounds[1] + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
+    /**
+     * Formats a half-open double range for response serialization.
+     */
+    public static String doubleRangeToString(DoubleRangeBlockBuilder.DoubleRange range) {
+        return doubleRangeToString(range.from(), range.to());
+    }
+
+    /**
+     * Formats half-open double range bounds for response serialization.
+     */
+    public static String doubleRangeToString(double from, double to) {
+        return Double.toString(from) + ".." + Double.toString(to);
+    }
+
     public static BytesRef numericBooleanToString(Object field) {
         return new BytesRef(String.valueOf(field));
+    }
+
+    private static final BytesRef BYTES_TRUE = new BytesRef("true");
+    private static final BytesRef BYTES_FALSE = new BytesRef("false");
+
+    public static BytesRef booleanToString(boolean b) {
+        return b ? BYTES_TRUE : BYTES_FALSE;
+    }
+
+    public static BytesRef intToString(int integer) {
+        byte[] buf = new byte[11]; // "-2147483648" is 11 bytes
+        int pos = 11;
+        boolean negative = integer < 0;
+        int q = negative ? integer : -integer;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 11 - pos);
+    }
+
+    public static BytesRef longToString(long lng) {
+        // Work in negated space throughout to handle Long.MIN_VALUE without overflow.
+        byte[] buf = new byte[20]; // "-9223372036854775808" needs 20 bytes
+        int pos = 20;
+        boolean negative = lng < 0;
+        long q = negative ? lng : -lng;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (int) (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - (int) q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 20 - pos);
     }
 
     public static boolean stringToBoolean(String field) {
@@ -768,6 +862,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static BytesRef unsignedLongToString(long number) {
+        if (number < 0) {
+            // stored biased value < 0 means unsigned value <= Long.MAX_VALUE: recover it and write directly
+            return longToString(number ^ Long.MIN_VALUE);
+        }
         return new BytesRef(unsignedLongAsNumber(number).toString());
     }
 

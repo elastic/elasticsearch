@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * {@link MappedActionFilter}s that fail the continuation step of local bulk-by-scroll search:
+ * {@link MappedActionFilter}s that fail the continuation step of local bulk-by-paginated-search search:
  * <ul>
  *     <li><strong>PIT (reindex):</strong> second matching {@link TransportSearchAction} after
  *     {@link org.elasticsearch.index.reindex.ReindexRequest#convertSearchRequestToUsePit} (empty indices, PIT in source).</li>
@@ -75,7 +75,7 @@ public final class SearchContextFailureInjectionPlugin extends Plugin implements
                     return;
                 }
                 SearchRequest searchRequest = (SearchRequest) request;
-                if (matchesBulkByScrollPitContinuationSearch(searchRequest) == false) {
+                if (matchesBulkByPaginatedSearchPitContinuationSearch(searchRequest) == false) {
                     chain.proceed(task, action, request, listener);
                     return;
                 }
@@ -133,7 +133,7 @@ public final class SearchContextFailureInjectionPlugin extends Plugin implements
      * After PIT conversion, continuation searches carry an empty {@link SearchRequest#indices()} array and a non-null
      * point-in-time in the source.
      */
-    static boolean matchesBulkByScrollPitContinuationSearch(SearchRequest searchRequest) {
+    static boolean matchesBulkByPaginatedSearchPitContinuationSearch(SearchRequest searchRequest) {
         if (searchRequest.source() == null || searchRequest.source().pointInTimeBuilder() == null) {
             return false;
         }

@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.IpLocationGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -61,6 +64,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunct
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.cidrMatchFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.clampFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.coalesceFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.compositeExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
@@ -116,6 +120,7 @@ public class EsqlQueryGenerator {
         EvalGenerator.INSTANCE,
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
+        HighlightGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         InlineStatsGenerator.INSTANCE,
         LimitByGenerator.INSTANCE,
@@ -128,6 +133,7 @@ public class EsqlQueryGenerator {
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
         UserAgentGenerator.INSTANCE,
+        IpLocationGenerator.INSTANCE,
         RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
@@ -445,19 +451,23 @@ public class EsqlQueryGenerator {
     }
 
     public static String agg(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+        // Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
+        boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        var unmappedFieldName = randomUnmappedFieldName();
+        String unmappedFieldName = randomUnmappedFieldName();
         // Only use unmapped field if allowed and it doesn't exist in the schema
-        var canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName));
-        String name = canUseUnmappedFieldName && randomBoolean() ? unmappedFieldName : randomNumericField(previousOutput);
+        boolean canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName));
+        boolean useUnmappedFieldName = randomBoolean() && canUseUnmappedFieldName;
+        String name = useUnmappedFieldName ? unmappedFieldName : randomNumericField(previousOutput);
         // complex with numerics
-        if (name != null && randomBoolean()) {
+        if (randomBoolean()) {
             int ops = randomIntBetween(1, 3);
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < ops; i++) {
                 if (i > 0) {
                     result.append(" + ");
                 }
+                name = randomNameOrNullOrConst(name);
                 String agg = switch (randomIntBetween(0, 11)) {
                     case 0 -> "max(" + name + ")";
                     case 1 -> "min(" + name + ")";
@@ -469,19 +479,43 @@ public class EsqlQueryGenerator {
                     case 7 -> "std_dev(" + name + ")";
                     case 8 -> "variance(" + name + ")";
                     case 9 -> "median_absolute_deviation(" + name + ")";
-                    case 10 -> "weighted_avg(" + name + ", " + randomIntBetween(1, 10) + ")";
-                    default -> "count_distinct(" + name + ")";
+                    case 10 -> "count_distinct(" + name + ")";
+                    case 11 -> {
+                        String weightField = randomNumericField(previousOutput);
+                        // WEIGHTED_AVG's weight cannot be NULL.
+                        if (weightField == null || randomBoolean()) weightField = "1.234";
+                        yield "weighted_avg(" + name + ", " + weightField + ")";
+                    }
+                    default -> throw new IllegalStateException("unexpected random expression");
                 };
                 result.append(agg);
             }
-            return result.toString();
+            String agg = result.toString();
+            // Maybe wrap the whole thing in a sparkline
+            String dateField = randomDateField(previousOutput);
+            if (randomBoolean()
+                && ops == 1  // SPARKLINE doesn't support expressions, see Sparkline::resolveType
+                && dateField != null  // SPARKLINE requires a date field
+                && isTimeSeries == false  // SPARKLINE is not supported in a TS pipeline, see TimeSeriesAggregate::verify
+                && agg.contains("null") == false  // SPARKLINE doesn't support nulls, see Sparkline::resolveType
+                && useUnmappedFieldName == false) {
+                int buckets = randomIntBetween(1, 10);
+                long fromMillis = randomLongBetween(0L, Instant.now().toEpochMilli());
+                long toMillis = randomLongBetween(fromMillis, Instant.now().toEpochMilli());
+                String from = '"' + Instant.ofEpochMilli(fromMillis).toString() + '"';
+                String to = '"' + Instant.ofEpochMilli(toMillis).toString() + '"';
+                return "sparkline(" + agg + ", " + dateField + ", " + buckets + ", " + from + ", " + to + ")";
+            } else {
+                return agg;
+            }
         }
         // all types
         name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
-        var unmappedFieldName2 = randomUnmappedFieldName();
+        String unmappedFieldName2 = randomUnmappedFieldName();
         // Only use unmapped field if allowed and it doesn't exist in the schema
         canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName2));
-        name = randomBoolean() && canUseUnmappedFieldName ? unmappedFieldName2 : name;
+        useUnmappedFieldName = randomBoolean() && canUseUnmappedFieldName;
+        name = useUnmappedFieldName ? unmappedFieldName2 : name;
         if (name == null) {
             return "count(*)";
         }
@@ -489,31 +523,55 @@ public class EsqlQueryGenerator {
             String exp = expression(previousOutput, false, previousCommands);
             name = exp == null ? name : exp;
         }
-        // For type-constrained agg functions (top, sample, first), use a type-safe field/expression
-        // instead of the arbitrary 'name' which may have an incompatible type (e.g. date_range from coalesce)
-        final String anyName = name;
+        name = randomNameOrNullOrConst(name);
         return switch (randomIntBetween(0, 9)) {
             case 0 -> "count(*)";
-            case 1 -> "count(" + anyName + ")";
-            case 2 -> "absent(" + anyName + ")";
-            case 3 -> "present(" + anyName + ")";
-            case 4 -> "values(" + anyName + ")";
-            case 5 -> "count_distinct(" + anyName + ")";
-            case 6, 7 -> {
+            case 1 -> "count(" + name + ")";
+            case 2 -> "absent(" + name + ")";
+            case 3 -> "present(" + name + ")";
+            case 4 -> "values(" + name + ")";
+            case 5 -> "count_distinct(" + name + ")";
+            case 6 -> {
                 // top() accepts: boolean, double, integer, long, date, ip, keyword, text
-                Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
-                String topField = typeSafeExpression(previousOutput, topTypes, allowUnmapped);
-                if (topField == null) topField = anyName;
-                String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
-                yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
+                Set<String> topFieldTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
+                String topField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topFieldTypes, allowUnmapped));
+                String order = '"' + randomFrom("asc", "desc") + '"';
+                int limit = randomIntBetween(1, 5);
+                yield "top(" + topField + ", " + limit + ", " + order + ")";
+            }
+            case 7 -> {
+                // top(..., outputField) accepts: double, integer, long, date, keyword, text
+                Set<String> topOutputFieldTypes = Set.of("double", "integer", "long", "date", "datetime", "keyword", "text");
+                String topField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topOutputFieldTypes, allowUnmapped));
+                String topOutputField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topOutputFieldTypes, allowUnmapped));
+                String order = '"' + randomFrom("asc", "desc") + '"';
+                int limit = randomIntBetween(1, 5);
+                yield "top(" + topField + ", " + limit + ", " + order + ", " + topOutputField + ")";
             }
             case 8 -> {
                 // sample() - use a commonly supported field to avoid type issues
-                String sampleField = randomName(previousOutput, COMMONLY_SUPPORTED_TYPES);
-                if (sampleField == null) sampleField = anyName;
-                yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
+                String sampleField = randomNameOrNullOrConst(randomName(previousOutput, COMMONLY_SUPPORTED_TYPES));
+                int sampleSize = randomIntBetween(1, 10);
+                yield "sample(" + sampleField + ", " + sampleSize + ")";
             }
-            default -> "first(" + anyName + ", " + randomDateField(previousOutput) + ")";
+            case 9 -> {
+                String command = randomFrom("first", "last");
+                String dateField = randomNameOrNullOrConst(randomDateField(previousOutput));
+                // In a TS pipeline, first/last(field, datetime) is implicitly converted to First/LastOverTime which requires numeric.
+                String firstField = isTimeSeries ? randomNameOrNullOrConst(randomNumericField(previousOutput)) : name;
+                yield command + "(" + firstField + ", " + dateField + ")";
+            }
+            default -> throw new IllegalStateException("unexpected random expression");
+        };
+    }
+
+    public static String randomNameOrNullOrConst(String name) {
+        return switch (randomIntBetween(0, 10)) {
+            case 0 -> "42";
+            case 1 -> "1 + 1";
+            case 2 -> "null";
+            case 3 -> "1 + null";
+            default -> name;
         };
     }
 
@@ -522,7 +580,7 @@ public class EsqlQueryGenerator {
     }
 
     public static String randomDateField(List<Column> previousOutput) {
-        return randomName(previousOutput, Set.of("date"));
+        return randomName(previousOutput, Set.of("date", "datetime"));
     }
 
     public static String randomNumericField(List<Column> previousOutput) {
@@ -644,7 +702,7 @@ public class EsqlQueryGenerator {
      */
     public static String functionExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 18)) {
+        return switch (randomIntBetween(0, 21)) {
             case 0, 1 -> mathFunction(previousOutput, allowUnmapped);
             case 2 -> binaryMathFunction(previousOutput, allowUnmapped);
             case 3, 4 -> stringFunction(previousOutput, allowUnmapped);
@@ -660,8 +718,46 @@ public class EsqlQueryGenerator {
             case 15 -> splitFunction(previousOutput, allowUnmapped);
             case 16 -> clampFunction(previousOutput);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
-            default -> ipPrefixFunction(previousOutput, allowUnmapped);
+            case 18 -> ipPrefixFunction(previousOutput, allowUnmapped);
+            case 19, 20 -> {
+                String t = randomCompositeTargetType(previousOutput);
+                yield t == null ? null : compositeExpression(previousOutput, allowUnmapped, t, 2);
+            }
+            default -> {
+                String t = randomCompositeTargetType(previousOutput);
+                yield t == null ? null : compositeExpression(previousOutput, allowUnmapped, t, 3);
+            }
         };
+    }
+
+    /**
+     * Picks a random ES|QL type from the available columns that the {@link GenerativeFunctionCatalog}
+     * knows how to produce via at least one function. Falling back to any column type if the
+     * registry has no functions for any available type.
+     */
+    private static String randomCompositeTargetType(List<Column> columns) {
+        if (columns.isEmpty()) {
+            return null;
+        }
+        GenerativeFunctionCatalog registry = GenerativeFunctionCatalog.getInstance();
+        List<String> producible = columns.stream()
+            .map(Column::type)
+            .filter(t -> t.startsWith("counter_") == false)
+            .filter(t -> "dense_vector".equals(t) == false)
+            .filter(t -> registry.scalarsReturning(t).isEmpty() == false)
+            .distinct()
+            .toList();
+        if (producible.isEmpty() == false) {
+            return randomFrom(producible);
+        }
+        // Fallback: pick any usable type — exclude counter and dense_vector types
+        List<String> anyTypes = columns.stream()
+            .map(Column::type)
+            .filter(t -> t.startsWith("counter_") == false)
+            .filter(t -> "dense_vector".equals(t) == false)
+            .distinct()
+            .toList();
+        return anyTypes.isEmpty() ? null : randomFrom(anyTypes);
     }
 
     public static String indexPattern(String indexName) {

@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * A dense Vector of single values.
  */
-abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements Vector {
+abstract class AbstractVector extends AbstractBlockRefCounted implements Vector {
 
     private final int positionCount;
     private BlockFactory blockFactory;
@@ -31,6 +31,7 @@ abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         blockFactory = blockFactory.parent();
     }
 

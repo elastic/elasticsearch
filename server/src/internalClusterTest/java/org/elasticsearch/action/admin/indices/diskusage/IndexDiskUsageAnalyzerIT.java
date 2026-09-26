@@ -159,7 +159,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(valueField.getPointsBytes(), greaterThan(0L));
         assertThat(valueField.getDocValuesBytes(), greaterThan(0L));
 
-        assertMetadataFields(stats);
+        assertMetadataFields(stats, indexColumnarIdMode(index));
     }
 
     public void testFailOnFlush() throws Exception {
@@ -293,7 +293,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         }
     }
 
-    void assertMetadataFields(IndexDiskUsageStats stats) {
+    void assertMetadataFields(IndexDiskUsageStats stats, boolean columnarId) {
         final IndexDiskUsageStats.PerFieldDiskUsage sourceField = stats.getFields().get("_source");
         assertThat(sourceField.getInvertedIndexBytes(), equalTo(0L));
         assertThat(sourceField.getStoredFieldBytes(), greaterThan(0L));
@@ -302,9 +302,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
         final IndexDiskUsageStats.PerFieldDiskUsage idField = stats.getFields().get("_id");
         assertThat(idField.getInvertedIndexBytes(), greaterThan(0L));
-        assertThat(idField.getStoredFieldBytes(), greaterThan(0L));
+        assertThat(idField.getStoredFieldBytes(), columnarId ? equalTo(0L) : greaterThan(0L));
         assertThat(idField.getPointsBytes(), equalTo(0L));
-        assertThat(idField.getDocValuesBytes(), equalTo(0L));
+        assertThat(idField.getDocValuesBytes(), columnarId ? greaterThan(0L) : equalTo(0L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage seqNoField = stats.getFields().get("_seq_no");
         assertThat(seqNoField.getInvertedIndexBytes(), equalTo(0L));

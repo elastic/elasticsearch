@@ -127,6 +127,24 @@ public class JsonExtractWarningTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Multi-value path: the standard MV single-value warning fires for the path argument.
+        suppliers.add(
+            new TestCaseSupplier(
+                "mv path",
+                types(DataType.KEYWORD, DataType.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(List.of(new BytesRef("name"), new BytesRef("age")), DataType.KEYWORD, "path")
+                    ),
+                    "JsonExtractEvaluator[str=Attribute[channel=0], path=Attribute[channel=1]]",
+                    DataType.KEYWORD,
+                    nullValue()
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value")
+            )
+        );
+
         // Null _source warning — only fires when str is SOURCE-typed and the input bytes are null.
         // Routes through JsonExtractSourceEvaluator instead of JsonExtractEvaluator.
         List<TestCaseSupplier> nullSourceSuppliers = new ArrayList<>();

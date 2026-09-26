@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
+
+    private static final String COLLECTOR_MEMORY_LABEL = "phrase-suggest-collector";
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
 
@@ -68,12 +70,19 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator> generators = suggestion.generators();
         final int numGenerators = generators.size();
+        SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
+
         final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
+        long maxGeneratorQueueBytes = 0L;
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
             DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
             Terms terms = MultiTerms.getTerms(indexReader, generator.field());
             if (terms != null) {
+                maxGeneratorQueueBytes = Math.max(
+                    maxGeneratorQueueBytes,
+                    directSpellCheckerQueueRamBytesUsed(generator.size(), generator.maxInspections())
+                );
                 gens.add(
                     new DirectCandidateGenerator(
                         directSpellChecker,
@@ -100,6 +109,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             final BytesRef separator = suggestion.separator();
             WordScorer wordScorer = suggestion.model()
                 .newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+            // CandidateScorer eagerly allocates a Lucene PriorityQueue sized to shard_size. DirectSpellChecker uses a
+            // growable candidate queue bounded by generator size * max_inspections. These queues are built sequentially,
+            // so reserve the largest backing-array estimate as a coarse guard against oversized configuration values.
+            final long collectorBytes = Math.max(priorityQueueRamBytesUsed(suggestion.getShardSize()), maxGeneratorQueueBytes);
+            var circuitBreaker = suggestion.getSearchExecutionContext().getCircuitBreaker();
+            if (circuitBreaker != null) {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            }
             Result checkerResult;
             try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
                 checkerResult = checker.getCorrections(
@@ -111,6 +128,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     suggestion.confidence(),
                     suggestion.gramSize()
                 );
+            } finally {
+                // These queues are local to getCorrections: CandidateScorer drains its queue into the result and
+                // DirectSpellChecker does not retain its candidate queues.
+                if (circuitBreaker != null) {
+                    circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
+                }
             }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
@@ -128,7 +151,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (
                         XContentParser parser = XContentFactory.xContent(querySource)
@@ -162,6 +184,13 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));
         }
         return response;
+    }
+
+    private static long directSpellCheckerQueueRamBytesUsed(int size, int maxInspections) {
+        // Lucene multiplies these values using int arithmetic. Compute in long and saturate so an overflowing
+        // configuration still receives the largest possible preflight estimate.
+        long maxCandidates = Math.max(size, (long) size * maxInspections);
+        return priorityQueueRamBytesUsed((int) Math.min(maxCandidates, Integer.MAX_VALUE));
     }
 
     private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {

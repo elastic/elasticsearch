@@ -193,25 +193,25 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var blockFactory = blockFactory();
     $if(boolean)$
-        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        final BitArray filtered = new BitArray(length, blockFactory.bigArrays());
     $else$
-        final $Array$ filtered = blockFactory.bigArrays().new$Array$(positions.length);
+        final $Array$ filtered = blockFactory.bigArrays().new$Array$(length);
     $endif$
     $if(boolean)$
-        for (int i = 0; i < positions.length; i++) {
-            if (values.get(positions[i])) {
+        for (int i = 0; i < length; i++) {
+            if (values.get(positions[offset + i])) {
                 filtered.set(i);
             }
         }
     $else$
-        for (int i = 0; i < positions.length; i++) {
-            filtered.set(i, values.get(positions[i]));
+        for (int i = 0; i < length; i++) {
+            filtered.set(i, values.get(positions[offset + i]));
         }
     $endif$
-        return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+        return new $Type$BigArrayVector(filtered, length, blockFactory);
     }
 
     @Override

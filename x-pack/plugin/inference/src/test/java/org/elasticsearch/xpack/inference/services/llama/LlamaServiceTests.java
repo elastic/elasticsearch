@@ -21,12 +21,14 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -62,6 +64,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -108,7 +111,9 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -146,7 +151,9 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -234,7 +241,9 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -313,22 +322,19 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_noInputs() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -424,6 +430,11 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
                        "service": "llama",
                        "name": "Llama",
                        "task_types": ["text_embedding", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -464,7 +475,7 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -500,7 +511,14 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
-        var settings = new LlamaEmbeddingsServiceSettings(randomAlphaOfLength(8), randomAlphaOfLength(8), null, similarity, null, null);
+        var settings = new LlamaEmbeddingsServiceSettings(
+            randomAlphaOfLength(8),
+            createUri(randomAlphaOfLength(8)),
+            null,
+            similarity,
+            null,
+            null
+        );
         return new LlamaEmbeddingsModel(
             randomAlphaOfLength(8),
             TaskType.TEXT_EMBEDDING,

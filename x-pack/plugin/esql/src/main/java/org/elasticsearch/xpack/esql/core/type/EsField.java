@@ -106,6 +106,7 @@ public class EsField implements Writeable {
         Map.entry("KeywordEsField", KeywordEsField::new),
         Map.entry("MissingEsField", MissingEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),
         Map.entry("TextEsField", TextEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
@@ -223,6 +224,14 @@ public class EsField implements Writeable {
         return esDataType;
     }
 
+    public EsField withDataType(DataType esDataType) {
+        return esDataType == this.esDataType ? this : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    public EsField withWidenedSmallNumeric() {
+        return withDataType(getDataType().widenSmallNumeric());
+    }
+
     /**
      * This field can be aggregated
      */
@@ -237,6 +246,14 @@ public class EsField implements Writeable {
     @Nullable
     public Map<String, EsField> getProperties() {
         return properties;
+    }
+
+    /**
+     * Returns a copy with a different sub-field map, preserving the concrete field type. Subtypes with extra state must
+     * override this so that state (e.g. a keyword's {@code normalized} flag, which decides exact-match eligibility) is not lost.
+     */
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType);
     }
 
     /**

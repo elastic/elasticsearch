@@ -199,7 +199,12 @@ $endif$
     }
 
     @Override
-    $Type$Block filter(boolean mayContainDuplicates, int... positions);
+    $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

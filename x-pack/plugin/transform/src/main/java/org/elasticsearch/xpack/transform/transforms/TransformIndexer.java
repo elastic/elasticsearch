@@ -169,8 +169,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
         ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
+        // Only enable cross-project resolution when the transform holds a minted cloud credential.
+        // Without one, the stored identity carries no cloud token, so cross-project resolution would
+        // fail closed; keeping the request local-only makes the auth layer skip it.
         this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getCredentialId() != null
                 ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS
                 : SearchRequest.DEFAULT_INDICES_OPTIONS;
         // give runState a default
@@ -188,6 +192,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     abstract void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener);
 
     abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
+
+    /**
+     * Hook invoked from the continuous-config-reload path on {@link #onStart} whenever a new
+     * {@link TransformConfig} is loaded from the index. Subclasses use this to detect changes
+     * to the cross-project cloud credential (via {@link TransformConfig#getCredentialId()}) and
+     * swap the in-memory token + revoke the prior one.
+     */
+    protected abstract void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener);
 
     abstract void doDeleteByQuery(
         DeleteByQueryRequest deleteByQueryRequest,
@@ -337,7 +349,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
-                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && strictIndicesOptions.resolveCrossProjectIndexExpression()) {
                         request.setProjectRouting(transformConfig.getSource().getProjectRouting());
                     }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
@@ -411,9 +423,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
+                        TransformConfig priorConfig = transformConfig;
                         transformConfig = config;
                         logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                        reLoadFieldMappingsListener.onResponse(null);
+                        // Give subclasses a chance to reconcile the cloud token (load new + revoke old)
+                        // when the credentialId on the config has changed.
+                        doMaybeRefreshCloudToken(priorConfig, config, reLoadFieldMappingsListener.map(ignored -> null));
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
@@ -571,7 +586,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found [{}] version conflicts when deleting documents as part of the retention policy.",
-                        bulkByPaginatedSearchResponse.getDeleted()
+                        bulkByPaginatedSearchResponse.getVersionConflicts()
                     )
                 );
                 return;
@@ -613,6 +628,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             nextCheckpoint = null;
             // Reset our failure count as we have finished and may start again with a new checkpoint
             context.resetReasonAndFailureCounter();
+
+            // Once we have processed a document we are past the initial catch-up phase, so any _start-time initial_delay
+            // override should no longer apply on subsequent checkpoints.
+            if (getStats().getNumDocuments() > 0) {
+                context.setHasProcessedData();
+            }
 
             // With bucket_selector we could have read all the buckets and completed the transform
             // but not "see" all the buckets since they were filtered out. Consequently, progress would
@@ -1160,12 +1181,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && getConfig().getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(getConfig().getSource().getProjectRouting());
         }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1191,7 +1213,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && config.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(config.getSource().getProjectRouting());
         }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
@@ -1231,7 +1253,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
     }
 
     /**

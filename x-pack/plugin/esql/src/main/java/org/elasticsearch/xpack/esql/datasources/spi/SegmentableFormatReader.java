@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
 /**
  * Extension of {@link FormatReader} for line-oriented text formats (CSV, NDJSON)
  * that support intra-file parallel parsing.
@@ -27,7 +23,7 @@ public interface SegmentableFormatReader extends FormatReader {
     /**
      * Default cap on the bytes a single record may occupy; the streaming splitter fails the query rather
      * than buffering past this when a scanner cannot find a boundary. Overridable via the
-     * {@code max_record_size} pragma.
+     * {@code external_max_record_size} pragma.
      */
     int DEFAULT_MAX_RECORD_BYTES = 64 * 1024 * 1024;
 
@@ -35,52 +31,25 @@ public interface SegmentableFormatReader extends FormatReader {
      * Returns the record-boundary splitter for this reader.
      */
     default RecordSplitter recordSplitter() {
-        return new DelegatingRecordSplitter(this);
+        return recordSplitter(DEFAULT_MAX_RECORD_BYTES);
     }
 
     /**
      * Returns the record-boundary splitter with a caller-supplied record-size cap.
-     * Implementations that support the cap report {@link RecordSplitter#RECORD_TOO_LARGE}
-     * when a record exceeds {@code maxRecordBytes}; implementations that cannot enforce a
-     * dynamic cap may keep the default splitter.
+     * Implementations report {@link RecordSplitter#RECORD_TOO_LARGE} when a record exceeds
+     * {@code maxRecordBytes}.
      */
-    default RecordSplitter recordSplitter(int maxRecordBytes) {
-        return recordSplitter();
-    }
-
-    // TODO(phase-1.2): once recordSplitter() is the canonical entry point, remove these legacy
-    // find* methods and route callers through recordSplitter().
-
-    /**
-     * Scans forward from the current position in the stream to find the start of
-     * the next complete record. Returns the number of bytes consumed (skipped)
-     * to reach that boundary.
-     * <p>
-     * For newline-delimited formats (CSV, NDJSON), this means scanning until
-     * the first {@code \n} or {@code \r\n} and returning the byte count
-     * including the line terminator. The next byte in the stream is the start
-     * of a complete record.
-     * <p>
-     * <b>Note on quoting:</b> Implementations for formats that support quoting
-     * (e.g. CSV with quoted fields containing embedded newlines) should either
-     * track quoting state during the scan or document that parallel parsing is
-     * not safe for files with embedded newlines in quoted fields.
-     * <p>
-     * The stream is positioned at an arbitrary byte offset within the file
-     * (typically a segment boundary). The implementation must consume bytes
-     * until it finds a record boundary, leaving the stream positioned at the
-     * start of the next record.
-     *
-     * @param stream an open stream positioned at an arbitrary offset within the file
-     * @return the number of bytes consumed to reach the next record boundary,
-     *         or {@code -1} if the end of stream is reached without finding a boundary
-     * @throws IOException if an I/O error occurs while scanning
-     */
-    long findNextRecordBoundary(InputStream stream) throws IOException;
+    RecordSplitter recordSplitter(int maxRecordBytes);
 
     /**
      * Returns the minimum segment size in bytes below which splitting is not worthwhile.
-     * Segments smaller than this will be merged with an adjacent segment.
+     * <p>
+     * It is a guarantee about the tail and advice about everything before it. Splitting stops once fewer than
+     * this many bytes are left, so the final segment is never short. Between two segments it only sets the
+     * spacing of the offsets that get probed: a boundary resolves somewhere inside its probe window, so a
+     * segment can come out shorter than this by up to the width of that window, and no pass merges it into its
+     * neighbour. Implementations must therefore read a segment of any size, and should read this as the size
+     * they are asking to be aimed at rather than the size they are promised.
      * <p>
      * Defaults to 1 MiB. ClickHouse benchmarks show 1 MiB chunks are optimal for
      * parallel parsing — 100 KB chunks are ~40% slower due to per-chunk overhead,
@@ -91,38 +60,4 @@ public interface SegmentableFormatReader extends FormatReader {
         return 1024 * 1024;
     }
 
-    /**
-     * Returns the offset of the byte that terminates the latest complete record within
-     * {@code buf[0..length)}, or {@code -1} if no complete record terminates inside the buffer.
-     * Used by streaming-parallel chunkers to slice on a record boundary; bytes after the offset
-     * are carried into the next chunk.
-     * <p>
-     * <b>Open-tail contract:</b> when the tail is mid-record (e.g. an unterminated quoted cell),
-     * implementations MUST return the offset of the last complete record that <em>precedes</em>
-     * the open region (or {@code -1} if none). Returning an offset inside the open region would
-     * dispatch a malformed chunk.
-     * <p>
-     * Default: drives {@link #findNextRecordBoundary} forward through the buffer, so embedded
-     * newlines inside quoted fields are handled correctly by any implementation that tracks
-     * quote state in its boundary scanner. A sub-stream is created per record because
-     * {@code findNextRecordBoundary} implementations may read beyond the returned boundary
-     * (e.g. via internal bulk-read buffers); each sub-stream is a lightweight view into the
-     * same backing array with no data copying.
-     */
-    default int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        int cumulative = 0;
-        while (cumulative < length) {
-            long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
-            if (consumed < 0) {
-                return lastBoundary;
-            }
-            cumulative += Math.toIntExact(consumed);
-            lastBoundary = cumulative - 1;
-        }
-        return lastBoundary;
-    }
 }

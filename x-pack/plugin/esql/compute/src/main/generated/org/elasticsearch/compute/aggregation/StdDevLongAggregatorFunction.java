@@ -11,12 +11,15 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -110,6 +113,30 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector) {
+    if (valueVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       long valueValue = valueVector.getLong(valuesPosition);
       StdDevLongAggregator.combine(state, valueValue);
@@ -117,6 +144,39 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector, BooleanVector mask) {
+    if (valueVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        StdDevLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

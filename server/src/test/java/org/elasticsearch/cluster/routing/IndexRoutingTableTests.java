@@ -172,6 +172,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             isPrimary,
             state,
             TestShardRouting.buildRecoverySource(isPrimary, state),
+            TestShardRouting.buildRecoveryPriority(state, hasRelocatingNodeId),
             TestShardRouting.buildUnassignedInfo(state, hasRelocatingNodeId),
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),

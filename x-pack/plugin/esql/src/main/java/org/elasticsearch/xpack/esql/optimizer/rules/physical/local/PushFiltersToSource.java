@@ -19,11 +19,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -252,9 +250,25 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
+        FormatReader formatReader = resolveFormatReader(externalExec.sourceType(), ctx);
+        FilterPushdownSupport pushdownSupport = formatReader != null ? formatReader.filterPushdownSupport() : null;
         if (pushdownSupport == null) {
+            return filterExec;
+        }
+
+        // Withhold pushdown when the reader cannot honour skip_row on its filtered decode path. Parquet turns on
+        // late materialization the moment a predicate reaches it, and that path emits pages without the row-drop
+        // compaction, so a coercion failure would silently null the cell and keep the row -- null_field semantics
+        // for a skip_row read. Leaving the predicate in the FilterExec above the source costs the row-group and
+        // page-index skipping but keeps results correct on both counts: the filter still runs, and every batch
+        // goes through the decode path that drops rows.
+        //
+        // This must happen here, at the mint, rather than at the operator factory. The pushed filter is the only
+        // signal the reader keys late materialization off, and by the time the factory sees the plan the FilterExec
+        // for a Pushability.YES conjunct has already been dropped -- so the factory can neither suppress the filter
+        // (rows would leak unfiltered) nor undo the late-mat decision it implies.
+        if (formatReader.dropsRowsUnderPushedFilter() == false
+            && externalExec.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReader))) {
             return filterExec;
         }
 
@@ -263,11 +277,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Conjuncts that reference partition columns are evaluated against the constant blocks
         // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
-        // Pushing them into the format reader would translate them against file column data,
-        // but partition columns are not present in the file payload -- the reader would then
-        // either drop all rows (parquet) or behave format-specifically. Keep these conjuncts in
-        // the FilterExec so the post-injection evaluator handles them.
-        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
         List<Expression> partitionConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
         if (partitionColumnNames.isEmpty()) {
@@ -282,25 +300,40 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
 
-        var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var effectiveStats = externalExec.effectiveSplitStats();
         pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
+
+        // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = externalExec.declaredReadSpec().renames();
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
 
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
             ? FilterPushdownSupport.PushdownResult.none(List.of())
-            : pushdownSupport.pushFilters(pushableCandidates);
+            : pushdownSupport.pushFilters(mintInput);
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
                 result.pushedFilter(),
-                result.pushedExpressions()
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // Combine partition conjuncts (always kept) with the SPI's remainder, if any.
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                remainder.addAll(result.remainder());
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
             }
             if (remainder.isEmpty()) {
                 return newExternalExec;
@@ -312,36 +345,22 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return filterExec;
     }
 
-    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
-        FileList fileList = externalExec.fileList();
-        if (fileList == null) {
-            return Set.of();
-        }
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
-            return Set.of();
-        }
-        return partitionMetadata.partitionColumns().keySet();
-    }
-
     static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
-    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        return FormatNameResolver.resolve(config, sourcePath);
-    }
-
     /**
-     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
+     * Resolves the configured reader for the given format, or {@code null} when the rule has no way to look one up
+     * (no external context, no registry, format unregistered). Callers read both
+     * {@link FormatReader#filterPushdownSupport()} and {@link FormatReader#dropsRowsUnderPushedFilter()} off it, so
+     * it returns the reader rather than the support object alone.
+     * Keys on {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#sourceType()}, the same
+     * origin as {@code InsertExternalFieldExtraction} / {@code PushStatsToExternalSource} — not a last-dot of
+     * {@code sourcePath()}, which would mis-read a compressed text file as {@code gz}.
      */
-    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
-        if (formatReaderRegistry == null) {
-            return null;
-        }
-        FormatReader formatReader = formatReaderRegistry.findByName(formatName);
-        return formatReader != null ? formatReader.filterPushdownSupport() : null;
+    static FormatReader resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        return formatReaderRegistry != null ? formatReaderRegistry.findByName(formatName) : null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {
@@ -407,9 +426,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         AttributeMap<Attribute> aliasReplacedBy
     ) {
+        List<Expression> conjuncts = splitAnd(condition);
+
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(condition)) {
+        for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));

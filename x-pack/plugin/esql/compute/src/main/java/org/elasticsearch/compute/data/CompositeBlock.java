@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounted implements Block {
     private final Block[] blocks;
     private final int positionCount;
 
@@ -127,6 +127,7 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }
@@ -177,12 +178,12 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+    public CompositeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions);
+                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions, offset, length);
             }
             result = new CompositeBlock(filteredBlocks);
             return result;
@@ -191,6 +192,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
                 Releasables.close(filteredBlocks);
             }
         }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override

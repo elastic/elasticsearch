@@ -204,7 +204,7 @@ public class DefLambdaCancellationTests extends ScriptTestCase {
     /**
      * Method reference to a user-defined Painless function passed to a def-typed forEach.
      * The user function is itself an instance method on the script class with
-     * {@code IRCCancellationCheck} attached, so the cancellation poll fires on every
+     * {@code IRCInstanceCancellationCheck} attached, so the cancellation poll fires on every
      * invocation — not because of any lambda machinery but via the regular function-entry
      * decrement.
      */

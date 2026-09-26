@@ -1,0 +1,3 @@
+FROM employees, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
+| WHERE emp_no > 10000
+| SORT emp_no, language_code

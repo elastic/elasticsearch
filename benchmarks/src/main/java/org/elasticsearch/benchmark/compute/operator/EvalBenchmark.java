@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -86,10 +88,11 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -401,6 +404,28 @@ public class EvalBenchmark {
                 checkMvMinExpected(this, actual);
             }
         },
+        MV_MIN_WITH_NULLS("mv_min_with_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvMinEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvMinWithNullsExpected(this, actual);
+            }
+        },
+        ABS_BLOCK_SOME_NULLS("abs_block_some_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return absEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAbsBlockSomeNullsExpected(this, actual);
+            }
+        },
         ROUND_TO_4_VIA_CASE("round_to_4_via_case") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -456,6 +481,50 @@ public class EvalBenchmark {
                 checkRlikeExpected(this, actual);
             }
         },
+        MV_LIKE_PREFIX_SINGLE("mv_like_prefix_single") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_PREFIX_MULTI("mv_like_prefix_multi") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_GENERAL_SINGLE("mv_like_general_single") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f?o*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_GENERAL_MULTI("mv_like_general_multi") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f?o*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
         TO_LOWER("to_lower") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -500,10 +569,10 @@ public class EvalBenchmark {
                 checkToUpperExpected(this, actual, true);
             }
         },
-        TSTEP_10("tstep(10)") {
+        TSTEP_5_EQUAL("tstep(5)") {
             @Override
             ExpressionEvaluator evaluator() {
-                return tStepEvaluator(10);
+                return tStepEvaluator(5);
             }
 
             @Override
@@ -511,10 +580,10 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_10("tbucket(10)") {
+        TBUCKET_5_EQUAL("tbucket(5)") {
             @Override
             ExpressionEvaluator evaluator() {
-                return tBucketEvaluator(10);
+                return tBucketEvaluator(5);
             }
 
             @Override
@@ -522,7 +591,18 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TSTEP_99("tstep(99)") {
+        TSTEP_7_EQUAL("tstep(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(7);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_99_EQUAL("tstep(99)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(99);
@@ -533,10 +613,109 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_99("tbucket(99)") {
+        TBUCKET_99_EQUAL("tbucket(99)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(99);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_64_EQUAL("tstep(64)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(64);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_64_EQUAL("tbucket(64)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(64);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_1024_EQUAL("tstep(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(1024);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_1024_EQUAL("tbucket(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(1024);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_7_EQUAL("tbucket(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(7);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_5_NONEQUAL("tbucket_nonequal(5)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(5);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_7_NONEQUAL("tbucket_nonequal(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(7);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_99_NONEQUAL("tbucket_nonequal(99)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(99);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_1024_NONEQUAL("tbucket_nonequal(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(1024);
             }
 
             @Override
@@ -564,7 +743,7 @@ public class EvalBenchmark {
     // BlockFactory.<clinit> fires before the LogConfigurator SPI is set up and NPEs.
     // Matches the AggregatorBenchmark pattern.
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
         // admission threshold=2 (production default), each invocation would start a fresh
         // admission cycle and route through the Standard (non-JIT-folded) path — defeating
@@ -803,6 +982,23 @@ public class EvalBenchmark {
         return EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
     }
 
+    private static ExpressionEvaluator mvLikeEvaluator(String pattern) {
+        FieldAttribute keywordField = keywordField();
+        MvLike mvLike = new MvLike(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD));
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, mvLike, layout(keywordField)).get(driverContext);
+    }
+
+    private static void checkMvLikeExpected(Operation operation, Page actual) {
+        // Both the single- and multi-valued blocks are built so that the pattern matches at even positions.
+        BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            boolean expected = i % 2 == 0;
+            if (v.getBoolean(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+            }
+        }
+    }
+
     private static ExpressionEvaluator rlikeLongPatternEvaluator() {
         FieldAttribute keywordField = keywordField();
         // More complex pattern — exercises a larger DFA than the existing "rlike" case.
@@ -946,6 +1142,27 @@ public class EvalBenchmark {
         return EvalMapper.toEvaluator(FOLD_CONTEXT, rewriteWithRule(surrogate, ts), layout(ts)).get(driverContext);
     }
 
+    private static ExpressionEvaluator nonUniformBucketEvaluator(int bucketCount) {
+        FieldAttribute ts = timestampField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, nonUniformRoundTo(ts, bucketCount), layout(ts)).get(driverContext);
+    }
+
+    /**
+     * Creates a RoundTo with quadratically-spaced points — guaranteed non-uniform so neither branch
+     * uses the fixed-interval fast path.
+     */
+    private static RoundTo nonUniformRoundTo(FieldAttribute ts, int bucketCount) {
+        long range = TBUCKET_RANGE_END_MILLIS - TBUCKET_RANGE_START_MILLIS;
+        List<Expression> literals = new ArrayList<>(bucketCount + 1);
+        for (int i = 0; i <= bucketCount; i++) {
+            // Quadratic distribution: denser near start, sparser near end
+            double fraction = (double) i * i / ((double) bucketCount * bucketCount);
+            long t = TBUCKET_RANGE_START_MILLIS + (long) (fraction * range);
+            literals.add(new Literal(Source.EMPTY, t, DataType.DATETIME));
+        }
+        return new RoundTo(Source.EMPTY, ts, literals);
+    }
+
     private static Expression rewriteWithRule(Expression expression, FieldAttribute ts) {
         LogicalPlan child = new LocalRelation(Source.EMPTY, List.of(ts.toAttribute()), EmptyLocalSupplier.EMPTY);
         Eval eval = new Eval(Source.EMPTY, child, List.of(new Alias(Source.EMPTY, "group_key", expression)));
@@ -1020,7 +1237,6 @@ public class EvalBenchmark {
 
     private static Configuration configuration() {
         return new Configuration(
-            ZoneOffset.UTC,
             Instant.now(),
             Locale.ROOT,
             null,
@@ -1035,8 +1251,7 @@ public class EvalBenchmark {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null,
-            null,
+            ResolvedSettings.EMPTY,
             Map.of()
         );
     }
@@ -1215,6 +1430,45 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkMvMinWithNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != i) {
+                    throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
+    private static void checkAbsBlockSomeNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long expected = i * 100_000L;
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != expected) {
+                    throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
     private static void checkReplaceConstExpected(Operation operation, Page actual) {
         BytesRef expected0 = new BytesRef("X");
         BytesRef expected1 = new BytesRef("bar");
@@ -1366,7 +1620,9 @@ public class EvalBenchmark {
 
     private static Page page(Operation operation) {
         return switch (operation) {
-            case TSTEP_10, TBUCKET_10, TSTEP_99, TBUCKET_99 -> bucketPage();
+            case TSTEP_5_EQUAL, TSTEP_7_EQUAL, TBUCKET_5_EQUAL, TSTEP_99_EQUAL, TBUCKET_99_EQUAL, TSTEP_64_EQUAL, TBUCKET_64_EQUAL,
+                TSTEP_1024_EQUAL, TBUCKET_1024_EQUAL, TBUCKET_7_EQUAL, TBUCKET_5_NONEQUAL, TBUCKET_7_NONEQUAL, TBUCKET_99_NONEQUAL,
+                TBUCKET_1024_NONEQUAL -> bucketPage();
             case ABS, ADD, DATE_TRUNC, EQUAL_TO_CONST, MOD_LONG_CONST_60, DIV_LONG_CONST_60, ROUND_TO_4_VIA_CASE, ROUND_TO_2, ROUND_TO_3,
                 ROUND_TO_4 -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
@@ -1476,6 +1732,32 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
+            case MV_MIN_WITH_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendLong(i);
+                        builder.appendLong(i + 1);
+                        builder.appendLong(i + 2);
+                        builder.endPositionEntry();
+                    }
+                }
+                yield new Page(builder.build());
+            }
+            case ABS_BLOCK_SOME_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong(i * 100_000L);
+                    }
+                }
+                yield new Page(builder.build());
+            }
             case STARTS_WITH_VAR -> {
                 var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 var prefix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
@@ -1506,6 +1788,28 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build().asBlock());
             }
+            case MV_LIKE_PREFIX_SINGLE, MV_LIKE_GENERAL_SINGLE -> {
+                // Single-valued, vector-backed keyword block: the pattern ("f*" / "f?o*") matches "foo" at even positions.
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(values[i % 2]);
+                }
+                yield new Page(builder.build().asBlock());
+            }
+            case MV_LIKE_PREFIX_MULTI, MV_LIKE_GENERAL_MULTI -> {
+                // Multi-valued keyword block: two values per position, the matching value present only at even positions.
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                BytesRef[] first = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                BytesRef second = new BytesRef("zzz");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.beginPositionEntry();
+                    builder.appendBytesRef(first[i % 2]);
+                    builder.appendBytesRef(second);
+                    builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
+            }
             case TO_LOWER_ORDS, TO_UPPER_ORDS -> {
                 var bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 bytes.appendBytesRef(new BytesRef("foo"));
@@ -1523,10 +1827,11 @@ public class EvalBenchmark {
         long span = TBUCKET_RANGE_END_MILLIS - TBUCKET_RANGE_START_MILLIS;
         var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
         for (int i = 0; i < BLOCK_LENGTH; i++) {
+            // These evaluators are built from bounded range metadata, so benchmark rows should model that same range filter.
             long value = switch (i & 3) {
                 case 0 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 31) % span);
-                case 1 -> TBUCKET_RANGE_START_MILLIS - (((long) i * 17) % span);
-                case 2 -> TBUCKET_RANGE_END_MILLIS + (((long) i * 23) % span);
+                case 1 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 17) % span);
+                case 2 -> TBUCKET_RANGE_END_MILLIS - (((long) i * 23) % span);
                 case 3 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 61) % span);
                 default -> throw new IllegalStateException("unreachable");
             };
@@ -1557,11 +1862,11 @@ public class EvalBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
-        run(operation);
+    public void run(Blackhole bh) {
+        bh.consume(run(operation));
     }
 
-    private static void run(Operation operation) {
+    private static Object run(Operation operation) {
         try (var operator = operator(operation)) {
             Page page = page(operation);
             Page output = null;
@@ -1571,6 +1876,8 @@ public class EvalBenchmark {
             }
             // We only check the last one
             checkExpected(operation, output);
+
+            return output;
         }
     }
 }

@@ -575,6 +575,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertSnapshotPartial(repoName, snapshotName);
             assertMetadata(policyName, 0, 1, 1);
         }, 1, TimeUnit.MINUTES);
+        ensureStableCluster(2);
     }
 
     private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess) {

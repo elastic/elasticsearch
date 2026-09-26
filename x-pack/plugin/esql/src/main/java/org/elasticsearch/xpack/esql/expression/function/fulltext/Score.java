@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -50,7 +45,13 @@ public class Score extends Function implements EvaluatorMapper {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        briefSummary = "Returns relevance scores for full text function expressions.",
         description = "Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "score-function", tag = "score-function") }
     )
     public Score(
@@ -86,8 +87,7 @@ public class Score extends Function implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
-        return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
+        return ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts(), toEvaluator);
     }
 
     @Override
@@ -114,33 +114,6 @@ public class Score extends Function implements EvaluatorMapper {
             throw new IllegalStateException("query isn't really optional");
         }
         return new Score(source, query);
-    }
-
-    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory) implements ExpressionEvaluator.Factory {
-
-        @Override
-        public ExpressionEvaluator get(DriverContext context) {
-            return new ScorerEvaluator(scoreFactory.get(context));
-        }
-    }
-
-    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements ExpressionEvaluator {
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScorerEvaluator.class);
-
-        @Override
-        public Block eval(Page page) {
-            return scorer.score(page);
-        }
-
-        @Override
-        public long baseRamBytesUsed() {
-            return BASE_RAM_BYTES_USED;
-        }
-
-        @Override
-        public void close() {
-            scorer.close();
-        }
     }
 
     @Override

@@ -26,6 +26,9 @@
         "policy_id": {
           "type": "keyword"
         },
+        "policy_base_id": {
+          "type": "keyword"
+        },
         "revision_idx": {
           "type": "integer"
         },

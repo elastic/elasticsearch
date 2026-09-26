@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,15 +24,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
@@ -43,23 +41,24 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
         SurrogateExpression,
-        AggregateMetricDoubleNativeSupport {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "AvgOverTime",
-        AvgOverTime::new
-    );
+        TimestampAware,
+        AggregateMetricDoubleNativeSupport,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
-        .binary(AvgOverTime::new)
+        .ternary(AvgOverTime::new)
         .name("avg_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeriesOverTime(AvgOverTime::new)
+        .withinSeries(AvgOverTime::new)
         .description("Returns the average value of all points in the specified time range.")
         .example("avg_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("avg_over_time");
+
+    private final Expression timestamp;
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the average over time of a numeric field.",
         description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
@@ -79,27 +78,25 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
             type = { "time_duration" },
             description = "the time window over which to compute the average",
             optional = true
-        ) Expression window
+        ) Expression window,
+        Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public AvgOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
-    }
-
-    private AvgOverTime(StreamInput in) throws IOException {
-        super(in);
+    public AvgOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
+        this.timestamp = timestamp;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("AvgOverTime is not directly serializable");
     }
 
     @Override
@@ -109,23 +106,18 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @Override
     protected NodeInfo<AvgOverTime> info() {
-        return NodeInfo.create(this, AvgOverTime::new, field(), filter(), window());
+        return NodeInfo.create(this, AvgOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
     public AvgOverTime replaceChildren(List<Expression> newChildren) {
-        return new AvgOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public AvgOverTime withFilter(Expression filter) {
-        return new AvgOverTime(source(), field(), filter, window());
+        return new AvgOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return new Div(
                 source(),
                 ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
@@ -138,5 +130,10 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
         return new Avg(source(), field(), filter(), window(), SummationMode.LOSSY_LITERAL);
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

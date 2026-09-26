@@ -18,10 +18,10 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit;
 public class TSDBDocValuesBulkWriteBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String FIELD_NAME = "metric";
@@ -97,7 +97,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.get(false, false, false);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -157,7 +157,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
     }
 
     private static Codec wrapCodec(final DocValuesFormat dvFormat) {
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dvFormat;
@@ -166,10 +166,14 @@ public class TSDBDocValuesBulkWriteBenchmark {
     }
 
     private static Codec wrapUncachedES95Codec() {
-        return new Elasticsearch93Lucene104Codec() {
+        // NOTE: allocates a fresh format on every Lucene `getDocValuesFormatForField`
+        // call, mirroring what would happen without the per-supplier cache in
+        // `PerFieldFormatSupplier`. The other ES95 variant in this benchmark reuses
+        // one format instance across all calls (the production behavior).
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return ES95TSDBDocValuesFormatFactory.create(false, false, false);
+                return ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             }
         };
     }

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149022
-summary: Bulk-grow TopN UTF-8 string encoding
-type: enhancement

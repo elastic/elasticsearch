@@ -81,6 +81,5 @@
   "examples" : [
     "requests_total >= 256"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastExponentialHistogramByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastTDigestByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastExponentialHistogramByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -44,20 +45,23 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
+public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "LastOverTime",
-        LastOverTime::new
+        LastOverTime::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
         .ternary(LastOverTime::new)
+        .capabilities("flattened")
         .name("last_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(LastOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the most recent value of each time series in the specified time range.")
         .example("last_over_time(http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.FIRST_LAST_NOTE)
         .name("last_over_time");
 
     private final Expression timestamp;
@@ -65,7 +69,19 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest", "date", "date_nanos", "ip", "keyword" },
+        returnType = {
+            "long",
+            "integer",
+            "double",
+            "_tsid",
+            "exponential_histogram",
+            "tdigest",
+            "date",
+            "date_nanos",
+            "flattened",
+            "ip",
+            "keyword" },
+        briefSummary = "Calculates the latest value of a field over a time window.",
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -88,6 +104,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
                 "tdigest",
                 "date",
                 "date_nanos",
+                "flattened",
                 "ip",
                 "keyword",
                 "text", },
@@ -101,22 +118,21 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public LastOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public LastOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    public LastOverTime(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static LastOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new LastOverTime(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -126,17 +142,12 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     protected NodeInfo<LastOverTime> info() {
-        return NodeInfo.create(this, LastOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, LastOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
     public LastOverTime replaceChildren(List<Expression> newChildren) {
         return new LastOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
-    }
-
-    @Override
-    public LastOverTime withFilter(Expression filter) {
-        return new LastOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -154,6 +165,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
                 || dt == DataType.TDIGEST
                 || dt == DataType.DATETIME
                 || dt == DataType.DATE_NANOS
+                || dt == DataType.FLATTENED
                 || dt == DataType.KEYWORD
                 || dt == DataType.TEXT
                 || dt == DataType.IP,
@@ -175,9 +187,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             case INTEGER, COUNTER_INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
-            case TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
-            case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
-            case TDIGEST -> new LastTDigestByTimestampAggregatorFunctionSupplier();
+            case FLATTENED, TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByLongAggregatorFunctionSupplier();
+            case TDIGEST -> new AllLastTDigestByLongAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

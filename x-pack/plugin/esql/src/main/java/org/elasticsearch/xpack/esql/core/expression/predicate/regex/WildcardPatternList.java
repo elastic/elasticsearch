@@ -11,6 +11,8 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,6 +81,32 @@ public class WildcardPatternList extends AbstractStringPattern implements Writea
             return patternList.getFirst().pattern();
         }
         return "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
+    }
+
+    /**
+     * Renders each pattern via its own {@code nodeString} so every element is sanitized: a single
+     * pattern renders bare ({@code "a*"}), multiple render as a parenthesized list
+     * ({@code ("a*", "b*")}). Under {@link NodeStringMapper#IDENTITY} the single / empty cases match
+     * the legacy rendering; the multi-pattern case drops the redundant outer quotes.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        if (patternList.isEmpty()) {
+            sb.append("\"\"");
+            return;
+        }
+        if (patternList.size() == 1) {
+            patternList.getFirst().nodeString(sb, format, mapper);
+            return;
+        }
+        sb.append('(');
+        for (int i = 0; i < patternList.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            patternList.get(i).nodeString(sb, format, mapper);
+        }
+        sb.append(')');
     }
 
     @Override

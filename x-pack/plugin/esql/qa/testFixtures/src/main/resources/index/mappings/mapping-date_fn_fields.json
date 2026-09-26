@@ -1,0 +1,22 @@
+{
+    "properties": {
+        "date_format": {
+            "type": "keyword"
+        },
+        "date_pattern": {
+            "type": "keyword"
+        },
+        "date_string": {
+            "type": "keyword"
+        },
+        "to_unit": {
+            "type": "keyword"
+        },
+        "from_unit": {
+            "type": "keyword"
+        },
+        "date_val": {
+            "type": "date"
+        }
+    }
+}

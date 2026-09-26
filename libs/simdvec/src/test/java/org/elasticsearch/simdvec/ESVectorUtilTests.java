@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
 import java.nio.ByteBuffer;
@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.function.ToLongBiFunction;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 import static org.hamcrest.Matchers.closeTo;
 
@@ -144,23 +145,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testIpFloatBit() {
-        byte[] d = new byte[random().nextInt(128)];
-        float[] q = new float[d.length * 8];
+        float[] q = VectorTestUtils.randomFloatVector(randomIntBetween(8, 128));
+        byte[] d = new byte[(q.length + Byte.SIZE - 1) / Byte.SIZE];
         random().nextBytes(d);
 
+        int qOffset = randomInt(q.length / 2) & -Byte.SIZE;  // multiple of 8
+        int qLength = randomInt(q.length / 2 - randomInt(1));    // can be arbitrary
+        int dOffset = randomInt(d.length - qLength / Byte.SIZE - 1);
+
         float sum = 0;
-        for (int i = 0; i < q.length; i++) {
-            q[i] = random().nextFloat();
-            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
-                sum += q[i];
+        for (int i = 0; i < qLength; i++) {
+            if (((d[dOffset + i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[qOffset + i];
             }
         }
 
-        double delta = 1e-5 * q.length;
+        double delta = 1e-5 * qLength;
 
-        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
-        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
-        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
     }
 
     public void testIpFloatByte() {
@@ -184,7 +188,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertThat((double) panamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
-    public void testBitAndCount() {
+    public void testIntBitAndCount() {
+        testBasicBitAndImpl(ESVectorUtil::andBitCountInt);
+    }
+
+    public void testLongBitAndCount() {
         testBasicBitAndImpl(ESVectorUtil::andBitCountLong);
     }
 
@@ -204,17 +212,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testBasicIpByteBinImpl(panamaProvider.getVectorUtilSupport()::ipByteBinByte);
     }
 
-    void testBasicBitAndImpl(ToLongBiFunction<byte[], byte[]> bitAnd) {
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 1 }));
-        assertEquals(1, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 1 }));
-        byte[] a = new byte[31];
-        byte[] b = new byte[31];
+    private interface BitAnd {
+        int bitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length);
+    }
+
+    void testBasicBitAndImpl(BitAnd bitAnd) {
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 1 }, 0, 1));
+        assertEquals(1, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 1 }, 0, 1));
+        byte[] a = new byte[33];
+        byte[] b = new byte[33];
         random().nextBytes(a);
         random().nextBytes(b);
-        int expected = scalarBitAnd(a, b);
-        assertEquals(expected, bitAnd.applyAsLong(a, b));
+        int expected = scalarBitAnd(a, 1, b, 1, 31);
+        assertEquals(expected, bitAnd.bitAnd(a, 1, b, 1, 31));
     }
 
     void testBasicIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
@@ -263,164 +275,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testIpByteBinImpl(panamaProvider.getVectorUtilSupport()::ipByteBinByte);
     }
 
-    public void testCenterAndCalculateOSQStatsDp() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new float[size];
-        var centroid = new float[size];
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            centroid[i] = random().nextFloat();
-        }
-        var centeredLucene = new float[size];
-        var statsLucene = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredLucene, statsLucene);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[6];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredLucene, centeredPanama, delta);
-        assertArrayEquals(statsLucene, statsPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsEuclidean() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new float[size];
-        var centroid = new float[size];
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            centroid[i] = random().nextFloat();
-        }
-        var centeredLucene = new float[size];
-        var statsLucene = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredLucene, statsLucene);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[5];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredLucene, centeredPanama, delta);
-        assertArrayEquals(statsLucene, statsPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsDpByteByteCentroid() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new byte[size];
-        var centroid = new byte[size];
-        random().nextBytes(vector);
-        random().nextBytes(centroid);
-        // byte[],byte[] via Default
-        var centeredBB = new float[size];
-        var statsBB = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBB, statsBB);
-        // byte[],byte[] via Panama
-        var centeredBBPanama = new float[size];
-        var statsBBPanama = new float[6];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBBPanama, statsBBPanama);
-        assertArrayEquals(centeredBB, centeredBBPanama, delta);
-        assertArrayEquals(statsBB, statsBBPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsEuclideanByteByteCentroid() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new byte[size];
-        var centroid = new byte[size];
-        random().nextBytes(vector);
-        random().nextBytes(centroid);
-        // byte[],byte[] via Default
-        var centeredBB = new float[size];
-        var statsBB = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBB, statsBB);
-        // byte[],byte[] via Panama
-        var centeredBBPanama = new float[size];
-        var statsBBPanama = new float[5];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBBPanama, statsBBPanama);
-        assertArrayEquals(centeredBB, centeredBBPanama, delta);
-        assertArrayEquals(statsBB, statsBBPanama, delta);
-    }
-
-    public void testOsqLoss() {
-        int size = random().nextInt(128, 512);
-        float deltaEps = 1e-5f * size;
-        var vector = new float[size];
-        var min = Float.MAX_VALUE;
-        var max = -Float.MAX_VALUE;
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            float delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = vector[i] - vecMean;
-            vecVar += delta * delta2;
-            norm2 += vector[i] * vector[i];
-        }
-        vecVar /= size;
-        float vecStd = (float) Math.sqrt(vecVar);
-
-        int[] destinationDefault = new int[size];
-        int[] destinationPanama = new int[size];
-        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
-            int points = 1 << bits;
-            float[] initInterval = new float[2];
-            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
-            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
-            float stepInv = 1f / step;
-            float expected = defaultedProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationDefault);
-            float result = panamaProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationPanama);
-            assertEquals(expected, result, deltaEps);
-            assertArrayEquals(destinationDefault, destinationPanama);
-        }
-    }
-
-    public void testOsqGridPoints() {
-        int size = random().nextInt(128, 512);
-        float deltaEps = 1e-5f * size;
-        var vector = new float[size];
-        var min = Float.MAX_VALUE;
-        var max = -Float.MAX_VALUE;
-        var norm2 = 0f;
-        float vecMean = 0;
-        float vecVar = 0;
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            float delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = vector[i] - vecMean;
-            vecVar += delta * delta2;
-            norm2 += vector[i] * vector[i];
-        }
-        vecVar /= size;
-        float vecStd = (float) Math.sqrt(vecVar);
-        int[] destinationDefault = new int[size];
-        int[] destinationPanama = new int[size];
-        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
-            int points = 1 << bits;
-            float[] initInterval = new float[2];
-            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
-            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
-            float stepInv = 1f / step;
-            float[] expected = new float[5];
-            defaultedProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationDefault);
-            defaultedProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, destinationDefault, points, expected);
-
-            float[] result = new float[5];
-            panamaProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationPanama);
-            panamaProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, destinationPanama, points, result);
-            assertArrayEquals(expected, result, deltaEps);
-            assertArrayEquals(destinationDefault, destinationPanama);
-        }
-    }
-
     public void testSoarDistance() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-3f * size;
@@ -456,79 +310,285 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, Math.abs(expected) * 1e-5f + 1e-3f);
     }
 
-    public void testQuantizeVectorWithIntervals() {
-        int vectorSize = randomIntBetween(1, 2048);
-        float[] vector = new float[vectorSize];
-
-        byte bits = (byte) randomIntBetween(1, 8);
-        for (int i = 0; i < vectorSize; ++i) {
-            vector[i] = random().nextFloat();
-        }
-        float low = random().nextFloat();
-        float high = random().nextFloat();
-        if (low > high) {
-            float tmp = low;
-            low = high;
-            high = tmp;
-        }
-        int[] quantizeExpected = new int[vectorSize];
-        int[] quantizeResult = new int[vectorSize];
-        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeExpected, low, high, bits);
-        var result = panamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeResult, low, high, bits);
-        assertArrayEquals(quantizeExpected, quantizeResult);
-        assertEquals(expected, result, 0f);
-    }
-
-    public void testSquareDistanceBulk() {
-        int vectorSize = randomIntBetween(1, 2048);
-        float[] query = generateRandomVector(vectorSize);
-        float[] v0 = generateRandomVector(vectorSize);
-        float[] v1 = generateRandomVector(vectorSize);
-        float[] v2 = generateRandomVector(vectorSize);
-        float[] v3 = generateRandomVector(vectorSize);
-        float[] expectedDistances = new float[4];
-        float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, panamaDistances);
-        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
-    }
-
     public void testSquareDistanceRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
         int length = randomIntBetween(1, vectorSize - offset);
-        float[] a = generateRandomVector(vectorSize);
-        float[] b = generateRandomVector(vectorSize);
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
         float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
         float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testSquareDistanceRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testSquareDistanceByteFloat() {
+        int vectorSize = randomIntBetween(64, 2048);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b);
+        float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b);
+        assertEquals(expected, actual, Math.abs(expected) * 1e-5f);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b);
+        assertEquals(expected, actual, Math.abs(expected) * 1e-5f);
+    }
+
+    public void testDotProductRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int aOffset = randomIntBetween(0, vectorSize - 1);
+        int bOffset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - Math.max(aOffset, bOffset));
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetDifferentLengthArrays() {
+        // Regression test: the offset-based dotProduct must work when a and b have different total
+        // lengths. A previous short-circuit optimization incorrectly delegated to dotProduct(a, b)
+        // which requires a.length == b.length.
+        int aSize = randomIntBetween(16, 128);
+        int bSize = randomIntBetween(aSize + 1, aSize * 4);
+        int length = aSize; // dot over the full extent of a, but only a prefix of b
+        float[] a = randomFloatVector(aSize);
+        float[] b = randomFloatVector(bSize);
+        // Manual reference dot product
+        float expected = 0f;
+        for (int i = 0; i < length; i++) {
+            expected += a[i] * b[i];
+        }
+        float actual = defaultedProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = panamaProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testL2NormalizePrefixDefaultEqualsPanama() {
+        float[] expected = { 3f, 4f, 99f, 99f };
+        float[] panama = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 0, 2);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 0, 2);
+        assertArrayEquals(expected, panama, 1e-5f);
+        assertArrayEquals(new float[] { 0.6f, 0.8f, 99f, 99f }, expected, 1e-5f);
+        float[] util = { 3f, 4f, 99f, 99f };
+        ESVectorUtil.l2Normalize(util, 2);
+        assertArrayEquals(expected, util, 1e-5f);
+    }
+
+    public void testL2NormalizePrefixZeroIsNoOp() {
+        float[] v = { 0f, 0f, 5f };
+        ESVectorUtil.l2Normalize(v, 2);
+        assertArrayEquals(new float[] { 0f, 0f, 5f }, v, 0f);
+    }
+
+    public void testByteDotProductRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 0f);
+        assertEquals(expected, ESVectorUtil.dotProduct(a, b, offset, length), 0f);
+    }
+
+    public void testByteDotProductLengthMatchesFullWhenEqual() {
+        int vectorSize = randomIntBetween(1, 128);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        assertEquals(ESVectorUtil.dotProduct(a, b), ESVectorUtil.dotProduct(a, b, vectorSize), 0f);
+    }
+
+    public void testByteL2NormalizePrefixDefaultEqualsPanama() {
+        byte[] expected = { 3, 4, 99 };
+        byte[] panama = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 0, 2);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 0, 2);
+        assertArrayEquals(expected, panama);
+        assertArrayEquals(new byte[] { 0, 0, 99 }, expected);
+        byte[] util = { 3, 4, 99 };
+        ESVectorUtil.l2Normalize(util, 2);
+        assertArrayEquals(expected, util);
+    }
+
+    public void testByteL2NormalizePrefixZeroIsNoOp() {
+        byte[] v = { 0, 0, 5 };
+        ESVectorUtil.l2Normalize(v, 2);
+        assertArrayEquals(new byte[] { 0, 0, 5 }, v);
+    }
+
+    public void testL2NormalizeRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] expected = randomFloatVector(vectorSize);
+        float[] panama = expected.clone();
+        float[] util = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, offset, length);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, offset, length);
+        ESVectorUtil.l2Normalize(util, offset, length);
+        assertArrayEquals(expected, panama, 1e-5f);
+        assertArrayEquals(expected, util, 1e-5f);
+    }
+
+    public void testByteL2NormalizeRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] expected = randomByteArrayOfLength(vectorSize);
+        byte[] panama = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, offset, length);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, offset, length);
+        assertArrayEquals(expected, panama);
     }
 
     public void testSquareDistanceBulkRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
         int length = randomIntBetween(1, vectorSize - offset);
-        float[] query = generateRandomVector(vectorSize);
-        float[] v0 = generateRandomVector(vectorSize);
-        float[] v1 = generateRandomVector(vectorSize);
-        float[] v2 = generateRandomVector(vectorSize);
-        float[] v3 = generateRandomVector(vectorSize);
+        float[] query = randomFloatVector(vectorSize);
+        float[] v0 = randomFloatVector(vectorSize);
+        float[] v1 = randomFloatVector(vectorSize);
+        float[] v2 = randomFloatVector(vectorSize);
+        float[] v3 = randomFloatVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, expectedDistances, length);
+        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, panamaDistances, length);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
+    }
+
+    public void testSquareDistanceBulkRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] v0 = randomByteArrayOfLength(vectorSize);
+        byte[] v1 = randomByteArrayOfLength(vectorSize);
+        byte[] v2 = randomByteArrayOfLength(vectorSize);
+        byte[] v3 = randomByteArrayOfLength(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, expectedDistances, length);
+        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, panamaDistances, length);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
+    public void testDotProductBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] query = randomFloatVector(vectorSize);
+        float[] v0 = randomFloatVector(vectorSize);
+        float[] v1 = randomFloatVector(vectorSize);
+        float[] v2 = randomFloatVector(vectorSize);
+        float[] v3 = randomFloatVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * vectorSize);
+    }
+
+    public void testDotProductBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] v0 = randomByteArrayOfLength(vectorSize);
+        byte[] v1 = randomByteArrayOfLength(vectorSize);
+        byte[] v2 = randomByteArrayOfLength(vectorSize);
+        byte[] v3 = randomByteArrayOfLength(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
+    public void testCosineBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        // ensure no zero-norm vectors to avoid NaN
+        byte[] query = randomNonZeroByteVector(vectorSize);
+        byte[] v0 = randomNonZeroByteVector(vectorSize);
+        byte[] v1 = randomNonZeroByteVector(vectorSize);
+        byte[] v2 = randomNonZeroByteVector(vectorSize);
+        byte[] v3 = randomNonZeroByteVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().cosineBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().cosineBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
+    private static byte[] randomNonZeroByteVector(int length) {
+        byte[] v;
+        for (;;) {
+            v = randomByteArrayOfLength(length);
+            for (byte b : v) {
+                if (b != 0) return v;
+            }
+        }
     }
 
     public void testSoarDistanceBulk() {
         int vectorSize = randomIntBetween(1, 2048);
         float deltaEps = 1e-3f * vectorSize;
-        float[] query = generateRandomVector(vectorSize);
-        float[] v0 = generateRandomVector(vectorSize);
-        float[] v1 = generateRandomVector(vectorSize);
-        float[] v2 = generateRandomVector(vectorSize);
-        float[] v3 = generateRandomVector(vectorSize);
-        float[] diff = generateRandomVector(vectorSize);
+        float[] query = randomFloatVector(vectorSize);
+        float[] v0 = randomFloatVector(vectorSize);
+        float[] v1 = randomFloatVector(vectorSize);
+        float[] v2 = randomFloatVector(vectorSize);
+        float[] v3 = randomFloatVector(vectorSize);
+        float[] diff = randomFloatVector(vectorSize);
         float soarLambda = random().nextFloat();
         float rnorm = random().nextFloat(10);
         float[] expectedDistances = new float[4];
@@ -545,7 +605,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         byte[] c1 = randomByteArrayOfLength(vectorSize);
         byte[] c2 = randomByteArrayOfLength(vectorSize);
         byte[] c3 = randomByteArrayOfLength(vectorSize);
-        float[] diff = generateRandomVector(vectorSize);
+        float[] diff = randomFloatVector(vectorSize);
         float soarLambda = random().nextFloat();
         float rnorm = random().nextFloat(10);
         float[] expectedDistances = new float[4];
@@ -560,7 +620,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testLinearCombinationByte() {
         int vectorSize = randomIntBetween(1, 2048);
         byte[] src = randomByteArrayOfLength(vectorSize);
-        float[] destDefault = generateRandomVector(vectorSize);
+        float[] destDefault = randomFloatVector(vectorSize);
         float[] destPanama = new float[vectorSize];
         System.arraycopy(destDefault, 0, destPanama, 0, vectorSize);
         float scaleSrc = random().nextFloat() * 2 - 1;
@@ -572,7 +632,27 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    public void testPackAsBinary() {
+    public void testPackAsBytesCorrectness() {
+        // values that fit in a byte unchanged
+        int[] src = { 0, 1, 127 };
+        byte[] dst = new byte[3];
+        ESVectorUtil.packAsBytes(src, dst, 3);
+        assertArrayEquals(new byte[] { 0, 1, 127 }, dst);
+
+        // values > 127 are narrowed via signed cast (two's complement truncation)
+        src = new int[] { 128, 255, 256 };
+        dst = new byte[3];
+        ESVectorUtil.packAsBytes(src, dst, 3);
+        assertArrayEquals(new byte[] { (byte) 128, (byte) 255, (byte) 256 }, dst);
+
+        // partial fill: only len elements are written, remainder is untouched
+        src = new int[] { 10, 20, 30 };
+        dst = new byte[] { 0, 0, 99 };
+        ESVectorUtil.packAsBytes(src, dst, 2);
+        assertArrayEquals(new byte[] { 10, 20, 99 }, dst);
+    }
+
+    public void testPack1BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -581,38 +661,38 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().packAsBinary(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().packAsBinary(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().pack1BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().pack1BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackAsBinaryCorrectness() {
+    public void testPack1BitValuesCorrectness() {
         // 5 bits
         int[] toPack = new int[] { 1, 1, 0, 0, 1 };
         byte[] packed = new byte[1];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001000 }, packed);
 
         // 8 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0 };
         packed = new byte[1];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010 }, packed);
 
         // 10 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1 };
         packed = new byte[2];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11000000 }, packed);
 
         // 16 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0 };
         packed = new byte[2];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11100110 }, packed);
     }
 
-    public void testPackAsBinaryDuel() {
+    public void testPack1BitValuesDuel() {
         int dims = random().nextInt(16, 2049);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -621,12 +701,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        packAsBinaryLegacy(toPack, packedLegacy);
-        ESVectorUtil.packAsBinary(toPack, packed);
+        pack1BitValuesLegacy(toPack, packedLegacy);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testIntegerTransposeHalfByte() {
+    public void testStride4BitValuesDuel() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -635,12 +715,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        transposeHalfByteLegacy(toPack, packedLegacy);
-        ESVectorUtil.transposeHalfByte(toPack, packed);
+        stride4BitValuesLegacy(toPack, packedLegacy);
+        ESVectorUtil.stride4BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testTransposeHalfByte() {
+    public void testStride4BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -649,34 +729,47 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().stride4BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().stride4BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackAsDibit() {
+    public void testStride2BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-        ;
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED.getDocPackedLength(dims);
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().stride2BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().stride2BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackDibitCorrectness() {
+    public void testPack2BitValues() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(3);
+        }
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED.getDocPackedLength(dims);
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().pack2BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().pack2BitValues(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testStride2BitValuesCorrectness() {
         // 5 bits
         // binary lower bits 1 1 0 0 1
         // binary upper bits 0 1 1 0 0
         // resulting dibit 1 3 2 0 1
         int[] toPack = new int[] { 1, 3, 2, 0, 1 };
         byte[] packed = new byte[2];
-        ESVectorUtil.packDibit(toPack, packed);
+        ESVectorUtil.stride2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001000, (byte) 0b01100000 }, packed);
 
         // 8 bits
@@ -685,24 +778,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         // resulting dibit 1 3 2 0 1 2 1 2
         toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
         packed = new byte[2];
-        ESVectorUtil.packDibit(toPack, packed);
+        ESVectorUtil.stride2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
     }
 
-    private float[] generateRandomVector(int size) {
-        float[] vector = new float[size];
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-        }
-        return vector;
+    public void testPack2BitValuesCorrectness() {
+        int[] toPack = new int[] { 1, 3, 2, 0, 1 };
+        byte[] packed = new byte[2];
+        ESVectorUtil.pack2BitValues(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01000000 }, packed);
+
+        toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
+        packed = new byte[2];
+        ESVectorUtil.pack2BitValues(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01100110 }, packed);
     }
 
     private float[][] generateRandomFloatVectors(int vectorCount, int dims) {
-        float[][] vectors = new float[vectorCount][dims];
+        float[][] vectors = new float[vectorCount][];
         for (int i = 0; i < vectorCount; i++) {
-            for (int j = 0; j < dims; j++) {
-                vectors[i][j] = randomFloat() * 2f - 1f;
-            }
+            vectors[i] = VectorTestUtils.randomFloatVector(dims);
         }
         return vectors;
     }
@@ -718,9 +813,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     private byte[][] generateRandomByteVectors(int vectorCount, int dims) {
-        byte[][] vectors = new byte[vectorCount][dims];
+        byte[][] vectors = new byte[vectorCount][];
         for (int i = 0; i < vectorCount; i++) {
-            vectors[i] = randomByteArrayOfLength(dims);
+            vectors[i] = VectorTestUtils.randomByteVector(dims);
         }
         return vectors;
     }
@@ -894,10 +989,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return res;
     }
 
-    static int scalarBitAnd(byte[] a, byte[] b) {
+    static int scalarBitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (int i = 0; i < length; i++) {
+            res += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return res;
     }
@@ -1132,7 +1227,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return -1;
     }
 
-    private static void packAsBinaryLegacy(int[] vector, byte[] packed) {
+    private static void pack1BitValuesLegacy(int[] vector, byte[] packed) {
         for (int i = 0; i < vector.length;) {
             byte result = 0;
             for (int j = 7; j >= 0 && i < vector.length; j--) {
@@ -1146,25 +1241,25 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    private static void transposeHalfByteLegacy(int[] q, byte[] quantQueryByte) {
-        for (int i = 0; i < q.length;) {
-            assert q[i] >= 0 && q[i] <= 15;
+    private static void stride4BitValuesLegacy(int[] vector, byte[] packed) {
+        for (int i = 0; i < vector.length;) {
+            assert vector[i] >= 0 && vector[i] <= 15;
             int lowerByte = 0;
             int lowerMiddleByte = 0;
             int upperMiddleByte = 0;
             int upperByte = 0;
-            for (int j = 7; j >= 0 && i < q.length; j--) {
-                lowerByte |= (q[i] & 1) << j;
-                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
-                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
-                upperByte |= ((q[i] >> 3) & 1) << j;
+            for (int j = 7; j >= 0 && i < vector.length; j--) {
+                lowerByte |= (vector[i] & 1) << j;
+                lowerMiddleByte |= ((vector[i] >> 1) & 1) << j;
+                upperMiddleByte |= ((vector[i] >> 2) & 1) << j;
+                upperByte |= ((vector[i] >> 3) & 1) << j;
                 i++;
             }
             int index = ((i + 7) / 8) - 1;
-            quantQueryByte[index] = (byte) lowerByte;
-            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
-            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
-            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+            packed[index] = (byte) lowerByte;
+            packed[index + packed.length / 4] = (byte) lowerMiddleByte;
+            packed[index + packed.length / 2] = (byte) upperMiddleByte;
+            packed[index + 3 * packed.length / 4] = (byte) upperByte;
         }
     }
 
@@ -1176,27 +1271,60 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.5e-2 * referenceResult);
+        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 0.025 * referenceResult);
     }
 
     public void testLinearCombination() {
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
         float scaleY = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
+    }
+
+    public void testLinearCombinationNoScaleDest() {
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
+
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
+
+        float scaleX = randomFloat();
+
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y2, yOffset, length);
+
+        assertArrayEquals(y1, y2, 1e-5f);
+    }
+
+    public void testLinearCombinationByteNoScaleDest() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] src = randomByteArrayOfLength(vectorSize);
+        float[] destDefault = randomFloatVector(vectorSize);
+        float[] destPanama = new float[vectorSize];
+        System.arraycopy(destDefault, 0, destPanama, 0, vectorSize);
+        float scaleSrc = random().nextFloat() * 2 - 1;
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, destDefault);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, destPanama);
+        for (int i = 0; i < vectorSize; i++) {
+            assertEquals(destDefault[i], destPanama[i], Math.abs(destDefault[i]) * 1e-6f + 1e-6f);
+        }
     }
 
     public void testLogSumExpDiff() {
@@ -1234,4 +1362,65 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         assertArrayEqualsPercent(result1, result2, 0.15f);
     }
+
+    public void testMatrixMultiply() {
+        int m = randomIntBetween(2, 1024);
+        int k = randomIntBetween(2, 1024);
+        int n = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(m * k);
+        float[] b = VectorTestUtils.randomFloatVector(k * n);
+
+        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+        float[] scalar = new float[m * n];
+        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
+        assertArrayEquals(expected, scalar, 1e-3f);
+        float[] panama = new float[m * n];
+        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
+        assertArrayEquals(expected, panama, 1e-3f);
+    }
+
+    private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testMatrixVectorMultiply() {
+        int rows = randomIntBetween(2, 1024);
+        int cols = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(rows * cols);
+        float[] v = VectorTestUtils.randomFloatVector(cols);
+
+        float[] expected = basicMatrixVectorMultiply(a, rows, cols, v);
+
+        float[] scalarResult = new float[rows];
+        defaultedProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, scalarResult);
+        assertArrayEquals(expected, scalarResult, 1e-3f);
+        float[] panamaResult = new float[rows];
+        panamaProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, panamaResult);
+        assertArrayEquals(expected, panamaResult, 1e-3f);
+    }
+
+    private static float[] basicMatrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        for (int i = 0; i < rows; i++) {
+            int aBase = i * cols;
+            for (int j = 0; j < cols; j++) {
+                result[i] = Math.fma(a[aBase + j], v[j], result[i]);
+            }
+        }
+        return result;
+    }
+
 }

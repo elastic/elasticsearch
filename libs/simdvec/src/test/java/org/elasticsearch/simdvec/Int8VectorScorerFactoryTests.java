@@ -19,7 +19,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.junit.BeforeClass;
 
@@ -31,6 +31,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomByteVector;
 import static org.elasticsearch.simdvec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
@@ -55,13 +56,13 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, VectorTestUtils::randomByteVector, VectorSimilarityType.values());
         }
     }
 
     public void testRandomNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, VectorTestUtils::randomByteVector, VectorSimilarityType.values());
         }
     }
 
@@ -69,7 +70,7 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, VectorTestUtils::randomByteVector, VectorSimilarityType.values());
         }
     }
 
@@ -166,7 +167,7 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         logger.info("Testing " + fileName);
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                byte[] vec = randomByteVector(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -220,12 +221,13 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
         final byte[][] vectors = new byte[size][];
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomByteVector(dims);
 
         String fileName = "testScorerImpl-" + dir.getClass().getSimpleName() + "-" + dims;
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                // cosine doesn't like zero-length vectors
+                byte[] vec = randomByteVector(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -272,12 +274,12 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         final int dims = randomIntBetween(64, 4096);
         final int size = randomIntBetween(2, 100);
         final byte[][] vectors = new byte[size][];
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomByteVector(dims);
 
         String fileName = "testScorerBulk-" + dir.getClass().getSimpleName() + "-" + dims;
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                byte[] vec = randomByteVector(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -313,13 +315,13 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         final int dims = randomIntBetween(64, 4096);
         final int size = randomIntBetween(2, 100);
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomByteVector(dims);
 
         try (var dir = new MMapDirectory(createTempDir("testScorerBulkWithZeroNodes"))) {
             String fileName = "testScorerBulkWithZeroNodes-" + dims;
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                 for (int i = 0; i < size; i++) {
-                    byte[] vec = randomByteArrayOfLength(dims);
+                    byte[] vec = randomByteVector(dims);
                     out.writeBytes(vec, vec.length);
                 }
                 CodecUtil.writeFooter(out);

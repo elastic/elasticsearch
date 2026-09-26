@@ -13,16 +13,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -152,6 +151,7 @@ public class DesiredBalanceMetrics {
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
         Map.of()
     );
+    private final ConsumingLongGaugeMetric writeLoadDeciderMaxQueueLatencyGauge;
 
     private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
 
@@ -173,20 +173,31 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        meterRegistry.registerLongsGauge(
+        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.create(
+            meterRegistry,
+            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
+            "max latency for write load decider",
+            "ms"
+        );
+        meterRegistry.registerLongsAsyncGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
             "{shard}",
             this::getUnassignedShardsMetrics
         );
-        meterRegistry.registerLongsGauge(TOTAL_SHARDS_METRIC_NAME, "Total number of shards", "{shard}", this::getTotalAllocationsMetrics);
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
+            TOTAL_SHARDS_METRIC_NAME,
+            "Total number of shards",
+            "{shard}",
+            this::getTotalAllocationsMetrics
+        );
+        meterRegistry.registerLongsAsyncGauge(
             UNDESIRED_ALLOCATION_COUNT_METRIC_NAME,
             "Total number of shards allocated on undesired nodes excluding shutting down nodes",
             "{shard}",
             this::getUndesiredAllocationsExcludingShuttingDownNodesMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             UNDESIRED_ALLOCATION_RATIO_METRIC_NAME,
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
@@ -230,67 +241,71 @@ public class DesiredBalanceMetrics {
             this::getCumulativeReconciliationTimeMillisMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME,
             "Weight of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME,
             "Write load of nodes in the computed desired balance",
             "threads",
             this::getDesiredBalanceNodeWriteLoadMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME,
             "Disk usage of nodes in the computed desired balance",
             "bytes",
             this::getDesiredBalanceNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
             "Shard count of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeShardCountMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WEIGHT_METRIC_NAME,
             "The weight of nodes based on the current allocation state",
             "unit",
             this::getCurrentNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WRITE_LOAD_METRIC_NAME,
             "The current write load of nodes",
             "threads",
             this::getCurrentNodeWriteLoadMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_DISK_USAGE_METRIC_NAME,
             "The current disk usage of nodes",
             "bytes",
             this::getCurrentNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_SHARD_COUNT_METRIC_NAME,
             "The current shard count of nodes",
             "unit",
             this::getCurrentNodeShardCountMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME,
             "The current forecasted disk usage of nodes",
             "bytes",
             this::getCurrentNodeForecastedDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_UNDESIRED_SHARD_COUNT_METRIC_NAME,
             "The current undesired shard count of nodes",
             "unit",
             this::getCurrentNodeUndesiredShardCountMetrics
         );
+    }
+
+    public ConsumingLongGaugeMetric getWriteLoadDeciderMaxQueueLatencyGauge() {
+        return writeLoadDeciderMaxQueueLatencyGauge;
     }
 
     /**
@@ -319,15 +334,6 @@ public class DesiredBalanceMetrics {
 
     DesiredBalanceStats desiredBalanceStats() {
         return desiredBalanceStats;
-    }
-
-    public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
-        meterRegistry.registerLongsGauge(
-            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
-            "max latency for write load decider",
-            "ms",
-            maxLatencySupplier
-        );
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {

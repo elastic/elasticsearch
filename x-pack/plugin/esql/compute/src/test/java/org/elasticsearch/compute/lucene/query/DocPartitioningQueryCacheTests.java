@@ -12,6 +12,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -29,10 +31,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -44,8 +49,10 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
@@ -58,7 +65,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testCacheOnce() throws Exception {
         var dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }
@@ -89,7 +98,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
@@ -129,9 +138,10 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         });
         blocked.addListener(ActionListener.running(thread2::start));
         blockedOnFirstRange.countDown();
-        thread1.join(10_000);
-        thread2.join(10_000);
-        assertThat(visited.get(), equalTo(200));
+        safeJoin(thread1);
+        safeJoin(thread2);
+        // The cache wrapper iterates the full leaf once to build the cached DocIdSet.
+        assertThat(visited.get(), equalTo(numDocs));
         reader.close();
         dir.close();
         QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
@@ -157,15 +167,21 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     }
 
     static class BlockingQuery extends Query {
+        final int id;
         final IntConsumer preVisit;
 
         BlockingQuery(IntConsumer preVisit) {
+            this(0, preVisit);
+        }
+
+        BlockingQuery(int id, IntConsumer preVisit) {
+            this.id = id;
             this.preVisit = preVisit;
         }
 
         @Override
         public String toString(String field) {
-            return "BlockingQuery";
+            return "BlockingQuery[" + id + "]";
         }
 
         @Override
@@ -180,12 +196,12 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
 
         @Override
         public boolean equals(Object other) {
-            return sameClassAs(other);
+            return sameClassAs(other) && id == ((BlockingQuery) other).id;
         }
 
         @Override
         public int hashCode() {
-            return 0;
+            return id;
         }
     }
 
@@ -256,7 +272,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testNullBulkScorerAfterCaching() throws Exception {
         var dir = newDirectory();
         var writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }
@@ -282,15 +300,37 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(shardContext)),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             1,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
         );
         assertThat("requires at least two slices", queue.totalSlices(), greaterThanOrEqualTo(2));
         var shardContexts = new IndexedByShardIdFromSingleton<>(shardContext);
-        var op1 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
-        var op2 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
+        var op1 = new LuceneSourceOperator(
+            shardContexts,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L,
+            QueryWarnings.EMIT,
+            null
+        );
+        var op2 = new LuceneSourceOperator(
+            shardContexts,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L,
+            QueryWarnings.EMIT,
+            null
+        );
         try {
             Thread thread1 = new Thread(() -> {
                 Page output = op1.getOutput();
@@ -304,7 +344,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             assertNull(op2.getOutput());
             assertFalse(op2.isBlocked().listener().isDone());
             scorerProceed.countDown();
-            thread1.join(30_000);
+            safeJoin(thread1);
             assertTrue(op2.isBlocked().listener().isDone());
             assertNull(op2.getOutput());
             assertTrue(op2.isFinished());
@@ -372,5 +412,93 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         public int hashCode() {
             return classHash();
         }
+    }
+
+    public void testManyWorkerAndClauses() throws Exception {
+        var dir = newDirectory();
+        final int numThreads = between(50, 150);
+        final int numDocs = (numThreads + 1) * 100;
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        var searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            indicesQueryCache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+        final int numClauses = between(5, 20);
+        Semaphore scoredDocs = new Semaphore(0);
+        CountDownLatch allowScoring = new CountDownLatch(1);
+        final int blockingDocId = randomIntBetween(10, 90);
+        IntConsumer parkOnBlockingDoc = docId -> {
+            scoredDocs.release();
+            if (docId == blockingDocId) {
+                safeAwait(allowScoring, TimeValue.THIRTY_SECONDS);
+            }
+        };
+        BooleanQuery.Builder query = new BooleanQuery.Builder();
+        for (int c = 0; c < numClauses; c++) {
+            query.add(new BlockingQuery(c, parkOnBlockingDoc), BooleanClause.Occur.FILTER);
+        }
+        LuceneSliceQueue queue = LuceneSliceQueue.create(
+            new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query.build(), List.of())),
+            DataPartitioning.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            numThreads,
+            s -> ScoreMode.COMPLETE_NO_SCORES
+        );
+        LuceneSlice slice = queue.nextSlice(null);
+        LeafReaderContext leaf = slice.getLeaf(0).leafReaderContext();
+        Weight weight = slice.weight();
+        final Thread cachingThread = new Thread(() -> {
+            try {
+                BulkScorer bulkScorer = weight.bulkScorer(leaf);
+                bulkScorer.score(new CountCollector(), null, 0, 100);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        cachingThread.start();
+        safeAcquire(scoredDocs);
+        Thread[] threads = new Thread[numThreads];
+        CountDownLatch latch = new CountDownLatch(numThreads + 1);
+        for (int t = 0; t < numThreads; t++) {
+            final int minDoc = (t + 1) * 100;
+            Thread thread = new Thread(null, () -> {
+                latch.countDown();
+                safeAwait(latch, TimeValue.THIRTY_SECONDS);
+                try {
+                    for (int i = 0; i < 50; i++) {
+                        BulkScorer bulkScorer = weight.bulkScorer(leaf);
+                        bulkScorer.score(new CountCollector(), null, minDoc, minDoc + 100);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            threads[t] = thread;
+            thread.start();
+        }
+        latch.countDown();
+        allowScoring.countDown();
+        for (Thread thread : threads) {
+            safeJoin(thread);
+        }
+        safeJoin(cachingThread);
+        reader.close();
+        dir.close();
+        assertThat(indicesQueryCache.getStats(shard, () -> 0L).getCacheCount(), greaterThanOrEqualTo((long) numClauses));
     }
 }

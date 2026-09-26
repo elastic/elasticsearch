@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 154412
+summary: Harden concurrent additions of relocated pit context
+type: enhancement

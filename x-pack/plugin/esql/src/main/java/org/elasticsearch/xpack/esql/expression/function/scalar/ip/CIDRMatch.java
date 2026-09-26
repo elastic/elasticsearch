@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -57,7 +60,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * <p>
  * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
  */
-public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
+public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CIDRMatch",
@@ -71,7 +74,9 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     private final List<Expression> matches;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        briefSummary = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
     )

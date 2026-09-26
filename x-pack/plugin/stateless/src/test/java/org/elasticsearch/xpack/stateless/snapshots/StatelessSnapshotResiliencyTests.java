@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,13 +43,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -71,6 +73,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -87,6 +90,7 @@ import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
 import org.elasticsearch.snapshots.SnapshotResiliencyTests;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -124,8 +128,10 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -136,17 +142,27 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
+import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationTargetService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -224,7 +240,14 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // Schedule a task immediately if the delay is within 10ms. A current known case for this is to schedule
                 // translog upload right away so that indexing operations, which wait for translog upload, can complete
                 // with `runAllRunnableTasks` without advancing time.
-                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 ? TimeValue.ZERO : delay;
+                // Exception: in case wall clock time moves back, SnapshotFinalization reschedules itself to wait for the clock to advance
+                // so snapshots don't look as if they finished into the future. Collapsing that delay to zero causes an infinite spin loop.
+                final boolean isSnapshotFinalization = command.getClass()
+                    .getName()
+                    .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
+                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 && isSnapshotFinalization == false
+                    ? TimeValue.ZERO
+                    : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }
@@ -255,7 +278,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new StatelessNodes(
             masterNodes,
             dataNodes,
@@ -263,7 +291,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             deterministicTaskQueue,
             transportInterceptorFactory,
             expectedWarnings -> assertWarnings(expectedWarnings)
-        );
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 
@@ -370,13 +406,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING);
             res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING);
+            res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING);
             res.add(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING);
             res.add(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
@@ -384,7 +423,14 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
+            res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
             return Set.copyOf(res);
         }
 
@@ -396,6 +442,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         class StatelessNode extends TestClusterNodes.TestClusterNode {
 
             private TestStatelessPlugin testStatelessPlugin;
+            private StatelessPrimaryRelocationSourceService primaryRelocationService;
 
             StatelessNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
                 super(node, transportInterceptorFactory);
@@ -456,6 +503,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             public void stop() {
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.stop();
+                }
                 testStatelessPlugin.consistencyService.stop();
                 testStatelessPlugin.translogReplicator.stop();
                 testStatelessPlugin.statelessCommitService.stop();
@@ -463,6 +513,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 testStatelessPlugin.objectStoreService.stop();
                 testStatelessPlugin.cacheService.close();
                 super.stop();
+                // StatelessPrimaryRelocationSourceService::close should be called after IndicesService has already
+                // closed all shards.
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.close();
+                }
             }
 
             @Override
@@ -472,6 +527,39 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             }
 
             private Map<ActionType<?>, TransportAction<?, ?>> getActions(ActionFilters actionFilters) {
+                final var primaryRelocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(
+                    StatelessPrimaryRelocationMetricsCollector.NOOP
+                );
+                primaryRelocationService = new StatelessPrimaryRelocationSourceService(
+                    settings,
+                    clusterService(),
+                    transportService().getThreadPool(),
+                    indicesService,
+                    testStatelessPlugin.hollowShardsService,
+                    new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                    mock(IndexShardCacheWarmer.class),
+                    HollowShardsMetrics.NOOP,
+                    client,
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
+                );
+                final var primaryRelocationTargetService = new StatelessPrimaryRelocationTargetService(
+                    clusterService(),
+                    transportService().getThreadPool(),
+                    indicesService,
+                    new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                    mock(IndexShardCacheWarmer.class),
+                    primaryRelocationMetricsCollectorProvider
+                );
+                final var transportPrimaryRelocationAction = new TransportStatelessPrimaryRelocationAction(
+                    transportService(),
+                    actionFilters,
+                    indicesService,
+                    new CompositeRecoverySchedulingListener(),
+                    primaryRelocationService,
+                    peerRecoveryTargetService,
+                    primaryRelocationMetricsCollectorProvider
+                );
+                primaryRelocationService.start();
                 return Map.of(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
@@ -487,17 +575,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     TransportRegisterCommitForRecoveryAction.TYPE,
                     new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters),
                     StatelessPrimaryRelocationAction.TYPE,
-                    new TransportStatelessPrimaryRelocationAction(
+                    transportPrimaryRelocationAction,
+                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                    new TransportStatelessPrimaryRelocationPrewarmAction(transportService(), actionFilters, primaryRelocationTargetService),
+                    TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                    new TransportStatelessPrimaryRelocationHandoffAction(
                         transportService(),
-                        clusterService(),
                         actionFilters,
-                        indicesService,
                         peerRecoveryTargetService,
-                        testStatelessPlugin.statelessCommitService,
-                        mock(IndexShardCacheWarmer.class),
-                        testStatelessPlugin.hollowShardsService,
-                        HollowShardsMetrics.NOOP,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        primaryRelocationTargetService
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -509,7 +595,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         projectResolver,
                         searchService,
                         new PITRelocationService(),
-                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService)
+                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService),
+                        new PitRelocationMetrics(MeterRegistry.NOOP)
                     ),
                     TransportShardRefreshAction.TYPE,
                     new TransportShardRefreshAction(
@@ -530,7 +617,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         clusterService(),
                         mock(GetVirtualBatchedCompoundCommitChunksPressure.class),
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         projectResolver
                     ),
                     TransportGetShardSnapshotCommitInfoAction.TYPE,
@@ -726,7 +813,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         public Collection<?> createComponents(PluginServices services) {
             this.projectResolver = services.projectResolver();
             this.threadPool = services.threadPool();
-            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(threadPool);
+            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(settings, threadPool, MeterRegistry.NOOP);
             this.client = services.client();
             this.clusterService = services.clusterService();
 
@@ -741,11 +828,19 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.nodeEnvironment(),
                 settings,
                 threadPool,
-                new BlobCacheMetrics(MeterRegistry.NOOP),
+                BlobCacheMetrics.NOOP,
+                clusterService,
+                services.indicesService(),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
-            this.cacheBlobReaderService = new CacheBlobReaderService(settings, cacheService, client, threadPool);
+            this.cacheBlobReaderService = new CacheBlobReaderService(
+                settings,
+                cacheService,
+                client,
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(settings, threadPool)
+            );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
@@ -777,7 +872,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -835,10 +930,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             hollowShardsService = mock(HollowShardsService.class);
             // Let hollowShardsService pass on mutable operation check
             doAnswer(invocation -> {
-                ActionListener<Void> listener = invocation.getArgument(2);
+                ActionListener<Void> listener = invocation.getArgument(3);
                 listener.onResponse(null);
                 return null;
-            }).when(hollowShardsService).onMutableOperation(any(), anyBoolean(), anyActionListener());
+            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), any(), anyActionListener());
             when(hollowShardsService.isHollowShard(any(ShardId.class))).thenReturn(false);
             when(hollowShardsService.isHollowableIndexShard(any(IndexShard.class), anyBoolean())).thenReturn(false);
 
@@ -850,7 +945,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return null;
             }).when(reshardIndexService).maybeAwaitSplit(any(ShardId.class), anyActionListener());
 
-            if (hasMasterRole && MetadataCreateIndexService.useRefreshBlock(settings)) {
+            if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
             return List.of();
@@ -957,7 +1052,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             cacheService,
                             cacheBlobReaderService,
                             new AtomicMutableObjectStoreUploadTracker(),
-                            shardRouting.shardId()
+                            shardRouting.shardId(),
+                            randomBoolean(),
+                            indexModule.indexSettings().getIndexVersionCreated()
                         );
                     } else {
                         return in;
@@ -965,25 +1062,37 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 });
             }
 
-            indexModule.addIndexEventListener(
-                TestUtils.newStatelessIndexEventListener(
-                    threadPool,
-                    statelessCommitService,
-                    objectStoreService,
-                    translogReplicator,
-                    new RecoveryCommitRegistrationHandler(client, clusterService),
-                    cacheWarmingService,
-                    hollowShardsService,
-                    mock(SplitTargetService.class),
-                    mock(SplitSourceService.class),
-                    projectResolver,
-                    bccHeaderReadExecutor,
-                    clusterService.getClusterSettings(),
-                    cacheService,
-                    snapshotsCommitService,
-                    clusterService
-                )
-            );
+            if (hasIndexRole) {
+                indexModule.addIndexEventListener(
+                    new StatelessIndexNodeRecoveryListener(
+                        threadPool,
+                        statelessCommitService,
+                        objectStoreService,
+                        translogReplicator,
+                        cacheWarmingService,
+                        hollowShardsService,
+                        mock(SplitTargetService.class),
+                        mock(SplitSourceService.class),
+                        projectResolver,
+                        bccHeaderReadExecutor,
+                        cacheService,
+                        snapshotsCommitService,
+                        StatelessPrimaryRelocationMetricsCollector.NOOP
+                    )
+                );
+            }
+            if (hasSearchRole) {
+                indexModule.addIndexEventListener(
+                    new StatelessSearchNodeRecoveryListener(
+                        objectStoreService,
+                        new RecoveryCommitRegistrationHandler(client, clusterService),
+                        cacheWarmingService,
+                        projectResolver,
+                        bccHeaderReadExecutor,
+                        clusterService
+                    )
+                );
+            }
         }
 
         private Engine.IndexCommitListener createIndexCommitListener() {
@@ -1051,7 +1160,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         translogConfig.getBigArrays(),
                         translogConfig.getBufferSize(),
                         translogConfig.getDiskIoBufferPool(),
-                        (operation, seqNo, location) -> translogReplicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                        translogReplicator.listenerFor(translogConfig.getShardId()),
                         false // translog is replicated to the object store, no need fsync that
                     );
 
@@ -1072,6 +1181,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         statelessCommitService.getCommitBCCResolverForShard(newConfig.getShardId()),
                         DocumentParsingProvider.EMPTY_INSTANCE,
                         new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                        new IndexEngineDynamicSettings(
+                            new ClusterSettings(
+                                newConfig.getIndexSettings().getNodeSettings(),
+                                Sets.addToCopy(
+                                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                                    IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                                    IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+                                )
+                            )
+                        ),
                         shardId -> true,
                         statelessCommitService.getShardLocalCommitsTracker(newConfig.getShardId()).shardLocalReadersTracker()
                     );
@@ -1082,7 +1201,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheService,
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
-                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings())
+                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
+                        new NoopCircuitBreaker("stateless_reader_heap"),
+                        StatelessReaderHeapMetrics.NOOP,
+                        new ReshardSearchFilters(Settings.EMPTY)
                     );
                 }
             });

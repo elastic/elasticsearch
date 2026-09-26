@@ -37,8 +37,14 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -69,14 +75,18 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -105,8 +115,16 @@ public class ScrollDataExtractorTests extends ESTestCase {
             this(createContext(start, end));
         }
 
+        TestDataExtractor(long start, long end, ScrollDataExtractorFactory factory) {
+            super(client, createContext(start, end), timingStatsReporter, DatafeedSearchTelemetry.NOOP, factory);
+        }
+
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context, timingStatsReporter, scrollDataExtractorFactory);
+            super(client, context, timingStatsReporter, DatafeedSearchTelemetry.NOOP, scrollDataExtractorFactory);
+        }
+
+        TestDataExtractor(ScrollDataExtractorContext context, DatafeedSearchTelemetry searchTelemetry) {
+            super(client, context, timingStatsReporter, searchTelemetry, scrollDataExtractorFactory);
         }
 
         @Override
@@ -600,7 +618,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         // Get a scroll ID by fetching the first page
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
+        SearchResponse response1 = createCcsSearchResponse(
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
+        );
         extractor.setNextResponse(response1);
         extractor.next();
 
@@ -683,18 +705,171 @@ public class ScrollDataExtractorTests extends ESTestCase {
         verify(scrollDataExtractorFactory, never()).retryClearOrphanedScrollIds();
     }
 
+    @SuppressWarnings("unchecked")
+    public void testLocalScrollClearWithSucceededFalseShouldNotQueueOrphan() throws IOException {
+        ActionFuture<ClearScrollResponse> failedClearFuture = mock(ActionFuture.class);
+        when(failedClearFuture.actionGet()).thenReturn(new ClearScrollResponse(false, 0));
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
+            (ActionFuture) failedClearFuture
+        );
+
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1"));
+        when(response1.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response1);
+        extractor.next();
+
+        SearchResponse response2 = createEmptySearchResponse();
+        when(response2.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response2);
+        extractor.next();
+
+        extractor.destroy();
+
+        verify(scrollDataExtractorFactory, never()).addOrphanedScrollIds(anyList());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLocalScrollClearTransportExceptionShouldNotQueueOrphan() throws IOException {
+        ActionFuture<ClearScrollResponse> throwingClearFuture = mock(ActionFuture.class);
+        when(throwingClearFuture.actionGet()).thenThrow(new ElasticsearchException("network disruption"));
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
+            (ActionFuture) throwingClearFuture
+        );
+
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1"));
+        when(response1.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response1);
+        extractor.next();
+
+        SearchResponse response2 = createEmptySearchResponse();
+        when(response2.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response2);
+        extractor.next();
+
+        extractor.destroy();
+
+        verify(scrollDataExtractorFactory, never()).addOrphanedScrollIds(anyList());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCcsScrollClearWithSucceededFalseShouldQueueOrphanWithMetadata() throws IOException {
+        ActionFuture<ClearScrollResponse> failedClearFuture = mock(ActionFuture.class);
+        when(failedClearFuture.actionGet()).thenReturn(new ClearScrollResponse(false, 0));
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
+            (ActionFuture) failedClearFuture
+        );
+
+        ScrollDataExtractorFactory realFactory = createRealScrollDataExtractorFactory();
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L, realFactory);
+
+        SearchResponse ccsResponse = createCcsSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1"));
+        extractor.setNextResponse(ccsResponse);
+        extractor.next();
+
+        SearchResponse response2 = createEmptySearchResponse();
+        extractor.setNextResponse(response2);
+        extractor.next();
+        extractor.destroy();
+
+        assertThat(realFactory.orphanedScrolls.isEmpty(), is(false));
+        ScrollDataExtractorFactory.OrphanedScroll orphan = realFactory.orphanedScrolls.peek();
+        assertThat(orphan.scrollId(), equalTo(response2.getScrollId()));
+        // Contract: destroy() calls retryClearOrphanedScrollIds(); if clear still fails, retry count must advance.
+        assertThat(orphan.retryAttempts(), greaterThan(0));
+    }
+
+    public void testEmptySearchShouldRecordZeroInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 2000L, null, 1000), telemetrySupport.telemetry);
+        extractor.setNextResponse(createEmptySearchResponse());
+        extractor.next();
+        verify(telemetrySupport.resultCountHistogram).record(
+            0,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            1000,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+    }
+
+    public void testFullPageThenEmptyShouldNotRecordFullPageInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 10000L, null, 2), telemetrySupport.telemetry);
+        extractor.setNextResponse(createSearchResponseWithHitCount(2));
+        extractor.next();
+        extractor.setNextResponse(createEmptySearchResponse());
+        extractor.next();
+        verify(telemetrySupport.fullPageCounter, never()).incrementBy(anyLong(), anyMap());
+    }
+
+    public void testFullPageThenNonEmptyShouldRecordFullPageOnceInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 10000L, null, 2), telemetrySupport.telemetry);
+        extractor.setNextResponse(createSearchResponseWithHitCount(2));
+        extractor.next();
+        extractor.setNextResponse(createSearchResponseWithHitCount(1));
+        extractor.next();
+        extractor.setNextResponse(createEmptySearchResponse());
+        extractor.next();
+        verify(telemetrySupport.fullPageCounter, times(1)).incrementBy(
+            1,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+    }
+
+    public void testScrollSizeShouldRecordRawPageSizeInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        TestDataExtractor extractor = new TestDataExtractor(createContext(1000L, 2000L, null, 500), telemetrySupport.telemetry);
+        extractor.setNextResponse(createSearchResponseWithHitCount(1));
+        extractor.next();
+        verify(telemetrySupport.resultCountHistogram).record(
+            1,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            500,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.SCROLL.attributeValue())
+        );
+    }
+
+    private ScrollDataExtractorFactory createRealScrollDataExtractorFactory() {
+        DatafeedConfig datafeedConfig = mock(DatafeedConfig.class);
+        when(datafeedConfig.getHeaders()).thenReturn(Collections.emptyMap());
+        Job job = mock(Job.class);
+        when(job.getId()).thenReturn(jobId);
+        return new ScrollDataExtractorFactory(
+            client,
+            datafeedConfig,
+            null,
+            job,
+            extractedFields,
+            NamedXContentRegistry.EMPTY,
+            timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP
+        );
+    }
+
     private ScrollDataExtractorContext createContext(long start, long end) {
         return createContext(start, end, null);
     }
 
     private ScrollDataExtractorContext createContext(long start, long end, String projectRouting) {
+        return createContext(start, end, projectRouting, scrollSize);
+    }
+
+    private ScrollDataExtractorContext createContext(long start, long end, String projectRouting, int contextScrollSize) {
         return new ScrollDataExtractorContext(
             jobId,
             extractedFields,
             indices,
             query,
             scriptFields,
-            scrollSize,
+            contextScrollSize,
             start,
             end,
             Collections.emptyMap(),
@@ -706,6 +881,18 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     private SearchResponse createEmptySearchResponse() {
         return createSearchResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+    }
+
+    private SearchResponse createSearchResponseWithHitCount(int hitCount) {
+        List<Long> timestamps = new ArrayList<>(hitCount);
+        List<String> field1Values = new ArrayList<>(hitCount);
+        List<String> field2Values = new ArrayList<>(hitCount);
+        for (int i = 0; i < hitCount; i++) {
+            timestamps.add(1000L + i);
+            field1Values.add("a" + i);
+            field2Values.add("b" + i);
+        }
+        return createSearchResponse(timestamps, field1Values, field2Values);
     }
 
     private SearchResponse createSearchResponse(List<Long> timestamps, List<String> field1Values, List<String> field2Values) {
@@ -726,6 +913,15 @@ public class ScrollDataExtractorTests extends ESTestCase {
         when(searchResponse.getHits()).thenReturn(searchHits);
         when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
+        return searchResponse;
+    }
+
+    private SearchResponse createCcsSearchResponse(List<Long> timestamps, List<String> field1Values, List<String> field2Values) {
+        SearchResponse searchResponse = createSearchResponse(timestamps, field1Values, field2Values);
+        Map<String, SearchResponse.Cluster> clusterInfo = new HashMap<>();
+        clusterInfo.put("remote", new SearchResponse.Cluster("remote", "*", false, null));
+        SearchResponse.Clusters realClusters = new SearchResponse.Clusters(clusterInfo);
+        when(searchResponse.getClusters()).thenReturn(realClusters);
         return searchResponse;
     }
 

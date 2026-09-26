@@ -1,0 +1,109 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Unit tests for {@link ExternalMetadataColumns}, the per-file constant synthesizer for the
+ * standard metadata names.
+ */
+public class ExternalMetadataColumnsTests extends ESTestCase {
+
+    public void testMetadataNamesFollowAttributeBinding() {
+        Set<String> names = new HashSet<>(ExternalMetadataColumns.STANDARD_NAMES);
+        names.addAll(FileMetadataColumns.NAMES);
+        for (String name : names) {
+            assertEquals(
+                Set.of(name),
+                ExternalMetadataColumns.metadataNames(List.of(new ExternalMetadataAttribute(Source.EMPTY, name, DataType.KEYWORD)))
+            );
+            assertEquals(
+                Set.of(),
+                ExternalMetadataColumns.metadataNames(List.of(new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD)))
+            );
+        }
+    }
+
+    /**
+     * {@code _index} names an index and a dataset is not one, so it binds and answers SQL NULL rather
+     * than the dataset name. The name that does answer for a dataset is {@code _name}, folded in the
+     * plan by {@code MaterializeRelationClassAndName} and never reaching a reader.
+     */
+    public void testIndexAnswersNull() {
+        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants();
+        assertTrue(constants.containsKey(ExternalMetadataColumns.INDEX));
+        assertNull(constants.get(ExternalMetadataColumns.INDEX));
+    }
+
+    /**
+     * A file holds no document identity, no document version and no stored source. All three names still bind —
+     * so a query naming them is answered rather than rejected — and every row is SQL NULL, which is what the
+     * dataset actually knows. A value composed at the reader would be an invention.
+     */
+    public void testIdentityVersionAndSourceAnswerNull() {
+        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants();
+        for (String name : List.of(ExternalMetadataColumns.ID, ExternalMetadataColumns.VERSION, ExternalMetadataColumns.SOURCE)) {
+            assertTrue("[" + name + "] must be bindable", ExternalMetadataColumns.STANDARD_NAMES.contains(name));
+            assertTrue("[" + name + "] must carry a per-file entry", constants.containsKey(name));
+            assertNull("[" + name + "] must answer SQL NULL", constants.get(name));
+        }
+    }
+
+    /**
+     * Every per-file constant is null, with no exception. Pins the set as a whole so a name given a composed value
+     * has to change this assertion rather than slip in beside the null arm.
+     */
+    public void testEveryPerFileConstantIsNull() {
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
+            assertNull("[" + constant.getKey() + "] must answer SQL NULL", constant.getValue());
+        }
+    }
+
+    /**
+     * Drift tripwire: every name the analyzer can bind on an external relation
+     * ({@code MetadataAttribute.ATTRIBUTES_MAP}) must be in the dedicated set. A new standard
+     * metadata name added to the analyzer registry without a matching entry here would bind on
+     * external datasets, escape the partition-rename guard, and then fail at runtime in the
+     * producer pipeline — this assertion turns that into a compile-adjacent test failure naming
+     * the missing entry.
+     */
+    public void testStandardNamesCoverEveryBindableMetadataName() {
+        for (String name : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            assertTrue(
+                "metadata name [" + name + "] is bindable on external relations but missing from STANDARD_NAMES",
+                ExternalMetadataColumns.STANDARD_NAMES.contains(name)
+            );
+        }
+    }
+
+    /**
+     * Equality, not containment: a name added to {@link MetadataAttribute#ATTRIBUTES_MAP} and not here would bind on
+     * an index and error on a dataset, which is the outcome bind-and-NULL exists to rule out.
+     */
+    public void testStandardNamesAreBindableAndAnswered() {
+        assertEquals(
+            "every metadata name the analyzer registers must be answerable on a dataset, and vice versa",
+            MetadataAttribute.ATTRIBUTES_MAP.keySet(),
+            ExternalMetadataColumns.STANDARD_NAMES
+        );
+        // The call is the guard, not a containment check on what it returns: it walks the same set, so every name is
+        // present by construction. perFileValue's default arm is what fires for a name nobody gave a value.
+        ExternalMetadataColumns.extractPerFileConstants();
+    }
+}

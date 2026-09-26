@@ -109,6 +109,42 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
     }
 
+    public void testMergeThreadPoolMaxSizeFactor() throws InterruptedException {
+        // factor -> processors -> expected merge pool max size (rounded to nearest, floored to 1, capped at processors)
+        assertMergeThreadPoolMax(0.5, 4, 2);
+        assertMergeThreadPoolMax(0.5, 3, 2); // round(1.5) == 2
+        assertMergeThreadPoolMax(0.5, 8, 4);
+        assertMergeThreadPoolMax(0.1, 1, 1); // round(0.1) == 0, floored to 1
+        assertMergeThreadPoolMax(0.1, 4, 1); // round(0.4) == 0, floored to 1
+        assertMergeThreadPoolMax(1.0, 4, 4); // default factor leaves the size unchanged
+    }
+
+    public void testMergeThreadPoolExplicitMaxTakesPrecedenceOverFactor() throws InterruptedException {
+        // an explicit thread_pool.merge.max overrides the value derived from the factor: 0.5 * 8 would be 4, but 3 wins
+        final Settings settings = Settings.builder()
+            .put("node.processors", 8)
+            .put("indices.merge.thread_pool.max_size_factor", 0.5)
+            .put("thread_pool.merge.max", 3)
+            .build();
+        runScalingThreadPoolTest(settings, (clusterSettings, threadPool) -> {
+            final ThreadPool.Info info = info(threadPool, ThreadPool.Names.MERGE);
+            assertThat(info.getMin(), equalTo(1));
+            assertThat(info.getMax(), equalTo(3));
+        });
+    }
+
+    private void assertMergeThreadPoolMax(final double factor, final int processors, final int expectedMax) throws InterruptedException {
+        final Settings settings = Settings.builder()
+            .put("node.processors", processors)
+            .put("indices.merge.thread_pool.max_size_factor", factor)
+            .build();
+        runScalingThreadPoolTest(settings, (clusterSettings, threadPool) -> {
+            final ThreadPool.Info info = info(threadPool, ThreadPool.Names.MERGE);
+            assertThat(info.getMin(), equalTo(1));
+            assertThat(info.getMax(), equalTo(expectedMax));
+        });
+    }
+
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));

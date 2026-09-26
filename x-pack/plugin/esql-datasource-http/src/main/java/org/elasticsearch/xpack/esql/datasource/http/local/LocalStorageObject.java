@@ -44,7 +44,15 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             throw new IllegalArgumentException("filePath cannot be null");
         }
         this.filePath = filePath;
-        this.storagePath = StoragePath.of("file://" + filePath.toAbsolutePath());
+        // Use the shared canonical factory (not "file://" + toAbsolutePath) so the location is
+        // normalized identically to every other producer of a local StoragePath (the directory
+        // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
+        // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
+        // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
+        // key) differ from the planning-side SchemaCacheKey canonicalPath, so
+        // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
+        // contribution and warm queries re-scanned. On POSIX both forms already coincide.
+        this.storagePath = StoragePath.ofLocalPath(filePath);
     }
 
     public LocalStorageObject(Path filePath, long length) {
@@ -82,8 +90,10 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length != READ_TO_END && length <= 0) {
+            // Match the remote providers (S3/GCS/Azure/HTTP): a closed range must be positive; zero-length is
+            // rejected rather than yielding an empty stream, so the precondition is uniform across providers.
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
@@ -91,9 +101,10 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         }
         long startNanos = System.nanoTime();
         try {
+            // READ_TO_END: read from position to the end of the file (no length() / size() lookup).
             return new RangeInputStream(filePath, position, length);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, length < 0 ? 0L : length);
         }
     }
 
@@ -182,9 +193,12 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     private static final class RangeInputStream extends InputStream {
         private final FileChannel channel;
         private final InputStream delegate;
+        // READ_TO_END (the only negative length newStream lets through) means read to EOF, no byte cap.
+        private final boolean unbounded;
         private long remaining;
 
         RangeInputStream(Path filePath, long position, long length) throws IOException {
+            this.unbounded = length < 0;
             this.remaining = length;
             boolean success = false;
             FileChannel ch = null;
@@ -203,11 +217,11 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
 
         @Override
         public int read() throws IOException {
-            if (remaining <= 0) {
+            if (unbounded == false && remaining <= 0) {
                 return -1;
             }
             int b = delegate.read();
-            if (b >= 0) {
+            if (b >= 0 && unbounded == false) {
                 remaining--;
             }
             return b;
@@ -215,12 +229,12 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            if (remaining <= 0) {
+            if (unbounded == false && remaining <= 0) {
                 return -1;
             }
-            int toRead = (int) Math.min(len, remaining);
+            int toRead = unbounded ? len : (int) Math.min(len, remaining);
             int bytesRead = delegate.read(b, off, toRead);
-            if (bytesRead > 0) {
+            if (bytesRead > 0 && unbounded == false) {
                 remaining -= bytesRead;
             }
             return bytesRead;
@@ -236,15 +250,17 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             if (n <= 0) {
                 return 0;
             }
-            long toSkip = Math.min(n, remaining);
+            long toSkip = unbounded ? n : Math.min(n, remaining);
             long skipped = delegate.skip(toSkip);
-            remaining -= skipped;
+            if (unbounded == false) {
+                remaining -= skipped;
+            }
             return skipped;
         }
 
         @Override
         public int available() throws IOException {
-            return (int) Math.min(remaining, Integer.MAX_VALUE);
+            return unbounded ? delegate.available() : (int) Math.min(remaining, Integer.MAX_VALUE);
         }
     }
 }

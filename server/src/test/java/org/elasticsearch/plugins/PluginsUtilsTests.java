@@ -55,7 +55,8 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
     }
 
@@ -471,7 +472,8 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             isStable,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            Collections.emptyList()
         );
         return info;
     }

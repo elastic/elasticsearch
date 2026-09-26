@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
-public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
+public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(

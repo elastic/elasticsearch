@@ -44,6 +44,32 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
+    public void testZeroBucketDoesNotOverlapBucketsAfterMerge() {
+        try (
+            ReleasableExponentialHistogram input = ExponentialHistogramTestUtils.randomHistogram(ExponentialHistogramCircuitBreaker.noop());
+            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(randomIntBetween(4, 100), breaker())
+        ) {
+            merger.add(input);
+            ExponentialHistogram result = merger.get();
+
+            for (ExponentialHistogram.Buckets buckets : List.of(result.negativeBuckets(), result.positiveBuckets())) {
+                BucketIterator closestToZero = buckets.iterator();
+                if (closestToZero.hasNext()) {
+                    assertThat(
+                        "zero bucket overlaps with the closest populated bucket",
+                        ExponentialScaleUtils.compareExponentiallyScaledValues(
+                            result.zeroBucket().index(),
+                            result.zeroBucket().scale(),
+                            closestToZero.peekIndex(),
+                            closestToZero.scale()
+                        ),
+                        lessThanOrEqualTo(0)
+                    );
+                }
+            }
+        }
+    }
+
     public void testZeroThresholdCollapsesOverlappingBuckets() {
         ExponentialHistogram first = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(2.0001, 10)));
 

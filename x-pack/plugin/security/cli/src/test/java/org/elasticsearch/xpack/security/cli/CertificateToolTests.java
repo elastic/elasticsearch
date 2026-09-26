@@ -140,9 +140,8 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeJimfs() throws Exception {
         IOUtils.close(jimfs);
-        super.tearDown();
     }
 
     public void testOutputDirectory() throws Exception {

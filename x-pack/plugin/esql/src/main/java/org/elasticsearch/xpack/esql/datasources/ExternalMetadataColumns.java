@@ -1,0 +1,178 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Registry of the standard ES index metadata names ({@code _index}, {@code _score},
+ * {@code _ignored}, ...) that the external-source pipeline knows how to materialise on
+ * external datasets. The data types are sourced from
+ * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
+ * always agree (including snapshot-only entries such as {@code _tier}).
+ * <p>
+ * Sibling to {@link FileMetadataColumns} ({@code _file.*}). Both families are request-driven
+ * (the user names them in {@code METADATA}) and materialized by {@link VirtualColumnIterator}
+ * on the producer thread; the split exists because {@code _file.*} comes from per-file stat
+ * while the standard names route through {@link MetadataAttribute#ATTRIBUTES_MAP}.
+ * <p>
+ * Every standard name a dataset answers at the reader is a per-file constant; see
+ * {@link #PER_FILE_CONSTANT_NAMES}, and every one of them holds a {@code null} value: a file has no
+ * document identity, no document version and no stored source, and a dataset is not an index, so
+ * the honest answer is SQL NULL rather than a value the engine invented.
+ * {@code _name} is the name that does answer for a dataset; it and {@code _class} are the two standard
+ * names outside that set, answered on the relation by {@code MaterializeRelationClassAndName} and
+ * never read from a file.
+ */
+public final class ExternalMetadataColumns {
+
+    // Aliased from MetadataAttribute where it exports the name, so this registry cannot drift
+    // from the analyzer's binding source. The remainder have no exported constant there.
+    public static final String ID = "_id";
+    public static final String INDEX = MetadataAttribute.INDEX;
+    public static final String VERSION = "_version";
+    public static final String SCORE = MetadataAttribute.SCORE;
+    public static final String SOURCE = "_source";
+    public static final String IGNORED = "_ignored";
+    public static final String INDEX_MODE = "_index_mode";
+    public static final String TSID = MetadataAttribute.TSID_FIELD;
+    public static final String SIZE = MetadataAttribute.SIZE;
+    public static final String SLICE = SliceIndexing.FIELD_NAME;
+
+    /**
+     * Names of standard metadata columns that are materialised by the producer-side
+     * constant-block path. Every one of them is SQL {@code NULL}: a file carries no document
+     * identity, no document version and no stored source, and a dataset is not an index, so each
+     * column binds and every row is NULL.
+     */
+    public static final Set<String> PER_FILE_CONSTANT_NAMES;
+
+    static {
+        // Preserve a deterministic iteration order matching the natural projection order so any
+        // diagnostic / explain output is stable across runs.
+        var names = new LinkedHashSet<String>();
+        names.add(INDEX);
+        names.add(ID);
+        names.add(VERSION);
+        names.add(SOURCE);
+        names.add(SCORE);
+        names.add(IGNORED);
+        names.add(INDEX_MODE);
+        names.add(TSID);
+        names.add(SIZE);
+        // _tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; gate matches.
+        if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
+            names.add(DataTierFieldMapper.NAME);
+        }
+        // _slice is backed by _routing doc values on indices. A file has no routing, so it binds and answers NULL.
+        if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
+            names.add(SLICE);
+        }
+        PER_FILE_CONSTANT_NAMES = Collections.unmodifiableSet(names);
+    }
+
+    /**
+     * Every standard metadata name an external relation can bind. {@code Analyzer.bindMetadataFields}
+     * consults this set, so a standard name outside it resolves the way an unknown name does. It is
+     * {@link #PER_FILE_CONSTANT_NAMES} plus the names a relation binds but the reader does not
+     * produce. For namespace protection use {@link #RESERVED_NAMES}, which is wider.
+     */
+    public static final Set<String> STANDARD_NAMES;
+
+    static {
+        var names = new LinkedHashSet<>(PER_FILE_CONSTANT_NAMES);
+        // Answered by MaterializeRelationClassAndName on the relation, never read from a file: what
+        // kind of relation a row came from and what that relation is called are properties of the
+        // query's plan, and the same two columns are answered the same way on an index.
+        names.add(MetadataAttribute.RELATION_CLASS);
+        names.add(MetadataAttribute.RELATION_NAME);
+        STANDARD_NAMES = Collections.unmodifiableSet(names);
+    }
+
+    /**
+     * The dedicated metadata namespace for reservation/rename purposes: {@link #STANDARD_NAMES}
+     * plus every standard name that is only gated for binding ({@code _tier}, {@code _slice}).
+     * Reservation is wider than binding on purpose and must not flip with build mode or flag state
+     * — a dataset layout claiming {@code _tier} is renamed to {@code _partition._tier} in EVERY
+     * build, even where {@code METADATA _tier} itself is not yet exposed, so a Hive dataset
+     * surfaces the same column names either way. Use this set for namespace protection; use
+     * {@link #STANDARD_NAMES} for what a relation may actually bind.
+     */
+    public static final Set<String> RESERVED_NAMES;
+
+    static {
+        var names = new LinkedHashSet<>(STANDARD_NAMES);
+        names.add(DataTierFieldMapper.NAME); // unconditional: reservation is build-mode-independent
+        names.add(SLICE); // unconditional: reservation is flag-state-independent
+        RESERVED_NAMES = Collections.unmodifiableSet(names);
+    }
+
+    private ExternalMetadataColumns() {}
+
+    /**
+     * Names bound to engine-generated metadata in the relation's output. A data column with a
+     * metadata name is not engine-generated, even on files where that data column is missing.
+     * Discovery and readers must use this binding rather than infer ownership from file schemas.
+     */
+    public static Set<String> metadataNames(Iterable<Attribute> attributes) {
+        Set<String> names = new LinkedHashSet<>();
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof ExternalMetadataAttribute) {
+                names.add(attribute.name());
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    /**
+     * Build the per-file constant values for the standard metadata names listed in
+     * {@link #PER_FILE_CONSTANT_NAMES}. The map is suitable for merging into a partition-value map
+     * consumed by {@link VirtualColumnIterator}. Every value is {@code null}: none of these names is
+     * addressable on external data (no document identity, no per-row {@code _ignored} list, no
+     * ranking, etc.).
+     * <p>
+     * Nothing here is derived from the file, and nothing is derived from the dataset either: the
+     * values are the same for every dataset. The result is meant to overlay onto the
+     * partition-value map so {@link VirtualColumnIterator} renders constant blocks of the correct
+     * type ({@link DataType}) — null values are turned into {@code newConstantNullBlock} by the
+     * iterator's existing path.
+     */
+    public static Map<String, Object> extractPerFileConstants() {
+        var values = new LinkedHashMap<String, Object>(PER_FILE_CONSTANT_NAMES.size());
+        for (String name : PER_FILE_CONSTANT_NAMES) {
+            values.put(name, perFileValue(name));
+        }
+        return Collections.unmodifiableMap(values);
+    }
+
+    private static Object perFileValue(String name) {
+        return switch (name) {
+            // A file carries no document identity, no document version and no stored source, and no
+            // per-row _ignored list, index mode, tsid or stored size either. _index is on this arm for
+            // the same reason: it names an index, and a dataset is not one. The name that does answer
+            // for a dataset is _name, which MaterializeRelationClassAndName folds in the plan, so it
+            // never reaches a reader. _score is on this arm because no scorer is wired over an external
+            // relation, so nothing populates it: the column binds and answers NULL. Every one of these is
+            // SQL NULL rather than a value composed here.
+            case INDEX, ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            default -> throw new AssertionError("Unhandled per-file constant name: " + name);
+        };
+    }
+}

@@ -144,6 +144,13 @@ public class MvSingleValueOrNullTests extends AbstractMultivalueFunctionTestCase
             DataType.GEOHEX,
             (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
         );
+        flattened(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            Function.identity(),
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
         // Multi-valued inputs cause MvSingleValueOrNull to emit a warning
         for (int i = 0; i < cases.size(); i++) {
             final TestCaseSupplier original = cases.get(i);

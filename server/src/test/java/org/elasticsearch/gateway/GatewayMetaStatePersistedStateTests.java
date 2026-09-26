@@ -45,6 +45,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOError;
@@ -71,8 +73,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private Settings settings;
     private DiscoveryNode localNode;
 
-    @Override
-    public void setUp() throws Exception {
+    @Before
+    public void initNodeEnvironment() throws Exception {
         nodeEnvironment = newNodeEnvironment();
         localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterName = new ClusterName(randomAlphaOfLength(10));
@@ -84,13 +86,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
         }
         settings = settingsBuilder.build();
-        super.setUp();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeNodeEnvironment() throws Exception {
         nodeEnvironment.close();
-        super.tearDown();
     }
 
     private CoordinationState.PersistedState newGatewayPersistedState() {

@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -20,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTestCase<SearchSortValuesAndFormats> {
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -67,6 +70,64 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
             case 5 -> randomDouble();
             default -> throw new UnsupportedOperationException();
         };
+    }
+
+    public void testUnformattableLongSortValueThrowsIllegalArgument() {
+        DocValueFormat noNumericFormat = new DocValueFormat() {
+            @Override
+            public String getWriteableName() {
+                return "test_no_numeric_format";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+            // format(long) and format(double) are not overridden, inheriting the UnsupportedOperationException defaults
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchSortValuesAndFormats(new Object[] { randomLong() }, new DocValueFormat[] { noNumericFormat })
+        );
+        assertThat(e.getMessage(), containsString("test_no_numeric_format"));
+        assertThat(e.getMessage(), containsString("does not support sorting"));
+    }
+
+    public void testUnformattableDoubleSortValueThrowsIllegalArgument() {
+        DocValueFormat noNumericFormat = new DocValueFormat() {
+            @Override
+            public String getWriteableName() {
+                return "test_no_numeric_format";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchSortValuesAndFormats(new Object[] { randomDouble() }, new DocValueFormat[] { noNumericFormat })
+        );
+        assertThat(e.getMessage(), containsString("test_no_numeric_format"));
+        assertThat(e.getMessage(), containsString("does not support sorting"));
+    }
+
+    public void testUnformattableBytesSortValueThrowsIllegalArgument() {
+        DocValueFormat noBytesFormat = new DocValueFormat() {
+            @Override
+            public String getWriteableName() {
+                return "test_no_bytes_format";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchSortValuesAndFormats(
+                new Object[] { new BytesRef(randomAlphaOfLength(5)) },
+                new DocValueFormat[] { noBytesFormat }
+            )
+        );
+        assertThat(e.getMessage(), containsString("test_no_bytes_format"));
+        assertThat(e.getMessage(), containsString("does not support sorting"));
     }
 
     public static SearchSortValuesAndFormats randomInstance() {

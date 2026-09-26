@@ -8,8 +8,11 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +31,14 @@ public class AggregationPhase {
         }
         final Supplier<AggregatorCollector> collectorSupplier;
         if (context.aggregations().isInSortOrderExecutionRequired()) {
+
+            final List<Runnable> cancellationChecks = context.getCancellationChecks();
+            rewriteWithCancellation(context, cancellationChecks);
+            if (context.searcher().timeExceeded()) {
+                return;
+            }
             AggregatorCollector collector = newAggregatorCollector(context);
-            executeInSortOrder(context, collector.bucketCollector);
+            executeInSortOrder(context, collector.bucketCollector, cancellationChecks);
             collectorSupplier = () -> new AggregatorCollector(collector.aggregators, BucketCollector.NO_OP_BUCKET_COLLECTOR);
         } else {
             collectorSupplier = () -> newAggregatorCollector(context);
@@ -46,6 +55,7 @@ public class AggregationPhase {
             );
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private static AggregatorCollector newAggregatorCollector(SearchContext context) {
         try {
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
@@ -54,11 +64,25 @@ public class AggregationPhase {
             return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            throw new IllegalArgumentException("The aggregations are too deeply nested to build");
         }
     }
 
-    private static void executeInSortOrder(SearchContext context, BucketCollector collector) {
-        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), context.getCancellationChecks());
+    private static void rewriteWithCancellation(SearchContext context, List<Runnable> cancellationChecks) {
+        ContextIndexSearcher searcher = context.searcher();
+        cancellationChecks.forEach(searcher::addQueryCancellation);
+        try {
+            context.rewrittenQuery();
+        } catch (RuntimeException e) {
+            throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to rewrite query", e);
+        } finally {
+            cancellationChecks.forEach(searcher::removeQueryCancellation);
+        }
+    }
+
+    private static void executeInSortOrder(SearchContext context, BucketCollector collector, List<Runnable> cancellationChecks) {
+        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), cancellationChecks);
         searcher.setMinimumScore(context.minimumScore());
         searcher.setProfiler(context);
         try {

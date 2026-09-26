@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -59,6 +60,11 @@ public final class FlightStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // Arrow Flight has no directory listing at all
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateScheme(path);
         return flightExists(path);
@@ -67,6 +73,15 @@ public final class FlightStorageProvider implements StorageProvider {
     @Override
     public List<String> supportedSchemes() {
         return List.of("flight", "grpc");
+    }
+
+    @Override
+    public boolean supportsStableMetadata() {
+        // Arrow Flight objects have no last-modified timestamp (FlightStorageObject reports null), so there is
+        // no stable per-file identity to invalidate a schema/stats cache entry on. Bypass caching entirely
+        // rather than cache under an unknowable version. This matters more now that the identity-keyed caches
+        // no longer have a TTL: a null-mtime entry would otherwise be stale forever, not just for the TTL.
+        return false;
     }
 
     @Override

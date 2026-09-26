@@ -1,0 +1,101 @@
+{
+  "index_patterns": [
+    ".kibana_change_history*"
+  ],
+  "data_stream": {
+    "allow_custom_routing": false
+  },
+  "template": {
+    "lifecycle": {
+      "enabled": true
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
+    },
+    "mappings": {
+      "_meta": {
+        "version": ${kibana.change.history.version}
+      },
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "user": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "module": {
+              "type": "keyword"
+            },
+            "dataset": {
+              "type": "keyword"
+            },
+            "action": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
+        "span": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            }
+          }
+        },
+        "object": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "sequence": {
+              "type": "long"
+            }
+          }
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "metadata": {
+          "type": "flattened"
+        },
+        "kibana": {
+          "properties": {
+            "space_ids": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "version": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 100,
+  "version": 3
+}

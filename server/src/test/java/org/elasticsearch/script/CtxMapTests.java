@@ -25,10 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CtxMapTests extends ESTestCase {
     CtxMap<?> map;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initCtxMap() throws Exception {
         map = new CtxMap<>(new HashMap<>(), new Metadata(Map.of(), Map.of()));
     }
 

@@ -20,7 +20,7 @@ import java.util.Objects;
 
 /**
  * Unresolved PromQL function call produced by the parser and replaced by a resolved node
- * (e.g. {@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate}) during analysis.
+ * (e.g. {@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate}, {@link AcrossSeriesReduction}) during analysis.
  * <p>
  *     The parser cannot validate function names, arity, or parameter types without
  *     consulting the function registry; that semantic work is deliberately deferred

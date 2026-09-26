@@ -53,8 +53,17 @@ class AcquiredSearchContexts implements Releasable {
         checkNotClosed();
         var startingIndex = nextAddIndex;
         for (var cse : searchContexts) {
-            allContexts[nextAddIndex] = new ComputeSearchContext(nextAddIndex, cse);
-            nextAddIndex++;
+            final int idx = nextAddIndex++;
+            cse.addReleasable(() -> {
+                synchronized (AcquiredSearchContexts.this) {
+                    ComputeSearchContext ctx = allContexts[idx];
+                    if (ctx != null) {
+                        // Allow GC of closed search contexts as soon as they are released.
+                        allContexts[idx] = ctx.tombstone();
+                    }
+                }
+            });
+            allContexts[idx] = new ComputeSearchContext(idx, cse);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }

@@ -9,27 +9,39 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
 public interface TelemetryProvider {
 
-    String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
-
     /**
-     * JVM system property that activates the OTel SDK trace export path.
-     * Set via {@code config/jvm.options} (or {@code -D} on the command line); not settable via
-     * {@code elasticsearch.yml} or the cluster settings API.
+     * Resolves the interval at which node and indices metrics are collected to use for {@code NodeMetrics} cached.
+     * <p>
+     * The interval tracks the OTel SDK export interval ({@code telemetry.export.interval}, falling back to the legacy
+     * {@code telemetry.agent.metrics_interval}) so metrics are refreshed in step with exports. Deployments that export
+     * less frequently, such as serverless, set {@code telemetry.export.interval} explicitly; the 10s default here only
+     * applies when neither setting is present.
      */
-    String OTEL_TRACES_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.traces.enabled";
+    static TimeValue getMetricsInterval(Settings settings) {
+        return settings.getAsTime(
+            "telemetry.export.interval",
+            settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10))
+        );
+    }
 
     Tracer getTracer();
 
     MeterRegistry getMeterRegistry();
 
+    HttpServerInstrumentation getHttpServerInstrumentation();
+
     /**
-     * Attempts to export all buffered telemetry (metrics and traces). Implementations should flush
-     * both signals concurrently where possible and bound the wait to an appropriate timeout.
+     * Forces any buffered telemetry (metrics, traces, and log records) to be exported immediately.
+     * Implementations should flush all signals concurrently where possible and bound the wait to
+     * an appropriate timeout.
      */
     void attemptFlush();
 
@@ -45,6 +57,11 @@ public interface TelemetryProvider {
         @Override
         public MeterRegistry getMeterRegistry() {
             return MeterRegistry.NOOP;
+        }
+
+        @Override
+        public HttpServerInstrumentation getHttpServerInstrumentation() {
+            return HttpServerInstrumentation.NOOP;
         }
 
         @Override

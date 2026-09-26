@@ -22,6 +22,7 @@ public abstract class AbstractAllByIntGroupingState extends AbstractAllByKeyGrou
      */
     private IntArray keys;
 
+    @SuppressWarnings("this-escape")
     protected AbstractAllByIntGroupingState(BigArrays bigArrays) {
         super(bigArrays);
         boolean success = false;

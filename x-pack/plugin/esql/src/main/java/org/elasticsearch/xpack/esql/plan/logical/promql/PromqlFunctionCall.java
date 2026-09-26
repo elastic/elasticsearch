@@ -33,7 +33,8 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
-    ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
+    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, WithinSeriesAggregate,
+    ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
     private final List<Expression> parameters;
@@ -113,7 +114,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
             // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
             // internally, so plain numerics are wrapped with to_counter() for counter-required
             // functions and counter metrics are wrapped with to_gauge() for gauge-only functions.
-            if (target != null) {
+            if (target != null && target.resolved() && target.dataType().isHistogram() == false) {
                 var counterSupport = definition.counterSupport();
                 if (counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED && DataType.isCounter(target.dataType()) == false) {
                     target = new ToCounter(source(), target);
@@ -129,8 +130,18 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     public abstract FunctionType functionType();
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Re-declared abstract on the {@link PromqlFunctionCall} hierarchy so every PromQL function node classifies itself
+     * explicitly instead of silently inheriting the transparent default: adding a new function node fails to compile until
+     * its relabel-placement semantics are decided.
+     */
+    @Override
+    public abstract boolean isIdentityTransparent();
+
     @Override
     public final PromqlDataType returnType() {
-        return functionType().outputType();
+        return functionType().outputType;
     }
 }

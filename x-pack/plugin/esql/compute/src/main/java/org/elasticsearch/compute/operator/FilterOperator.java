@@ -12,8 +12,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
-
 /**
  * Filters rows from input {@link Page}s. Keeps things that evaluate to {@code true}
  * and discards things that return {@code false} or {@code null}.
@@ -123,9 +121,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
             if (rowCount == page.getPositionCount()) {
                 return page.shallowCopy();
             }
-            positions = Arrays.copyOf(positions, rowCount);
-
-            return page.filter(false, positions);
+            return page.filter(false, positions, 0, rowCount);
         } finally {
             page.releaseBlocks();
         }

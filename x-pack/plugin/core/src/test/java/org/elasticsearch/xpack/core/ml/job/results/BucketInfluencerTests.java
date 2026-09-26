@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +45,9 @@ public class BucketInfluencerTests extends AbstractXContentSerializingTestCase<B
         }
         if (randomBoolean()) {
             bucketInfluencer.setIsInterim(randomBoolean());
+        }
+        if (randomBoolean()) {
+            bucketInfluencer.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         return bucketInfluencer;
     }
@@ -171,5 +177,20 @@ public class BucketInfluencerTests extends AbstractXContentSerializingTestCase<B
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             BucketInfluencer.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testEventIngestedWireBwc() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("ml_anomaly_event_ingested");
+
+        BucketInfluencer instance = createTestInstance();
+        instance.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+
+        BucketInfluencer supported = copyInstance(instance, TransportVersionUtils.randomVersionSupporting(gate));
+        assertEquals(instance.getEventIngested(), supported.getEventIngested());
+
+        BucketInfluencer old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertNull(old.getEventIngested());
+        instance.setEventIngested(null);
+        assertEquals(instance, old);
     }
 }

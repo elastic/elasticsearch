@@ -101,8 +101,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startReadinessService() throws Exception {
         threadpool = new TestThreadPool("readiness_service_tests");
         clusterService = mock(ClusterService.class);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
@@ -114,7 +113,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopReadinessService() throws Exception {
         // make sure readiness service is shut down
         if (readinessService.lifecycleState() == Lifecycle.State.STARTED) {
             readinessService.stop();
@@ -123,7 +122,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             readinessService.close();
         }
 
-        super.tearDown();
         threadpool.shutdownNow();
     }
 

@@ -62,7 +62,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -91,10 +90,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         circuitBreakerService = new NoneCircuitBreakerService();
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
             TransportVersion.current(),
@@ -121,16 +118,14 @@ public class BroadcastReplicationTests extends ESTestCase {
         broadcastReplicationAction = new TestBroadcastReplicationAction(
             clusterService,
             transportService,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             TestProjectResolvers.singleProject(projectId)
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         IOUtils.close(clusterService, transportService);
     }
 
@@ -296,7 +291,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             ShardId shardId,
             SplitShardCountSummary shardCountSummary
         ) {
-            return new BasicReplicationRequest(shardId);
+            return new BasicReplicationRequest(shardId, shardCountSummary);
         }
 
         @Override

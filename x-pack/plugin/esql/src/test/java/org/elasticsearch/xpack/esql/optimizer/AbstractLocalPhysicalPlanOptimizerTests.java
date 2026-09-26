@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -82,9 +81,10 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
     @Before
     public void init() {
         EnrichResolution enrichResolution = new EnrichResolution();
+        // Not exercised by any "ENRICH foo" query in this class or its subclasses today; Source.EMPTY is a harmless
+        // placeholder key since EnrichResolution is now keyed by the originating Enrich node's Source, not by name/mode alone.
         enrichResolution.addResolvedPolicy(
-            "foo",
-            Enrich.Mode.ANY,
+            Source.EMPTY,
             new ResolvedEnrichPolicy(
                 "fld",
                 EnrichPolicy.MATCH_TYPE,

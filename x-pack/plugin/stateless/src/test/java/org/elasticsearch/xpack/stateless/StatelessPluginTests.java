@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -119,6 +122,33 @@ public class StatelessPluginTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
         assertThat(ex.getMessage(), containsString("does not support cluster.routing.allocation.disk.threshold_enabled"));
+    }
+
+    public void testReaderHeapBreakerWiring() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_ENABLED.getKey(), true)
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(DiscoveryNodeRole.SEARCH_ROLE.roleName()))
+            .build();
+        final var plugin = createStatelessPlugin(settings);
+
+        // Setting must be registered so cluster settings recognises it.
+        assertTrue(
+            "LIMIT_SETTING must be advertised by getSettings()",
+            plugin.getSettings().contains(StatelessReaderHeapBreaker.LIMIT_SETTING)
+        );
+
+        // Default is -1 (no enforcement).
+        assertEquals(-1L, StatelessReaderHeapBreaker.LIMIT_SETTING.get(Settings.EMPTY).getBytes());
+
+        // CircuitBreakerPlugin contract: getCircuitBreaker produces the right BreakerSettings.
+        var breakerSettings = plugin.getCircuitBreaker(Settings.EMPTY);
+        assertEquals(StatelessReaderHeapBreaker.NAME, breakerSettings.getName());
+        assertEquals(-1L, breakerSettings.getLimit());
+        assertEquals(CircuitBreaker.Type.MEMORY, breakerSettings.getType());
+        assertEquals(CircuitBreaker.Durability.TRANSIENT, breakerSettings.getDurability());
+
+        // setCircuitBreaker must accept a breaker whose name matches; an unrelated breaker would trip the assert.
+        plugin.setCircuitBreaker(new NoopCircuitBreaker(StatelessReaderHeapBreaker.NAME));
     }
 
     public void testDataStreamLifecycleSettings() throws Exception {

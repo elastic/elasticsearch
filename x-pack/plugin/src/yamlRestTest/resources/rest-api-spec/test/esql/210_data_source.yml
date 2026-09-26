@@ -9,6 +9,15 @@ setup:
       reason: "ES|QL data source CRUD API"
 
 ---
+teardown:
+  # Safety-net cleanup for the region-on-datasource-warns test. Uses ignore: 404 because the
+  # resource is only created by that one test; every other test case leaves it absent.
+  - do:
+      esql.delete_data_source:
+        name: ds_region_warn
+        ignore: 404
+
+---
 "get-empty":
   - do:
       esql.get_data_source: { }
@@ -105,6 +114,157 @@ setup:
         name: "no_match_*"
 
   - match: { data_sources: [] }
+
+---
+"test-connection-unknown-type":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "unknown-type-xyz"
+          settings: {}
+
+---
+"test-connection-internal-type-rejected":
+  # "file" is an internal source-factory type used for format-only reads.
+  # It is NOT registered as a PUT data source type, so the test-connection API rejects it with 400.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — internal types must be rejected"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "file"
+          settings: {}
+
+---
+"test-connection-bad-settings":
+  # Malformed endpoint URL fails the S3 validator before the probe runs — expect 400.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — bad settings → 400"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            endpoint: "not-a-url"
+
+---
+"test-connection-anonymous-untestable":
+  # Anonymous S3 access has no account-level probe to run — expect untestable with a user-visible message.
+  # Also exercises the end-to-end message flow: TestConnectionNotSupportedException.userReason() reaches
+  # the response body as the "message" field.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — anonymous auth → untestable"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            auth: "anonymous"
+  - match: { status: "untestable" }
+  - match: { message: "Anonymous access targets public buckets; create a dataset to validate read access." }
+
+---
+"test-connection-region-stripped":
+  # The coordinator strips "region" from probe settings before fanning out to nodes (region is a
+  # dataset-level setting; queries drop it via DatasetRewriter). Including region must not cause a
+  # validation error or change the probe result — anonymous auth still returns untestable.
+  # "region" on a data source is deprecated, so the request produces a deprecation warning;
+  # allowed_warnings: permits it so the test runner does not treat the warning as a failure.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection, external_dataset_messages]
+      test_runner_features: [capabilities, allowed_warnings]
+      reason: "region must be stripped from probe settings without causing a validation error"
+  - do:
+      allowed_warnings:
+        - "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            auth: "anonymous"
+            region: "us-east-1"
+  - match: { status: "untestable" }
+
+---
+"test-connection-local-untestable":
+  # The "local" type has no connectivity probe — it uses the local filesystem, which is either
+  # permitted or denied by esql.external.local_allowed_paths at query time, not via a network probe.
+  # The local type has no connectivity probe — it always returns untestable.
+  # Requires the esql_external_datasources_local feature flag (snapshot-on, release-off).
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection, data_source_local_type]
+      test_runner_features: capabilities
+      reason: "local type returns untestable — requires esql_external_datasources_local feature flag"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "local"
+          settings: {}
+  - match: { status: "untestable" }
+
+---
+"region-on-datasource-warns":
+  # region on a data-source PUT is valid (backward compat) but deprecated.
+  # The PUT must return HTTP 200 and a Warning response header containing the deprecation message.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/data_source/{name}
+          capabilities: [dataset_region, external_dataset_messages]
+      test_runner_features: [capabilities, warnings]
+      reason: "region deprecation warning on data-source PUT"
+
+  - do:
+      warnings:
+        - "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
+      esql.put_data_source:
+        name: ds_region_warn
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+            region: us-east-1
+
+  - do:
+      esql.get_data_source:
+        name: ds_region_warn
+
+  - match: { data_sources.0.settings.region: "us-east-1" }
+
+  - do:
+      esql.delete_data_source:
+        name: ds_region_warn
 
 ---
 "cluster-state-visibility":

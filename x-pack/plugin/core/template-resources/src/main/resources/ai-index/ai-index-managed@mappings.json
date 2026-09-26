@@ -1,0 +1,38 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "kibana": {
+              "type": "object",
+              "properties": {
+                "privileges": {
+                  "type": "nested",
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "space": {
+                      "type": "keyword"
+                    },
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Additional template mappings applied to the Elastic-managed AI Indices, backed by dot-prefixed ES indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

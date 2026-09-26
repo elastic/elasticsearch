@@ -45,7 +45,6 @@ import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -254,6 +253,35 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDotPrefixedIndices() {
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 1);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(".non-hidden-index-1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false)) // not hidden opposed to testHiddenIndices
+        );
+        indexRandom(true, ".non-hidden-index-1", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+    }
+
     public void testUnavailableIndex() {
         assertAcked(client().admin().indices().prepareCreate("available-index-1"));
         indexRandom(true, "available-index-1", 1);
@@ -348,21 +376,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private static void assertOk(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(false));
-    }
-
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
-        var indexColumn = findIndexColumn(response);
-        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
-    }
-
-    private static int findIndexColumn(EsqlQueryResponse response) {
-        for (int c = 0; c < response.columns().size(); c++) {
-            if (Objects.equals(response.columns().get(c).name(), MetadataAttribute.INDEX)) {
-                return c;
-            }
-        }
-        throw new AssertionError("no _index column found");
+        assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
     }
 }

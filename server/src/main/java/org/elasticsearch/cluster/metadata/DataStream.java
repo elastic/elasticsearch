@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,6 +85,13 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
+    /**
+     * Cluster feature that gates {@code BulkOperation}'s use of this action. Guards against calling this action on an old master that
+     * does not have it registered, which would happen during a rolling upgrade.
+     */
+    public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
+        "data_stream.time_series.past_index_creation"
+    );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
@@ -602,7 +610,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(im.getIndexMode()) == false) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
                 continue;
@@ -620,13 +628,62 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Returns the distinct set of backing indices that cover the given nanosecond epoch timestamps.
+     * For each timestamp, {@link #selectTimeSeriesWriteIndex} is called; if a timestamp falls outside
+     * all known time ranges the current write index is used as a fallback (matching the single-document
+     * behaviour in {@link #getWriteIndex(IndexRequest, ProjectMetadata)}).
+     *
+     * @param timestampsNanos nanosecond epoch timestamps of the documents in the batch
+     * @param project         project metadata used to read backing-index time ranges
+     * @return distinct {@link Index} instances, in the order first encountered
+     */
+    public Set<Index> selectTimeSeriesWriteIndices(long[] timestampsNanos, ProjectMetadata project) {
+        if (timestampsNanos.length == 0) {
+            return Set.of();
+        }
+        long min = timestampsNanos[0];
+        long max = timestampsNanos[0];
+        for (long nanos : timestampsNanos) {
+            if (nanos < min) min = nanos;
+            if (nanos > max) max = nanos;
+        }
+        Index minIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
+        Index minIndex = minIndexRaw != null ? minIndexRaw : getWriteIndex();
+        if (min == max) {
+            return Set.of(minIndex);
+        }
+        Index maxIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
+        Index maxIndex = maxIndexRaw != null ? maxIndexRaw : getWriteIndex();
+        // Backing index time ranges don't overlap, so if min and max resolve to the same index all timestamps do.
+        // Only take this shortcut when both raw lookups returned a non-null result: if both min and max are
+        // out of every backing-index window, both fall back to the write index and appear equal even though
+        // a middle timestamp could land on an older backing index.
+        if (minIndexRaw != null && maxIndexRaw != null && minIndex == maxIndex) {
+            return Set.of(minIndex);
+        }
+        Set<Index> result = new LinkedHashSet<>();
+        Index last = null;
+        for (long nanos : timestampsNanos) {
+            Index index = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(nanos / 1_000_000L), project);
+            if (index == null) {
+                index = getWriteIndex();
+            }
+            if (index != last) {
+                result.add(index);
+                last = index;
+            }
+        }
+        return result;
+    }
+
+    /**
      * Validates this data stream. If this is a time series data stream then this method validates that temporal range
      * of backing indices (defined by index.time_series.start_time and index.time_series.end_time) do not overlap with each other.
      *
      * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
      */
     public void validate(Function<String, IndexMetadata> imSupplier) {
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(indexMode)) {
             // Get a sorted overview of each backing index with there start and end time range:
             var startAndEndTimes = backingIndices.indices.stream().map(index -> {
                 IndexMetadata im = imSupplier.apply(index.getName());
@@ -870,14 +927,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
-            throw new IllegalArgumentException(
-                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
-            );
-        }
         if (dsIndexMode != indexModeFromTemplate) {
-            if (indexModeFromTemplate == IndexMode.TIME_SERIES
-                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
             }
             dsIndexMode = indexModeFromTemplate;
@@ -1094,6 +1145,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
 
+        return unsafeAddBackingIndex(index);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. This should be used only for just created indices because it does not check if the backing
+     * index belongs to another data stream. For any other case, use {@link #addBackingIndex(ProjectMetadata, Index)} instead.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     */
+    public DataStream unsafeAddBackingIndex(Index index) {
+        // We do not use the contain method of DataStreamIndices because it will create a set,
+        // but we only need to check a single index and then we create a new DataStream.
+        if (backingIndices.indices.contains(index)) {
+            return this;
+        }
+
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
         backingIndices.add(index);
         backingIndices.addAll(this.backingIndices.indices);
@@ -1302,7 +1371,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
-        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()).isTsdb() == false) {
             return List.of();
         }
         TimeValue indexGenerationTime = getGenerationLifecycleDate(indexMetadata);
@@ -1391,6 +1460,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            return false;
+        }
         var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
@@ -1757,18 +1829,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getWriteIndex();
         }
 
-        if (getIndexMode() != IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(getIndexMode()) == false) {
             return getWriteIndex();
         }
 
-        Instant timestamp;
-        Object rawTimestamp = request.getRawTimestamp();
-        if (rawTimestamp != null) {
-            timestamp = getTimeStampFromRaw(rawTimestamp);
-        } else {
-            timestamp = getTimestampFromParser(request.source(), request.getContentType());
-        }
-        timestamp = getCanonicalTimestampBound(timestamp);
+        Instant timestamp = getTimeSeriesTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1792,6 +1857,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         return result;
+    }
+
+    /**
+     * Parses and caches on the index request the timestamp when possible. Throws {@link TimestampError}
+     * if there is any issue retrieving the timestamp.
+     */
+    public static Instant getTimeSeriesTimestamp(IndexRequest request) {
+        if (request.getTimeSeriesTimestamp() != null) {
+            return request.getTimeSeriesTimestamp();
+        }
+        Object rawTimestamp = request.getRawTimestamp();
+        Instant timestamp = rawTimestamp != null
+            ? getTimestampFromRawValue(rawTimestamp)
+            : getTimestampFromParser(request.source(), request.getContentType());
+        timestamp = getCanonicalTimestampBound(timestamp);
+        request.setTimeSeriesTimestamp(timestamp);
+        return timestamp;
     }
 
     @Override
@@ -1839,7 +1921,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
-    private static Instant getTimeStampFromRaw(Object rawTimestamp) {
+    public static Instant getTimestampFromRawValue(Object rawTimestamp) {
         try {
             if (rawTimestamp instanceof Long lTimestamp) {
                 return Instant.ofEpochMilli(lTimestamp);

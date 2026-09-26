@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
@@ -191,7 +191,7 @@ public class RetryingHttpSender implements RequestSender {
                     } else {
                         r.readFullResponse(
                             l.delegateFailureAndWrap(
-                                (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
+                                (delegateListener, httpResult) -> handleInitialStreamFailure(httpResult, delegateListener)
                             )
                         );
                     }
@@ -205,6 +205,21 @@ public class RetryingHttpSender implements RequestSender {
                     )
                 );
             }
+        }
+
+        /**
+         * Only called when {@link HttpResult#isSuccessfulResponse()} returns false, to determine the appropriate
+         * error message and whether to retry the request.
+         */
+        private void handleInitialStreamFailure(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {
+            Exception failure;
+            try {
+                failure = responseHandler.buildFailureStatusCodeException(outboundRequest, httpResult);
+            } catch (Exception e) {
+                failure = e;
+            }
+            Objects.requireNonNull(failure, "Failure exception must not be null");
+            listener.onFailure(new SenderException(httpResult, failure));
         }
 
         private void validateAndParseInferenceResults(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {

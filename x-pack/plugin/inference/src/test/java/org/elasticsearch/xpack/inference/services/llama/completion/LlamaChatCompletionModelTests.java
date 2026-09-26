@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.llama.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionModelTests extends ESTestCase {
@@ -27,7 +28,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -37,7 +38,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.CHAT_COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -47,14 +48,14 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.CHAT_COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             EmptySecretSettings.INSTANCE
         );
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsSameModelId() {
         var model = createCompletionModel("model_name", "url", "api_key");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             "model_name",
             null,
@@ -72,7 +73,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
         var model = createCompletionModel("model_name", "url", "api_key");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
@@ -90,7 +91,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() {
         var model = createCompletionModel(null, "url", "api_key");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
@@ -108,7 +109,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
         var model = createCompletionModel(null, "url", "api_key");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             null,
             null,
@@ -126,7 +127,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("model_name", "url", "api_key");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,

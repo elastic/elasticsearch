@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.flattenedCases;
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.anyOf;
@@ -47,35 +48,43 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         );
 
         Set<DataType> taggedTypes = new HashSet<>();
-        if (isFirst) {
-            List<DataType> extra = List.of(
-                DataType.VERSION,
-                DataType.DENSE_VECTOR,
-                DataType.EXPONENTIAL_HISTOGRAM,
-                DataType.CARTESIAN_POINT,
-                DataType.CARTESIAN_SHAPE,
-                DataType.GEO_POINT,
-                DataType.GEO_SHAPE,
-                DataType.GEOHASH,
-                DataType.GEOTILE,
-                DataType.GEOHEX,
-                DataType.UNSIGNED_LONG,
-                DataType.TDIGEST
-            );
-            searchFieldTypes.addAll(extra);
-            taggedTypes.addAll(extra);
-        }
+        List<DataType> extra = List.of(
+            DataType.VERSION,
+            DataType.GEO_POINT,
+            DataType.GEO_SHAPE,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
+            DataType.UNSIGNED_LONG,
+            DataType.DENSE_VECTOR,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
+        );
+        searchFieldTypes.addAll(extra);
+        taggedTypes.addAll(extra);
+
+        // FLATTENED is declared in @FunctionInfo (matching VALUES) but is still under construction, so it stays untagged
+        // (no GA appliesTo): testFunctionInfo filters under-construction types from both sides and shouldHideSignature
+        // hides it from the generated docs, so a GA tag would be both wrong and irrelevant.
+        searchFieldTypes.add(DataType.FLATTENED);
 
         FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
 
+        int flattenedRows = 20;
         for (DataType searchFieldType : searchFieldTypes) {
-            for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(searchFieldType, rows, rows)) {
+            int valueRows = searchFieldType == DataType.FLATTENED ? flattenedRows : rows;
+            var rawSuppliers = searchFieldType == DataType.FLATTENED
+                ? flattenedCases(flattenedRows, flattenedRows)
+                : unlimitedSuppliers(searchFieldType, rows, rows);
+            for (TestCaseSupplier.TypedDataSupplier valueSupplier : rawSuppliers) {
                 var taggedValueSupplier = taggedTypes.contains(searchFieldType) ? valueSupplier.withAppliesTo(newIn95) : valueSupplier;
                 for (DataType sortFieldType : sortFieldTypes) {
                     var sortSuppliers = sortFieldType == DataType.NULL
-                        ? MultiRowTestCaseSupplier.nullCases(rows, rows)
-                        : unlimitedSuppliers(sortFieldType, rows, rows);
+                        ? MultiRowTestCaseSupplier.nullCases(valueRows, valueRows)
+                        : unlimitedSuppliers(sortFieldType, valueRows, valueRows);
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : sortSuppliers) {
                         suppliers.add(makeSupplier(taggedValueSupplier, sortSupplier, isFirst));
                     }

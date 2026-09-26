@@ -30,9 +30,8 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanupTimeSettings() throws Exception {
         updateClusterSettings(Settings.builder().put(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(), (String) null).build());
-        super.tearDown();
     }
 
     public void testTimeSeriesPollIntervalSetting() {

@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -94,6 +96,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests various indexer failure cases.
@@ -151,7 +154,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
-                    mock(ProjectResolver.class)
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 checkpointProvider,
                 initialState,
@@ -1103,9 +1107,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             listener.onResponse(config);
             return null;
         }).when(transformConfigManager).getTransformConfiguration(any(), any());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            mock(ClusterService.class),
+            clusterService,
             mock(IndexNameExpressionResolver.class),
             mock(TransformExtension.class),
             transformConfigManager,

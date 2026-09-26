@@ -120,10 +120,13 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             clusterService,
             threadPool,
             client,
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         templateRegistry.initialize();
-        snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
+        snapshotHistoryStore.set(
+            new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool)
+        );
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,
@@ -225,7 +228,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public void close() {
         try {
-            IOUtils.close(snapshotLifecycleService.get(), snapshotRetentionService.get());
+            IOUtils.close(snapshotLifecycleService.get(), snapshotRetentionService.get(), snapshotHistoryStore.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close snapshot lifecycle services", e);
         }

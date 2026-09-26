@@ -35,6 +35,16 @@ import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADE
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Base class for full cluster restart suites. Each suite is run twice, once against the old cluster and once after it has
+ * been restarted on the current version. The two runs build on each other: the old-cluster run creates the indices and
+ * other state that the upgraded run asserts survived the restart.
+ * <p>
+ * Because of that, a project hosting such a suite must opt out of smart retry's individual test pruning in its
+ * {@code build.gradle}, otherwise a run that passed in an earlier build attempt is skipped on retry and the run it was
+ * setting up fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ */
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
 

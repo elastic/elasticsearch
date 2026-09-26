@@ -43,17 +43,15 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterService() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopClusterService() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testFindTaskReturnsNullWhenNoPersistentTasks() {
@@ -94,6 +92,49 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
         final var found = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
         assertThat(found, notNullValue());
         assertThat(found.getId(), equalTo(IndexBalanceMetricsTaskExecutor.TASK_NAME));
+    }
+
+    public void testStartScheduledComputationWithShutdownThreadPoolDoesNotSchedule() throws Exception {
+        final var shutdownPool = new TestThreadPool(getTestName() + "-shutdown");
+        terminate(shutdownPool);
+        final var task = new IndexBalanceMetricsTaskExecutor.Task(
+            1L,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            shutdownPool,
+            clusterService,
+            () -> TimeValue.timeValueSeconds(1),
+            new AtomicReference<>()
+        );
+        task.startScheduledComputation(); // must not throw despite shutdown thread pool
+    }
+
+    public void testRequestRecomputationWithShutdownThreadPoolStopsTask() throws Exception {
+        final var separatePool = new TestThreadPool(getTestName() + "-shutdown");
+        try {
+            final var task = new IndexBalanceMetricsTaskExecutor.Task(
+                1L,
+                IndexBalanceMetricsTaskExecutor.TASK_NAME,
+                IndexBalanceMetricsTaskExecutor.TASK_NAME,
+                "test",
+                TaskId.EMPTY_TASK_ID,
+                Map.of(),
+                separatePool,
+                clusterService,
+                () -> TimeValue.timeValueSeconds(1),
+                new AtomicReference<>()
+            );
+            task.startScheduledComputation();
+            assertThat(task.getScheduledComputation(), notNullValue());
+            terminate(separatePool);
+            task.requestRecomputation();
+            assertThat("computation should be unscheduled after shutdown rejection", task.getScheduledComputation(), nullValue());
+        } finally {
+            terminate(separatePool);
+        }
     }
 
     public void testDynamicIntervalUpdateReschedules() {

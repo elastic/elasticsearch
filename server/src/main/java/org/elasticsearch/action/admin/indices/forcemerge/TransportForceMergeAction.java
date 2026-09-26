@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -102,7 +103,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         SubscribableListener.<IndexShard>newForked(l -> {
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
-            indexShard.ensureMutable(l.map(unused -> indexShard), false);
+            indexShard.ensureMutable(l.map(unused -> indexShard), false, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }).<EmptyResult>andThen((l, indexShard) -> {
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
                 indexShard.forceMerge(request);

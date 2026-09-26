@@ -701,7 +701,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         routingNodes.startShard(
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", RoutingChangesObserver.NOOP).v2(),
+            routingNodes.relocateShard(
+                startedPrimary,
+                "oldNode",
+                0,
+                "test",
+                RoutingChangesObserver.NOOP,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            ).v2(),
             RoutingChangesObserver.NOOP,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

@@ -19,11 +19,13 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DateRangeDocValuesLo
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.hasItem;
 
 public class DateRangeDocValuesLoaderTests extends ESTestCase {
 
@@ -62,6 +64,35 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that a range with to=Long.MAX_VALUE (the maximum storable value) does not overflow
+     * when converted from inclusive to exclusive. The result must be Long.MAX_VALUE (used as a
+     * sentinel for "unbounded above"), not Long.MIN_VALUE from integer overflow.
+     */
+    public void testMaxValueToDoesNotOverflow() throws IOException {
+        var maxRange = BinaryRangeUtil.encodeLongRanges(
+            Set.of(new RangeFieldMapper.Range(RangeType.DATE, 1000L, Long.MAX_VALUE, true, true))
+        );
+
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            iw.addDocument(List.of(new BinaryDocValuesField(FIELD_NAME, maxRange)));
+            iw.forceMerge(1);
+
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                var loader = new DateRangeDocValuesLoader(FIELD_NAME);
+                try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+
+                    assertThat(block.size(), equalTo(1));
+                    // to=Long.MAX_VALUE (inclusive) stays Long.MAX_VALUE in the exclusive representation,
+                    // acting as an "unbounded above" sentinel — it must NOT overflow to Long.MIN_VALUE.
+                    assertThat(block.get(0), equalTo(List.of(1000L, Long.MAX_VALUE)));
+                }
+            }
+        }
+    }
+
+    /**
      * Verifies that a document whose binary doc value encodes zero ranges produces a null entry in the
      * loaded block rather than silently skipping the position, which would cause the block to have
      * fewer positions than expected and trigger a sanity-check failure in ValuesSourceReaderOperator.
@@ -73,11 +104,13 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
         var emptyRanges = BinaryRangeUtil.encodeLongRanges(Set.of());
 
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
-            // Doc 0: one valid range.
+            // One document has a valid range, one has a binary doc value that encodes zero ranges (the bug
+            // case), and one has no binary doc value at all (the normal null case). RandomIndexWriter's
+            // forceMerge does not guarantee that doc IDs in the merged segment preserve insertion order
+            // (e.g. MockRandomMergePolicy shuffles segments), so the assertions below don't rely on which
+            // doc ID ends up holding which value.
             iw.addDocument(List.of(new BinaryDocValuesField(FIELD_NAME, oneRange)));
-            // Doc 1: binary doc value present but encodes zero ranges — the bug case.
             iw.addDocument(List.of(new BinaryDocValuesField(FIELD_NAME, emptyRanges)));
-            // Doc 2: no binary doc value at all — the normal null case.
             iw.addDocument(List.of());
             iw.forceMerge(1);
 
@@ -87,13 +120,14 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
                 try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
                     var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
 
+                    // All three positions must be present: neither the empty-ranges doc nor the missing
+                    // doc value may cause a position to be skipped.
                     assertThat(block.size(), equalTo(3));
-                    // Doc 0: [1000, 2000] inclusive stored as half-open [1000, 2001) in the block.
-                    assertThat(block.get(0), equalTo(List.of(1000L, 2001L)));
-                    // Doc 1: zero ranges encoded — must produce null, not skip the position.
-                    assertThat(block.get(1), nullValue());
-                    // Doc 2: no doc value — null.
-                    assertThat(block.get(2), nullValue());
+                    List<Object> values = Arrays.asList(block.get(0), block.get(1), block.get(2));
+                    // [1000, 2000] inclusive is stored as half-open [1000, 2001) in the block.
+                    assertThat(values, hasItem(List.of(1000L, 2001L)));
+                    // Zero ranges encoded and no doc value both produce null (not a skipped position).
+                    assertThat(values.stream().filter(Objects::isNull).count(), equalTo(2L));
                 }
             }
         }

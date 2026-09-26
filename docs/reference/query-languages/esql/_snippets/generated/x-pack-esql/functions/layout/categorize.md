@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: preview 9.0, ga 9.1
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/categorize.md
+:::
 
 ## Syntax
 

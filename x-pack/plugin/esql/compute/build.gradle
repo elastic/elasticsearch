@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
@@ -21,7 +22,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'org.ow2.asm:asm:9.9'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
+  implementation 'org.ow2.asm:asm:9.10.1'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -55,6 +56,13 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Bulk aggregation wraps off-heap Arrow buffers as MemorySegments (MemorySegment.reinterpret is a
+  // restricted native-access method). Production grants this via the load_native_libraries entitlement.
+  jvmArgs('--enable-native-access=ALL-UNNAMED')
+  // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf fails deterministically with a stack trace at the offending allocation.
+  // Only affects tests that actually create an Arrow allocator; others are unchanged.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }
@@ -90,8 +98,12 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "long"    : Name == "Long" ? "true" : "",
     "double"  : Name == "Double" ? "true" : "",
     "boolean" : Name == "Boolean" ? "true" : "",
-    "BytesRef": Name == "BytesRef" ? "true" : "",
-    "Ip"      : Name == "Ip" ? "true" : "",
+    "BytesRef" : Name == "BytesRef" ? "true" : "",
+    "Ip"       : Name == "Ip" ? "true" : "",
+    "LongRange": Name == "LongRange" ? "true" : "",
+    "DoubleRange": Name == "DoubleRange" ? "true" : "",
+    "Range": (Name == "LongRange" || Name == "DoubleRange") ? "true" : "",
+    "hasVector": (Name == "LongRange" || Name == "DoubleRange") ? "" : "true",
   ]
 }
 
@@ -129,6 +141,16 @@ tasks.named('stringTemplates').configure {
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
   var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
   var doubleProperties = prop("Double", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
+  var multivalueDoubleRangeProperties = prop(
+    "DoubleRange",
+    "DoubleRange",
+    "DoubleRange",
+    "",
+    "DOUBLE_RANGE",
+    "DoubleRange.SIZE",
+    "",
+    "LongLongHash"
+  )
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "Boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
   var bytesRefProperties = prop(
     "BytesRef",
@@ -160,6 +182,13 @@ tasks.named('stringTemplates').configure {
   longProperties["byteSize"] = "Long.BYTES"
   longProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES)'
   longProperties["arrowDesc"] = '64 bits signed integers'
+
+  intProperties["partitioned"] = "true"
+  intProperties["swissHash"] = "LongSwissHash"
+  longProperties["partitioned"] = "true"
+  longProperties["swissHash"] = "LongSwissHash"
+  bytesRefProperties["partitioned"] = "true"
+  bytesRefProperties["swissHash"] = "BytesRefSwissHash"
 
   floatProperties["byteSize"] = "Float.BYTES"
   floatProperties["valueRead"] = 'valueBuffer.getFloat((long) valueIndex * Float.BYTES)'
@@ -1003,9 +1032,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "OutputField")
@@ -1038,6 +1067,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = multivalueDedupeInputFile
     it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeBytesRef.java"
   }
+  template {
+    it.properties = multivalueDoubleRangeProperties
+    it.inputFile = multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeDoubleRange.java"
+  }
   File blockHashInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/blockhash/X-BlockHash.java.st")
   template {
     it.properties = intProperties
@@ -1053,6 +1087,11 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile = blockHashInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/DoubleBlockHash.java"
+  }
+  template {
+    it.properties = multivalueDoubleRangeProperties
+    it.inputFile = blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/DoubleRangeBlockHash.java"
   }
   template {
     it.properties = bytesRefProperties
@@ -1154,7 +1193,7 @@ tasks.named('stringTemplates').configure {
   }
 
   File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props ->
     {
       template {
         it.properties = propWithoutExtra(props, "Extra")
@@ -1164,9 +1203,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "Extra")
@@ -1208,6 +1247,18 @@ tasks.named('stringTemplates').configure {
     it.properties = floatProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
+  }
+  var longRangeProperties = prop("LongRange", "LongRange", "long", "", "LONG_RANGE", "", "", "")
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForLongRange.java"
+  }
+  var doubleRangeProperties = prop("DoubleRange", "DoubleRange", "double", "", "DOUBLE_RANGE", "", "", "")
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForDoubleRange.java"
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
@@ -1277,21 +1328,4 @@ tasks.named('stringTemplates').configure {
   }
 
   generateAggregatorClassesOnConstantType("src/main/java/org/elasticsearch/compute/aggregation/X-AnyValueAggregator.java.st")
-
-  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntGroupingAggregatorFunction.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleGroupingAggregatorFunction.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
-  }
 }

@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.foreign-api'
 
 esplugin {
   name = 'searchable-snapshots'

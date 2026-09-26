@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 
 public class LlamaEmbeddingsModelTests extends ESTestCase {
     public static LlamaEmbeddingsModel createEmbeddingsModel(String modelId, String url, String apiKey) {
@@ -21,7 +22,7 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "llama",
-            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
+            new LlamaEmbeddingsServiceSettings(modelId, createUri(url), null, null, null, null),
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
@@ -32,7 +33,7 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "llama",
-            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
+            new LlamaEmbeddingsServiceSettings(modelId, createUri(url), null, null, null, null),
             createRandomChunkingSettings(),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
@@ -43,7 +44,7 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "llama",
-            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
+            new LlamaEmbeddingsServiceSettings(modelId, createUri(url), null, null, null, null),
             null,
             EmptySecretSettings.INSTANCE
         );

@@ -28,7 +28,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
     def "update flag works with current"() {
         given:
         referableAndReferencedTransportVersion("new_tv", "8123000")
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8123000
@@ -50,7 +50,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
     def "update flag works with multiple branches"() {
         given:
         referableAndReferencedTransportVersion("new_tv", "8123000,8012001,7123001")
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8123000
@@ -58,7 +58,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
             new_tv,8123000
             >>>>>> name
             """.strip()
-        file("myserver/src/main/resources/transport/latest/9.1.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.1.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8012001
@@ -66,7 +66,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
             new_tv,8012001
             >>>>>> name
             """.strip()
-        file("myserver/src/main/resources/transport/latest/8.19.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/8.19.csv").text =
             """
             <<<<<<< HEAD
             initial_8.19.7,7123001
@@ -184,5 +184,29 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
 
         then:
         execute("git status --porcelain").strip().isEmpty()
+    }
+
+    def "conflict resolution on the patch branch regenerates a patch id"() {
+        given:
+        setupPatchBranch()
+        referableAndReferencedTransportVersion("new_tv", "8123000")
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
+            """
+            <<<<<<< HEAD
+            existing_92,8123000
+            =======
+            new_tv,8123000
+            >>>>>> name
+            """.strip()
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:validateTransportVersionResources", ":myserver:resolveTransportVersionConflict",
+            PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8123001")
+        assertUpperBound("9.2", "new_tv,8123001")
     }
 }

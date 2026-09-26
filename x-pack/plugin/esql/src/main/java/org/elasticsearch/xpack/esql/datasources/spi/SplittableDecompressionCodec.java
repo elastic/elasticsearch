@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.LongConsumer;
 
 /**
  * Extension of {@link DecompressionCodec} for codecs that support splitting compressed
@@ -30,12 +31,25 @@ public interface SplittableDecompressionCodec extends DecompressionCodec {
      * <p>Returns an empty array when {@code start >= end} or when the range contains
      * no block boundaries (e.g. header-only or empty files).
      *
-     * @param object the storage object to scan
-     * @param start  start byte offset in the compressed file (inclusive)
-     * @param end    end byte offset in the compressed file (exclusive)
+     * <p>{@code cpuUsageConsumer} receives the CPU nanoseconds consumed on any background threads
+     * spawned by this call (e.g. parallel bzip2 chunk scanners). It is called at most once,
+     * after all background work completes, with a non-negative value. Implementations that
+     * run entirely on the calling thread should not call it (the caller's own
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer} measurement already
+     * captures that CPU).
+     *
+     * @param object    the storage object to scan
+     * @param start     start byte offset in the compressed file (inclusive)
+     * @param end       end byte offset in the compressed file (exclusive)
+     * @param cpuUsageConsumer  consumer that receives off-thread CPU nanos; never {@code null}
      * @return sorted array of byte offsets where compressed blocks begin
      */
-    long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException;
+    long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer cpuUsageConsumer) throws IOException;
+
+    /** Convenience overload that discards the CPU counter; useful in tests. */
+    default long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
+        return findBlockBoundaries(object, start, end, ignored -> {});
+    }
 
     /**
      * Decompresses a range of compressed blocks. The returned stream yields decompressed

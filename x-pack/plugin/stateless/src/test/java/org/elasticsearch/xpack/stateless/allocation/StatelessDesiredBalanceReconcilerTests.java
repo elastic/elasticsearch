@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReco
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder.PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,6 +49,13 @@ import static org.mockito.Mockito.when;
 
 public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
+    /**
+     * Verifies the stateless-specific fallback behaviour in {@link DesiredBalanceReconciler}: when a search shard's desired search nodes
+     * are temporarily unavailable, at most one {@link ShardRouting.Role#SEARCH_ONLY} copy is allowed to fall back to an undesired search
+     * node (the second stays unassigned). The primary is started up front because in stateless a search shard only recovers once its
+     * primary is active; that precondition is enforced in production by {@link ReplicaAfterPrimaryActiveAllocationDecider}, which is
+     * included in the decider set here so the scenario matches real allocation.
+     */
     public void testStatelessFallbackAllocation() {
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         final var indexNodes = List.of("node-0", "node-1");
@@ -60,12 +71,36 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
+        // The primary is already started on an index node: in stateless a search shard only recovers once its primary is active, so the
+        // interesting fallback behaviour only occurs while there is an active primary. The two search shards remain unassigned.
+        final var primary = shardRoutingBuilder(shardId, "node-0", true, ShardRoutingState.STARTED).withRole(ShardRouting.Role.INDEX_ONLY)
+            .build();
+        final var searchShard0 = shardRoutingBuilder(shardId, null, false, ShardRoutingState.UNASSIGNED).withRole(
+            ShardRouting.Role.SEARCH_ONLY
+        ).build();
+        final var searchShard1 = shardRoutingBuilder(shardId, null, false, ShardRoutingState.UNASSIGNED).withRole(
+            ShardRouting.Role.SEARCH_ONLY
+        ).build();
+        final var indexRoutingTable = IndexRoutingTable.builder(new StatelessShardRoutingRoleStrategy(), index)
+            .addShard(primary)
+            .addShard(searchShard0)
+            .addShard(searchShard1)
+            .build();
+
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).addAsNew(indexMetadata))
+            .routingTable(RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).add(indexRoutingTable))
             .build();
 
+        /*
+         * The following searchShardsIgnored randomization exercises the two complementary sides of the search-shard fallback logic:
+         * If searchShardsIgnored == false: the desired balance wants both search shards assigned (to desired search nodes node-2 and
+         *   node-4), but those nodes are temporarily unavailable. We expect fallback to place exactly one search copy on an undesired
+         *   search node (node-3 or node-5) and leave the other unassigned, rather than piling both onto undesired nodes.
+         * If searchShardsIgnored == true: the desired balance ignores both search copies (ShardAssignment#ignored == 2). We expect
+         *   fallback to respect that and to NOT over-eagerly allocate these ignored copies to undesired nodes. They stay unassigned.
+         */
         final boolean searchShardsIgnored = randomBoolean();
         final Set<String> desiredNodes = searchShardsIgnored ? Set.of("node-0") : Set.of("node-0", "node-2", "node-4");
         final var initialForcedAllocationDecider = new AllocationDecider() {
@@ -76,7 +111,12 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
             }
         };
 
-        final var allocation = createRoutingAllocationFrom(clusterState, initialForcedAllocationDecider, new StatelessAllocationDecider());
+        final var allocation = createRoutingAllocationFrom(
+            clusterState,
+            initialForcedAllocationDecider,
+            new StatelessAllocationDecider(),
+            new ReplicaAfterPrimaryActiveAllocationDecider()
+        );
         final var balance = new DesiredBalance(
             1,
             Map.of(shardId, new ShardAssignment(desiredNodes, 3, searchShardsIgnored ? 2 : 0, searchShardsIgnored ? 2 : 0))
@@ -84,20 +124,20 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
 
         reconcile(allocation, balance);
 
-        if (searchShardsIgnored) {
-            assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(2));
-        } else {
-            // Only one search shard can fall back to allocation to an undesired node
-            assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
-        }
+        // The primary stays started on its index node throughout.
+        assertThat(allocation.routingNodes().node("node-0").size(), equalTo(1));
 
-        // none of the desired nodes have a shard assigned
-        desiredNodes.forEach(node -> assertThat(allocation.routingNodes().node(node).size(), equalTo(0)));
-        assertThat(allocation.routingNodes().node("node-1").size(), equalTo(1)); // fall back allocation
         if (searchShardsIgnored) {
-            searchNodes.forEach(node -> assertThat(allocation.routingNodes().node("node-2").size(), equalTo(0)));
+            // With no desired search nodes, both search shards are ignored and none fall back.
+            assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(2));
+            searchNodes.forEach(node -> assertThat(allocation.routingNodes().node(node).size(), equalTo(0)));
         } else {
-            // only one of the search shards falls back to allocation to an undesired node
+            // Only one search shard can fall back to allocation to an undesired node; the other stays unassigned.
+            assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
+            // none of the desired search nodes received a shard
+            assertThat(allocation.routingNodes().node("node-2").size(), equalTo(0));
+            assertThat(allocation.routingNodes().node("node-4").size(), equalTo(0));
+            // exactly one of the search shards falls back to allocation to an undesired search node
             assertThat(allocation.routingNodes().node("node-3").size() + allocation.routingNodes().node("node-5").size(), equalTo(1));
         }
     }

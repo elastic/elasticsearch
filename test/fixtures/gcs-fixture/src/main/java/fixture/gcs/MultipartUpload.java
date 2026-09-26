@@ -19,9 +19,17 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 
-public record MultipartUpload(String bucket, String name, String generation, String crc32, String md5, BytesReference content) {
+public record MultipartUpload(
+    String bucket,
+    String name,
+    String generation,
+    String crc32,
+    String md5,
+    String storageClass,
+    BytesReference content
+) {
 
-    static final Pattern METADATA_PATTERN = Pattern.compile("\"(bucket|name|generation|crc32c|md5Hash)\":\"([^\"]*)\"");
+    static final Pattern METADATA_PATTERN = Pattern.compile("\"(bucket|name|generation|crc32c|md5Hash|storageClass)\":\"([^\"]*)\"");
 
     /**
      * Reads HTTP content of MultipartUpload. First part is always json metadata, followed by binary parts.
@@ -32,7 +40,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
         // read first body-part - blob metadata json
         final var firstPart = reader.next();
         final var match = METADATA_PATTERN.matcher(firstPart.content().utf8ToString());
-        String bucket = "", name = "", gen = "", crc = "", md5 = "";
+        String bucket = "", name = "", gen = "", crc = "", md5 = "", storageClass = "";
         while (match.find()) {
             switch (match.group(1)) {
                 case "bucket" -> bucket = match.group(2);
@@ -40,6 +48,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
                 case "generation" -> gen = match.group(2);
                 case "crc32c" -> crc = match.group(2);
                 case "md5Hash" -> md5 = match.group(2);
+                case "storageClass" -> storageClass = match.group(2);
             }
         }
 
@@ -50,7 +59,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
         }
         final var compositeBuf = CompositeBytesReference.of(blobParts.toArray(new BytesReference[0]));
 
-        return new MultipartUpload(bucket, name, gen, crc, md5, compositeBuf);
+        return new MultipartUpload(bucket, name, gen, crc, md5, storageClass, compositeBuf);
     }
 
 }

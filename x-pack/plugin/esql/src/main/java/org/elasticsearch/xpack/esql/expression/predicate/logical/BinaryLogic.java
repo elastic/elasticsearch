@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.logical;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -13,9 +14,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -75,6 +76,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
     protected boolean isCommutative() {
         return true;
     }
@@ -119,7 +125,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
         return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
     }
 
@@ -131,18 +137,28 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     /**
      * Binary logic adds together scores coming from the left and right expressions, both for conjunctions and disjunctions
      */
-    private record BinaryLogicScorer(DriverContext driverContext, ScoreOperator.ExpressionScorer left, ScoreOperator.ExpressionScorer right)
+    private record BinaryLogicScorer(DriverContext driverContext, ExpressionEvaluator left, ExpressionEvaluator right)
         implements
-            ScoreOperator.ExpressionScorer {
+            ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BinaryLogicScorer.class);
+
         @Override
-        public DoubleBlock score(Page page) {
+        public DoubleBlock eval(Page page) {
             DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount());
-            try (DoubleVector leftVector = left.score(page).asVector(); DoubleVector rightVector = right.score(page).asVector()) {
+            try (
+                DoubleVector leftVector = ((DoubleBlock) left.eval(page)).asVector();
+                DoubleVector rightVector = ((DoubleBlock) right.eval(page)).asVector()
+            ) {
                 for (int i = 0; i < page.getPositionCount(); i++) {
                     builder.appendDouble(leftVector.getDouble(i) + rightVector.getDouble(i));
                 }
             }
             return builder.build().asBlock();
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + left.baseRamBytesUsed() + right.baseRamBytesUsed();
         }
 
         @Override

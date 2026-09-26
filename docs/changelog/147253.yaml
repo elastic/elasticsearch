@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147253
-summary: Suppress `ColumnIndexFilter` INFO log spam
-type: enhancement

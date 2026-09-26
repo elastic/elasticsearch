@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,19 +26,17 @@ public class EnhancedTimestampDetectionTests extends TextStructureTestCase {
     private ScheduledExecutorService scheduler;
     private TextStructureFinderManager manager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initSchedulerAndManager() throws Exception {
         scheduler = new org.elasticsearch.threadpool.Scheduler.SafeScheduledThreadPoolExecutor(1);
         manager = new TextStructureFinderManager(scheduler);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownScheduler() throws Exception {
         if (scheduler != null) {
             scheduler.shutdown();
         }
-        super.tearDown();
     }
 
     public void testTimestampYMDSlash() throws Exception {

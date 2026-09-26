@@ -110,6 +110,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date_range",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date_range"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "dense_vector",
           "optional" : false,
           "description" : "Expression to evaluate."
@@ -128,6 +146,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "double_range",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "double_range"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "exponential_histogram",
           "optional" : false,
           "description" : "Expression to evaluate."
@@ -141,6 +177,24 @@
       ],
       "variadic" : true,
       "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "flattened",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "flattened"
     },
     {
       "params" : [

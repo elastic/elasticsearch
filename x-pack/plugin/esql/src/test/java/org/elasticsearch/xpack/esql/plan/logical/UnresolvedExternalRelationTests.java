@@ -116,6 +116,29 @@ public class UnresolvedExternalRelationTests extends ESTestCase {
         assertThat(rendered, org.hamcrest.Matchers.not(containsString("MOCK_SECRET")));
     }
 
+    public void testDatasetNameDefaultsToNullAndCarriesWhenProvided() {
+        // The dataset-name slot is null for the inline EXTERNAL command path (no dataset mapping)
+        // and populated for FROM <dataset>. DatasetRewriter is the producer; the value flows on to
+        // ExternalRelation → ExternalSourceExec and drives the per-file _index synthesizer.
+        Source source = Source.EMPTY;
+        Expression tablePath = Literal.keyword(source, "s3://bucket/table");
+
+        UnresolvedExternalRelation inline = new UnresolvedExternalRelation(source, tablePath, new HashMap<>());
+        assertNull("inline EXTERNAL path leaves datasetName null", inline.datasetName());
+
+        UnresolvedExternalRelation viaDataset = new UnresolvedExternalRelation(
+            source,
+            tablePath,
+            new HashMap<>(),
+            java.util.List.of(),
+            "my_dataset"
+        );
+        assertThat(viaDataset.datasetName(), equalTo("my_dataset"));
+        // datasetName participates in equality so the analyzer can distinguish dataset-backed
+        // vs inline relations that otherwise share path + config.
+        assertNotEquals(inline, viaDataset);
+    }
+
     public void testPreAnalyzerThrowsOnNonLiteralTablePath() {
         // After parameter substitution at parse time, every UnresolvedExternalRelation tablePath is
         // expected to be a non-null Literal. Non-Literal here indicates a precondition violation —

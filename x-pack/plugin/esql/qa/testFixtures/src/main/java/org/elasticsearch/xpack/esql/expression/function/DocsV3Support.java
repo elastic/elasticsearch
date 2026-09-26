@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -52,7 +52,9 @@ import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -232,7 +234,7 @@ public abstract class DocsV3Support {
     /**
      * Operators are unregistered functions.
      */
-    static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
+    public static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
         // Binary
         operatorEntry("equals", "==", Equals.class, OperatorCategory.BINARY),
         operatorEntry("not_equals", "!=", NotEquals.class, OperatorCategory.BINARY),
@@ -594,7 +596,11 @@ public abstract class DocsV3Support {
             case "match" -> "search-functions";
 
             // Grouping
-            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+            case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
+
+            // Unprefixed date-time functions. year/month/day/hour are DATE_EXTRACT sugars.
+            // month_name, day_name, and now have no date_ prefix, so docs generation needs a group for them too.
+            case "year", "month", "day", "hour", "month_name", "day_name", "now" -> "date-time-functions";
 
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
@@ -695,7 +701,7 @@ public abstract class DocsV3Support {
 
     static class FunctionDocsSupport extends DocsV3Support {
         private FunctionDocsSupport(String name, Class<?> testClass, Callbacks callbacks) {
-            super("functions", name, testClass, () -> AbstractFunctionTestCase.signatures(testClass), callbacks);
+            super("functions", name, testClass, () -> AbstractFunctionTestCase.docsSignatures(testClass), callbacks);
         }
 
         FunctionDocsSupport(
@@ -761,6 +767,7 @@ public abstract class DocsV3Support {
             assert info != null;
             boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.args());
+            renderBriefSummary(info.briefSummary());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -855,8 +862,11 @@ public abstract class DocsV3Support {
          * Build the {@code {applies_to}} annotation for the docs to tell users which version of
          * Elasticsearch first supported this function/operator/signature.
          * @param functionAppliesTos The version information for stateful Elasticsearch
-         * @param preview Is this tech preview? Effectively just generates the
-         *                {@code serverless: preview} annotation if true and nothing if false.
+         * @param preview Is this tech preview? Generates the {@code serverless: preview} annotation if true.
+         *                If false and the feature has a GA {@code appliesTo} entry, the block form (see
+         *                {@code oneLine}) generates {@code serverless: ga}. A preview-only feature generates no
+         *                serverless annotation when the boolean is unset, and the inline form never emits
+         *                {@code serverless: ga}, since GA is not stated on type rows or params.
          * @param oneLine Should we generate a single line variant of the {@code {applies_to}}
          *                annotation compatible with tables (true) or the more readable
          *                multi-line variant (false)?
@@ -892,7 +902,11 @@ public abstract class DocsV3Support {
                     }
                 }
 
-                // Only specify serverless if it's preview, using the preview boolean (GA is the default)
+                // Serverless lifecycle. Preview is marked both inline (type rows, params) and in the block form.
+                // GA is only stated at the function/page level (the block), and only when the feature is actually
+                // GA, meaning it has a GA appliesTo entry. A preview feature never gets serverless: ga, even when
+                // the preview boolean is unset.
+                boolean anyGa = functionAppliesTos.stream().anyMatch(a -> a.lifeCycle() == FunctionAppliesToLifecycle.GA);
                 if (preview) {
                     if (oneLine) {
                         appliesToText.append("` {applies_to}`");
@@ -901,6 +915,9 @@ public abstract class DocsV3Support {
                     if (false == oneLine) {
                         appliesToText.append('\n');
                     }
+                } else if (oneLine == false && anyGa) {
+                    appliesToText.append("serverless: ga");
+                    appliesToText.append('\n');
                 }
 
                 appliesToText.append(oneLine ? "`" : "```\n");
@@ -921,6 +938,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder(
                 docsWarning() + """
                     $APPLIES_TO$
+                    $BRIEF_SUMMARY$
                     ## Syntax
 
                     :::{image} /reference/query-languages/esql/images/generated/$PLUGIN_NAME$/$CATEGORY$/$NAME$.svg
@@ -932,6 +950,7 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$PLUGIN_NAME$", pluginName)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
+                    .replace("$BRIEF_SUMMARY$", addInclude("briefSummary"))
             );
             for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
@@ -975,7 +994,7 @@ public abstract class DocsV3Support {
         private final OperatorConfig op;
 
         private OperatorsDocsSupport(String name, Class<?> testClass, Callbacks callbacks) {
-            this(name, testClass, OPERATORS.get(name), () -> AbstractFunctionTestCase.signatures(testClass), callbacks);
+            this(name, testClass, OPERATORS.get(name), () -> AbstractFunctionTestCase.docsSignatures(testClass), callbacks);
         }
 
         public OperatorsDocsSupport(
@@ -1057,6 +1076,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public Signature[] signatures() {
+                    return orig.signatures();
+                }
+
+                @Override
                 public boolean preview() {
                     return orig.preview();
                 }
@@ -1074,6 +1098,11 @@ public abstract class DocsV3Support {
                 @Override
                 public String description() {
                     return description.apply(orig.description().replace(baseName, name));
+                }
+
+                @Override
+                public String briefSummary() {
+                    return orig.briefSummary();
                 }
 
                 @Override
@@ -1138,6 +1167,7 @@ public abstract class DocsV3Support {
                 }
             }
             renderKibanaFunctionDefinition(name, titleName, info, args, variadic, observabilityTier);
+            renderBriefSummary(info.briefSummary());
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -1235,10 +1265,59 @@ public abstract class DocsV3Support {
                 if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
                     builder.field("observability_tier", observabilityTier.toString());
                 }
+                renderOutputBlock(builder, command);
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana command definition for [{}]", name);
                 logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
+            }
+        }
+
+        /**
+         * Package prefix under which the {@code <Command>OutputFields} reflection targets live, in the
+         * ES|QL test sourceset alongside {@code CommandLicenseTests}.
+         */
+        private static final String OUTPUT_FIELDS_PACKAGE = "org.elasticsearch.xpack.esql.plan.logical.";
+
+        /**
+         * Renders the "output" block by finding a public static {@code renderOutput(XContentBuilder)}
+         * method on the matching {@code <Command>OutputFields} class and calling it. Commands without a
+         * matching class or without that method render nothing.
+         */
+        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
+            Class<?> outputFieldsClass = findOutputFieldsClass(command);
+            if (outputFieldsClass == null) {
+                return;
+            }
+            try {
+                Method m = outputFieldsClass.getMethod("renderOutput", XContentBuilder.class);
+                if (Modifier.isStatic(m.getModifiers()) == false) {
+                    return;
+                }
+                m.invoke(null, builder);
+            } catch (NoSuchMethodException e) {
+                return;
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof IOException ioe) {
+                    throw ioe;
+                }
+                throw new RuntimeException(e);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Finds the {@code <Command>OutputFields} reflection target for the given command by naming
+         * convention, avoiding a per-command switch statement or a dependency on the command's own package.
+         * Returns {@code null} if no such class exists, meaning the command has no known output schema.
+         */
+        private static Class<?> findOutputFieldsClass(LogicalPlan command) {
+            String className = OUTPUT_FIELDS_PACKAGE + command.getClass().getSimpleName() + "OutputFields";
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                return null;
             }
         }
 
@@ -1350,22 +1429,31 @@ public abstract class DocsV3Support {
             builder.append(Strings.format("### `%s` [esql-%s]\n", settingName, settingName));
 
             builder.append("```{applies_to}\n");
-            builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
-            builder.append("\n");
-
-            if (setting.serverlessOnly()) {
-                builder.append("stack: unavailable");
+            // A setting whose availability is not derivable from preview/serverlessOnly states it on the annotation,
+            // the same attribute the function docs already read. A setting belonging to a feature with its own
+            // documented availability says what that feature's pages say instead of reporting its own lifecycle.
+            String declaredAppliesTo = param != null ? param.applies_to() : mapParam.applies_to();
+            String declaredSince = param != null ? param.since() : mapParam.since();
+            checkAppliesToIsSelfSufficient(setting.name(), declaredAppliesTo, setting.serverlessOnly(), declaredSince);
+            if (declaredAppliesTo.isEmpty() == false) {
+                builder.append(declaredAppliesTo).append("\n");
             } else {
-                builder.append("stack: ");
+                builder.append("serverless: ");
                 builder.append(setting.preview() ? "preview" : "ga");
-                String since = param != null ? param.since() : mapParam.since();
-                if (since.length() > 0) {
-                    builder.append(" ");
-                    builder.append(since);
+                builder.append("\n");
+
+                if (setting.serverlessOnly()) {
+                    builder.append("stack: unavailable");
+                } else {
+                    builder.append("stack: ");
+                    builder.append(setting.preview() ? "preview" : "ga");
+                    if (declaredSince.isEmpty() == false) {
+                        builder.append(" ");
+                        builder.append(declaredSince);
+                    }
                 }
+                builder.append("\n");
             }
-            builder.append("\n");
             builder.append("```\n");
 
             builder.append(param != null ? param.description() : mapParam.description());
@@ -1379,7 +1467,7 @@ public abstract class DocsV3Support {
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("Map entries: \n    ");
+                builder.append("Map entries:\n");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
@@ -1462,6 +1550,42 @@ public abstract class DocsV3Support {
                 }
             }
             return null;
+        }
+
+        /**
+         * A declared {@code applies_to} replaces the whole badge, so every value the badge would otherwise derive is
+         * discarded. Refuse the combinations where that loses a statement, rather than publishing a badge that drops
+         * it: the docs-assert gate compares the emitter against the committed file, so a wrong badge passes green.
+         * <p>
+         * Stated as one function so the rule is executable and testable in one place; the renderer and
+         * {@code QuerySettingsTests} both call it rather than each carrying a copy.
+         */
+        public static void checkAppliesToIsSelfSufficient(String name, String appliesTo, boolean serverlessOnly, String since) {
+            if (appliesTo.isEmpty()) {
+                return;
+            }
+            // renderSettingDefinition derives stack: unavailable for a serverlessOnly setting, and a declared
+            // applies_to replaces that badge wholesale -- so declaring one must not quietly drop the statement.
+            // Requiring the axis to be present is not enough: stack: ga names it and still contradicts it.
+            // (serverlessOnly itself is only a deployment marker; QuerySettings reads it in applicableIn, which
+            // feeds telemetry. What makes such a setting unavailable on stack is its own validator, as
+            // project_routing's cross-project check does. This rule keeps the badge honest about that.)
+            if (serverlessOnly && appliesTo.contains("stack: unavailable") == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] is serverlessOnly but its applies_to does not state stack: unavailable, which is what"
+                        + " the derived badge would have stated. State stack: unavailable in applies_to."
+                );
+            }
+            if (since.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] declares both applies_to and since; applies_to carries the version, so since"
+                        + " would never be read and the two could drift. Drop since."
+                );
+            }
         }
 
         private static org.elasticsearch.xpack.esql.expression.function.Param param(QuerySettingDef<?> def) {
@@ -1583,7 +1707,10 @@ public abstract class DocsV3Support {
 
         // For functions like DATE_PARSE, with an optional parameter at the start, detect if it's being used or not
         // At least 1 missing parameter, with the first parameter being optional
-        if (args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional) {
+        // Also when every parameter is optional, omitted parameters are trailing. COUNT is special because the parser also permits
+        // omitting its first parameter, but any non-empty signature still starts with that parameter.
+        if ((args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional)
+            && args.stream().anyMatch(arg -> arg.optional == false)) {
             assert args.get(1).optional == false : "This function isn't prepared to handle +1 optional parameters at the beginning";
             long optionalParameters = args.stream().filter(EsqlFunctionRegistry.ArgSignature::optional).count();
             if (
@@ -1658,6 +1785,16 @@ public abstract class DocsV3Support {
         logger.info("Writing description for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("description", rendered);
+    }
+
+    void renderBriefSummary(String briefSummary) throws IOException {
+        if (Strings.isNullOrEmpty(briefSummary)) {
+            return;
+        }
+        String rendered = docsWarning() + briefSummary.trim() + "\n";
+        logger.info("Writing brief summary for [{}]", name);
+        logger.debug("{}", rendered);
+        writeToTempSnippetsDir("briefSummary", rendered);
     }
 
     protected boolean renderExamples(FunctionInfo info) throws IOException {
@@ -1828,6 +1965,13 @@ public abstract class DocsV3Support {
                                 builder.field(constraint.getKey(), constraint.getValue());
                             }
                             builder.endObject();
+                        }
+                        if (arg.hint.allowedValues() != null && arg.hint.allowedValues().isEmpty() == false) {
+                            builder.startArray("allowedValues");
+                            for (String v : arg.hint.allowedValues()) {
+                                builder.value(v);
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
                     }

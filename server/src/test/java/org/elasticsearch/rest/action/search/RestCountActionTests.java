@@ -56,7 +56,7 @@ public class RestCountActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
-        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
     public void testApplyRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
@@ -70,6 +70,6 @@ public class RestCountActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
-        assertEquals("request does not support [_slice]", e.getMessage());
+        assertEquals("request does not support [slice]", e.getMessage());
     }
 }

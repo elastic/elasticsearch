@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,9 +51,8 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
 
     private final Map<String, long[]> primaryTermsPerIndex = new HashMap<>();
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClusterState() throws Exception {
         this.allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries

@@ -9,17 +9,12 @@
 
 package org.elasticsearch.repositories.s3;
 
-import fixture.aws.ChunkedEncodingConfiguration;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
@@ -31,52 +26,32 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static org.hamcrest.Matchers.equalTo;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3OverHttpsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "https_s3_client";
-
-    private static final Supplier<ChunkedEncodingConfiguration> chunkedEncodingConfigurationSupplier = ChunkedEncodingConfiguration
-        .randomSupplier();
 
     protected static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
 
     protected static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         testTlsCertificate,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    ) {
-        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
-        @Override
-        protected HttpHandler createHandler() {
-            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
-            return exchange -> {
-                delegate.assertContentSha256Header(
-                    exchange,
-                    equalTo(
-                        chunkedEncodingConfigurationSupplier.get() == ChunkedEncodingConfiguration.DISABLED
-                            ? "UNSIGNED-PAYLOAD"
-                            : "STREAMING-UNSIGNED-PAYLOAD-TRAILER"
-                    )
-                );
-                delegate.handle(exchange);
-            };
-        }
-    };
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -98,21 +73,16 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override
     protected String getClientName() {
         return CLIENT;
-    }
-
-    @Override
-    protected Settings extraRepositorySettings() {
-        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

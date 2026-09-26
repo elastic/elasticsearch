@@ -9,12 +9,15 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -145,8 +148,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
+            // The execute entry needs both: its prologue resets $allocBytes and its return path records the total.
+            attachAllocationLimit(irFunctionNode, scriptScope);
 
             injectStaticFieldsAndGetters();
+            injectAllocationMetricsField(scriptScope);
             injectGetsDeclarations(irBlockNode, scriptScope);
             injectNeedsMethods(scriptScope);
             injectSandboxExceptions(irFunctionNode);
@@ -155,6 +161,23 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } else {
             super.visitFunction(userFunctionNode, scriptScope);
         }
+    }
+
+    /**
+     * Declares the static field holding this script's allocation recorder, which {@code Compiler} sets after defining the
+     * class. Only when metrics are enabled; the field is what the {@code execute} return path records through.
+     */
+    protected void injectAllocationMetricsField(ScriptScope scriptScope) {
+        if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled() == false) {
+            return;
+        }
+
+        FieldNode irFieldNode = new FieldNode(new Location("$internal$injectAllocationMetricsField", 0));
+        irFieldNode.attachDecoration(new IRDModifiers(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC));
+        irFieldNode.attachDecoration(new IRDFieldType(AllocationMetrics.ContextRecorder.class));
+        irFieldNode.attachDecoration(new IRDName(WriterConstants.ALLOC_METRICS_FIELD));
+
+        irClassNode.addFieldNode(irFieldNode);
     }
 
     // adds static fields and getter methods required by PainlessScript for exception handling
@@ -349,6 +372,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
+    @SuppressForbidden(
+        reason = "injectSandboxExceptions generates IR catch nodes for StackOverflowError to sandbox it within Painless scripts"
+    )
     protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
@@ -397,7 +423,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     List.of(),
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    null
                 )
             );
 
@@ -416,10 +443,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
             irThrowNode.setExpressionNode(irLoadVariableNode);
 
-            // Cancellation signals must propagate unwrapped so QueryPhase / the surrounding caller
-            // can convert them to the appropriate response (timed_out flag, task-cancelled status).
-            // Wrapping them in ScriptException would surface them to clients as runtime errors
-            // instead.
             for (Class<? extends Throwable> rethrow : List.of(
                 ContextIndexSearcher.TimeExceededException.class,
                 TaskCancelledException.class
@@ -478,7 +501,16 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                    new PainlessMethod(Collections.class.getMethod("emptyMap"), Collections.class, null, List.of(), null, null, Map.of())
+                    new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        List.of(),
+                        null,
+                        null,
+                        Map.of(),
+                        null
+                    )
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);

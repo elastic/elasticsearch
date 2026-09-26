@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 154951
+summary: Expose OTel and Prometheus plugin enabled settings
+type: bug

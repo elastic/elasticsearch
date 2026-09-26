@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -32,6 +34,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -40,6 +43,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.MULTI_ROW_NULL;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.NULL;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSliceTests.randomGrid;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -333,6 +337,27 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
                 matchResult(result)
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            Function<TestCaseSupplier.TypedDataSupplier, TestCaseSupplier.TypedDataSupplier> transform = TestCaseSupplier.previewTransform(
+                appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false)
+            );
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                var result = new LinkedHashSet<>(field1);
+                result.removeAll(new HashSet<>(field2));
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        transform.apply(new TestCaseSupplier.TypedDataSupplier("field1", () -> field1, DataType.FLATTENED)).get(),
+                        transform.apply(new TestCaseSupplier.TypedDataSupplier("field2", () -> field2, DataType.FLATTENED)).get()
+                    ),
+                    "MvDifferenceBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    matchResult(result)
+                );
+            }));
+        }
     }
 
     // Adjusted from static method anyNullIsNull in {@code AbstractFunctionTestCase#}

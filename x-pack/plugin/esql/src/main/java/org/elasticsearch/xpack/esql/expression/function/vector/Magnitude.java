@@ -50,6 +50,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     @FunctionInfo(
         returnType = "double",
         preview = true,
+        briefSummary = "Calculates the magnitude of a dense_vector.",
         description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },
         // There is no DEVELOPMENT lifecycle for SNAPSHOT or FeatureFlag functions, place the lifecycle and version we are aiming for next
@@ -144,7 +145,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                 int dimensions = 0;
                 // Get the first non-empty vector to calculate the dimension
                 for (int p = 0; p < positionCount; p++) {
-                    if (block.getValueCount(p) != 0) {
+                    if (block.isNull(p) == false) {
                         dimensions = block.getValueCount(p);
                         break;
                     }
@@ -156,12 +157,12 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                 float[] scratch = new float[dimensions];
                 try (var builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
                     for (int p = 0; p < positionCount; p++) {
-                        int dims = block.getValueCount(p);
-                        if (dims == 0) {
+                        if (block.isNull(p)) {
                             // A null value for the vector, by default append null as result.
                             builder.appendNull();
                             continue;
                         }
+                        int dims = block.getValueCount(p);
                         readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
                         float result = scalarFunction.calculateScalar(scratch);
                         builder.appendDouble(result);

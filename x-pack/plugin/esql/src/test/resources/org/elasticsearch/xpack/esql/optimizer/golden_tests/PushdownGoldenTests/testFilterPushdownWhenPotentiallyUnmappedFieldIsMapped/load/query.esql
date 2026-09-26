@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM sample_data
+| KEEP message, mapped_on_data_node
+| WHERE mapped_on_data_node == "Disconnection error"

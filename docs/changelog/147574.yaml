@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 133322
-pr: 147574
-summary: Implement DEDUP command
-type: enhancement

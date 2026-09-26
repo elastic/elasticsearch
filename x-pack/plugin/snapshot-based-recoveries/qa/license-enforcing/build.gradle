@@ -1,5 +1,3 @@
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,14 +5,12 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
 }
-
-final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo-license")
 
 restResources {
   restApi {
@@ -22,20 +18,6 @@ restResources {
   }
 }
 
-tasks.withType(Test).configureEach {
-  doFirst {
-    delete(repoDir)
-  }
-  nonInputProperties.systemProperty 'tests.path.repo', repoDir
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-
-  // This project tests that enterprise licensing is enforced,
-  // therefore we use a basic license
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
-  setting 'xpack.security.enabled', 'false'
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("requires DEFAULT distribution for license enforcement and snapshot-based recovery")
 }

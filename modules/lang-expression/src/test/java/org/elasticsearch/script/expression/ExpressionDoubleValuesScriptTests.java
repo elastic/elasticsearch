@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -35,9 +36,8 @@ public class ExpressionDoubleValuesScriptTests extends ESTestCase {
     private ExpressionScriptEngine engine;
     private ScriptService scriptService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngine() throws Exception {
 
         engine = new ExpressionScriptEngine();
         scriptService = new ScriptService(

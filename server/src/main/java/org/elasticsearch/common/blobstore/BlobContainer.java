@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -179,6 +181,7 @@ public interface BlobContainer {
      * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
      *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param executor            The executor used to dispatch concurrent part upload tasks. The calling thread also participates.
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
@@ -187,7 +190,8 @@ public interface BlobContainer {
         String blobName,
         long blobSize,
         BlobMultiPartInputStreamProvider provider,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        Executor executor
     ) throws IOException {
         throw new UnsupportedOperationException();
     }
@@ -238,6 +242,8 @@ public interface BlobContainer {
      * @param blobName            The name of the blob to copy to
      * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
      *                            for very large blobs)
+     * @param executor            Executor for concurrent part copies, {@code null} means parts are copied serially
+     *                            Currently only used by S3, Azure, GCS, and Fs ignore this
      * @throws NoSuchFileException If the source blob does not exist
      * @throws IOException        If the operation generates an IO error
      */
@@ -246,7 +252,8 @@ public interface BlobContainer {
         BlobContainer sourceBlobContainer,
         String sourceBlobName,
         String blobName,
-        long blobSize
+        long blobSize,
+        @Nullable Executor executor
     ) throws IOException {
         throw new UnsupportedOperationException("this blob container does not support copy");
     }

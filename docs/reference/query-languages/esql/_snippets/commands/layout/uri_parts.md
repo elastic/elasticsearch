@@ -10,13 +10,13 @@ This command doesn't support multi-value inputs.
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 URI_PARTS prefix = expression
 ```
 
-**Parameters**
+## Parameters
 
 `prefix`
 :   The prefix for the output columns. The extracted components are available as `prefix.component`.
@@ -24,12 +24,12 @@ URI_PARTS prefix = expression
 `expression`
 :   The string expression containing the URI to parse.
 
-**Description**
+## Description
 
 The `URI_PARTS` command parses a URI string and extracts its components into new columns.
 The new columns are prefixed with the specified `prefix` followed by a dot (`.`).
 
-This command is the query-time equivalent of the [URI parts ingest processor](/reference/enrich-processor/uri-parts-processor.md).
+This command is the query-time equivalent of the [URI parts ingest processor](/reference/ingest-processor/uri-parts-processor.md).
 
 The following columns are created:
 
@@ -67,7 +67,7 @@ If a component is missing from the URI, the corresponding column contains `null`
 If the expression evaluates to `null`, all output columns are `null`.
 If the expression is not a valid URI, a warning is issued and all output columns are `null`.
 
-**Examples**
+## Examples
 
 The following example parses a URI and extracts its parts:
 

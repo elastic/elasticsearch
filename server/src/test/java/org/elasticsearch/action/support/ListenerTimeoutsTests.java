@@ -32,8 +32,7 @@ public class ListenerTimeoutsTests extends ESTestCase {
     private Executor timeoutExecutor;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTaskQueue() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         threadPool = taskQueue.getThreadPool();
         timeoutExecutor = threadPool.generic();

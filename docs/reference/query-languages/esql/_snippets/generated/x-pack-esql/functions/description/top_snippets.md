@@ -7,3 +7,7 @@ Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a 
 `TOP_SNIPPETS` can be used on fields from the text family like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md).
     `TOP_SNIPPETS` will extract the best snippets for a given query string.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+

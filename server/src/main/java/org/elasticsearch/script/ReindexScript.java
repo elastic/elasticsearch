@@ -28,7 +28,7 @@ public abstract class ReindexScript extends WriteScript {
     /**
      * Metadata available to the script
      * _index can't be null
-     * _id, _routing and _version are writable and nullable
+     * _id, _routing, _slice and _version are writable and nullable
      * op must be 'noop', 'index' or 'delete'
      */
     public ReindexScript(Map<String, Object> params, CtxMap<ReindexMetadata> ctxMap) {

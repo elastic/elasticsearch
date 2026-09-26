@@ -5,6 +5,10 @@ stack: preview 9.5.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/sparkline.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/sparkline.svg

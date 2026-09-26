@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -89,9 +90,10 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry, featureService);
     }
 
     @Override

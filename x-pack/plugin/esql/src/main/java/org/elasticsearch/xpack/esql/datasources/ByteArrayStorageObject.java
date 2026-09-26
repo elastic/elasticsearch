@@ -26,7 +26,13 @@ final class ByteArrayStorageObject implements StorageObject {
     private final int offset;
     private final int length;
 
+    private final Instant lastModified;
+
     ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length) {
+        this(path, data, offset, length, Instant.EPOCH);
+    }
+
+    ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length, Instant lastModified) {
         if (offset < 0 || length < 0) {
             throw new IllegalArgumentException("Invalid region: offset=" + offset + ", length=" + length);
         }
@@ -45,6 +51,7 @@ final class ByteArrayStorageObject implements StorageObject {
         this.data = data;
         this.offset = offset;
         this.length = length;
+        this.lastModified = lastModified;
     }
 
     @Override
@@ -74,7 +81,7 @@ final class ByteArrayStorageObject implements StorageObject {
 
     @Override
     public Instant lastModified() {
-        return Instant.EPOCH;
+        return lastModified;
     }
 
     @Override

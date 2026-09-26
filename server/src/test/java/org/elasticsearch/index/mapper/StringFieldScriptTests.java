@@ -137,7 +137,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     new SearchLookup(
                         field -> null,
                         (ft, lookup, fdt) -> null,
-                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                     ),
                     OnScriptError.FAIL
                 );
@@ -171,7 +171,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     new SearchLookup(
                         field -> null,
                         (ft, lookup, fdt) -> null,
-                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                     ),
                     OnScriptError.FAIL
                 );

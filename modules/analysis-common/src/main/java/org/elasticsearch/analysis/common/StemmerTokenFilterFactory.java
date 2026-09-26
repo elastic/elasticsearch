@@ -79,7 +79,8 @@ import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -242,12 +243,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // Norwegian (Nynorsk) stemmers
             } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
-                NorwegianLightStemFilterFactory factory = new NorwegianLightStemFilterFactory(Collections.singletonMap("variant", "nn"));
+                NorwegianLightStemFilterFactory factory = new NorwegianLightStemFilterFactory(new HashMap<>(Map.of("variant", "nn")));
                 return factory.create(tokenStream);
             } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
-                NorwegianMinimalStemFilterFactory factory = new NorwegianMinimalStemFilterFactory(
-                    Collections.singletonMap("variant", "nn")
-                );
+                NorwegianMinimalStemFilterFactory factory = new NorwegianMinimalStemFilterFactory(new HashMap<>(Map.of("variant", "nn")));
                 return factory.create(tokenStream);
                 // Persian stemmers
             } else if ("persian".equalsIgnoreCase(language)) {

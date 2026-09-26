@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -56,9 +58,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         settings = Settings.builder()
             .put("path.home", createTempDir().toString())
             .put("node.name", "test-" + getTestName())
@@ -67,9 +68,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 

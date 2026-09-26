@@ -1,4 +1,8 @@
 ### Greater than or equal to `>=` [esql-greater_than_or_equal]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/greater_than_or_equal.svg
 :alt: Embedded

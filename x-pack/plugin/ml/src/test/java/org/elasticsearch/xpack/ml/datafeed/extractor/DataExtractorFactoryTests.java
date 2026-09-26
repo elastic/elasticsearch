@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -36,6 +37,9 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
@@ -51,13 +55,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DataExtractorFactoryTests extends ESTestCase {
@@ -67,6 +76,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
     private Client client;
     private DatafeedTimingStatsReporter timingStatsReporter;
+    private CloudCredentialManager cloudCredentialManager;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -79,6 +89,10 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void setUpTests() {
         client = mock(Client.class);
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
+        cloudCredentialManager = mock(CloudCredentialManager.class);
+        when(cloudCredentialManager.wrapClient(any(Client.class), nullable(PersistedCloudCredential.class))).thenAnswer(
+            invocation -> invocation.getArgument(0)
+        );
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -122,6 +136,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
             null,
             jobBuilder.build(new Date()),
@@ -144,6 +159,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
             null,
             jobBuilder.build(new Date()),
@@ -167,6 +183,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -190,6 +207,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -217,6 +235,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -245,6 +264,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -273,6 +293,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -317,6 +338,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -352,6 +374,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -390,6 +413,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -405,6 +429,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -424,6 +449,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -439,6 +465,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -474,6 +501,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -499,6 +527,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -541,6 +570,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -580,6 +610,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -619,6 +650,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
             null,
             jobBuilder.build(new Date()),
@@ -656,6 +688,44 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Map<String, RollableIndexCaps> jobs = Maps.newMapWithExpectedSize(1);
         jobs.put("rollupJob1", rollableIndexCaps);
         when(getRollupIndexResponse.getJobs()).thenReturn(jobs);
+    }
+
+    public void testCreateUsesPersistedCredentialWhenCpsFlagOffAndRoutingPresent() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        PersistedCloudCredential cred = new PersistedCloudCredential("cred-id", randomCloudCredentialEncryptedData());
+        DatafeedConfig.Builder builder = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo");
+        builder.setProjectRouting("_alias:_origin");
+        builder.setCloudInternalCredential(cred);
+        DatafeedConfig persisted = builder.build();
+
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true);
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getCloudInternalCredential(), equalTo(cred));
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(DataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            effective,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+
+        verify(cloudCredentialManager).wrapClient(same(client), eq(cred));
     }
 
     private void givenAggregatableField(String field, String type) {

@@ -115,7 +115,7 @@ public final class Mapping implements ToXContentFragment {
         return meta;
     }
 
-    MetadataFieldMapper[] getSortedMetadataMappers() {
+    public MetadataFieldMapper[] getSortedMetadataMappers() {
         return metadataMappers;
     }
 
@@ -158,13 +158,14 @@ public final class Mapping implements ToXContentFragment {
      * @return a {@link SourceLoader.SyntheticVectorsLoader} for extracting synthetic vectors,
      *         potentially using the provided filter
      */
-    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
-        return root.syntheticVectorsLoader(filter);
-    }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
+        return syntheticFieldLoader(filter, false);
+    }
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter, boolean columnarStored) {
         var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).toList();
-        return root.syntheticFieldLoader(filter, mappers, false);
+        return root.syntheticFieldLoader(filter, mappers, false, columnarStored);
     }
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {

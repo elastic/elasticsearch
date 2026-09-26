@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -23,7 +24,7 @@ import java.util.jar.Manifest;
 public class VersionTests extends ESTestCase {
 
     public void testCurrent() {
-        SqlVersion ver = SqlVersion.fromString(org.elasticsearch.Version.CURRENT.toString());
+        SqlVersion ver = SqlVersion.fromString(Build.current().version());
         assertEquals(ver, ClientVersion.CURRENT);
     }
 

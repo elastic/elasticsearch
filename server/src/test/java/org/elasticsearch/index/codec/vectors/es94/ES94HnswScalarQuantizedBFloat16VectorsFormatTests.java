@@ -16,7 +16,6 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -33,13 +32,8 @@ import static org.hamcrest.Matchers.hasEntry;
 
 public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
-    private int bits;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        bits = randomFrom(1, 2, 4, 7);
-        super.setUp();
+    private static int randomBitsPerValue() {
+        return randomFrom(1, 2, 4, 7);
     }
 
     @Override
@@ -48,14 +42,20 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            randomBitsPerValue(),
+            false
+        );
     }
 
     @Override
@@ -64,7 +64,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service
@@ -77,17 +77,23 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; randomBitsPerValue may pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         // Use threshold=0 to ensure HNSW graph is always built, but keep assertion tolerant to implementation details.
         KnnVectorsFormat format = new ES94HnswScalarQuantizedVectorsFormat(
             16,
             100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false,
             1,
             null,
-            0
+            0,
+            false
         );
         var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {

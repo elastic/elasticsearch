@@ -70,7 +70,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -99,7 +98,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicStringMappingWithoutAutoTextSubfield() {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(1);
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         FeatureService featureService = internalCluster().getInstance(FeatureService.class);
@@ -128,11 +126,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> msg = (Map<String, Object>) props.get("msg");
         assertThat(msg.get("type"), equalTo("keyword"));
         assertThat(msg.containsKey("fields"), is(false));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> docValues = (Map<String, Object>) msg.get("doc_values");
-        assertThat(docValues, notNullValue());
-        assertThat(docValues.get("cardinality"), is("high"));
     }
 
     public void testSimpleDynamicMappingsSuccessful() {
@@ -294,8 +287,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         .endObject()
                         .endArray()
                         .endObject()
-                ),
-                XContentType.JSON
+                )
             )
             .get();
         prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
@@ -321,7 +313,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                expectThrows(MapperParsingException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
                     .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
@@ -554,10 +546,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                exc.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
-            );
+            assertThat(exc.getCause().getMessage(), Matchers.containsString("Limit of total fields [4] has been exceeded"));
         }
 
         {
@@ -574,7 +563,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         "rfield2" : null
                       }
                     }
-                """, XContentType.JSON));
+                """));
 
             // introduction of a new object with 2 new sub-fields succeeds
             prepareIndex("index1").setId("1")
@@ -819,7 +808,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON));
+            }"""));
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
         // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type

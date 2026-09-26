@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
@@ -36,14 +37,14 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
     private static final Logger LOGGER = LogManager.getLogger(EsqlAsyncSecurityIT.class);
 
     @Override
-    protected Response runESQLCommand(String user, String command) throws IOException {
+    protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
         var response = runAsync(user, command);
         assertOK(response);
         var respMap = entityAsMap(response.getEntity());
         String id = (String) respMap.get("id");
         assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
-        int tries = 0;
-        Response getResponse = runAsyncGet(user, id);
+        // The completed result (and therefore any query warnings) is returned by the async GET, not the initial POST.
+        Response getResponse = runAsyncGet(user, id, false, warningsHandler);
         assertOK(getResponse);
         var deleteResponse = runAsyncDelete(user, id);
         assertOK(deleteResponse);
@@ -110,7 +111,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         json.endObject();
         Request request = new Request("POST", "_query/async");
         request.setJsonEntity(Strings.toString(json));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.setOptions(runAsUserOptions(user, null));
         request.addParameter("error_trace", "true");
         logRequest(request);
         Response response = client().performRequest(request);
@@ -123,12 +124,17 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
     }
 
     private Response runAsyncGet(String user, String id, boolean isAsyncIdNotFound_Expected) throws IOException {
+        return runAsyncGet(user, id, isAsyncIdNotFound_Expected, null);
+    }
+
+    private Response runAsyncGet(String user, String id, boolean isAsyncIdNotFound_Expected, @Nullable WarningsHandler warningsHandler)
+        throws IOException {
         int tries = 0;
         while (tries < 10) {
             // Sometimes we get 404s fetching the task status.
             try {
                 Request getRequest = new Request("GET", "_query/async/" + id + "?wait_for_completion_timeout=60s");
-                getRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+                getRequest.setOptions(runAsUserOptions(user, warningsHandler));
                 getRequest.addParameter("error_trace", "true");
                 logRequest(getRequest);
                 var response = client().performRequest(getRequest);
@@ -176,7 +182,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
     private Response runAsyncDelete(String user, String id) throws IOException {
         Request deleteRequest = new Request("DELETE", "_query/async/" + id);
-        deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        deleteRequest.setOptions(runAsUserOptions(user, null));
         deleteRequest.addParameter("error_trace", "true");
         logRequest(deleteRequest);
         var response = client().performRequest(deleteRequest);

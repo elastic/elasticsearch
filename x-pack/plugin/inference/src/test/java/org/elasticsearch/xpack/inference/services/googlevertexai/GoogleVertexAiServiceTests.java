@@ -23,6 +23,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -309,7 +310,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -338,7 +339,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             "project"
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap("{}")
                 ),
                 failureListener
@@ -1152,9 +1153,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                    "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
-                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. Omit this field to target the Vertex AI global endpoint. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -1182,7 +1183,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                        }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

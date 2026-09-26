@@ -10,12 +10,20 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -23,12 +31,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +48,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -51,36 +64,175 @@ public final class DataSourceModule implements Closeable {
     private final StorageProviderRegistry storageProviderRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Map<String, ExternalSourceFactory> sourceFactories;
+    /**
+     * Pre-built delegating probes for types whose PUT name differs from the URI scheme
+     * (e.g. {@code "gcs"→gs factory}, {@code "azure"→wasbs factory}). Keyed by the user-facing PUT
+     * type name. Built at construction from {@link DataSourcePlugin#testConnectionSchemes()}.
+     */
+    private final Map<String, StorageProviderFactory> testConnectionStorageProbes;
+    private final DataSourceCredentials credentials;
     // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
+    private final ExternalSourceMetrics externalSourceMetrics;
+    private final DecompressionCodecRegistry codecRegistry;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
         DataSourceCapabilities capabilities,
         Settings settings,
         BlockFactory blockFactory,
-        ExecutorService executor
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            null,
+            null,
+            null,
+            null,
+            LocalFileAccess.UNRESTRICTED
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            LocalFileAccess.UNRESTRICTED,
+            null
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            null
+        );
+    }
+
+    /**
+     * @param splitDiscoveryExecutor dedicated pool for Phase-2 split discovery (production:
+     *                             {@code esql_external_io}). {@code null} falls back to {@code executor}
+     *                             (the SPI/GENERIC pool, or {@code DIRECT} in short test constructors).
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor
     ) {
         this.capabilities = capabilities;
-        this.storageProviderRegistry = new StorageProviderRegistry(settings);
+        this.credentials = credentials;
+        // Always create a live accumulator so phone-home counters work even when APM is disabled.
+        DataSourceUsageAccumulator accumulator = new DataSourceUsageAccumulator();
+        this.externalSourceMetrics = new ExternalSourceMetrics(meterRegistry != null ? meterRegistry : MeterRegistry.NOOP, accumulator);
+        LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
+        // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
+        // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
+        RetryScheduler retryScheduler = threadPool == null
+            ? RetryScheduler.DIRECT
+            : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
+        this.storageProviderRegistry = new StorageProviderRegistry(
+            settings,
+            credentials,
+            managedIdentityEnabled,
+            retryScheduler,
+            effectiveLocalFileAccess
+        );
 
-        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        this.codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
             for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
-                codecRegistry.register(codec);
+                this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
         List<Closeable> closeables = new ArrayList<>();
         Map<String, String> registeredSchemes = new HashMap<>();
+        Map<String, String> tcTypeToScheme = new HashMap<>();
 
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            LazyPluginState state = new LazyPluginState(plugin, settings, executor);
+            plugin.testConnectionSchemes().forEach((type, scheme) -> {
+                if (tcTypeToScheme.putIfAbsent(type, scheme) != null) {
+                    throw new IllegalStateException("duplicate testConnectionSchemes entry for type [" + type + "]");
+                }
+            });
+
+            LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
+
+            // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
+            // resources (e.g. token-file watchers). This SPI-discovery instance never receives the
+            // node Plugin#close(), so close it here when the module shuts down. Anonymous test plugins
+            // that only implement DataSourcePlugin (not Plugin) are not Closeable and are skipped.
+            if (plugin instanceof Closeable closeablePlugin) {
+                closeables.add(closeablePlugin);
+            }
 
             // Storage providers: register a delegating factory per declared scheme
             for (String scheme : plugin.supportedSchemes()) {
@@ -91,22 +243,20 @@ public final class DataSourceModule implements Closeable {
                 StorageProviderFactory delegating = new StorageProviderFactory() {
                     @Override
                     public StorageProvider create(Settings s) {
-                        Map<String, StorageProviderFactory> factories = state.storageFactories();
-                        StorageProviderFactory real = factories.get(scheme);
-                        if (real == null) {
-                            throw new IllegalArgumentException(
-                                "Plugin "
-                                    + plugin.getClass().getName()
-                                    + " declared scheme ["
-                                    + scheme
-                                    + "] but storageProviders() did not return it"
-                            );
-                        }
-                        return real.create(s);
+                        return real(scheme).create(s);
                     }
 
                     @Override
                     public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
+                        return real(scheme).createTrackingConsumedKeys(s, config);
+                    }
+
+                    @Override
+                    public void testConnection(Map<String, Object> config) throws IOException {
+                        real(scheme).testConnection(config);
+                    }
+
+                    private StorageProviderFactory real(String scheme) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -118,7 +268,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.createTrackingConsumedKeys(s, config);
+                        return real;
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);
@@ -151,7 +301,12 @@ public final class DataSourceModule implements Closeable {
             // Connectors: register lazy wrappers only for explicitly declared connector schemes
             Set<String> connectorSchemes = plugin.supportedConnectorSchemes();
             if (connectorSchemes.isEmpty() == false) {
-                LazyConnectorFactory lazyConnector = new LazyConnectorFactory(state, connectorSchemes, plugin.getClass().getName());
+                LazyConnectorFactory lazyConnector = new LazyConnectorFactory(
+                    state,
+                    connectorSchemes,
+                    plugin.getClass().getName(),
+                    credentials
+                );
                 for (String scheme : connectorSchemes) {
                     sourceFactoryMap.putIfAbsent(scheme, lazyConnector);
                 }
@@ -159,7 +314,14 @@ public final class DataSourceModule implements Closeable {
 
             // Table catalogs: register lazy wrappers
             for (String catalogType : plugin.supportedCatalogs()) {
-                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(state, catalogType, closeables, settings);
+                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(
+                    state,
+                    catalogType,
+                    closeables,
+                    settings,
+                    credentials,
+                    formatReaderRegistry
+                );
                 if (sourceFactoryMap.put(catalogType, lazyCatalog) != null) {
                     throw new IllegalArgumentException("Source factory for type [" + catalogType + "] is already registered");
                 }
@@ -188,8 +350,10 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor,
-            blockFactory
+            splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
+            blockFactory,
+            effectiveLocalFileAccess,
+            externalSourceMetrics
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -198,7 +362,34 @@ public final class DataSourceModule implements Closeable {
             sourceFactoryMap.putIfAbsent(formatName, fileFallback);
         }
 
-        this.sourceFactories = Map.copyOf(sourceFactoryMap);
+        // Insertion order is load-bearing, so this cannot be Map.copyOf: that returns a map whose iteration order the
+        // JDK documents as unspecified, silently discarding the "file factory last" ordering established above.
+        // ExternalSourceResolver picks the FIRST factory whose canHandle claims a path, and the claims genuinely
+        // overlap: the Iceberg catalog wrapper claims an extensionless s3 object (a table directory), and the file
+        // factory's config-aware canHandle claims that same object whenever an explicit `format` is configured. With
+        // an undefined order, which one resolves such a path would vary between nodes and restarts.
+        this.sourceFactories = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFactoryMap));
+        // Pre-build the test-connection probe map keyed by user-facing PUT type names.
+        // Each entry is a delegating StorageProviderFactory that resolves the scheme-registered
+        // factory lazily (the registry is fully populated by the time testConnection() is called).
+        Map<String, StorageProviderFactory> tcProbes = new LinkedHashMap<>();
+        tcTypeToScheme.forEach((type, scheme) -> tcProbes.put(type, new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings s) {
+                return storageProviderRegistry.getFactory(scheme).create(s);
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
+                return storageProviderRegistry.getFactory(scheme).createTrackingConsumedKeys(s, config);
+            }
+
+            @Override
+            public void testConnection(Map<String, Object> config) throws IOException {
+                storageProviderRegistry.getFactory(scheme).testConnection(config);
+            }
+        }));
+        this.testConnectionStorageProbes = Map.copyOf(tcProbes);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
     }
@@ -227,6 +418,76 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
+    /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
+    public ExternalSourceMetrics externalSourceMetrics() {
+        return externalSourceMetrics;
+    }
+
+    public DecompressionCodecRegistry codecRegistry() {
+        return codecRegistry;
+    }
+
+    /**
+     * Tests the live connection for the given data source type and raw settings. The settings are passed
+     * as-is to the factory: plaintext values (from a not-yet-saved data source) and
+     * {@link org.elasticsearch.xpack.encryption.spi.EncryptedData} values (from a saved data source) are
+     * both handled correctly — the {@link LazyConnectorFactory} calls
+     * {@link org.elasticsearch.xpack.esql.datasources.DataSourceCredentials#decryptInPlace} before delegating,
+     * which is a no-op for non-{@code EncryptedData} values.
+     *
+     * @param type the data source type identifier (e.g. {@code "s3"}, {@code "flight"})
+     * @param rawSettings raw settings map; may be empty but must not be {@code null}
+     * @return {@link TestConnectionResult#SUCCESS} if the probe passed,
+     *         {@link TestConnectionResult#UNTESTABLE} if the type is valid but has no probe,
+     *         or {@link TestConnectionResult.Failure} if the probe ran but failed
+     * @throws IllegalArgumentException if no factory is registered for the data source type (HTTP 400)
+     */
+    public TestConnectionResult testConnection(String type, Map<String, Object> rawSettings) {
+        // Resolve the factory before entering the try block so that "unknown type" IAE is thrown
+        // unconditionally and always maps to HTTP 400 — not caught as a soft failure.
+        ExternalSourceFactory extFactory = sourceFactories.get(type);
+        StorageProviderFactory spFactory = null;
+        if (extFactory == null) {
+            // Direct scheme lookup: works when the PUT type name matches the URI scheme (e.g. "s3").
+            spFactory = storageProviderRegistry.getFactory(type);
+            if (spFactory == null) {
+                // Pre-built probe map: handles types whose PUT name differs from the URI scheme
+                // (e.g. "gcs" → gs factory, "azure" → wasbs factory, "local" → file factory).
+                spFactory = testConnectionStorageProbes.get(type);
+            }
+        }
+        if (extFactory == null && spFactory == null) {
+            throw new IllegalArgumentException("No factory registered for data source type [" + type + "]");
+        }
+        try {
+            if (extFactory != null) {
+                extFactory.testConnection(rawSettings);
+            } else {
+                spFactory.testConnection(credentials.decryptInPlace(rawSettings));
+            }
+            return TestConnectionResult.SUCCESS;
+        } catch (TestConnectionNotSupportedException e) {
+            return new TestConnectionResult.Untestable(e.userReason());
+        } catch (IOException | RuntimeException e) {
+            // Surface the raw SDK message as the failure reason: probe failures carry user-relevant
+            // diagnostic info (e.g. "The AWS Access Key Id you provided does not exist in our records").
+            // Transport-level failures are intentionally NOT included here; they are mapped to
+            // untestable by the coordinator because they contain internal strings (action names, node
+            // addresses) that must not appear in a public response.
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
+            return TestConnectionResult.failure(msg);
+        }
+    }
+
+    /**
+     * Convenience overload that backs BOTH registry roles with a single executor. This collapses the
+     * page-consumer/coordination role and the read/parse role onto one pool, which is the exact wiring that
+     * deadlocks multi-file text reads in production (a full pool of blocked parser workers with no free thread
+     * left to run the drain that consumes them). It is safe only for synchronous / single-threaded callers
+     * (e.g. {@code Runnable::run} in tests). Production wiring must use
+     * {@link #createOperatorFactoryRegistry(Executor, Executor)} with two distinct pools —
+     * see {@code TransportEsqlQueryAction}.
+     */
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
         return createOperatorFactoryRegistry(executor, executor);
     }
@@ -243,22 +504,36 @@ public final class DataSourceModule implements Closeable {
         private final DataSourcePlugin plugin;
         private final Settings settings;
         private final ExecutorService executor;
+        @Nullable
+        private final Environment environment;
+        @Nullable
+        private final ResourceWatcherService resourceWatcherService;
         private volatile Map<String, StorageProviderFactory> storageFactoriesCache;
         private volatile Map<String, FormatReaderFactory> formatFactoriesCache;
         private volatile Map<String, ConnectorFactory> connectorFactoriesCache;
         private volatile Map<String, TableCatalogFactory> catalogFactoriesCache;
 
-        LazyPluginState(DataSourcePlugin plugin, Settings settings, ExecutorService executor) {
+        LazyPluginState(
+            DataSourcePlugin plugin,
+            Settings settings,
+            ExecutorService executor,
+            @Nullable Environment environment,
+            @Nullable ResourceWatcherService resourceWatcherService
+        ) {
             this.plugin = plugin;
             this.settings = settings;
             this.executor = executor;
+            this.environment = environment;
+            this.resourceWatcherService = resourceWatcherService;
         }
 
         Map<String, StorageProviderFactory> storageFactories() {
             if (storageFactoriesCache == null) {
                 synchronized (this) {
                     if (storageFactoriesCache == null) {
-                        storageFactoriesCache = plugin.storageProviders(settings, executor);
+                        storageFactoriesCache = plugin.storageProviders(
+                            new StorageProviderServices(settings, executor, environment, resourceWatcherService)
+                        );
                     }
                 }
             }
@@ -306,12 +581,14 @@ public final class DataSourceModule implements Closeable {
         private final LazyPluginState state;
         private final Set<String> declaredSchemes;
         private final String pluginName;
+        private final DataSourceCredentials credentials;
         private volatile ConnectorFactory delegate;
 
-        LazyConnectorFactory(LazyPluginState state, Set<String> declaredSchemes, String pluginName) {
+        LazyConnectorFactory(LazyPluginState state, Set<String> declaredSchemes, String pluginName, DataSourceCredentials credentials) {
             this.state = state;
             this.declaredSchemes = declaredSchemes;
             this.pluginName = pluginName;
+            this.credentials = credentials;
         }
 
         @Override
@@ -334,17 +611,29 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, config);
+            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, config);
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
         }
 
         @Override
         public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(config);
+            return resolveDelegate().open(credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void testConnection(Map<String, Object> config) throws IOException {
+            resolveDelegate().testConnection(credentials.decryptInPlace(config));
         }
 
         @Override
@@ -388,19 +677,37 @@ public final class DataSourceModule implements Closeable {
     /**
      * Lazy table catalog wrapper whose canHandle() uses heuristics (S3 scheme + no file extension)
      * without loading Iceberg classes.
+     *
+     * <p>Decryption step: every config-map entry exposed by this wrapper passes through the wrapper's
+     * {@link DataSourceCredentials#decryptInPlace(java.util.Map)} before delegation. The wrapper
+     * deliberately exposes only the {@link ExternalSourceFactory} surface — direct callers of the
+     * underlying {@link org.elasticsearch.xpack.esql.datasources.spi.TableCatalog#planScan(String, java.util.Map, java.util.List)}
+     * (no in-tree callers today; Iceberg is the only implementor) must route their config through
+     * {@code decryptInPlace} before invocation, or widen this wrapper to forward {@code planScan} the same way.
      */
     static class LazyTableCatalogWrapper implements ExternalSourceFactory {
         private final LazyPluginState state;
         private final String catalogType;
         private final List<Closeable> managedCloseables;
         private final Settings settings;
+        private final DataSourceCredentials credentials;
+        private final FormatReaderRegistry formatReaderRegistry;
         private volatile TableCatalog delegate;
 
-        LazyTableCatalogWrapper(LazyPluginState state, String catalogType, List<Closeable> managedCloseables, Settings settings) {
+        LazyTableCatalogWrapper(
+            LazyPluginState state,
+            String catalogType,
+            List<Closeable> managedCloseables,
+            Settings settings,
+            DataSourceCredentials credentials,
+            FormatReaderRegistry formatReaderRegistry
+        ) {
             this.state = state;
             this.catalogType = catalogType;
             this.managedCloseables = managedCloseables;
             this.settings = settings;
+            this.credentials = credentials;
+            this.formatReaderRegistry = formatReaderRegistry;
         }
 
         @Override
@@ -432,14 +739,39 @@ public final class DataSourceModule implements Closeable {
             }
         }
 
+        /**
+         * Declines when the config names an explicit registered file format (mirrors the complementary claim in
+         * {@link FileSourceFactory#canHandle(String, Map)}). Without this override the path-only form would win
+         * the factory race for every extensionless S3 object, even when the config carries an authoritative
+         * {@code format} setting — causing the catalog's {@code validateConfig} to reject the setting as unknown
+         * on the synchronous anchor-footer read path that strict mappings trigger.
+         */
+        @Override
+        public boolean canHandle(String path, Map<String, Object> config) {
+            if (config != null && config.isEmpty() == false) {
+                String format = FormatNameResolver.resolve(config, "");
+                if (format != null && formatReaderRegistry.hasFormat(format)) {
+                    return false;
+                }
+            }
+            return canHandle(path);
+        }
+
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, config);
+            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, config);
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
         }
 
         @Override

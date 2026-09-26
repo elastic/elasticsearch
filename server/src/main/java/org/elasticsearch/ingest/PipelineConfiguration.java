@@ -14,9 +14,10 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -26,12 +27,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
  * Encapsulates a pipeline's id and configuration as a loosely typed map -- see {@link Pipeline} for the
@@ -78,10 +81,14 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     private final String id;
     private final Map<String, Object> config;
+    // Lazily-computed serialized size. This class is immutable, so the size is stable once computed. Memoized because the size is summed
+    // across all pipelines on every pipeline creation, and recomputing it (which walks the whole config) on each request would burden the
+    // master.
+    private volatile long serializedSize = -1;
 
     public PipelineConfiguration(String id, Map<String, Object> config) {
         this.id = Objects.requireNonNull(id);
-        this.config = deepCopy(config, true); // defensive deep copy
+        this.config = CollectionUtils.deepCopy(config, UNMODIFIABLE, ORDERED, LAX);
     }
 
     /**
@@ -116,34 +123,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         if (unmodifiable) {
             return config; // already unmodifiable
         } else {
-            return deepCopy(config, false);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T deepCopy(final T value, final boolean unmodifiable) {
-        return (T) innerDeepCopy(value, unmodifiable);
-    }
-
-    private static Object innerDeepCopy(final Object value, final boolean unmodifiable) {
-        if (value instanceof Map<?, ?> mapValue) {
-            final Map<Object, Object> copy = Maps.newLinkedHashMapWithExpectedSize(mapValue.size()); // n.b. maintain ordering
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(innerDeepCopy(entry.getKey(), unmodifiable), innerDeepCopy(entry.getValue(), unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
-        } else if (value instanceof List<?> listValue) {
-            final List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(innerDeepCopy(itemValue, unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
-        } else {
-            // if this list of expected value types ends up not being exhaustive, then we want to learn about that
-            // at development time, but it's probably better to err on the side of passing through the value at runtime
-            assert (value == null || value instanceof String || value instanceof Number || value instanceof Boolean)
-                : "unexpected value type [" + value.getClass() + "]";
-            return value;
+            return CollectionUtils.deepCopy(config, ORDERED, LAX);
         }
     }
 
@@ -186,9 +166,58 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         final TransportVersion transportVersion = out.getTransportVersion();
-        final Map<String, Object> configForTransport = configForTransport(transportVersion);
+        writeTo(out, id, configForTransport(transportVersion));
+    }
+
+    /**
+     * The wire layout of a pipeline, kept in one place so that {@link #writeTo(StreamOutput)} and
+     * {@link #serializedSizeInBytes(String, Map)} cannot drift apart.
+     */
+    private static void writeTo(StreamOutput out, String id, Map<String, Object> config) throws IOException {
         out.writeString(id);
-        out.writeGenericMap(configForTransport);
+        out.writeGenericMap(config);
+    }
+
+    /**
+     * Returns the number of bytes this pipeline occupies when serialized at the current transport version. The size is measured without
+     * materializing the serialized form, so that even an oversized pipeline does not cause a large allocation here. The result is memoized
+     * (this class is immutable) so that summing the size across all pipelines on every pipeline creation does not repeatedly walk the whole
+     * config on the master. Used to bound both a single pipeline and the aggregate size of all stored pipelines in the cluster state.
+     * <p>
+     * This is a measure of how much cluster state a pipeline accounts for, not a prediction of what {@link #writeTo(StreamOutput)} will
+     * emit to a given peer: {@code configForTransport} drops the system properties that the peer's transport version does not understand,
+     * so a peer older than {@code pipeline_tracking_info} is sent fewer bytes than this reports. Don't reuse it for wire accounting.
+     */
+    public long serializedSizeInBytes() {
+        long size = serializedSize;
+        if (size == -1) {
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                writeTo(out);
+                size = out.position();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to compute the size of ingest pipeline [" + id + "]", e);
+            }
+            serializedSize = size;
+        }
+        return size;
+    }
+
+    /**
+     * As {@link #serializedSizeInBytes()}, but measuring a pipeline id and a raw config map that have not been made into a
+     * {@link PipelineConfiguration}. This lets the put path size-check a pipeline straight off the map it already parsed, without paying
+     * for the defensive deep copy that constructing a {@link PipelineConfiguration} would perform. The map is only read, never retained.
+     * <p>
+     * The map is measured exactly as given, with no transport-version filtering applied. That is consistent with
+     * {@link #serializedSizeInBytes()}, which measures at the current transport version, where {@code configForTransport} is a no-op;
+     * filtering only comes into play when writing to an older peer.
+     */
+    static long serializedSizeInBytes(String id, Map<String, Object> config) {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            writeTo(out, id, config);
+            return out.position();
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to compute the size of ingest pipeline [" + id + "]", e);
+        }
     }
 
     @Override

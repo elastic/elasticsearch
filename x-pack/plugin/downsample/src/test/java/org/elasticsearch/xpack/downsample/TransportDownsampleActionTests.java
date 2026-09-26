@@ -70,7 +70,6 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
@@ -139,8 +138,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private IndicesAdminClient indicesAdminClient;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
         action = new TransportDownsampleAction(
             client,
@@ -150,7 +148,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             featureService,
             threadPool,
             mock(MetadataCreateIndexService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             projectResolver,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             persistentTaskService,
@@ -211,8 +209,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeMocks() throws Exception {
         mocks.close();
     }
 

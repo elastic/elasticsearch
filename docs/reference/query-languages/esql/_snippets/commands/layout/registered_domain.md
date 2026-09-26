@@ -10,13 +10,13 @@ This command doesn't support multi-value inputs.
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 REGISTERED_DOMAIN prefix = expression
 ```
 
-**Parameters**
+## Parameters
 
 `prefix`
 :   The prefix for the output columns. The extracted parts are available as `prefix.part_name`.
@@ -24,7 +24,7 @@ REGISTERED_DOMAIN prefix = expression
 `expression`
 :   The string expression containing the FQDN to parse.
 
-**Description**
+## Description
 
 The `REGISTERED_DOMAIN` command parses an FQDN string and extracts its parts into new columns.
 The new columns are prefixed with the specified `prefix` followed by a dot (`.`).
@@ -46,7 +46,7 @@ The following columns are created:
 If a part is missing or the input is not a valid FQDN, the corresponding column contains `null`.
 If the expression evaluates to `null` or blank, all output columns are `null`.
 
-**Examples**
+## Examples
 
 The following example parses an FQDN and extracts its parts:
 

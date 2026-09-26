@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -69,9 +70,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

@@ -119,6 +119,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                 .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
                 .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry(
                     "profile",
@@ -136,6 +137,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                         .entry("analysis", matchesMap().extraOk())
                         .entry("query", matchesMap().extraOk())
                         .entry("field_caps_calls", instanceOf(Integer.class))
+                        .entry("unmapped_fields", instanceOf(String.class))
                         .entry("minimumTransportVersion", instanceOf(Integer.class))
                 )
                 .extraOk()

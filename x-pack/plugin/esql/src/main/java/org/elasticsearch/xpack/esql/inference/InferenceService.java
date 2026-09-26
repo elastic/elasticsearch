@@ -8,28 +8,34 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceService {
 
-    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
+    /** Value of the {@code X-Elastic-Product-Use-Case} header for ESQL requests. */
+    public static final String ESQL_PRODUCT_USE_CASE = "ESQL";
 
     private InferenceSettings inferenceSettings;
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final InferenceResolver.Factory inferenceResolverFactory;
 
     /**
      * Creates a new inference service with the given client.
@@ -46,7 +52,6 @@ public class InferenceService {
     private InferenceService(Client client, Settings settings) {
         this.client = client;
         this.threadPool = client.threadPool();
-        this.inferenceResolverFactory = InferenceResolver.factory(client);
         updateInferenceSettings(settings);
     }
 
@@ -64,14 +69,42 @@ public class InferenceService {
     }
 
     /**
-     * Creates an inference resolver for resolving inference IDs in logical plans.
-     *
-     * @param functionRegistry the function registry to resolve functions
-     *
-     * @return a new inference resolver instance
+     * Resolves a list of inference deployment IDs to their metadata.
+     * @param inferenceIds List of inference deployment IDs to resolve
+     * @param listener     Callback to receive the resolution results
      */
-    public InferenceResolver inferenceResolver(EsqlFunctionRegistry functionRegistry) {
-        return inferenceResolverFactory.create(functionRegistry);
+    public void resolveInferenceIds(List<String> inferenceIds, ActionListener<InferenceResolution> listener) {
+        resolveInferenceIds(Set.copyOf(inferenceIds), listener);
+    }
+
+    void resolveInferenceIds(Set<String> inferenceIds, ActionListener<InferenceResolution> listener) {
+
+        if (inferenceIds.isEmpty()) {
+            listener.onResponse(InferenceResolution.EMPTY);
+            return;
+        }
+
+        final InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
+
+        final CountDownActionListener countdownListener = new CountDownActionListener(
+            inferenceIds.size(),
+            listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(inferenceResolutionBuilder.build()))
+        );
+
+        for (var inferenceId : inferenceIds) {
+            client.execute(
+                GetInferenceModelAction.INSTANCE,
+                new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), ActionListener.wrap(r -> {
+                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
+                    inferenceResolutionBuilder.withResolvedInference(resolvedInference);
+                    countdownListener.onResponse(null);
+                }, e -> {
+                    inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
+                    countdownListener.onResponse(null);
+                }))
+            );
+        }
     }
 
     /**

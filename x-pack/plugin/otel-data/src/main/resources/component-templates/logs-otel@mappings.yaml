@@ -27,6 +27,10 @@ template:
             fields:
               text:
                 type: match_only_text
+          http.request.body.size:
+            type: long
+          http.response.body.size:
+            type: long
       data_stream.type:
         type: constant_keyword
         value: logs
@@ -34,6 +38,9 @@ template:
         type: date_nanos
       severity_number:
         type: byte
+      event.severity:
+        type: alias
+        path: severity_number
       severity_text:
         type: keyword
       log.level:
@@ -73,3 +80,9 @@ template:
       error.stack_trace:
         type: alias
         path: attributes.exception.stacktrace
+      http.request.body.bytes:
+        type: alias
+        path: attributes.http.request.body.size
+      http.response.body.bytes:
+        type: alias
+        path: attributes.http.response.body.size

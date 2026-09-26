@@ -5,6 +5,10 @@ stack: preview 9.3.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/top_snippets.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/top_snippets.svg

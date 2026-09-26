@@ -17,9 +17,14 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -33,6 +38,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Holds pre-fetched metadata for a Parquet file's row groups: column indexes, offset indexes, and
@@ -49,7 +55,7 @@ import java.util.TreeMap;
  * <p>This class is populated once during file open and then read during row group
  * processing. All fields are effectively immutable after construction.
  */
-final class PreloadedRowGroupMetadata {
+final class PreloadedRowGroupMetadata implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(PreloadedRowGroupMetadata.class);
 
@@ -72,27 +78,53 @@ final class PreloadedRowGroupMetadata {
      */
     private final MessageType schema;
 
+    /**
+     * Owns the breaker-accounted buffers holding {@link #preWarmedChunks} (and the
+     * temporary buffers used by the coalesced index fetch). Closed when this metadata is no
+     * longer needed — typically at the end of the iterator's lifecycle. Never null;
+     * {@link #empty()} uses a no-op releasable.
+     */
+    private final Releasable releasable;
+
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     private static final MessageType EMPTY_SCHEMA = new MessageType("empty");
 
     PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes, MessageType schema) {
-        this(columnIndexes, offsetIndexes, new TreeMap<>(), schema);
+        this(columnIndexes, offsetIndexes, new TreeMap<>(), schema, () -> {});
     }
 
     PreloadedRowGroupMetadata(
         Map<String, ColumnIndex> columnIndexes,
         Map<String, OffsetIndex> offsetIndexes,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
-        MessageType schema
+        MessageType schema,
+        Releasable releasable
     ) {
         this.columnIndexes = Map.copyOf(columnIndexes);
         this.offsetIndexes = Map.copyOf(offsetIndexes);
         // Defensive copy: the caller's map is no longer referenced after construction.
         this.preWarmedChunks = preWarmedChunks.isEmpty() ? new TreeMap<>() : new TreeMap<>(preWarmedChunks);
         this.schema = schema;
+        this.releasable = releasable;
     }
 
     static PreloadedRowGroupMetadata empty() {
         return new PreloadedRowGroupMetadata(Map.of(), Map.of(), EMPTY_SCHEMA);
+    }
+
+    /**
+     * Idempotent and safe to call from multiple threads. The underlying releasable owns
+     * breaker-accounted heap buffers; {@code DirectReadBuffer.close()} is itself CAS-guarded,
+     * and this {@link AtomicBoolean} matches {@link PrefetchedPageReader#close()} so both
+     * components have identical close semantics.
+     */
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
+        releasable.close();
     }
 
     /**
@@ -121,8 +153,8 @@ final class PreloadedRowGroupMetadata {
      * <p>Falls back to {@link ParquetFileReader}'s sequential reading when no storage object
      * is provided (e.g., in-memory test files).
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject) {
-        return preload(reader, storageObject, null);
+    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, CircuitBreaker breaker) {
+        return preload(reader, storageObject, null, breaker);
     }
 
     /**
@@ -134,7 +166,95 @@ final class PreloadedRowGroupMetadata {
      * <p>Pass {@code null} or an empty set when no predicate columns exist; the result will then
      * carry no pre-warmed chunks and the caller can install nothing into the adapter.
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, Set<String> predicateColumnPaths) {
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        CircuitBreaker breaker
+    ) {
+        return preload(reader, storageObject, predicateColumnPaths, null, null, Integer.MAX_VALUE, breaker);
+    }
+
+    /**
+     * Restricts which columns contribute ColumnIndex and OffsetIndex byte-range fetches. The page
+     * indexes are only consumed by a subset of plans:
+     * <ul>
+     *   <li>ColumnIndex: predicate columns (page-level {@code RowRanges} computation) and the
+     *       dynamic-threshold / top-N sort column (page skipping).</li>
+     *   <li>OffsetIndex: the above, plus projected columns when a filter is active (filtered reads
+     *       skip non-surviving pages via the offset index) or when unfiltered LIMIT clips the
+     *       first-window prefix (then only the first K covering row groups are fetched).</li>
+     * </ul>
+     * For a full scan with no filter and no threshold, no plan consumes the page indexes, so the
+     * caller passes empty sets and zero index ranges are fetched.
+     *
+     * <p>A {@code null} set means "unrestricted" — fetch the index for every column. This preserves
+     * the legacy behavior for callers (and tests) that cannot enumerate the consuming columns.
+     *
+     * <p>{@code offsetIndexRowGroupLimit} caps OffsetIndex fetches to the first K row groups.
+     * ColumnIndex and dictionary/bloom pre-warm ranges are not capped. {@code Integer.MAX_VALUE}
+     * (or any value {@code >=} the block count) is "all groups".
+     *
+     * @param columnIndexPaths dot-string paths of columns whose ColumnIndex should be fetched, or
+     *            {@code null} to fetch for all columns
+     * @param offsetIndexPaths dot-string paths of columns whose OffsetIndex should be fetched, or
+     *            {@code null} to fetch for all columns
+     */
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker
+    ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            null
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark
+    ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            null
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -142,12 +262,23 @@ final class PreloadedRowGroupMetadata {
 
         if (storageObject != null) {
             try {
-                return preloadCoalesced(reader, rowGroups, storageObject, predicateColumnPaths);
+                return preloadCoalesced(
+                    reader,
+                    rowGroups,
+                    storageObject,
+                    predicateColumnPaths,
+                    columnIndexPaths,
+                    offsetIndexPaths,
+                    offsetIndexRowGroupLimit,
+                    breaker,
+                    ioWatermark,
+                    footerBytes
+                );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
         }
-        return preloadSequential(reader, rowGroups);
+        return preloadSequential(reader, rowGroups, columnIndexPaths, offsetIndexPaths, offsetIndexRowGroupLimit);
     }
 
     /**
@@ -170,7 +301,13 @@ final class PreloadedRowGroupMetadata {
         ParquetFileReader reader,
         List<BlockMetaData> rowGroups,
         StorageObject storageObject,
-        Set<String> predicateColumnPaths
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -179,34 +316,64 @@ final class PreloadedRowGroupMetadata {
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
                 IndexReference ciRef = col.getColumnIndexReference();
-                if (ciRef != null && ciRef.getLength() > 0) {
+                // A null path set means "unrestricted"; otherwise only fetch the index for columns
+                // a plan will actually consume (predicate / threshold for ColumnIndex; plus
+                // projected columns for OffsetIndex). Full scans pass empty sets -> zero ranges.
+                if (ciRef != null && ciRef.getLength() > 0 && (columnIndexPaths == null || columnIndexPaths.contains(path))) {
                     addRange(ranges, rangeMetas, ciRef.getOffset(), ciRef.getLength(), rgIdx, col, RangeKind.COLUMN_INDEX);
                 }
                 IndexReference oiRef = col.getOffsetIndexReference();
-                if (oiRef != null && oiRef.getLength() > 0) {
+                // Omitted dictionary_page_offset needs OffsetIndex[0] as the data-page bound.
+                // Include that index in the first batch even when the column is predicate-only.
+                boolean needOiForOmittedDict = fetchPreWarm
+                    && predicateColumnPaths.contains(path)
+                    && col.hasDictionaryPage()
+                    && col.getDictionaryPageOffset() <= 0;
+                if (oiRef != null
+                    && oiRef.getLength() > 0
+                    && rgIdx < offsetIndexRowGroupLimit
+                    && (offsetIndexPaths == null || offsetIndexPaths.contains(path) || needOiForOmittedDict)) {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
-                if (fetchPreWarm && predicateColumnPaths.contains(col.getPath().toDotString())) {
+                if (fetchPreWarm && predicateColumnPaths.contains(path)) {
                     addDictionaryRange(ranges, rangeMetas, rgIdx, col);
                     addBloomFilterRange(ranges, rangeMetas, rgIdx, col);
                 }
             }
         }
 
+        // No byte ranges to fetch. For a full scan this is the expected, optimized outcome (no
+        // plan consumes the page indexes), so return empty metadata directly rather than falling
+        // back to the sequential reader — that fallback would re-fetch every column's indexes
+        // synchronously, defeating the gating.
         if (ranges.isEmpty()) {
-            return preloadSequential(reader, rowGroups);
+            return new PreloadedRowGroupMetadata(Map.of(), Map.of(), reader.getFileMetaData().getSchema());
         }
 
         logger.debug("Coalesced metadata preload: [{}] ranges across [{}] row groups", ranges.size(), rowGroups.size());
 
-        PlainActionFuture<Map<CoalescedRangeReader.ByteRange, ByteBuffer>> future = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(storageObject, ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, Runnable::run, future);
-        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = future.actionGet();
+        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            breaker,
+            ioWatermark,
+            null,
+            footerBytes,
+            Runnable::run,
+            future
+        );
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
+        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = fetchedResult.ranges();
+        Releasable readRelease = fetchedResult.release();
 
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks = new TreeMap<>();
+        Releasable omittedDictRelease = () -> {};
 
         for (RangeMeta meta : rangeMetas) {
             ByteBuffer buf = fetched.get(meta.range());
@@ -237,11 +404,14 @@ final class PreloadedRowGroupMetadata {
                         }
                     }
                     case DICTIONARY_PAGE, BLOOM_FILTER -> {
-                        // Retain the raw buffer for the pre-warm cache; coalesced fetch already
-                        // returned a sliced ByteBuffer of exactly the requested length.
+                        // Retain the raw buffer for the pre-warm cache. CoalescedRangeReader
+                        // delivers slices with position == relativeOffset within the merged range,
+                        // not 0. PrefetchedSource.slice() treats offsetInChunk as 0-based, so
+                        // normalise here via slice() — same fix as buildPrefetched in
+                        // ColumnChunkPrefetcher.
                         preWarmedChunks.put(
                             meta.range().offset(),
-                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf)
+                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf.slice())
                         );
                     }
                 }
@@ -256,7 +426,35 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, preWarmedChunks, reader.getFileMetaData().getSchema());
+        if (fetchPreWarm) {
+            try {
+                omittedDictRelease = fetchOmittedDictionaryPages(
+                    rowGroups,
+                    predicateColumnPaths,
+                    offsetIndexes,
+                    preWarmedChunks,
+                    storageObject,
+                    breaker,
+                    ioWatermark,
+                    footerBytes
+                );
+            } catch (Throwable e) {
+                try {
+                    readRelease.close();
+                } catch (Throwable closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+                throw e;
+            }
+        }
+
+        return new PreloadedRowGroupMetadata(
+            columnIndexes,
+            offsetIndexes,
+            preWarmedChunks,
+            reader.getFileMetaData().getSchema(),
+            Releasables.wrap(readRelease, omittedDictRelease)
+        );
     }
 
     private enum RangeKind {
@@ -283,10 +481,9 @@ final class PreloadedRowGroupMetadata {
     }
 
     /**
-     * Adds the dictionary page byte range for {@code col} when one is present. The dictionary
-     * page sits at {@code [getDictionaryPageOffset(), getFirstDataPageOffset())} in the file.
-     * Skips columns without a dictionary, signalled by either {@code hasDictionaryPage()} returning
-     * false or by the offset/length being non-positive.
+     * Adds the dictionary page byte range for {@code col} when the Thrift offset is set and
+     * precedes {@code getFirstDataPageOffset()}. Omitted offsets ({@code 0}) are handled after
+     * OffsetIndex parse via {@link #fetchOmittedDictionaryPages}.
      */
     private static void addDictionaryRange(
         List<CoalescedRangeReader.ByteRange> ranges,
@@ -294,17 +491,101 @@ final class PreloadedRowGroupMetadata {
         int rowGroupIdx,
         ColumnChunkMetaData col
     ) {
-        if (col.hasDictionaryPage() == false) {
-            return;
+        CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+        if (dictRange != null) {
+            addRange(ranges, rangeMetas, dictRange.offset(), dictRange.length(), rowGroupIdx, col, RangeKind.DICTIONARY_PAGE);
         }
-        long dictOffset = col.getDictionaryPageOffset();
-        long firstDataPageOffset = col.getFirstDataPageOffset();
-        // Defensive guard: writers occasionally emit non-monotonic offsets when the column has
-        // no dictionary; treat the range as absent rather than fetching garbage bytes.
-        if (dictOffset <= 0 || firstDataPageOffset <= dictOffset) {
-            return;
+    }
+
+    /**
+     * Dictionary ranges for predicate columns whose {@code dictionary_page_offset} was omitted.
+     * Uses OffsetIndex page 0 as the first data-page bound. Empty when every dictionary was
+     * already collected in the first coalesced batch.
+     */
+    static List<CoalescedRangeReader.ByteRange> omittedDictionaryRanges(
+        List<BlockMetaData> rowGroups,
+        Set<String> predicateColumnPaths,
+        Map<String, OffsetIndex> offsetIndexes,
+        Set<Long> alreadyCoveredOffsets
+    ) {
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
+            for (ColumnChunkMetaData col : rowGroups.get(rgIdx).getColumns()) {
+                if (predicateColumnPaths.contains(col.getPath().toDotString()) == false) {
+                    continue;
+                }
+                if (col.getDictionaryPageOffset() > 0) {
+                    continue;
+                }
+                OffsetIndex oi = offsetIndexes.get(key(rgIdx, col));
+                if (oi == null || oi.getPageCount() <= 0) {
+                    continue;
+                }
+                CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(col, oi.getOffset(0));
+                if (dictRange == null || alreadyCoveredOffsets.contains(dictRange.offset())) {
+                    continue;
+                }
+                ranges.add(dictRange);
+            }
         }
-        addRange(ranges, rangeMetas, dictOffset, firstDataPageOffset - dictOffset, rowGroupIdx, col, RangeKind.DICTIONARY_PAGE);
+        return ranges;
+    }
+
+    /**
+     * Second coalesced fetch for dictionaries that the first batch skipped because
+     * {@code dictionary_page_offset} was unset. No-op when {@link #omittedDictionaryRanges}
+     * is empty (the common case).
+     */
+    private static Releasable fetchOmittedDictionaryPages(
+        List<BlockMetaData> rowGroups,
+        Set<String> predicateColumnPaths,
+        Map<String, OffsetIndex> offsetIndexes,
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
+        StorageObject storageObject,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
+        List<CoalescedRangeReader.ByteRange> ranges = omittedDictionaryRanges(
+            rowGroups,
+            predicateColumnPaths,
+            offsetIndexes,
+            preWarmedChunks.keySet()
+        );
+        if (ranges.isEmpty()) {
+            return () -> {};
+        }
+        logger.debug("Fetching [{}] omitted-offset dictionary pages after OffsetIndex parse", ranges.size());
+        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            breaker,
+            ioWatermark,
+            null,
+            footerBytes,
+            Runnable::run,
+            future
+        );
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
+        try {
+            for (CoalescedRangeReader.ByteRange range : ranges) {
+                ByteBuffer buf = fetchedResult.ranges().get(range);
+                if (buf == null) {
+                    continue;
+                }
+                preWarmedChunks.put(range.offset(), new ColumnChunkPrefetcher.PrefetchedChunk(range.offset(), range.length(), buf.slice()));
+            }
+            return fetchedResult.release();
+        } catch (Throwable t) {
+            try {
+                fetchedResult.release().close();
+            } catch (Throwable closeFailure) {
+                t.addSuppressed(closeFailure);
+            }
+            throw t;
+        }
     }
 
     /**
@@ -337,31 +618,45 @@ final class PreloadedRowGroupMetadata {
     }
 
     /**
-     * Sequential fallback using {@link ParquetFileReader}'s built-in methods.
+     * Sequential fallback using {@link ParquetFileReader}'s built-in methods. Honors the same
+     * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}. Intentional: a
+     * coalesced-preload failure must not silently re-fetch every page index (that used to undo
+     * {@code computeIndexColumnPaths} gating, including the full-scan zero-index-GET path).
      */
-    private static PreloadedRowGroupMetadata preloadSequential(ParquetFileReader reader, List<BlockMetaData> rowGroups) {
+    private static PreloadedRowGroupMetadata preloadSequential(
+        ParquetFileReader reader,
+        List<BlockMetaData> rowGroups,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit
+    ) {
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
 
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
                 String k = key(rgIdx, col);
-                try {
-                    ColumnIndex ci = reader.readColumnIndex(col);
-                    if (ci != null) {
-                        columnIndexes.put(k, ci);
+                if (columnIndexPaths == null || columnIndexPaths.contains(path)) {
+                    try {
+                        ColumnIndex ci = reader.readColumnIndex(col);
+                        if (ci != null) {
+                            columnIndexes.put(k, ci);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
-                try {
-                    OffsetIndex oi = reader.readOffsetIndex(col);
-                    if (oi != null) {
-                        offsetIndexes.put(k, oi);
+                if (rgIdx < offsetIndexRowGroupLimit && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                    try {
+                        OffsetIndex oi = reader.readOffsetIndex(col);
+                        if (oi != null) {
+                            offsetIndexes.put(k, oi);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
             }
         }

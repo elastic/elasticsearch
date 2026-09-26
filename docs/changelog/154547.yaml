@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 154547
+summary: Fix `date_nanos` time-series aggregations
+type: bug

@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -24,8 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,12 +34,16 @@ import java.util.Objects;
 import static org.elasticsearch.inference.ModelConfigurations.CHUNKING_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
-import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelAction.Response> {
 
     public static final UpdateInferenceModelAction INSTANCE = new UpdateInferenceModelAction();
     public static final String NAME = "cluster:admin/xpack/inference/update";
+
+    private static final TransportVersion INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED = TransportVersion.fromName(
+        "inference_update_endpoint_timeout_added"
+    );
 
     public UpdateInferenceModelAction() {
         super(NAME);
@@ -52,18 +55,28 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         private final BytesReference content;
         private final XContentType contentType;
         private final TaskType taskType;
+        private final TimeValue timeout;
         /**
          * Encapsulates the lazy, validated parse of {@link #content} so the three body sections
          * (service_settings, task_settings, task_type) share a single XContent pass.
          */
         private final CachedParsedSettings cachedParsedSettings;
 
-        public Request(String inferenceEntityId, BytesReference content, XContentType contentType, TaskType taskType, TimeValue timeout) {
-            super(timeout, DEFAULT_ACK_TIMEOUT);
+        public Request(
+            String inferenceEntityId,
+            BytesReference content,
+            XContentType contentType,
+            TaskType taskType,
+            @Nullable TimeValue timeout,
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout
+        ) {
+            super(masterNodeTimeout, ackTimeout);
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
             this.taskType = taskType;
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
             this.cachedParsedSettings = new CachedParsedSettings();
         }
 
@@ -73,6 +86,11 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
+            if (in.getTransportVersion().supports(INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED)) {
+                this.timeout = in.readTimeValue();
+            } else {
+                this.timeout = TIMEOUT_NOT_DETERMINED;
+            }
             this.cachedParsedSettings = new CachedParsedSettings();
         }
 
@@ -82,6 +100,10 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
 
         public TaskType getTaskType() {
             return taskType;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
         /**
@@ -152,19 +174,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (MlStrings.isValidId(this.inferenceEntityId) == false) {
-                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "inference_id", this.inferenceEntityId));
-            }
-
-            if (validationException.validationErrors().isEmpty() == false) {
-                return validationException;
-            } else {
-                return null;
+            if (out.getTransportVersion().supports(INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED)) {
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -176,12 +187,13 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             return Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
                 && contentType == request.contentType
-                && taskType == request.taskType;
+                && taskType == request.taskType
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, content, contentType, taskType);
+            return Objects.hash(inferenceEntityId, content, contentType, taskType, timeout);
         }
 
         /**
@@ -209,19 +221,19 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             @Nullable
             Map<String, Object> getServiceSettings() {
                 parseContentIfNeeded();
-                return serviceSettings != null ? deepCopyMap(serviceSettings) : null;
+                return serviceSettings != null ? CollectionUtils.deepCopy(serviceSettings) : null;
             }
 
             @Nullable
             Map<String, Object> getTaskSettings() {
                 parseContentIfNeeded();
-                return taskSettings != null ? deepCopyMap(taskSettings) : null;
+                return taskSettings != null ? CollectionUtils.deepCopy(taskSettings) : null;
             }
 
             @Nullable
             Map<String, Object> getChunkingSettings() {
                 parseContentIfNeeded();
-                return chunkingSettings != null ? deepCopyMap(chunkingSettings) : null;
+                return chunkingSettings != null ? CollectionUtils.deepCopy(chunkingSettings) : null;
             }
 
             @Nullable

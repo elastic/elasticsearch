@@ -326,3 +326,35 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "1" }
 
+---
+"Case insensitive Unicode wildcard query":
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.10.0"]
+      reason: "Case insensitive flag added in 7.10"
+  - do:
+      indices.create:
+        index: test-index-unicode
+        body:
+          mappings:
+            properties:
+              my_wildcard:
+                type: wildcard
+  - do:
+      index:
+        index: test-index-unicode
+        id: "1"
+        body:
+          my_wildcard: "Σtart here"
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: test-index-unicode
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: { value: "σtart*", case_insensitive: true }
+  - match: { hits.total.value: 1 }
+

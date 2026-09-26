@@ -1,6 +1,0 @@
-area: Authentication
-issues:
- - 138031
-pr: 144381
-summary: Move SAML metadata resolution to background thread
-type: bug

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.BlockLoader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
@@ -26,14 +26,22 @@ public class MvMinIntsFromDocValuesBlockLoader extends IntsBlockLoader {
 
     @Override
     protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMinIntsFromDocValues", docValues) {
+        // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
+        return new AbstractNumericBlockLoader.Sorted("MvMinIntsFromDocValues", docValues) {
             @Override
-            protected void readSortedDoc(int doc, BlockLoader.IntBuilder builder) throws IOException {
-                if (values.docValues().advanceExact(doc) == false) {
-                    builder.appendNull();
-                    return;
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                SortedNumericDocValues docValues = values.docValues();
+                try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        if (docValues.advanceExact(docs.get(i)) == false) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        // doc values are sorted ascending, so the first is the minimum
+                        builder.appendInt(Math.toIntExact(docValues.nextValue()));
+                    }
+                    return builder.build();
                 }
-                appendValue(builder, values.docValues().nextValue());
             }
         };
     }

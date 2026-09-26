@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
@@ -128,8 +128,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
                 var location = serviceSettings.location();
                 var projectId = serviceSettings.projectId();
                 var model = serviceSettings.modelId();
-                streamingUri = buildUriStreaming(location, projectId, model);
-                nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+                streamingUri = buildStreamingUri(location, projectId, model);
+                nonStreamingUri = buildNonStreamingUri(location, projectId, model);
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -145,7 +145,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         streamingURI = model.streamingURI();
     }
 
-    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalModelServiceSettings = model.getServiceSettings();
 
         var newServiceSettings = new GoogleVertexAiChatCompletionServiceSettings(
@@ -218,9 +218,9 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         return this.streamingURI;
     }
 
-    public static URI buildUriNonStreaming(String location, String projectId, String model) throws URISyntaxException {
+    public static URI buildNonStreamingUri(@Nullable String location, String projectId, String model) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setHost(GoogleVertexAiUtils.resolveHost(location))
             .setPathSegments(
                 GoogleVertexAiUtils.V1,
                 GoogleVertexAiUtils.PROJECTS,
@@ -235,9 +235,9 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             .build();
     }
 
-    public static URI buildUriStreaming(String location, String projectId, String model) throws URISyntaxException {
+    public static URI buildStreamingUri(@Nullable String location, String projectId, String model) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setHost(GoogleVertexAiUtils.resolveHost(location))
             .setPathSegments(
                 GoogleVertexAiUtils.V1,
                 GoogleVertexAiUtils.PROJECTS,

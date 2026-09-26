@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -57,7 +57,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARC
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+public class SearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -86,8 +86,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     @Nullable
     private String routing;
-    @Nullable
-    private String searchSlice;
     private boolean routingFromSlice;
     @Nullable
     private String preference;
@@ -125,6 +123,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      * enabling synthetic source natively in the index.
      */
     private boolean forceSyntheticSource = false;
+
+    /**
+     * When set, query-phase aggregation bytes remain on the {@link org.elasticsearch.common.breaker.CircuitBreaker#REQUEST}
+     * breaker through response delivery so {@link TransportMultiSearchAction} can release them when buffering ends.
+     */
+    private boolean bufferSubSearchResponseForMultiSearch = false;
 
     @Nullable
     private String projectRouting;
@@ -266,10 +270,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
-        this.searchSlice = searchRequest.searchSlice;
         this.routingFromSlice = searchRequest.routingFromSlice;
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
+        this.bufferSubSearchResponseForMultiSearch = searchRequest.bufferSubSearchResponseForMultiSearch;
     }
 
     /**
@@ -314,10 +318,20 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
             this.routingFromSlice = in.readBoolean();
-            this.searchSlice = in.readOptionalString();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             this.routingFromSlice = false;
-            this.searchSlice = null;
         }
     }
 
@@ -359,8 +373,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             out.writeOptionalString(this.projectRouting);
         }
         if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
-            out.writeBoolean(this.routingFromSlice);
-            out.writeOptionalString(this.searchSlice);
+            out.writeBoolean(routingFromSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
         }
     }
 
@@ -400,12 +416,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             }
             if (routing() != null && isRoutingFromSlice() == false) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
-            }
-            if (isRoutingFromSlice()) {
-                validationException = addValidationError(
-                    "[" + SliceIndexing.PARAM_NAME + "] cannot be used with point in time",
-                    validationException
-                );
             }
             if (preference() != null) {
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
@@ -451,6 +461,20 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
+    }
+
+    /**
+     * Marks this sub-search as buffered by a multi-search on the coordinating node. Query-phase aggregation
+     * breaker bytes are handed off to the {@link SearchResponse} instead of being released when the search completes.
+     * Internal protocol between {@link TransportMultiSearchAction} and {@code AbstractSearchAsyncAction};
+     * callers outside that pair risk stranding REQUEST breaker bytes.
+     */
+    void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
+        this.bufferSubSearchResponseForMultiSearch = bufferSubSearchResponseForMultiSearch;
+    }
+
+    boolean bufferSubSearchResponseForMultiSearch() {
+        return bufferSubSearchResponseForMultiSearch;
     }
 
     /**
@@ -546,36 +570,33 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns {@code true} when routing was provided through the {@code _slice} REST parameter.
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
      */
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
     }
 
-    /**
-     * Returns the requested {@code _slice} value when routing comes from {@code _slice}.
-     */
-    @Nullable
-    public String searchSlice() {
-        return searchSlice;
+    public SearchRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     /**
-     * Sets the user-provided {@code _slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code _slice}.
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
      */
-    public SearchRequest searchSlice(@Nullable String searchSlice) {
-        this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
-        return this;
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public SearchRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     /**
@@ -880,7 +901,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             sb.append(", routing[").append(routing).append("]");
         }
         if (routingFromSlice) {
-            sb.append(", _slice[").append(searchSlice).append("]");
+            sb.append(", slice[").append(searchSlice()).append("]");
         }
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");
@@ -900,7 +921,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
             && Objects.equals(routing, that.routing)
-            && Objects.equals(searchSlice, that.searchSlice)
             && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
@@ -923,7 +943,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             searchType,
             Arrays.hashCode(indices),
             routing,
-            searchSlice,
             routingFromSlice,
             preference,
             source,
@@ -952,9 +971,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + indicesOptions
             + ", routing='"
             + routing
-            + '\''
-            + ", searchSlice='"
-            + searchSlice
             + '\''
             + ", routingFromSlice="
             + routingFromSlice

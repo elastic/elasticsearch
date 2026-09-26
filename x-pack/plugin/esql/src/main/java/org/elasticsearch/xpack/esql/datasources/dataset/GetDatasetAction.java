@@ -70,6 +70,13 @@ public class GetDatasetAction extends ActionType<GetDatasetAction.Response> {
         }
 
         @Override
+        public boolean includeDataStreams() {
+            // Resolution must be able to see co-resident data streams (e.g. Security's entities-metadata-default)
+            // in order to distinguish existing non-datasets from genuinely missing or hidden resources.
+            return true;
+        }
+
+        @Override
         public IndicesRequest indices(String... indices) {
             this.indices = indices;
             return this;

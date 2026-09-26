@@ -1,0 +1,5 @@
+pr: 152922
+summary: Refactor IBM watsonx service settings to use `ObjectParser`
+area: Inference
+type: enhancement
+issues: []

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -15,21 +16,35 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -38,8 +53,13 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.ObjIntConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
@@ -48,16 +68,42 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         .required(PrimitiveType.PrimitiveTypeName.INT64)
         .named("id")
         .named("dynamic_threshold_test");
+    private static final MessageType INT32_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT32)
+        .named("id")
+        .named("threshold_test");
     private static final MessageType OPTIONAL_LONG_SCHEMA = Types.buildMessage()
         .optional(PrimitiveType.PrimitiveTypeName.INT64)
         .named("id")
         .named("dynamic_threshold_test");
+    /** Physical {@code UINT_64}: inferred as ESQL {@code UNSIGNED_LONG}, sign-flip-encoded in every block it reads. */
+    private static final MessageType UNSIGNED_LONG_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .as(LogicalTypeAnnotation.intType(64, false))
+        .named("id")
+        .named("dynamic_threshold_test");
+    private static final MessageType REQUIRED_STRING_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("name")
+        .named("dynamic_threshold_test");
+    private static final MessageType OPTIONAL_STRING_SCHEMA = Types.buildMessage()
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("name")
+        .named("dynamic_threshold_test");
+    // Physically BINARY, read as keyword, but lacking a StringLogicalTypeAnnotation: the BYTES_REF gate
+    // must refuse to prune it (mirrors ORC's isStringFamily gate) since its statistics are not
+    // guaranteed to share BytesRef order.
+    private static final MessageType UNANNOTATED_BINARY_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named("name")
+        .named("dynamic_threshold_test");
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -91,6 +137,97 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         assertThat(rows.size(), equalTo(2_000));
     }
 
+    /**
+     * Raw physical {@code INT64} bits for the unsigned magnitude {@code 2^63 - 500 + i}. Plain {@code long}
+     * wraparound arithmetic is bit-identical to unsigned-mod-2^64 arithmetic, so this crosses the sign-bit
+     * boundary (raw goes from positive to negative) exactly at {@code i == 500} without any BigInteger
+     * bit-twiddling: {@link Long#MAX_VALUE} - 499 is the smallest magnitude in the set, {@code + 999} the
+     * largest, and the two halves straddle {@code 2^63} to reproduce the unsigned-ordering boundary.
+     */
+    private static long unsignedRaw(int i) {
+        return (Long.MAX_VALUE - 499L) + i;
+    }
+
+    public void testUnsignedLongRowGroupSkipAscendingCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            1L,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, true, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9))));
+        // Row 900's unsigned magnitude (2^63 + 400) is far above the bound; its raw physical bits are
+        // NEGATIVE, so a rail comparing raw signed bits instead of the sign-flip-encoded form would see it
+        // as "small" and wrongly keep it.
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(900))));
+    }
+
+    public void testUnsignedLongRowGroupSkipDescendingCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            1L,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(990));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, false, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(999))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(990))));
+        // Row 0's unsigned magnitude (2^63 - 500) is far below the bound but has POSITIVE raw bits; a
+        // signed-raw rail would see it as "large" and wrongly keep it.
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+    }
+
+    public void testUnsignedLongPageLevelSkipCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            64L * 1024 * 1024,
+            64,
+            2_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, true, false));
+
+        assertThat(rows.size(), lessThan(2_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9))));
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(1_900))));
+    }
+
+    public void testDeclaredUnsignedLongOverPlainInt64DeclinesThresholdPruning() throws Exception {
+        byte[] data = writeLongParquet(
+            REQUIRED_LONG_SCHEMA,
+            64L * 1024 * 1024,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readDeclaredUnsignedLongIdsWithThreshold(data, threshold(bound, true, false));
+
+        // The physical statistics use signed ordering, while valid declared values use unsigned ordering and
+        // negative physical values become null under the permissive policy. The iterator must decline both
+        // row-group and page pruning instead of sign-flipping incompatible bounds and dropping the valid half.
+        assertThat(rows.size(), equalTo(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(499))));
+        assertThat(rows.stream().filter(v -> v == null).count(), equalTo(500L));
+    }
+
     public void testNoFurtherCandidatesExhaustsImmediately() throws Exception {
         byte[] data = writeLongParquet(REQUIRED_LONG_SCHEMA, 1L, 64, 1_000, i -> (long) i);
         SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(true, true);
@@ -105,6 +242,55 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         assertThat(rows.size(), equalTo(0));
     }
 
+    public void testBufferedRowsSurviveNoFurtherCandidatesFlipBetweenHasNextAndNext() throws Exception {
+        // Deterministic reproduction of the intermittent NoSuchElementException from next(): a single row
+        // group of materialized rows, and a bound that prunes nothing so the first hasNext() decodes the
+        // group and leaves rowsRemainingInGroup > 0. We then flip the early-termination flag (as a
+        // concurrent TopN worker would) between hasNext() and next(). next() must still drain the
+        // already-decoded batch; before the fix hasNext() consulted the flag first and turned the
+        // available batch into a NoSuchElementException.
+        byte[] data = writeLongParquet(REQUIRED_LONG_SCHEMA, 64L * 1024 * 1024, 1024, 500, i -> (long) i);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(true, false).get();
+        channel.offer(10_000L); // bound above every value, so no row group is skipped
+        DynamicThreshold threshold = new DynamicThreshold("id", ElementType.LONG, true, false, channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("id"), 128))
+        ) {
+            assertTrue("first hasNext() must materialize the row group", iterator.hasNext());
+            channel.markNoFurtherCandidates();
+            Page page = iterator.next();
+            try {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    public void testBufferedStringRowsSurviveNoFurtherCandidatesFlipBetweenHasNextAndNext() throws Exception {
+        // BYTES_REF counterpart of the numeric flip test above: the CI failure was
+        // ExternalParquetStringTopNSideChannelIT.testNullsFirstEarlyTermination. Do not use
+        // bytesRefThreshold() — it hides the channel, so markNoFurtherCandidates() cannot be called.
+        byte[] data = writeStringParquet(REQUIRED_STRING_SCHEMA, 64L * 1024 * 1024, 1024, 500, OptimizedParquetDynamicThresholdTests::key);
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(ElementType.BYTES_REF, TopNEncoder.UTF8, true, false);
+        SharedMinCompetitive channel = new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig)).get();
+        DynamicThreshold threshold = new DynamicThreshold("name", true, false, channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("name"), 128))
+        ) {
+            assertTrue("first hasNext() must materialize the row group", iterator.hasNext());
+            channel.markNoFurtherCandidates();
+            Page page = iterator.next();
+            try {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     public void testNullsLastCanSkipNullAndDominatedRowGroups() throws Exception {
         byte[] data = writeLongParquet(OPTIONAL_LONG_SCHEMA, 1L, 2 * 1024 * 1024, 300, i -> i < 100 ? null : (long) i);
 
@@ -116,6 +302,197 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         assertFalse(rows.contains(250L));
     }
 
+    public void testRowGroupSkipWithMonotonicAscendingStrings() throws Exception {
+        byte[] data = writeStringParquet(REQUIRED_STRING_SCHEMA, 1L, 2 * 1024 * 1024, 1_000, OptimizedParquetDynamicThresholdTests::key);
+
+        List<String> rows = readNamesWithThreshold(data, bytesRefThreshold(key(9), true, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(key(0)));
+        assertTrue(rows.contains(key(9)));
+        assertFalse(rows.contains(key(900)));
+    }
+
+    public void testRowGroupSkipDescendingStrings() throws Exception {
+        byte[] data = writeStringParquet(REQUIRED_STRING_SCHEMA, 1L, 2 * 1024 * 1024, 1_000, OptimizedParquetDynamicThresholdTests::key);
+
+        List<String> rows = readNamesWithThreshold(data, bytesRefThreshold(key(990), false, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(key(999)));
+        assertTrue(rows.contains(key(990)));
+        assertFalse(rows.contains(key(0)));
+    }
+
+    public void testNullsLastCanSkipNullAndDominatedStringRowGroups() throws Exception {
+        byte[] data = writeStringParquet(OPTIONAL_STRING_SCHEMA, 1L, 2 * 1024 * 1024, 300, i -> i < 100 ? null : key(i));
+
+        List<String> rows = readNamesWithThreshold(data, bytesRefThreshold(key(109), true, false));
+
+        assertThat(rows.size(), lessThan(300));
+        assertTrue(rows.contains(key(100)));
+        assertTrue(rows.contains(key(109)));
+        assertFalse(rows.contains(key(250)));
+    }
+
+    public void testNullsFirstKeepsNullStringRowGroups() throws Exception {
+        byte[] data = writeStringParquet(OPTIONAL_STRING_SCHEMA, 1L, 2 * 1024 * 1024, 300, i -> i < 100 ? null : key(i));
+
+        List<String> rows = readNamesWithThreshold(data, bytesRefThreshold(key(109), true, true));
+
+        // Under NULLS FIRST nulls sort first, so null-only row groups can never be dominated: they
+        // (and the smallest non-null group) must survive even though high non-null groups are skipped.
+        assertTrue(rows.contains(null));
+        assertTrue(rows.contains(key(100)));
+    }
+
+    public void testUnannotatedBinaryColumnIsNeverSkipped() throws Exception {
+        // Same data and dominating bound as testRowGroupSkipWithMonotonicAscendingStrings, which prunes
+        // ~990 row groups; here the column carries no StringLogicalTypeAnnotation, so the gate keeps
+        // every row group. Guards the Parquet/ORC type-gate parity.
+        byte[] data = writeStringParquet(UNANNOTATED_BINARY_SCHEMA, 1L, 2 * 1024 * 1024, 1_000, OptimizedParquetDynamicThresholdTests::key);
+
+        List<String> rows = readNamesWithThreshold(data, bytesRefThreshold(key(9), true, false));
+
+        assertThat(rows.size(), equalTo(1_000));
+    }
+
+    public void testNoBoundKeepsAllStringRows() throws Exception {
+        byte[] data = writeStringParquet(REQUIRED_STRING_SCHEMA, 1L, 2 * 1024 * 1024, 500, OptimizedParquetDynamicThresholdTests::key);
+        // A channel with nothing offered exposes no bound, so no row group may be skipped.
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(ElementType.BYTES_REF, TopNEncoder.UTF8, true, false);
+        SharedMinCompetitive channel = new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig)).get();
+
+        List<String> rows = readNamesWithThreshold(data, new DynamicThreshold("name", true, false, channel));
+
+        assertThat(rows.size(), equalTo(500));
+    }
+
+    /**
+     * The TopN threshold rail's unit matrix — the regression floor for touching {@code rawValueFromStats}.
+     *
+     * <p>The threshold bound is published from DECODED blocks; the row-group statistics it is compared against hold
+     * the file's RAW values. Those agree only when decode is the identity. One arm of {@code rawValueFromStats}
+     * serves EVERY {@code INT64} sort column, so a change there touches the identity cells too — this pins each one
+     * so a conversion slip cannot silently turn a working sort into a wrong one.
+     *
+     * <p>Ascending is the safe direction by accident: an under-scaled raw stat reads as SMALLER than the bound, so
+     * nothing is dominated and nothing is skipped. Descending is where a skew drops the row groups holding the true
+     * maximum, which is why every skew cell below is asserted DESC.
+     */
+    public void testThresholdUnitMatrixOverInt64SortColumns() throws Exception {
+        // rows 0..999 as raw values; the largest live in the LAST row group, so a skewed DESC threshold skips them.
+        // scale = what decode multiplies a raw value by, so the bound below lands in each cell's DECODED domain.
+        record Cell(String name, MessageType schema, @Nullable String declaredFormat, long scale) {}
+        List<Cell> cells = List.of(
+            // Identity cells only. This unit harness reads a bare projection, which cannot faithfully set up a
+            // RESCALED sort column: the descriptor it hands the iterator does not carry the file's timestamp unit
+            // the way the production read path does. So
+            // the rescaling cells are proven end to end instead, over a real declaration: the declared-FORMAT rescale
+            // (epoch_second over a bare int64) by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate,
+            // and the ANNOTATION rescale (TIMESTAMP(MICROS) -> date_nanos / declared date / declared long) by
+            // FromDatasetIT#testScalingDifferentialOverAnnotatedSortColumns. What this test guards is the other
+            // direction: the identity reads must keep pruning exactly as they do today, since one arm of
+            // rawValueFromStats serves every INT64 sort column.
+            new Cell("bare INT64, no declaration", REQUIRED_LONG_SCHEMA, null, 1L),
+            new Cell("TIMESTAMP(MILLIS) -> datetime", annotatedLong(LogicalTypeAnnotation.TimeUnit.MILLIS), null, 1L),
+            new Cell("TIMESTAMP(NANOS) -> date_nanos", annotatedLong(LogicalTypeAnnotation.TimeUnit.NANOS), null, 1L)
+        );
+
+        List<String> broken = new ArrayList<>();
+        for (Cell cell : cells) {
+            byte[] data = writeLongParquet(cell.schema(), 1L, 2 * 1024 * 1024, 1_000, i -> (long) i);
+            // The bound is what TopN publishes: a DECODED value, here the decode of row 500. Descending dominance is
+            // `rawMax < bound`. A correct rail lifts row 999's raw stat into the decoded domain (999*scale >= bound)
+            // and keeps it. A unit-blind rail compares the RAW 999 against a bound that is `scale` times too large,
+            // decides the group is dominated, and skips the rows holding the true maximum. With scale == 1 the two
+            // are the same comparison, which is exactly why those cells are correct today and must stay so.
+            long decodedBound = 500L * cell.scale();
+            List<Long> rows = readIdsWithThreshold(data, threshold(decodedBound, false, false), cell.declaredFormat());
+            if (rows.contains(999L) == false) {
+                broken.add(
+                    "[" + cell.name() + "] dropped the true maximum: raw stats were compared against a decoded bound of " + decodedBound
+                );
+            }
+        }
+        assertTrue("the threshold rail skipped row groups it had no right to skip:\n  " + String.join("\n  ", broken), broken.isEmpty());
+    }
+
+    /**
+     * The INT32 half of the threshold rail's unit matrix, and the regression floor for the {@code case INT} arm of
+     * {@code rawValueFromStats} / {@code rawValueFromPageIndex}.
+     *
+     * <p>The threshold bound is published from DECODED blocks; the statistics it is compared against hold the file's
+     * RAW values. For an INT32 column those agree only when decode is the identity, and two logical annotations break
+     * that — {@code DECIMAL(scale != 0)} divides the unscaled integer by {@code 10^scale}, and {@code DATE} multiplies
+     * days into epoch-millis. Both infer as something other than {@code integer} ({@code double} and {@code datetime}),
+     * so it takes a declared {@code integer} column to route them through the INT arm.
+     *
+     * <p>Direction follows the transform. Divide makes the raw stat read LARGER than the decoded bound, so an
+     * ASCENDING threshold decides every row group is dominated and skips the rows holding the true minimum. Multiply
+     * makes it read SMALLER, so DESCENDING drops the rows holding the true maximum. The identity cell is the control:
+     * it must still prune, or the harness is proving nothing.
+     */
+    public void testThresholdUnitMatrixOverInt32SortColumns() throws Exception {
+        List<String> broken = new ArrayList<>();
+
+        // CONTROL — bare INT32 declared integer: decode is the identity, so pruning is correct and must still happen.
+        byte[] identity = writeIntParquet(INT32_SCHEMA, 1L, 2 * 1024 * 1024, 1_000, i -> i);
+        List<Integer> identityRows = readDeclaredIntegerIdsWithThreshold(identity, intThreshold(9L, true, false));
+        if (identityRows.size() >= 1_000 || identityRows.contains(0) == false || identityRows.contains(9) == false) {
+            broken.add("[CONTROL bare INT32] the identity cell stopped pruning: returned " + identityRows.size() + " of 1000 rows");
+        }
+
+        // DECIMAL(9,2) declared integer: raw (i+1)*100 decode to exact wholes 1.00..1000.00 → integers 1..1000.
+        // A bound of 1000 is the largest decoded value, so nothing is dominated and every row must come back.
+        // (Non-whole decimals would be refused by the exact whole-number read; this cell uses wholes only.)
+        byte[] decimal = writeIntParquet(decimalInt32(2, 9), 1L, 2 * 1024 * 1024, 1_000, i -> (i + 1) * 100);
+        List<Integer> decimalRows = readDeclaredIntegerIdsWithThreshold(decimal, intThreshold(1000L, true, false));
+        if (decimalRows.size() != 1_000) {
+            broken.add(
+                "[DECIMAL(9,2) declared integer, ASC] raw stats were compared against a decoded bound of 1000: returned "
+                    + decimalRows.size()
+                    + " of 1000 rows"
+            );
+        }
+
+        // DATE declared integer: days 0..24 decode to epoch-millis 0..2_073_600_000, which still fits an int. A
+        // DESCENDING bound at the largest decoded value dominates nothing, so every row must come back.
+        byte[] date = writeIntParquet(dateInt32(), 1L, 2 * 1024 * 1024, 1_000, i -> i % 25);
+        List<Integer> dateRows = readDeclaredIntegerIdsWithThreshold(date, intThreshold(24L * 86_400_000L, false, false));
+        if (dateRows.size() != 1_000) {
+            broken.add(
+                "[DATE declared integer, DESC] raw stats were compared against a decoded bound of 2073600000: returned "
+                    + dateRows.size()
+                    + " of 1000 rows"
+            );
+        }
+
+        // INT(32, unsigned) declared integer: raw bits for UINT32 3_000_000_000 sign-extend to -1_294_967_296.
+        // A descending bound of 0 sees rawMax = -1_294_967_296 < 0 and skips the row group; unsigned widening returns
+        // 3_000_000_000 and keeps it. The out-of-range value decodes to null under PERMISSIVE; only row count is checked.
+        byte[] uint32 = writeIntParquet(uint32Int32(), 1L, 2 * 1024 * 1024, 1_000, i -> i == 500 ? (int) 3_000_000_000L : i);
+        List<Integer> uint32Rows = readDeclaredIntegerIdsWithThresholdPermissive(uint32, intThreshold(0L, false, false));
+        if (uint32Rows.size() != 1_000) {
+            broken.add(
+                "[INT(32, unsigned) declared integer, DESC] sign-extended stat dominated the row group: returned "
+                    + uint32Rows.size()
+                    + " of 1000 rows"
+            );
+        }
+
+        assertTrue("the threshold rail mis-pruned an INT32 sort column:\n  " + String.join("\n  ", broken), broken.isEmpty());
+    }
+
+    /** An INT64 carrying a timestamp annotation, so the decode's unit differs from the file's raw values. */
+    private static MessageType annotatedLong(LogicalTypeAnnotation.TimeUnit unit) {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, unit))
+            .named("id")
+            .named("threshold_test");
+    }
+
     private DynamicThreshold threshold(long value, boolean ascending, boolean nullsFirst) {
         SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending, nullsFirst);
         SharedNumericThreshold channel = supplier.get();
@@ -123,10 +500,69 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         return new DynamicThreshold("id", org.elasticsearch.compute.data.ElementType.LONG, ascending, nullsFirst, channel);
     }
 
-    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+    /**
+     * Build a {@code BYTES_REF} threshold whose competitive bound is {@code boundValue}, encoded
+     * exactly as the {@code TopNOperator}'s {@code KeyExtractor} would: a single non-null marker byte
+     * followed by the directional UTF-8 key.
+     */
+    private DynamicThreshold bytesRefThreshold(String boundValue, boolean ascending, boolean nullsFirst) {
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(
+            ElementType.BYTES_REF,
+            TopNEncoder.UTF8,
+            ascending,
+            nullsFirst
+        );
+        SharedMinCompetitive channel = new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig)).get();
+        TopNEncoder encoder = TopNEncoder.UTF8;
+        try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(blockFactory.breaker(), "bound")) {
+            // Prepend the non-null marker, i.e. SortOrder.nonNul() = nullsFirst ? BIG_NULL (0x02) :
+            // SMALL_NULL (0x01) -- the opposite sentinel of the null marker for this nulls position.
+            // Locked against the real KeyExtractor by
+            // SharedMinCompetitiveTests#testManualBoundEncodingMatchesKeyExtractor.
+            builder.append(nullsFirst ? (byte) 0x02 : (byte) 0x01);
+            encoder.toSortable(ascending).encodeBytesRef(new BytesRef(boundValue), builder);
+            channel.offer(builder.bytesRefView());
+        }
+        return new DynamicThreshold("name", ascending, nullsFirst, channel);
+    }
+
+    private List<String> readNamesWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
         try (
             threshold;
-            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("id"), 128))
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("name"), 128))
+        ) {
+            List<String> values = new ArrayList<>();
+            BytesRef scratch = new BytesRef();
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    BytesRefBlock block = page.getBlock(0);
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        values.add(block.isNull(p) ? null : block.getBytesRef(block.getFirstValueIndex(p), scratch).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            return values;
+        }
+    }
+
+    private static String key(int position) {
+        return String.format(Locale.ROOT, "key%06d", position);
+    }
+
+    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+        return readIdsWithThreshold(data, threshold, null);
+    }
+
+    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold, @Nullable String declaredFormat) throws IOException {
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold, declaredFormat).read(
+                storageObject(data),
+                FormatReadContext.of(List.of("id"), 128)
+            )
         ) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -144,8 +580,41 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         }
     }
 
+    private List<Long> readDeclaredUnsignedLongIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.UNSIGNED_LONG));
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id"))
+            .batchSize(128)
+            .readSchema(readSchema)
+            .errorPolicy(ErrorPolicy.PERMISSIVE)
+            .informationalWarningSink(ignored -> {})
+            .build();
+        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
+            List<Long> values = new ArrayList<>();
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    LongBlock block = page.getBlock(0);
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        values.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            return values;
+        }
+    }
+
     private ParquetFormatReader reader(DynamicThreshold threshold) {
-        return (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(threshold);
+        return reader(threshold, null);
+    }
+
+    /** @param declaredFormat a declared date format on the sort column, or {@code null} for an inferred read. */
+    private ParquetFormatReader reader(DynamicThreshold threshold, @Nullable String declaredFormat) {
+        ParquetFormatReader base = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(threshold);
+        return declaredFormat == null ? base : (ParquetFormatReader) base.withDeclaredDateFormats(Map.of("id", declaredFormat));
     }
 
     private byte[] writeLongParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, ValueForPosition valueForPosition)
@@ -167,6 +636,32 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
                 Long value = valueForPosition.value(i);
                 if (value != null) {
                     group.add("id", value);
+                }
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    private byte[] writeStringParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, StringForPosition valueForPosition)
+        throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(output(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withRowGroupSize(rowGroupSize)
+                .withPageSize(pageSize)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group group = factory.newGroup();
+                String value = valueForPosition.value(i);
+                if (value != null) {
+                    group.add("name", value);
                 }
                 writer.write(group);
             }
@@ -258,5 +753,114 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
     @FunctionalInterface
     private interface ValueForPosition {
         Long value(int position);
+    }
+
+    @FunctionalInterface
+    private interface StringForPosition {
+        String value(int position);
+    }
+
+    /** An INT32 carrying a DECIMAL annotation, so decode divides the unscaled integer by {@code 10^scale}. */
+    private static MessageType decimalInt32(int scale, int precision) {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.decimalType(scale, precision))
+            .named("id")
+            .named("threshold_test");
+    }
+
+    /** An INT32 carrying a DATE annotation, so decode multiplies days into epoch-milliseconds. */
+    private static MessageType dateInt32() {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.dateType())
+            .named("id")
+            .named("threshold_test");
+    }
+
+    /** An INT32 carrying an unsigned-int annotation, so footer statistics are ordered unsigned. */
+    private static MessageType uint32Int32() {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("id")
+            .named("threshold_test");
+    }
+
+    private DynamicThreshold intThreshold(long value, boolean ascending, boolean nullsFirst) {
+        SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending, nullsFirst);
+        SharedNumericThreshold channel = supplier.get();
+        channel.offer(value);
+        return new DynamicThreshold("id", ElementType.INT, ascending, nullsFirst, channel);
+    }
+
+    private List<Integer> readDeclaredIntegerIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+        return readDeclaredIntegerIdsWithThreshold(data, threshold, ErrorPolicy.STRICT);
+    }
+
+    private List<Integer> readDeclaredIntegerIdsWithThresholdPermissive(byte[] data, DynamicThreshold threshold) throws IOException {
+        return readDeclaredIntegerIdsWithThreshold(data, threshold, ErrorPolicy.PERMISSIVE);
+    }
+
+    private List<Integer> readDeclaredIntegerIdsWithThreshold(byte[] data, DynamicThreshold threshold, ErrorPolicy errorPolicy)
+        throws IOException {
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER));
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id"))
+            .batchSize(128)
+            .readSchema(readSchema)
+            .errorPolicy(errorPolicy)
+            .informationalWarningSink(ignored -> {})
+            .build();
+        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
+            List<Integer> values = new ArrayList<>();
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    IntBlock block = page.getBlock(0);
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        values.add(block.isNull(p) ? null : block.getInt(block.getFirstValueIndex(p)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            return values;
+        }
+    }
+
+    private byte[] writeIntParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, IntForPosition valueForPosition)
+        throws IOException {
+        return writeParquet(schema, rowGroupSize, pageSize, rows, (group, i) -> group.add("id", valueForPosition.value(i)));
+    }
+
+    /** Shared Parquet writer used by {@link #writeIntParquet} and available for future typed variants. */
+    private byte[] writeParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, ObjIntConsumer<Group> rowWriter)
+        throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(output(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withRowGroupSize(rowGroupSize)
+                .withPageSize(pageSize)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group group = factory.newGroup();
+                rowWriter.accept(group, i);
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    @FunctionalInterface
+    private interface IntForPosition {
+        int value(int position);
     }
 }

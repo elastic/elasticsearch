@@ -70,6 +70,12 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     }
 
     private int docPackedLength(int dimensions) {
+        if (indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
+            int docDiscretized = (dimensions + 7) / 8 * 8;
+            int discretized = Math.max(queryDiscretized, docDiscretized);
+            return 2 * ((discretized + 7) / 8);
+        }
         if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions);
             return 4 * ((discretized + 7) / 8);
@@ -78,6 +84,9 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     }
 
     private int queryPackedLength(int dimensions) {
+        if (indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            return docPackedLength(dimensions) * 2;
+        }
         if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             return docPackedLength(dimensions);
         }
@@ -105,7 +114,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
             }
             final byte[] query = new byte[queryBytes];
             random().nextBytes(query);
-            if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED) {
+            if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED) {
                 clampTo4Bit(query);
             }
             if (indexBits == 7) clampTo7Bit(query, dimensions);
@@ -691,7 +700,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
 
             byte[] query = new byte[queryBytes];
             random().nextBytes(query);
-            if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED) {
+            if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED) {
                 clampTo4Bit(query);
             }
             if (indexBits == 7) clampTo7Bit(query, dimensions);
@@ -798,6 +807,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
         var bitCombinations = List.of(
             List.of((byte) 1, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
             List.of((byte) 2, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
+            List.of((byte) 2, (byte) 4, ES940OSQVectorsScorer.BitEncoding.PACKED),
             List.of((byte) 4, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
             List.of((byte) 4, (byte) 4, ES940OSQVectorsScorer.BitEncoding.PACKED),
             List.of((byte) 7, (byte) 7, ES940OSQVectorsScorer.BitEncoding.STRIPED)

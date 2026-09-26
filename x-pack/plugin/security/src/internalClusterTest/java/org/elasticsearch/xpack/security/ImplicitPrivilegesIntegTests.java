@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.junit.Before;
 
@@ -538,11 +539,10 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
 
         @Override
         public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
-            RoleDescriptor roleDescriptor,
-            Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
+            Collection<ResolvedApplicationPrivilege> applicationPrivileges
         ) {
-            final boolean hasQualifyingPrivilege = storedApplicationPrivileges.stream()
-                .anyMatch(apd -> SHIELD_APP.equals(apd.getApplication()) && AGENT_PRIV.equals(apd.getName()));
+            final boolean hasQualifyingPrivilege = applicationPrivileges.stream()
+                .anyMatch(rap -> SHIELD_APP.equals(rap.privilege().getApplication()) && rap.privilege().name().contains(AGENT_PRIV));
             if (hasQualifyingPrivilege == false) {
                 return List.of();
             }

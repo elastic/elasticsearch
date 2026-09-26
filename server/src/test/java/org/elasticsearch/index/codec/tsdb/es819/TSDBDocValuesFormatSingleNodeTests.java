@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatSingleNodeTests;
 
@@ -18,8 +19,11 @@ import static org.hamcrest.Matchers.startsWith;
 public class TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValuesFormatSingleNodeTests {
 
     @Override
-    protected void assumeCodecSelected() {
-        assumeFalse("ES95 replaces ES819 for TSDB when enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+    protected Settings tsdbSettings() {
+        return Settings.builder()
+            .put(super.tsdbSettings())
+            .put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), false)
+            .build();
     }
 
     @Override

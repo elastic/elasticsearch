@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -80,15 +81,27 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
     }
 
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> randomized = randomizeBytesRefsOffset(suppliers);
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(withNullTypedInputExpectingNull(randomized, nullTypeExpectation)));
+    }
+
+    /**
+     * How an aggregation's output type reacts to a {@code NULL}-typed input column, as injected by
+     * {@code SET unmapped_fields="nullify"} for fields missing from all indices.
+     */
+    public enum NullTypeExpectation {
+        /** Output type follows the input, so a NULL-typed input yields a NULL-typed output. The common case. */
+        OUTPUT_BECOMES_NULL,
+        /** Output type is fixed by the function regardless of input type, e.g. PERCENTILE is always DOUBLE. */
+        OUTPUT_KEEPS_TYPE
     }
 
     /**
@@ -125,6 +138,63 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.canBuildEvaluator()
                     );
                 }));
+            }
+        }
+
+        return newSuppliers;
+    }
+
+    /**
+     * Adds a test case per unique signature with the input columns typed {@code NULL} — the shape a field
+     * nullified by {@code SET unmapped_fields="nullify"} has. Expected output type follows {@code nullTypeExpectation}.
+     */
+    protected static List<TestCaseSupplier> withNullTypedInputExpectingNull(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> newSuppliers = new ArrayList<>(suppliers);
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+
+        for (TestCaseSupplier original : suppliers) {
+            if (uniqueSignatures.add(original.types())) {
+                newSuppliers.add(
+                    TestCaseSupplier.withNullTypedFieldsAllowed(original.name() + " with NULL-typed input", original.types(), () -> {
+                        var testCase = original.get();
+
+                        if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+                            // Fail if no multi-row data, at least until a real case is found
+                            fail("No multi-row data found in test case: " + testCase);
+                        }
+
+                        var newData = testCase.getData()
+                            .stream()
+                            .map(
+                                td -> td.isMultiRow()
+                                    ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
+                                    : td
+                            )
+                            .toList();
+
+                        var expectedType = nullTypeExpectation == NullTypeExpectation.OUTPUT_BECOMES_NULL
+                            ? DataType.NULL
+                            : testCase.expectedType();
+
+                        return new TestCaseSupplier.TestCase(
+                            testCase.getSource(),
+                            testCase.getConfiguration(),
+                            newData,
+                            testCase.evaluatorToString(),
+                            expectedType,
+                            nullValue(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            testCase.canBuildEvaluator()
+                        );
+                    })
+                );
             }
         }
 
@@ -492,6 +562,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 return changed ? e.replaceChildren(newExpressionChildren) : e;
             });
 
+            expressionWithResolvedAggs = expressionWithResolvedAggs.transformUp(e -> {
+                Literal literal = literalsByField.get(e);
+                return literal == null ? e : literal;
+            });
+
             // Resolve final evaluation
             Object result = Foldables.valueOf(FoldContext.small(), expressionWithResolvedAggs);
             assertTestCaseResultAndWarnings(result);
@@ -783,6 +858,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case DATE_RANGE -> "LongRange";
+            case DOUBLE_RANGE -> "DoubleRange";
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
             case TDIGEST -> "TDigest";

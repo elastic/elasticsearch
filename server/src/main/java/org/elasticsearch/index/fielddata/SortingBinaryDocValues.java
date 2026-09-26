@@ -19,9 +19,9 @@ import org.apache.lucene.util.Sorter;
 import java.util.Arrays;
 
 /**
- * Base class for building {@link SortedBinaryDocValues} instances based on unsorted content.
+ * Base class for building {@link SortableBinaryDocValues} instances based on unsorted content.
  */
-public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
+public abstract class SortingBinaryDocValues extends SortableBinaryDocValues {
 
     private int index;
     protected int count;
@@ -29,6 +29,7 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
     private final Sorter sorter;
 
     protected SortingBinaryDocValues() {
+        super(null);
         values = new BytesRefBuilder[] { new BytesRefBuilder() };
         sorter = new InPlaceMergeSorter() {
 

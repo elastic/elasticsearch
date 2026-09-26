@@ -20,7 +20,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +32,10 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -82,18 +88,72 @@ public class ReindexValidator {
             );
             throw e;
         }
-        validateAgainstAliases(
-            source,
-            request.getDestination(),
-            request.getRemoteInfo(),
-            indexResolver,
-            autoCreateIndex,
-            projectResolver.getProjectMetadata(state)
-        );
+
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            validateDestinationSliceRouting(request, projectMetadata);
+        }
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
+    }
+
+    private void validateDestinationSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
+        final IndexRequest destination = request.getDestination();
+        final String destinationIndex = destination.index();
+        final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
+
+        if (destinationSliceEnabled == false && destination.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "["
+                    + SliceIndexing.PARAM_NAME
+                    + "] is not allowed in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is false for destination ["
+                    + destinationIndex
+                    + "]"
+            );
+        }
+        if (destinationSliceEnabled) {
+            if (destination.isRoutingFromSlice() == false && destination.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed in [dest] when ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] is true for destination ["
+                        + destinationIndex
+                        + "], use ["
+                        + SliceIndexing.PARAM_NAME
+                        + "] instead"
+                );
+            }
+            if (destination.routing() == null) {
+                throw new IllegalArgumentException(
+                    "[" + SliceIndexing.PARAM_NAME + "] is required in [dest] when [" + IndexSettings.SLICE_ENABLED.getKey() + "] is true"
+                );
+            }
+        }
+    }
+
+    private boolean isDestinationSliceEnabled(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {
+        if (autoCreateIndex.shouldAutoCreate(destinationIndex, projectMetadata) == false) {
+            final Index writeIndex = indexResolver.concreteWriteIndex(projectMetadata, destination);
+            final IndexMetadata indexMetadata = projectMetadata.index(writeIndex);
+            return indexMetadata != null && IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings());
+        }
+
+        final String templateName = MetadataIndexTemplateService.findV2Template(projectMetadata, destinationIndex, false);
+        if (templateName != null) {
+            final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(projectMetadata, templateName);
+            return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
+        }
+        final List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, destinationIndex, null);
+        if (templates.isEmpty()) {
+            return false;
+        }
+        final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(templates);
+        return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
     }
 
     static void checkAllowedRemote(CharacterRunAutomaton allowedRemotes, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {

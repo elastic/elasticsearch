@@ -33,8 +33,12 @@ module org.elasticsearch.server {
     requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.simdjson;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.zstd;
 
     requires hppc;
     requires HdrHistogram;
@@ -149,7 +153,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
-    exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
     exports org.elasticsearch.action.support.tasks;
     exports org.elasticsearch.action.termvectors;
@@ -229,8 +232,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
-    exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
@@ -247,6 +250,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.columnar;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
@@ -322,7 +326,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
-    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
+    exports org.elasticsearch.reservedstate.service
+        to
+            org.elasticsearch.multiproject,
+            org.elasticsearch.serverless.multiproject,
+            org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -387,6 +395,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
+    exports org.elasticsearch.sourcebatch;
     exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
@@ -406,6 +415,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.multiproject,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
@@ -413,6 +423,7 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.diskbbq,
             org.elasticsearch.xpack.stateless;
 
+    exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
@@ -447,7 +458,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
             org.elasticsearch.ingest.IngestFeatures,
-            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures;
+            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures,
+            org.elasticsearch.indices.recovery.RecoveryFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -479,7 +491,9 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat,
@@ -491,14 +505,19 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.Codec
         with
-            org.elasticsearch.index.codec.Elasticsearch814Codec,
-            org.elasticsearch.index.codec.Elasticsearch816Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
-            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
-            org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec,
-            org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
-            org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
+            org.elasticsearch.index.codec.bwc.Elasticsearch814Codec,
+            org.elasticsearch.index.codec.bwc.Elasticsearch816Codec,
+            org.elasticsearch.index.codec.bwc.Elasticsearch900Codec,
+            org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec,
+            org.elasticsearch.index.codec.bwc.Elasticsearch92Lucene103Codec,
+            org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec,
+            org.elasticsearch.index.codec.Elasticsearch96Codec,
+            org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec,
+            org.elasticsearch.index.codec.bwc.ES94TSDBBestCompressionLucene104Codec;
+
+    provides org.apache.lucene.index.SortFieldProvider
+        with
+            org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField.Provider;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -516,12 +535,12 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.perfield;
     // TODO: revert to qualified exports when ModuleQualifiedExportsService supports libraries too
     exports org.elasticsearch.index.codec.vectors; // to org.elasticsearch.test.knn, org.elasticsearch.gpu;
-    exports org.elasticsearch.index.codec.vectors.reflect; // to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.es94 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
+    exports org.elasticsearch.index.codec.vectors.diskbbq.es95 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es94 to org.elasticsearch.test.knn;

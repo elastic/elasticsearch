@@ -45,7 +45,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -152,7 +151,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
 
     public interface TaggedProjectCustom extends ProjectCustom {
-        ProjectTags tags();
+
+        /** Returns a set of project tag names that are allowed for this {@link ProjectCustom}. */
+        Set<String> allowedTagsNames();
 
         String tagPrefix();
     }

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -39,14 +42,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -109,17 +114,15 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.small()));
     }
 
-    @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAbstractMultivalueFunction() throws Exception {
-        List<Class<? extends AbstractMultivalueFunction>> items = List.of(
-            MvDedupe.class,
-            MvFirst.class,
-            MvLast.class,
-            MvMax.class,
-            MvMedian.class,
-            MvMin.class,
-            MvSum.class
-        );
+        List<Class<? extends AbstractMultivalueFunction>> items = new EsqlFunctionRegistry().listFunctions()
+            .stream()
+            .map(FunctionDefinition::clazz)
+            .distinct()
+            .filter(AbstractMultivalueFunction.class::isAssignableFrom)
+            .filter(c -> c != MvAvg.class && c != MvCount.class) // fixed return type; pinned separately below
+            .<Class<? extends AbstractMultivalueFunction>>map(c -> c.asSubclass(AbstractMultivalueFunction.class))
+            .toList();
         for (Class<? extends AbstractMultivalueFunction> clazz : items) {
             Constructor<? extends AbstractMultivalueFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AbstractMultivalueFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
@@ -249,7 +252,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullBucketGetsFolded() {
-        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, TEST_CFG)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, NULL, TEST_CFG)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {
@@ -264,6 +267,45 @@ public class FoldNullTests extends ESTestCase {
             new Coalesce(EMPTY, NULL, List.of(Literal.keyword(EMPTY, "bar")))
         );
         assertEquals(append, foldNull(append));
+    }
+
+    // A null condition means that branch is not taken, not that the whole CASE is null.
+    public void testNullFoldingDoesNotApplyOnCase() {
+        Case caseExpr = new Case(EMPTY, NULL, List.of(getFieldAttribute("a"), getFieldAttribute("b")));
+        assertEquals(caseExpr, foldNull(caseExpr));
+    }
+
+    public void testMultivalueFunctionsWithDefaultNullabilityGetFolded() {
+        assertNullLiteral(foldNull(new MvConcat(EMPTY, NULL, Literal.keyword(EMPTY, ","))));
+        assertNullLiteral(foldNull(new MvSort(EMPTY, NULL, Literal.keyword(EMPTY, "ASC"))));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, NULL, L(0), L(1))));
+        assertNullLiteral(foldNull(new MvIntersection(EMPTY, NULL, getFieldAttribute("a"))));
+    }
+
+    // These treat a null argument as data (empty set / absent side), so folding the whole expression would be wrong.
+    public void testMultivalueFunctionsWithNullAsDataNotFolded() {
+        MvContains contains = new MvContains(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(contains, foldNull(contains));
+
+        MvIntersects intersects = new MvIntersects(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(intersects, foldNull(intersects));
+
+        MvUnion union = new MvUnion(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(union, foldNull(union));
+
+        MvDifference difference = new MvDifference(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(difference, foldNull(difference));
+
+        MvZip zip = new MvZip(EMPTY, NULL, getFieldAttribute("a", KEYWORD), Literal.keyword(EMPTY, ","));
+        assertEquals(zip, foldNull(zip));
+    }
+
+    // Under nullify, downstream consumers still see the expression's type; folding must not erase it to NULL.
+    public void testFoldedNullLiteralKeepsExpressionType() {
+        Add add = new Add(EMPTY, L(randomInt()), NULL, TEST_CFG);
+        Literal folded = as(foldNull(add), Literal.class);
+        assertNull(folded.value());
+        assertEquals(add.dataType(), folded.dataType());
     }
 
     private void assertNullLiteral(Expression expression) {

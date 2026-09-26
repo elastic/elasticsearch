@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[MVCONTAINS(kw{r}#0,b[KEYWORD])]
+  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#0, txt{r}#1, i{r}#2, l{r}#3, d{r}#4, b{r}#5, dt{r}#6, dn{r}#7, ul{r}#8, ip{r}#9, v{r}#10]

@@ -20,22 +20,22 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Collects some thread pool stats from each data node for purposes of shard allocation balancing. The specific stats are defined in
- * {@link NodeUsageStatsForThreadPools}.
+ * Collects thread pool stats from each data node for purposes of shard allocation balancing. The specific node-level stats are defined in
+ * {@link NodeUsageStatsForThreadPools}. Also collects Shard-level thread pool stats per node in {@link #getShardWriteLoads(int)}.
  */
 public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesAction<
     NodeUsageStatsForThreadPoolsAction.Request,
@@ -46,17 +46,18 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     public static final String NAME = "internal:monitor/thread_pool/stats";
     public static final ActionType<NodeUsageStatsForThreadPoolsAction.Response> TYPE = new ActionType<>(NAME);
-    private static final int NO_VALUE = -1;
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final AtomicLong lastMaxQueueLatencyMillis = new AtomicLong(NO_VALUE);
+    private final IndicesService indicesService;
+    private final ConsumingLongGaugeMetric maxQueueLatencyMillisGauge;
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        IndicesService indicesService,
         ActionFilters actionFilters,
         DesiredBalanceMetrics desiredBalanceMetrics
     ) {
@@ -70,7 +71,8 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        desiredBalanceMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
+        this.indicesService = indicesService;
+        this.maxQueueLatencyMillisGauge = desiredBalanceMetrics.getWriteLoadDeciderMaxQueueLatencyGauge();
     }
 
     @Override
@@ -85,7 +87,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     @Override
     protected NodeUsageStatsForThreadPoolsAction.NodeRequest newNodeRequest(NodeUsageStatsForThreadPoolsAction.Request request) {
-        return new NodeUsageStatsForThreadPoolsAction.NodeRequest();
+        return new NodeUsageStatsForThreadPoolsAction.NodeRequest(request.fetchShardWriteLoads());
     }
 
     @Override
@@ -107,9 +109,10 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
             trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
         );
-        lastMaxQueueLatencyMillis.set(maxQueueLatencyMillis);
+        maxQueueLatencyMillisGauge.set(maxQueueLatencyMillis);
+        final int numWriteThreads = trackingForWriteExecutor.getMaximumPoolSize();
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
-            trackingForWriteExecutor.getMaximumPoolSize(),
+            numWriteThreads,
             (float) trackingForWriteExecutor.pollUtilization(
                 TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
             ),
@@ -118,16 +121,28 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats))
+            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats)),
+            // A request from a node too old to know about shard write loads deserializes with the flag set to false.
+            request.fetchShardWriteLoads() ? getShardWriteLoads(numWriteThreads) : Map.of()
         );
     }
 
-    private Collection<LongWithAttributes> getMaxQueueLatencyMetric() {
-        long maxQueueLatencyValue = lastMaxQueueLatencyMillis.getAndSet(NO_VALUE);
-        if (maxQueueLatencyValue != NO_VALUE) {
-            return Set.of(new LongWithAttributes(maxQueueLatencyValue));
-        } else {
-            return Set.of();
+    /**
+     * Returns the write load per shard since the last polling, expressed as the number of write threads the shard kept busy on average.
+     * Each shard tracks its write load as a fraction (0 to 1) of the write thread pool's total capacity during the last polling period, but
+     * the balancer code expects thread time, so the fraction is multiplied by the pool's thread count here: see
+     * {@link org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator#calculateUtilizationForWriteLoad} for details.
+     */
+    private Map<ShardId, Double> getShardWriteLoads(int numWriteThreads) {
+        final var result = new HashMap<ShardId, Double>();
+        for (var indexService : indicesService) {
+            for (var indexShard : indexService) {
+                if (indexShard.routingEntry().active()) {
+                    result.put(indexShard.shardId(), indexShard.pollWriteLoadUtilization() * numWriteThreads);
+                }
+            }
         }
+        return result;
     }
+
 }

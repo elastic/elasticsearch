@@ -1,0 +1,6 @@
+# @script_aware augmentation whose augmentation class declares getTotal(FeatureTestObject)
+# but not the script-first overload getTotal(PainlessScript, FeatureTestObject): must fail to
+# build in a cancellation-supporting context.
+class org.elasticsearch.painless.FeatureTestObject @no_import {
+  int org.elasticsearch.painless.FeatureTestAugmentationObject getTotal() @script_aware
+}

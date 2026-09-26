@@ -16,6 +16,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 
 import java.net.URI;
@@ -32,11 +33,11 @@ import java.util.List;
 class FlightSplitProvider implements SplitProvider {
 
     @Override
-    public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         String endpoint = (String) context.config().get("endpoint");
         String target = (String) context.config().get("target");
         if (endpoint == null || target == null) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         URI uri = URI.create(endpoint);
@@ -47,7 +48,7 @@ class FlightSplitProvider implements SplitProvider {
             FlightInfo info = client.getInfo(FlightDescriptor.path(target));
             List<FlightEndpoint> endpoints = info.getEndpoints();
             if (endpoints.isEmpty()) {
-                return List.of();
+                return SplitDiscoveryResult.EMPTY;
             }
 
             long totalRecords = info.getRecords();
@@ -59,7 +60,7 @@ class FlightSplitProvider implements SplitProvider {
                 String loc = ep.getLocations().isEmpty() == false ? ep.getLocations().get(0).getUri().toString() : null;
                 splits.add(new FlightSplit(ticketBytes, loc, perEndpoint));
             }
-            return splits;
+            return SplitDiscoveryResult.of(splits);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted during Flight split discovery for [" + endpoint + "/" + target + "]", e);

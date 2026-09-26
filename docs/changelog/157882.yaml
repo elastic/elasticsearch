@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 157882
+summary: Do not prewarm _id's for indices with synthetic ids
+type: bug

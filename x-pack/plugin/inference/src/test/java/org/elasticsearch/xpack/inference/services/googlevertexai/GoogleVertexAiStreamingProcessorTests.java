@@ -59,6 +59,17 @@ public class GoogleVertexAiStreamingProcessorTests extends ESTestCase {
         assertThat(exception, instanceOf(XContentParseException.class));
     }
 
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(vertexAiJsonResponse("hello", false) + vertexAiJsonResponse("world", true)));
+
+        var response = onNext(new GoogleVertexAiStreamingProcessor(), item);
+        var json = toJsonString(response);
+
+        assertThat(json, equalTo("""
+            {"completion":[{"delta":"hello"},{"delta":"world"}]}"""));
+    }
+
     private String vertexAiJsonResponse(String content, boolean includeFinishReason) {
         String finishReason = includeFinishReason ? "\"finishReason\": \"STOP\"," : "";
 

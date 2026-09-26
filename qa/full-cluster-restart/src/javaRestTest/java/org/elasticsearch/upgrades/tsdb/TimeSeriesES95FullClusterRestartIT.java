@@ -14,8 +14,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
@@ -45,7 +46,6 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
         .module("mapper-extras")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.ES95_CODEC_FEATURE_FLAG)
         .build();
 
     public TimeSeriesES95FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -62,6 +62,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     private static final int MIN_ADDITIONAL_DOC_COUNT = 10;
     private static final int MAX_ADDITIONAL_DOC_COUNT = 40;
 
+    private static final DateFormatter TS_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName());
     private static final String TS_START = "2024-01-01T00:00:00.000Z";
     private static final String TS_END = "2024-12-31T23:59:59.000Z";
     private static final long STEP_MS = 60_000L;
@@ -323,7 +324,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
         for (int i = 0; i < docCount; i++) {
             final int absoluteIndex = startIndex + i;
             final String host = (absoluteIndex % 2 == 0) ? HOST_A : HOST_B;
-            final String ts = Instant.ofEpochMilli(startMs + (long) absoluteIndex * STEP_MS).toString();
+            final String ts = TS_FORMATTER.formatMillis(startMs + (long) absoluteIndex * STEP_MS);
             bulk.append("{\"create\":{}}\n");
             bulk.append("{\"@timestamp\":\"")
                 .append(ts)

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -28,94 +29,94 @@ public class FailedTestsReportTests {
     public void testDeserializesFullyPopulatedReport() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "testseed": "DEADBEEF",
-              "executedTestTasks": [":a:test", ":b:test"],
-              "failedTestTasks": [":b:test"]
+              "successfulTasks": [":a:test", ":b:test"],
+              "successfulSuites": {
+                ":c:test": ["org.es.FooTest"]
+              },
+              "successfulTests": {
+                ":c:test": ["org.es.BazTest#testQux"]
+              },
+              "testseed": "DEADBEEF"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.workUnits(), equalTo(List.of()));
+        assertThat(report.successfulTasks(), equalTo(List.of(":a:test", ":b:test")));
+        assertThat(report.successfulSuites(), equalTo(Map.of(":c:test", List.of("org.es.FooTest"))));
+        assertThat(report.successfulTests(), equalTo(Map.of(":c:test", List.of("org.es.BazTest#testQux"))));
         assertThat(report.testseed(), equalTo("DEADBEEF"));
-        assertThat(report.executedTestTasks(), equalTo(List.of(":a:test", ":b:test")));
-        assertThat(report.failedTestTasks(), equalTo(List.of(":b:test")));
     }
 
     @Test
-    public void testDeserializesLegacyReportWithoutFailedTestTasks() throws Exception {
-        // Back-compat: a history JSON written before the failedTestTasks field existed
-        // must still deserialize, with failedTestTasks left null for safe fallback.
+    public void testDeserializesEmptySuccessfulTasksAndTests() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "testseed": "CAFE",
-              "executedTestTasks": [":a:test"]
+              "successfulTasks": [],
+              "successfulSuites": {},
+              "successfulTests": {},
+              "testseed": "CAFE"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.executedTestTasks(), equalTo(List.of(":a:test")));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
+        assertThat(report.testseed(), equalTo("CAFE"));
     }
 
     @Test
-    public void testDeserializesReportWithoutExecutedTestTasks() throws Exception {
-        // Older format where executedTestTasks was not yet emitted.
+    public void testDeserializesReportWithoutOptionalFields() throws Exception {
         String json = """
             {
-              "workUnits": []
+              "testseed": "ABC"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.executedTestTasks(), is(nullValue()));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
+        assertThat(report.testseed(), equalTo("ABC"));
     }
 
     @Test
-    public void testEmptyArraysAreDistinctFromNull() throws Exception {
-        // Empty arrays mean "API reachable but returned no entries" — not the same as
-        // "API data unavailable" (null). The plugin treats them differently.
-        String json = """
-            {
-              "workUnits": [],
-              "executedTestTasks": [],
-              "failedTestTasks": []
-            }
-            """;
+    public void testNullFieldsDefaultToEmptyCollections() {
+        FailedTestsReport report = new FailedTestsReport(null, null, null, "seed");
 
-        FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
-
-        assertThat(report.executedTestTasks(), equalTo(List.of()));
-        assertThat(report.failedTestTasks(), equalTo(List.of()));
-    }
-
-    @Test
-    public void testNullWorkUnitsDefaultsToEmptyList() {
-        // The compact constructor must normalise a null workUnits argument to an empty
-        // list so that consumers can iterate it unconditionally.
-        FailedTestsReport report = new FailedTestsReport(null, "seed", null, null);
-
-        assertThat(report.workUnits(), equalTo(List.of()));
-        assertThat(report.executedTestTasks(), is(nullValue()));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
     }
 
     @Test
     public void testIgnoresUnknownFields() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "unexpectedField": "ignored"
+              "successfulTasks": [":a:test"],
+              "unexpectedField": "ignored",
+              "workUnits": []
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.workUnits(), equalTo(List.of()));
+        assertThat(report.successfulTasks(), equalTo(List.of(":a:test")));
+    }
+
+    @Test
+    public void testNullTestseedDeserializesAsNull() throws Exception {
+        String json = """
+            {
+              "successfulTasks": [":a:test"]
+            }
+            """;
+
+        FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
+
+        assertThat(report.testseed(), is(nullValue()));
     }
 }

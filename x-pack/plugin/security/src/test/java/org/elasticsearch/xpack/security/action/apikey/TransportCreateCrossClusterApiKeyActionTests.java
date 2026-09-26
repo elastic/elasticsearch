@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApi
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Set;
@@ -38,9 +39,8 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
     private SecurityContext securityContext;
     private TransportCreateCrossClusterApiKeyAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() {
         apiKeyService = mock(ApiKeyService.class);
         securityContext = mock(SecurityContext.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
@@ -91,6 +91,27 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
+        verifyNoInteractions(apiKeyService);
+    }
+
+    public void testCannotCreateCrossClusterApiKeyWithCloudApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "authentication via cloud API key not supported: A cloud API key cannot be used to create a cross-cluster API key"
+            )
         );
         verifyNoInteractions(apiKeyService);
     }

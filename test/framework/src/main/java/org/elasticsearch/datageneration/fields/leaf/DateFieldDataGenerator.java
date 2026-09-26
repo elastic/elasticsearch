@@ -25,9 +25,20 @@ public class DateFieldDataGenerator implements FieldDataGenerator {
     private final DataSource dataSource;
     private final Supplier<Instant> instants;
     private final Supplier<String> strings;
+    private final boolean singleValued;
 
     public DateFieldDataGenerator(DataSource dataSource) {
+        this(dataSource, false);
+    }
+
+    /**
+     * @param singleValued when {@code true}, {@link #generateValue} skips {@link Wrappers#defaults} and
+     *                     always returns a non-null scalar value. Required for fields that must be
+     *                     single-valued and present, such as {@code @timestamp} in time_series index mode.
+     */
+    public DateFieldDataGenerator(DataSource dataSource, boolean singleValued) {
         this.dataSource = dataSource;
+        this.singleValued = singleValued;
         this.instants = () -> dataSource.get(new DataSourceRequest.InstantGenerator()).generator().get();
         this.strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
     }
@@ -39,6 +50,10 @@ public class DateFieldDataGenerator implements FieldDataGenerator {
         if (fieldMapping != null && fieldMapping.get("format") != null) {
             String format = (String) fieldMapping.get("format");
             supplier = () -> DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).format(instants.get());
+        }
+
+        if (singleValued) {
+            return supplier.get();
         }
 
         if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {

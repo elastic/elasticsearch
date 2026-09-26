@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -75,7 +76,12 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(
+                    warnings,
+                    "field",
+                    ByteSizeValue.ofKb(between(1, 100)),
+                    BinaryDocValuesFormat.SEPARATE_COUNT
+                );
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (

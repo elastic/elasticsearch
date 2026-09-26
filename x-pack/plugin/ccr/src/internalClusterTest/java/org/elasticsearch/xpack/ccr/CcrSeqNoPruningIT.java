@@ -249,6 +249,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, finalMaxSeqNo + 1);
         persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
         flush(leaderClient(), leaderIndex);
+        assertMinRetainedSeqNoAdvanced(getLeaderCluster(), leaderIndex, finalMaxSeqNo + 1);
 
         forceMerge = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));

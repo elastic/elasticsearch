@@ -35,7 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
@@ -83,6 +83,24 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         }
     };
 
+    private final Codec codecWithOptimizedMerge = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean()
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
 
         public TestES819TSDBDocValuesFormatVersion0() {
@@ -108,6 +126,11 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected Codec getCodecWithOptimizedMerge() {
+        return codecWithOptimizedMerge;
     }
 
     public void testBinaryCompressionEnabled() {
@@ -502,12 +525,115 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         }
     }
 
+    public void testTermEqualIterator() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        final String equalTerm = randomUnicodeOfCodepointLengthBetween(1, 10);
+
+        // tryTermEqualIterator is only implemented for the compressed binary doc values path
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(compressedCodec);
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(4096);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+
+                // Make sure at least some docs have the exact term as their value
+                String value = randomBoolean() ? equalTerm : randomUnicodeOfCodepointLengthBetween(1, 100);
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(value)));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            BytesRef equalTermRef = new BytesRef(equalTerm);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                // Build expected set of matching doc IDs by reading actual binary values
+                Set<Integer> expectedDocIds = new HashSet<>();
+                {
+                    var refDV = getTSDBBinaryValues(leafReader, binaryField);
+                    for (int docId = 0; docId < numDocs; docId++) {
+                        assertTrue(refDV.advanceExact(docId));
+                        if (refDV.binaryValue().bytesEquals(equalTermRef)) {
+                            expectedDocIds.add(docId);
+                        }
+                    }
+                }
+                assertFalse("expected some matching docs", expectedDocIds.isEmpty());
+
+                // Test tryTermEqualIterator via nextDoc
+                var binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                DocIdSetIterator equalIter = binaryDV.tryTermEqualIterator(equalTermRef);
+                assertNotNull(equalIter);
+                assertEquals(-1, equalIter.docID());
+
+                Set<Integer> actualDocIds = new HashSet<>();
+                int doc;
+                while ((doc = equalIter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue("Iterator returned unexpected doc " + doc, expectedDocIds.contains(doc));
+                    actualDocIds.add(doc);
+                }
+                assertEquals("Iterator should return exactly the matching docs", expectedDocIds, actualDocIds);
+
+                // Test advance past existing docs
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                equalIter = binaryDV.tryTermEqualIterator(equalTermRef);
+                assertNotNull(equalIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, equalIter.advance(numDocs));
+
+                // Test with a term that no doc equals: iterator should be immediately exhausted
+                // A term longer than any stored value (max is 100 codepoints above) won't match
+                String notFoundTerm = randomUnicodeOfCodepointLengthBetween(101, 200);
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                equalIter = binaryDV.tryTermEqualIterator(new BytesRef(notFoundTerm));
+                assertNotNull(equalIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, equalIter.nextDoc());
+
+                // Test advance to specific matching docs
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                equalIter = binaryDV.tryTermEqualIterator(equalTermRef);
+                for (int expected : expectedDocIds.stream().sorted().toList()) {
+                    int result = equalIter.advance(expected);
+                    assertEquals("advance(" + expected + ") should land on that doc", expected, result);
+                }
+            }
+        }
+    }
+
     /**
-     * Lock the {@link TwoPhaseIterator}-backed shape of {@code tryContainsIterator} and
-     * {@code tryLengthIterator} so a future refactor that bakes the per-doc check into
-     * {@code advance(target)} (which over-scans past the caller's {@code max} when matches are
-     * sparse — breaking linear scaling under sub-segment slicing) fails this test instead of
-     * regressing silently.
+     * Lock the {@link TwoPhaseIterator}-backed shape of {@code tryContainsIterator},
+     * {@code tryLengthIterator}, and {@code tryTermEqualIterator} so a future refactor that bakes
+     * the per-doc check into {@code advance(target)} (which over-scans past the caller's
+     * {@code max} when matches are sparse — breaking linear scaling under sub-segment slicing)
+     * fails this test instead of regressing silently.
      */
     public void testIteratorsExposeTwoPhase() throws Exception {
         final String timestampField = TIMESTAMP_FIELD;
@@ -553,6 +679,13 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                     "tryLengthIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
                         + "see the rationale on BlockLoader.OptionalLengthReader#tryLengthIterator",
                     TwoPhaseIterator.unwrap(lengths)
+                );
+                DocIdSetIterator termEqual = dv.tryTermEqualIterator(new BytesRef("anything"));
+                assertNotNull("optimized term-equal iterator should be available", termEqual);
+                assertNotNull(
+                    "tryTermEqualIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
+                        + "see the rationale on BlockLoader.OptionalColumnAtATimeReader#tryTermEqualIterator",
+                    TwoPhaseIterator.unwrap(termEqual)
                 );
             }
         }

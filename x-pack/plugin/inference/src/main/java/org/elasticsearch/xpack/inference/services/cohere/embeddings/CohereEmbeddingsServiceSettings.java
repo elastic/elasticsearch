@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -63,18 +64,17 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         }
 
         void setDimensions(Integer dimensions) {
-            if (dimensions != null && dimensions <= 0) {
-                throw new IllegalArgumentException("dimensions must be a positive integer");
-            }
+            validatePositiveInteger(dimensions, DIMENSIONS);
             this.dimensions = dimensions;
         }
 
         void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
         }
 
-        void setEmbeddingType(String embeddingType) {
-            this.embeddingType = CohereEmbeddingType.fromCohereOrElementType(embeddingType);
+        void setEmbeddingType(CohereEmbeddingType embeddingType) {
+            this.embeddingType = embeddingType;
         }
 
         @Override
@@ -82,13 +82,6 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             var resolvedEmbeddingType = Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT);
             return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, resolvedEmbeddingType);
         }
-    }
-
-    private static Integer validateMaxInputTokens(Integer maxInputTokens) {
-        if (maxInputTokens != null && maxInputTokens <= 0) {
-            throw new IllegalArgumentException("max_input_tokens must be a positive integer");
-        }
-        return maxInputTokens;
     }
 
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
@@ -101,16 +94,15 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
-        parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
+        var parser = CohereCommonServiceSettings.buildCommonParser(ignoreUnknownFields, context, Builder::new);
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
-        parser.declareString(Builder::setEmbeddingType, new ParseField(ServiceFields.EMBEDDING_TYPE));
+        parser.declareString(
+            Builder::setEmbeddingType,
+            CohereEmbeddingType::fromCohereOrElementType,
+            new ParseField(ServiceFields.EMBEDDING_TYPE)
+        );
         return parser;
     }
 
@@ -128,17 +120,19 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     private static class Update extends CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = CohereCommonServiceSettings.buildCommonUpdateParser(Update::new);
+            parser.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            return parser;
         }
 
         private Integer maxInputTokens;
 
         private void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
         }
 
         public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {

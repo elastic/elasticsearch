@@ -78,6 +78,7 @@ public interface CircuitBreaker {
 
     /**
      * Add bytes to the breaker and trip if the that puts breaker over the limit.
+     *
      * @param bytes number of bytes to add
      * @param label thing requesting the bytes being added that is included in
      *              the exception if the breaker is tripped
@@ -88,6 +89,13 @@ public interface CircuitBreaker {
      * Add bytes to the circuit breaker without tripping.
      */
     void addWithoutBreaking(long bytes);
+
+    /**
+     * Category-aware variant of {@link #addWithoutBreaking(long)}.
+     */
+    default void addWithoutBreaking(long bytes, String label) {
+        addWithoutBreaking(bytes);
+    }
 
     /**
      * @return the currently used bytes the breaker is tracking

@@ -17,7 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtractExec extends UnaryExec implements EstimatesRowSize {
+public abstract class RegexExtractExec extends UnaryExec implements EstimatesRowSize, RowCountPreserving {
 
     protected final Expression inputExpression;
     protected final List<Attribute> extractedFields;

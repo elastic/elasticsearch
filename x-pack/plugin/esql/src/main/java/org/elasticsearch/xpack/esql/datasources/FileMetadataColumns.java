@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -31,6 +32,15 @@ public final class FileMetadataColumns {
     public static final String DIRECTORY = "_file.directory";
     public static final String SIZE = "_file.size";
     public static final String MODIFIED = "_file.modified";
+    /**
+     * Opaque, stable, per-record reference. Unlike the other {@code _file.*} columns (per-file
+     * constants via {@link #extractValues}), this one varies per record and is sourced from the
+     * reader's row-position channel
+     * ({@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN}).
+     * Shape is format-defined and opaque to consumers — equality is the only defined relation,
+     * independent of split layout. Deliberately excluded from {@link #extractValues}.
+     */
+    public static final String RECORD_REF = "_file.record_ref";
 
     public static final Map<String, DataType> COLUMNS;
 
@@ -41,6 +51,7 @@ public final class FileMetadataColumns {
         map.put(DIRECTORY, DataType.KEYWORD);
         map.put(SIZE, DataType.LONG);
         map.put(MODIFIED, DataType.DATETIME);
+        map.put(RECORD_REF, DataType.LONG);
         COLUMNS = Collections.unmodifiableMap(map);
     }
 
@@ -61,13 +72,45 @@ public final class FileMetadataColumns {
      */
     public static Map<String, Object> extractValues(StoragePath path, long length, Instant lastModified) {
         var map = new LinkedHashMap<String, Object>(8);
-        map.put(PATH, new BytesRef(path.toString()));
-        map.put(NAME, new BytesRef(path.objectName()));
-        StoragePath parent = path.parentDirectory();
-        map.put(DIRECTORY, parent != null ? new BytesRef(parent.toString()) : null);
-        map.put(SIZE, length);
-        map.put(MODIFIED, lastModified != null ? lastModified.toEpochMilli() : null);
+        putValues(map, path, length, lastModified, null);
         return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Writes the five per-file constants into {@code dest}. Callers that already own a map
+     * skip the throwaway map {@link #extractValues} allocates. {@code directoryIntern}, when
+     * non-null, reuses one {@link BytesRef} per distinct parent path for this call; full
+     * {@link #PATH} URIs are never interned. A null parent or a null {@code lastModified}
+     * is stored as a null value.
+     */
+    static void putValues(
+        Map<String, Object> dest,
+        StoragePath path,
+        long length,
+        @Nullable Instant lastModified,
+        @Nullable Map<String, BytesRef> directoryIntern
+    ) {
+        dest.put(PATH, new BytesRef(path.toString()));
+        dest.put(NAME, new BytesRef(path.objectName()));
+        StoragePath parent = path.parentDirectory();
+        if (parent == null) {
+            dest.put(DIRECTORY, null);
+        } else {
+            String parentText = parent.toString();
+            BytesRef directory;
+            if (directoryIntern == null) {
+                directory = new BytesRef(parentText);
+            } else {
+                directory = directoryIntern.get(parentText);
+                if (directory == null) {
+                    directory = new BytesRef(parentText);
+                    directoryIntern.put(parentText, directory);
+                }
+            }
+            dest.put(DIRECTORY, directory);
+        }
+        dest.put(SIZE, length);
+        dest.put(MODIFIED, lastModified != null ? lastModified.toEpochMilli() : null);
     }
 
     /**

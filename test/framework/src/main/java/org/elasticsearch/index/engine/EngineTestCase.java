@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -47,6 +48,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -65,6 +67,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -111,6 +114,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -143,16 +147,14 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -226,10 +228,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return List.of();
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeEngineTestResources() throws Exception {
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
         CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
@@ -283,10 +283,8 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void verifyAndCloseEngines() throws Exception {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
@@ -322,7 +320,16 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), false, false);
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+
+            false,
+            false,
+            false
+        );
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -336,16 +343,35 @@ public abstract class EngineTestCase extends ESTestCase {
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
             recoverySource,
-            syntheticId
+            syntheticId,
+            false
+        );
+    }
+
+    public static ParsedDocument createParsedDoc(
+        String id,
+        String routing,
+        boolean recoverySource,
+        boolean syntheticId,
+        boolean columnarId
+    ) {
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            recoverySource,
+            syntheticId,
+            columnarId
         );
     }
 
     protected ParsedDocument testParsedDocument(String id, String routing, LuceneDocument document, BytesReference source) {
-        return testParsedDocument(id, routing, document, source, false, false);
+        return testParsedDocument(id, routing, document, source, false, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(String id, LuceneDocument document, BytesReference source, boolean recoverySource) {
-        return testParsedDocument(id, null, document, source, recoverySource, false);
+        return testParsedDocument(id, null, document, source, recoverySource, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -354,7 +380,8 @@ public abstract class EngineTestCase extends ESTestCase {
         LuceneDocument document,
         BytesReference source,
         boolean recoverySource,
-        boolean syntheticId
+        boolean syntheticId,
+        boolean columnarId
     ) {
         var uid = Uid.encodeId(id);
         final Field idField;
@@ -372,6 +399,10 @@ public abstract class EngineTestCase extends ESTestCase {
                     Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
                 )
             );
+        } else if (columnarId) {
+            BytesRef encoded = Uid.encodeId(id);
+            idField = new StringField("_id", encoded, Field.Store.NO);
+            document.add(new BinaryDocValuesField("_id", encoded));
         } else {
             idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         }
@@ -470,7 +501,7 @@ public abstract class EngineTestCase extends ESTestCase {
         Store store,
         Path translogPath,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             defaultSettings,
@@ -530,7 +561,7 @@ public abstract class EngineTestCase extends ESTestCase {
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         @Nullable LongSupplier globalCheckpointSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        @Nullable ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             indexSettings,
@@ -552,7 +583,7 @@ public abstract class EngineTestCase extends ESTestCase {
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         @Nullable Sort indexSort,
         @Nullable LongSupplier globalCheckpointSupplier
     ) throws IOException {
@@ -574,10 +605,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    protected InternalEngine createEngine(
+    private InternalEngine createEngine(
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         EngineConfig config
     ) throws IOException {
         final Store store = config.getStore();
@@ -620,10 +651,14 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getLocalCheckpointTracker().generateSeqNo();
     }
 
-    public static InternalEngine createInternalEngine(
+    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory, final EngineConfig config) {
+        return createInternalEngine(indexWriterFactory, null, null, config);
+    }
+
+    private static InternalEngine createInternalEngine(
         @Nullable final IndexWriterFactory indexWriterFactory,
         @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable final ToLongFunction<Engine> seqNoForOperation,
         final EngineConfig config
     ) {
         if (localCheckpointTrackerSupplier == null) {
@@ -636,10 +671,20 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
+                }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
                 }
             };
         } else {
@@ -652,14 +697,23 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
+                }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
                 }
             };
         }
-
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
@@ -1288,7 +1342,16 @@ public abstract class EngineTestCase extends ESTestCase {
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
-                    assertThat(((Translog.Index) luceneOp).source(), equalBytes(((Translog.Index) translogOp).source()));
+                    Translog.Index luceneIdx = (Translog.Index) luceneOp;
+                    Translog.Index translogIdx = (Translog.Index) translogOp;
+                    // The translog op may have come from a batched translog record whose source is
+                    // re-emitted as canonical XContent without whitespace; fall back to a structural (map-equal)
+                    // comparison when the raw bytes don't match.
+                    assertTrue(
+                        "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
+                        luceneIdx.source().equals(translogIdx.source())
+                            || Translog.Index.equalsWithoutAutoGeneratedTimestamp(luceneIdx, translogIdx, false)
+                    );
                 }
             }
         }
@@ -1614,5 +1677,105 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static void ensureOpen(Engine engine) {
         engine.ensureOpen();
+    }
+
+    public static IndexOperationBatch initFromRequests(IndexRequest[] requests) {
+        final BulkItemRequest[] items = new BulkItemRequest[requests.length];
+        for (int d = 0; d < requests.length; d++) {
+            items[d] = new BulkItemRequest(d, requests[d]);
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, requests.length, null, Engine.Operation.Origin.PRIMARY, 0L, 0L);
+    }
+
+    public static IndexOperationBatch fromIndexOps(List<Engine.Index> operations, SourceBatch sourceBatch) {
+        assert operations.isEmpty() == false : "an IndexOperationBatch must contain at least one operation";
+        final int docCount = operations.size();
+        final BytesRef[] uids = new BytesRef[docCount];
+        final String[] ids = new String[docCount];
+        BytesRef[] routings = null;
+        final XContentType[] contentTypes = new XContentType[docCount];
+        final BytesReference[] sources = new BytesReference[docCount];
+        final long[] requestedVersion = new long[docCount];
+        final VersionType[] versionType = new VersionType[docCount];
+        long[] ifSeqNoBuf = null;
+        long[] ifPrimaryTermBuf = null;
+        final long[] autoGeneratedIdTimestamp = new long[docCount];
+        final boolean[] isRetry = new boolean[docCount];
+
+        final Engine.Operation.Origin origin = operations.getFirst().origin();
+        final long primaryTerm = operations.getFirst().primaryTerm();
+        final long startTime = operations.getFirst().startTime();
+
+        for (int d = 0; d < docCount; d++) {
+            final Engine.Index op = operations.get(d);
+            assert op.primaryTerm() == primaryTerm
+                : "all operations in a batch must share the same primary term; expected ["
+                    + primaryTerm
+                    + "] but op["
+                    + d
+                    + "] has ["
+                    + op.primaryTerm()
+                    + "]";
+            uids[d] = op.uid();
+            ids[d] = op.id();
+            final String routing = op.routing();
+            if (routing != null) {
+                if (routings == null) {
+                    routings = new BytesRef[docCount];
+                }
+                routings[d] = new BytesRef(routing);
+            }
+            final XContentType ct = op.parsedDoc().getXContentType();
+            contentTypes[d] = ct != null ? ct : XContentType.JSON;
+            sources[d] = op.source().originalBytes();
+            requestedVersion[d] = op.version();
+            versionType[d] = op.versionType();
+            final long ifSeq = op.getIfSeqNo();
+            if (ifSeq != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                if (ifSeqNoBuf == null) {
+                    ifSeqNoBuf = new long[docCount];
+                    Arrays.fill(ifSeqNoBuf, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                }
+                ifSeqNoBuf[d] = ifSeq;
+            }
+            final long ifPT = op.getIfPrimaryTerm();
+            if (ifPT != 0L) {
+                if (ifPrimaryTermBuf == null) {
+                    ifPrimaryTermBuf = new long[docCount];
+                }
+                ifPrimaryTermBuf[d] = ifPT;
+            }
+            autoGeneratedIdTimestamp[d] = op.getAutoGeneratedIdTimestamp();
+            isRetry[d] = op.isRetry();
+        }
+
+        final BytesRef seqNoBytes = new BytesRef(new byte[docCount * 8]);
+        for (int d = 0; d < docCount; d++) {
+            ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoBytes.bytes, d * 8);
+        }
+
+        return new IndexOperationBatch(
+            origin,
+            startTime,
+            primaryTerm,
+            0,
+            docCount,
+            uids,
+            ids,
+            routings,
+            null,
+            contentTypes,
+            sources,
+            requestedVersion,
+            versionType,
+            ifSeqNoBuf,
+            ifPrimaryTermBuf,
+            autoGeneratedIdTimestamp,
+            isRetry,
+            sourceBatch,
+            seqNoBytes,
+            new BytesRef(new byte[docCount * 8]),
+            new BytesRef(new byte[docCount * 8])
+        );
     }
 }

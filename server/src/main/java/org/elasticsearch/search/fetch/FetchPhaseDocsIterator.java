@@ -15,6 +15,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -24,6 +25,8 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Iterates through a set of document IDs, fetching each document and collecting
@@ -43,12 +46,28 @@ abstract class FetchPhaseDocsIterator {
      */
     private long requestBreakerBytes;
 
+    private final AtomicReference<DirectoryMetrics> fetchMetricsDelta = new AtomicReference<>(DirectoryMetrics.EMPTY);
+
+    private final DirectoryMetrics.Capture metricsCapture;
+
+    protected FetchPhaseDocsIterator(DirectoryMetrics.Capture metricsCapture) {
+        this.metricsCapture = metricsCapture;
+    }
+
     public void addRequestBreakerBytes(long delta) {
         requestBreakerBytes += delta;
     }
 
     public long getRequestBreakerBytes() {
         return requestBreakerBytes;
+    }
+
+    protected DirectoryMetrics getFetchMetricsDelta() {
+        return fetchMetricsDelta.get();
+    }
+
+    protected final <T> T measure(Supplier<T> readOperation) {
+        return metricsCapture.measure(readOperation, fetchMetricsDelta);
     }
 
     /**
@@ -83,6 +102,16 @@ abstract class FetchPhaseDocsIterator {
      * @throws FetchPhaseExecutionException if fetch fails for a document
      */
     public final IterateResult iterate(
+        SearchShardTarget shardTarget,
+        IndexReader indexReader,
+        int[] docIds,
+        boolean allowPartialResults,
+        QuerySearchResult querySearchResult
+    ) {
+        return measure(() -> doIterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult));
+    }
+
+    private IterateResult doIterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,

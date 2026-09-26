@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -33,10 +35,12 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -58,6 +62,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -65,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -73,10 +80,12 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.ArrayList;
@@ -97,12 +106,14 @@ public class PlanWritables {
             Aggregate.ENTRY,
             Completion.ENTRY,
             Dissect.ENTRY,
+            DenseVector.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
             Eval.ENTRY,
             ExternalRelation.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
+            Highlight.ENTRY,
             InlineJoin.ENTRY,
             InlineStats.ENTRY,
             Join.ENTRY,
@@ -118,12 +129,14 @@ public class PlanWritables {
             Rerank.ENTRY,
             Sample.ENTRY,
             SampledAggregate.ENTRY,
+            TopNPreFilter.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TimeSeriesCollapse.ENTRY,
             TopN.ENTRY,
             TopNBy.ENTRY,
             UriParts.ENTRY,
+            IpLocation.ENTRY,
             MetricsInfo.ENTRY,
             RegisteredDomain.ENTRY,
             TsInfo.ENTRY,
@@ -136,6 +149,7 @@ public class PlanWritables {
             AggregateExec.ENTRY,
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
+            DenseVectorExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
@@ -148,14 +162,17 @@ public class PlanWritables {
             FragmentExec.ENTRY,
             GrokExec.ENTRY,
             HashJoinExec.ENTRY,
+            HighlightExec.ENTRY,
             LimitByExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
+            RemoteFetchBoundaryExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,
+            TopNPreFilterExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TimeSeriesAggregateExec.ENTRY,
@@ -163,6 +180,7 @@ public class PlanWritables {
             TopNExec.ENTRY,
             TopNByExec.ENTRY,
             UriPartsExec.ENTRY,
+            IpLocationExec.ENTRY,
             MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY,
             TsInfoExec.ENTRY,

@@ -14,7 +14,7 @@ import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     @Override
-    ESVectorUtilSupport getVectorUtilSupport() {
+    public ESVectorUtilSupport getVectorUtilSupport() {
         return new DefaultESVectorUtilSupport();
     }
 

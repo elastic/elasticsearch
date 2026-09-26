@@ -47,7 +47,9 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -63,7 +65,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
@@ -392,8 +394,8 @@ public class ReindexerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
             .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
@@ -406,7 +408,7 @@ public class ReindexerTests extends ESTestCase {
 
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(new TaskId("source-node", 987), randomNonNegativeLong());
         final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
-        final ActionListener<ResumeBulkByScrollResponse> relocationListener = spy(ActionListener.noop());
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> relocationListener = spy(ActionListener.noop());
         final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
@@ -429,8 +431,8 @@ public class ReindexerTests extends ESTestCase {
     public void testRelocationLoggingListenerLogsSuccess() {
         // Dashboards depend on this exact WARN/INFO wording;
         final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
-        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ResumeBulkByPaginatedSearchResponse response = new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123"));
 
         try (var mockLog = MockLog.capture(Reindexer.class)) {
             mockLog.addExpectation(
@@ -458,7 +460,7 @@ public class ReindexerTests extends ESTestCase {
     public void testRelocationLoggingListenerLogsFailure() {
         // Dashboards depend on this exact WARN wording;
         final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
 
         try (var mockLog = MockLog.capture(Reindexer.class)) {
@@ -489,7 +491,7 @@ public class ReindexerTests extends ESTestCase {
     public void testRelocationLoggingListenerDoesNotLogForTaskCancelledException() {
         // Cancellation is expected user action, not a relocation failure — neither the warn nor the info should fire.
         final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
 
         try (var mockLog = MockLog.capture(Reindexer.class)) {
             mockLog.addExpectation(
@@ -511,8 +513,8 @@ public class ReindexerTests extends ESTestCase {
     public void testRelocationLoggingListenerCalledForBothSuccessAndFailureFails() {
         // assertOnce wrapping still applies: calling both onResponse and onFailure must throw.
         final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
-        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ResumeBulkByPaginatedSearchResponse response = new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123"));
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
         if (randomBoolean()) {
             listener.onResponse(response);
@@ -542,8 +544,8 @@ public class ReindexerTests extends ESTestCase {
             assertThat(sourceTaskResult.getTask().taskId(), equalTo(new TaskId("source-node", 987)));
             assertTrue("source task result should be completed", sourceTaskResult.isCompleted());
 
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
             .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
@@ -555,7 +557,7 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
-        final ActionListener<ResumeBulkByScrollResponse> resumeListener = spy(ActionListener.noop());
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> resumeListener = spy(ActionListener.noop());
         final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
@@ -769,7 +771,7 @@ public class ReindexerTests extends ESTestCase {
         task.ensureCancellable();
 
         final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
-        final PlainActionFuture<org.elasticsearch.index.reindex.ResumeBulkByScrollResponse> onRelocationFuture = new PlainActionFuture<>();
+        final PlainActionFuture<ResumeBulkByPaginatedSearchResponse> onRelocationFuture = new PlainActionFuture<>();
         final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
@@ -1154,6 +1156,67 @@ public class ReindexerTests extends ESTestCase {
             runRemotePitTestWithMockServer(server, request -> request.setMaxRetries(0), initFuture -> {
                 ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, initFuture::actionGet);
                 assertThat(e.status(), equalTo(INTERNAL_SERVER_ERROR));
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * The {@link RemoteInfo} credentials are owned by {@link Reindexer}, not the hit sources, and are zeroed exactly once when the
+     * operation terminates normally. This guards the contract that hit sources no longer close the credentials (they must survive a
+     * relocation handoff serialization).
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    public void testRemoteReindexClosesRemoteInfoOnNormalCompletion() throws Exception {
+        HttpServer server = createRemotePitMockServer((path, method) -> false, exchange -> {});
+        server.start();
+        final SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        try {
+            runRemotePitTestWithMockServer(
+                server,
+                request -> request.setRemoteInfo(remoteInfoWithPassword(server, password)),
+                initFuture -> {
+                    assertNotNull(initFuture.actionGet());
+                    assertBusy(
+                        () -> assertThat(
+                            expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                            containsString("SecureString has already been closed")
+                        )
+                    );
+                }
+            );
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * When a remote reindex fails before any hit source is built (here the version lookup returns 500), {@link Reindexer} still zeroes
+     * the {@link RemoteInfo} credentials via its terminal listener. This guards against the latent credential leak on the early-failure
+     * path, where previously only a built hit source would have closed them.
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    public void testRemoteReindexClosesRemoteInfoOnEarlyFailure() throws Exception {
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.sendResponseHeaders(INTERNAL_SERVER_ERROR.getStatus(), -1);
+            exchange.close();
+        });
+        server.start();
+        final SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        try {
+            runRemotePitTestWithMockServer(server, request -> {
+                request.setMaxRetries(0);
+                request.setRemoteInfo(remoteInfoWithPassword(server, password));
+            }, initFuture -> {
+                expectThrows(ElasticsearchStatusException.class, initFuture::actionGet);
+                assertBusy(
+                    () -> assertThat(
+                        expectThrows(IllegalStateException.class, password::getChars).getMessage(),
+                        containsString("SecureString has already been closed")
+                    )
+                );
             });
         } finally {
             server.stop(0);
@@ -2950,14 +3013,34 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
+     * Builds a {@link RemoteInfo} pointing at {@code server} that carries a password-bearing {@link SecureString}, so tests can assert
+     * the credential's lifecycle (owned and closed by {@link Reindexer}).
+     */
+    @SuppressForbidden(reason = "use http server for testing")
+    private static RemoteInfo remoteInfoWithPassword(HttpServer server, SecureString password) {
+        return new RemoteInfo(
+            "http",
+            server.getAddress().getHostString(),
+            server.getAddress().getPort(),
+            null,
+            new BytesArray("{\"match_all\":{}}"),
+            randomAlphaOfLength(8),
+            password,
+            emptyMap(),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(5)
+        );
+    }
+
+    /**
      * Runs a remote PIT reindex test against a MockHttpServer. The server must already be started.
      */
     @SuppressForbidden(reason = "use http server for testing")
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions
-    ) {
+        CheckedConsumer<PlainActionFuture<BulkByPaginatedSearchResponse>, Exception> assertions
+    ) throws Exception {
         runRemotePitTestWithMockServer(server, requestConfigurer, assertions, Settings.EMPTY);
     }
 
@@ -2969,9 +3052,9 @@ public class ReindexerTests extends ESTestCase {
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions,
+        CheckedConsumer<PlainActionFuture<BulkByPaginatedSearchResponse>, Exception> assertions,
         Settings pitKeepAliveLayerSettings
-    ) {
+    ) throws Exception {
         BytesArray matchAll = new BytesArray("{\"match_all\":{}}");
         RemoteInfo remoteInfo = new RemoteInfo(
             "http",
@@ -3236,8 +3319,8 @@ public class ReindexerTests extends ESTestCase {
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
             capturedRequest.set(invocation.getArgument(2));
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
             .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());

@@ -304,7 +304,11 @@ Aliases are resolved after wildcard expressions. This can result in a request th
 ::::
 
 
-You can also exclude clusters from a list of clusters to search using the `-` character: `remote*:*,-remote1:*,-remote4:*` will search all clusters with an alias that starts with "remote" except for "remote1" and "remote4". Note that to exclude a cluster with this notation you must exclude all of its indexes. Excluding a subset of indexes on a remote cluster is currently not supported. For example, this will throw an exception: `remote*:*,-remote1:logs*`.
+You can also exclude clusters from a list of clusters to search using the `-` character: `remote*:*,-remote1:*,-remote4:*` will search all clusters with an alias that starts with `"remote"` except for `"remote1"` and `"remote4"`. To exclude an entire cluster, the index part must be `*` (for example, `-remote1:*`).
+
+To exclude specific indexes on a remote cluster, prefix the index with `-` after the cluster qualifier: `remote*:*,remote1:-logs*` searches all "remote*" clusters but skips indexes matching `logs*` on `remote1`. {applies_to}`stack: ga 9.5` The form `-cluster:<index>` (where `<index>` is not `*`) is also accepted as an alternative for `cluster:-<index>` — for example, `remote*:*,-remote1:logs*` is equivalent to `remote*:*,remote1:-logs*`. Combining both prefixes (for example, `-remote1:-logs*`) is invalid and rejected.
+
+The two forms have different semantics: `-cluster:*` is a *cluster-level* exclusion that requires the cluster to have been included by a preceding expression (`-remote1:*` on its own is rejected), while `-cluster:<index>` is an *index-level* exclusion equivalent to `cluster:-<index>` and may appear standalone.
 
 Multi-target APIs that can target indices support the following query string parameters:
 

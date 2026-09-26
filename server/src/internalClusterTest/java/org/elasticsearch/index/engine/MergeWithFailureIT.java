@@ -404,6 +404,11 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         }
 
         @Override
+        public void onMergeStarted(OnGoingMerge merge) {
+
+        }
+
+        @Override
         public void onMergeCompleted(OnGoingMerge merge) {
             mergesCompleted.incrementAndGet();
         }

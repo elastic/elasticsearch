@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBin
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * Loads byte length from BytesRef.
@@ -28,10 +30,16 @@ import java.io.IOException;
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
     private final Warnings warnings;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
+        this(warnings, fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
+    }
+
+    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.warnings = warnings;
         this.fieldName = fieldName;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -41,6 +49,34 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryArrayOrderInlineNull(warnings, counts, binary)
+            );
+            case SEPARATE_COUNT -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
+            );
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its blob is a bare value.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -48,7 +84,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
         }
-        return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     private static final class SingleValued extends BlockDocValuesReader {
@@ -115,6 +151,40 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static final class MultiValuedBinaryColumnarPayload extends MultiValuedBinaryColumnarPayloadLengthReader {
+
+        MultiValuedBinaryColumnarPayload(Warnings warnings, TrackingBinaryDocValues values) {
+            super(warnings, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return bytesRef.length;
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload";
+        }
+    }
+
+    private static final class MultiValuedBinaryArrayOrderInlineNull extends MultiValuedBinaryArrayOrderInlineNullLengthReader {
+
+        MultiValuedBinaryArrayOrderInlineNull(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+            super(warnings, counts, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return bytesRef.length;
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull";
         }
     }
 }

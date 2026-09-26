@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to remove a service provider (by Entity ID) from the IdP.
  */
-public class DeleteSamlServiceProviderRequest extends LegacyActionRequest {
+public class DeleteSamlServiceProviderRequest extends UntypedActionRequest {
 
     private final String entityId;
     private final WriteRequest.RefreshPolicy refreshPolicy;

@@ -41,9 +41,15 @@ This is useful when you want to maximize diversity by preventing similar documen
 The command uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
 :::{note}
 The ordering of results returned from the input rows is preserved.
 :::
+
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints), the inference endpoint used to generate a query vector must exist on the cluster that receives the query.
 
 :::{important}
 You must limit the number of input rows before the `MMR` command.

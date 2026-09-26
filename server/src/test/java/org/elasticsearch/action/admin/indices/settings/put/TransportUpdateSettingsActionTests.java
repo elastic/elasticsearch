@@ -60,9 +60,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
     private TransportUpdateSettingsAction action;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAction() throws Exception {
         final var projectResolver = TestProjectResolvers.singleProject(projectId);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
             SYSTEM_INDICES,

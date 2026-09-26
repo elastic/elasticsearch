@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -49,7 +50,8 @@ public class Irate extends TimeSeriesAggregateFunction
         ToAggregator,
         TimestampAware,
         TemporalityAware,
-        TransportVersionAware {
+        TransportVersionAware,
+        AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Irate_v2",
@@ -62,7 +64,9 @@ public class Irate extends TimeSeriesAggregateFunction
         .withinSeries(Irate::createWithImplicitTemporality)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the per-second instant rate of increase based on the last two data points.")
+        .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("irate(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("irate");
 
     private static final TransportVersion IRATE_V2 = TransportVersion.fromName("esql_irate_v2");
@@ -73,6 +77,7 @@ public class Irate extends TimeSeriesAggregateFunction
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the per-second rate of increase between the last two data points.",
         description = "Calculates the irate of a counter field. irate is the per-second rate of increase between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",
@@ -97,7 +102,7 @@ public class Irate extends TimeSeriesAggregateFunction
         Expression timestamp,
         @Nullable Expression temporality
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), temporality);
     }
 
     public static Irate createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {
@@ -107,12 +112,12 @@ public class Irate extends TimeSeriesAggregateFunction
     public Irate(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression timestamp,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        super(source, temporality == null ? List.of(field, timestamp) : List.of(field, timestamp, temporality), filter, window, List.of());
         this.timestamp = timestamp;
         this.temporality = temporality;
     }
@@ -123,7 +128,7 @@ public class Irate extends TimeSeriesAggregateFunction
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Irate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
+        return new Irate(source, field, parameters.getFirst(), filter, window, parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override
@@ -134,34 +139,30 @@ public class Irate extends TimeSeriesAggregateFunction
     @Override
     protected NodeInfo<Irate> info() {
         if (temporality != null) {
-            return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp, temporality);
+            return NodeInfo.create(this, Irate::new, field(), timestamp, filter(), window(), temporality);
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp) -> new Irate(source, field, filter, window, timestamp, null),
+                (source, field, timestamp, filter, window) -> new Irate(source, field, timestamp, filter, window, null),
                 field(),
+                timestamp,
                 filter(),
-                window(),
-                timestamp
+                window()
             );
         }
     }
 
     @Override
     public Irate replaceChildren(List<Expression> newChildren) {
-        return new Irate(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.size() > 4 ? newChildren.get(4) : null
-        );
-    }
-
-    @Override
-    public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), filter, window(), timestamp, temporality);
+        // children layout: field, timestamp, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 4;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression timestamp = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new Irate(source(), field, timestamp, filter, window, temporality);
     }
 
     @Override
@@ -209,14 +210,14 @@ public class Irate extends TimeSeriesAggregateFunction
 
     @Override
     public Irate withTemporality(Expression newTemporality) {
-        return new Irate(source(), field(), filter(), window(), timestamp(), newTemporality);
+        return new Irate(source(), field(), timestamp(), filter(), window(), newTemporality);
     }
 
     @Override
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
         if (minTransportVersion.supports(IRATE_V2) == false) {
             // For older nodes in the cluster / CCS we need to fallback to the legacy implementation for compatibility
-            return new LegacyIrate(source(), field(), filter(), window(), timestamp(), temporality());
+            return new LegacyIrate(source(), field(), timestamp(), filter(), window(), temporality());
         }
         return this;
     }

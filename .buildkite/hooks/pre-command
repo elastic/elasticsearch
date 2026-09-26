@@ -36,6 +36,9 @@ export $(cat .ci/java-versions.properties | grep '=' | xargs)
 JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
 export JAVA_HOME
 
+PATH="$JAVA_HOME/bin:$PATH"
+export PATH
+
 JAVA11_HOME="$HOME/.java/java11"
 export JAVA11_HOME
 
@@ -46,6 +49,8 @@ if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
   export RUNTIME_JAVA_HOME
 fi
+
+export GCP_PREEMPTION_EXIT_CODE=47
 
 vault_with_retry() {
   local attempt delays=(1 5 10)
@@ -61,6 +66,44 @@ vault_with_retry() {
   echo "Vault command failed after 4 attempts" >&2
   return 1
 }
+
+# Most jobs still provision their own Node.js toolchain via setup_node.sh.
+# The agentic workflow instead uses the Node.js and archimedes distribution
+# baked into the elasticsearch-* agent images.
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
+  # Fail closed before any vault access if another pipeline tries to opt into
+  # the agentic workflow runtime.
+  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-agentic-workflow" ]]; then
+    echo "USE_ARCHIMEDES=true is only permitted on the elasticsearch-agentic-workflow pipeline" \
+         "(got '${BUILDKITE_PIPELINE_SLUG:-<unset>}'); refusing to read agentic-workflow secrets" >&2
+    exit 1
+  fi
+
+  export NVM_DIR="${HOME}/.nvm"
+  if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
+    echo "expected baked nvm at ${NVM_DIR}/nvm.sh; the elasticsearch agent image is missing the preinstalled Node.js runtime" >&2
+    exit 1
+  fi
+
+  # shellcheck source=/dev/null
+  . "${NVM_DIR}/nvm.sh"
+  if ! nvm use default >/dev/null; then
+    echo "failed to activate the baked default Node.js via nvm; the elasticsearch agent image may be stale" >&2
+    exit 1
+  fi
+
+  export PATH="${HOME}/.local/bin:${PATH}"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "expected baked Node.js on PATH after 'nvm use default', but 'node' was not found" >&2
+    exit 1
+  fi
+  if ! command -v archimedes >/dev/null 2>&1; then
+    echo "expected baked archimedes on PATH at ${HOME}/.local/bin/archimedes, but it was not found" >&2
+    exit 1
+  fi
+else
+  source .buildkite/scripts/setup_node.sh
+fi
 
 GRADLE_BUILD_CACHE_USERNAME=$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
@@ -78,6 +121,10 @@ BUILDKITE_API_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elast
 export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
+
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
+  source .buildkite/scripts/archimedes-env.sh
+fi
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
@@ -97,6 +144,23 @@ if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
   ORG_GRADLE_PROJECT_signingPassword=$(vault_with_retry kv get --field="passphase" $vault_path)
   export ORG_GRADLE_PROJECT_signingKey
   export ORG_GRADLE_PROJECT_signingPassword
+fi
+
+# Credentials for the DRA maven/javadoc publisher (dra-maven-snapshots-publish.sh).
+# The `unified-release-maven` AWS role is scoped to the `maven/` and `javadoc/`
+# prefixes on both snapshots.elastic.co and artifacts.elastic.co, provisioned by
+# Artifact Management in
+# https://github.com/elastic/platform-engineering-productivity/issues/2840.
+if [[ "${USE_MAVEN_S3_CREDENTIALS:-}" == "true" ]]; then
+  aws_creds=$(vault_with_retry read -format=json aws-elastic-ci-prod/creds/unified-release-maven)
+  AWS_ACCESS_KEY_ID=$(echo "$aws_creds" | jq -r .data.access_key)
+  AWS_SECRET_ACCESS_KEY=$(echo "$aws_creds" | jq -r .data.secret_key)
+  AWS_SESSION_TOKEN=$(echo "$aws_creds" | jq -r '.data.security_token // empty')
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+    export AWS_SESSION_TOKEN
+  fi
+  unset aws_creds
 fi
 
 if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
@@ -151,6 +215,9 @@ fi
 if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+
+  export GCP_PREEMPTION_WATCHDOG=true
+  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=300 # Uncomment to force a fake preemption after that many seconds
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags
@@ -179,8 +246,6 @@ fi
 # Initialize variables that may be reused by smart retry logic below
 BUILD_JSON=""
 ORIGIN_JOB_ID=""
-BUILD_SCAN_ID=""
-BUILD_SCAN_URL=""
 TESTS_SEED=""
 
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
@@ -200,10 +265,6 @@ if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
 
       # Retrieve test seed from Buildkite metadata
       TESTS_SEED=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["tests-seed-" + $job_id]' 2>/dev/null)
-
-      # Retrieve build scan URL and ID for smart retry (reused in Part 2)
-      BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null)
-      BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
 
       if [[ -n "$TESTS_SEED" ]] && [[ "$TESTS_SEED" != "null" ]]; then
         echo "Using test seed $TESTS_SEED from original job $ORIGIN_JOB_ID"
@@ -226,10 +287,10 @@ fi
 # =============================================================================
 # PART 2: Smart retry test filtering
 # =============================================================================
-# Extracted to .buildkite/scripts/smart-retry.sh for single responsibility.
-# The script is sourced (not executed) so it can read BUILD_JSON, ORIGIN_JOB_ID,
-# BUILD_SCAN_ID, BUILD_SCAN_URL, and TESTS_SEED set by PART 1 above, and export
-# SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back to the caller.
+# Runs .buildkite/scripts/smart-retry/main.ts via a thin shell wrapper.
+# Reads ORIGIN_JOB_ID and TESTS_SEED (exported above), plus BUILDKITE_*
+# env vars. Writes .failed-test-history.json, buildkite-agent metadata,
+# and annotations.
 # =============================================================================
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   source .buildkite/scripts/smart-retry.sh

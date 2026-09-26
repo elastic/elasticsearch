@@ -7,12 +7,22 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
 
-public class UpgradeTransformsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class UpgradeTransformsActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
     @Override
     protected Reader<Request> instanceReader() {
@@ -21,7 +31,11 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean(), randomTimeValue());
+        Request request = new Request(randomBoolean(), randomTimeValue());
+        // Randomly include a cloud credential so the wire path with the optional field is exercised
+        // by the inherited round-trip test even though the field is excluded from equals/hashCode.
+        request.setCloudCredential(randomBoolean() ? randomCloudCredential() : null);
+        return request;
     }
 
     @Override
@@ -35,7 +49,73 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(dryRun, timeout);
+        Request mutated = new Request(dryRun, timeout);
+        mutated.setCloudCredential(instance.getCloudCredential());
+        return mutated;
     }
 
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        // cloudCredential is excluded from Request.equals so it passes through unchanged here; the explicit
+        // drop semantics are asserted by testCloudCredentialDroppedWhenWireVersionTooOld.
+        Request mutated = new Request(instance.isDryRun(), instance.ackTimeout());
+        mutated.setCloudCredential(instance.getCloudCredential());
+        return mutated;
+    }
+
+    public void testCloudCredentialRoundTripPreservesValue() throws IOException {
+        String secret = randomAlphaOfLengthBetween(8, 32);
+        Request original = new Request(randomBoolean(), randomTimeValue());
+        original.setCloudCredential(new CloudCredential(new SecureString(secret.toCharArray())));
+
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader());
+        try {
+            assertThat(copy.getCloudCredential(), is(notNullValue()));
+            assertThat(copy.getCloudCredential().value().toString(), is(secret));
+        } finally {
+            copy.close();
+        }
+    }
+
+    public void testCloudCredentialDroppedWhenWireVersionTooOld() throws IOException {
+        Request original = new Request(randomBoolean(), randomTimeValue());
+        original.setCloudCredential(randomCloudCredential());
+
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST);
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion);
+        try {
+            // Older receivers can't decode the new optional field, so it must round-trip as null.
+            assertThat(copy.getCloudCredential(), is(nullValue()));
+        } finally {
+            copy.close();
+        }
+    }
+
+    public void testRequestCloseIsIdempotentWithCredential() {
+        // Both the sender's and receiver's listeners may fire close() on the same Request instance
+        // (local dispatch reuses the same instance). The contract we rely on is that a second close()
+        // is a safe no-op so we never need to coordinate which side closes the credential.
+        var credential = randomCloudCredential();
+        var request = new Request(randomBoolean(), randomTimeValue());
+        request.setCloudCredential(credential);
+
+        request.close();
+        // SecureString.length() throws once close() has zeroed the underlying char array.
+        expectThrows(IllegalStateException.class, () -> credential.value().length());
+
+        // Second close must not throw.
+        request.close();
+    }
+
+    public void testRequestCloseIsIdempotentWithoutCredential() {
+        // Non-UIAM callers leave the credential null. The same close-twice path must be a no-op.
+        var request = new Request(randomBoolean(), randomTimeValue());
+
+        request.close();
+        request.close();
+    }
+
+    private static CloudCredential randomCloudCredential() {
+        return new CloudCredential(new SecureString(randomAlphaOfLengthBetween(8, 32).toCharArray()));
+    }
 }

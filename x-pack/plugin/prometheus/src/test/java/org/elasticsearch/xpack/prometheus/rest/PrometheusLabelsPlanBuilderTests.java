@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.time.Instant;
@@ -63,19 +63,19 @@ public class PrometheusLabelsPlanBuilderTests extends ESTestCase {
         assertThat(agg.child(), instanceOf(MvExpand.class));
     }
 
-    public void testBuildPlanContainsTsInfoUnderMvExpand() {
+    public void testBuildPlanContainsMetricsInfoUnderMvExpand() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
         Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         MvExpand mvExpand = (MvExpand) agg.child();
-        assertThat(mvExpand.child(), instanceOf(TsInfo.class));
+        assertThat(mvExpand.child(), instanceOf(MetricsInfo.class));
     }
 
-    public void testBuildPlanContainsFilterUnderTsInfo() {
+    public void testBuildPlanContainsFilterUnderMetricsInfo() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
         assertThat(findFilter(plan), notNullValue());
     }
 
-    public void testBuildPlanFilterUnderTsInfoAboveUnresolvedRelation() {
+    public void testBuildPlanFilterUnderMetricsInfoAboveUnresolvedRelation() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
         Filter filter = findFilter(plan);
         assertThat(filter.child(), instanceOf(UnresolvedRelation.class));

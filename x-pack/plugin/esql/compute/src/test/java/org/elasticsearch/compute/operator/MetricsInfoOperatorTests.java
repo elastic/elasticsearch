@@ -583,6 +583,66 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * Backing indices mounted or rewritten by index management carry dash-terminated prefixes
+     * (searchable snapshots: partial-/restored-, shrink, downsample). These must resolve to the
+     * same data-stream name as the un-prefixed backing index so the two are not reported as
+     * separate data streams.
+     */
+    public void testResolveDataStreamNameWithBackingIndexPrefixes() {
+        // Searchable-snapshot mounts
+        assertThat(
+            MetricsInfoOperator.resolveDataStreamName("partial-.ds-metrics-system.cpu-2024.01.15-000001"),
+            equalTo("metrics-system.cpu")
+        );
+        assertThat(
+            MetricsInfoOperator.resolveDataStreamName("restored-.ds-metrics-system.cpu-2024.01.15-000001"),
+            equalTo("metrics-system.cpu")
+        );
+        // Shrink and downsample rewrites
+        assertThat(MetricsInfoOperator.resolveDataStreamName("shrink-abc123-.ds-k8s-2024.01.15-000001"), equalTo("k8s"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName("downsample-1h-.ds-k8s-2024.01.15-000001"), equalTo("k8s"));
+        // Chained prefixes
+        assertThat(
+            MetricsInfoOperator.resolveDataStreamName("partial-restored-shrink-abc123-downsample-1h-.ds-k8s-2024.01.15-000001"),
+            equalTo("k8s")
+        );
+        // Failure store with a prefix
+        assertThat(MetricsInfoOperator.resolveDataStreamName("restored-.fs-my-stream-2024.01.15-000001"), equalTo("my-stream"));
+        // Cluster-prefixed, mounted backing index → cluster prefix preserved, data-stream name resolved
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:partial-.ds-k8s-2024.01.15-000001"), equalTo("remote:k8s"));
+        // A plain index whose name embeds ".ds" without the dash boundary is not a backing index
+        assertThat(MetricsInfoOperator.resolveDataStreamName("my.ds-index-2024.01.15-000001"), equalTo("my.ds-index-2024.01.15-000001"));
+    }
+
+    /**
+     * A data stream whose frozen tier holds a partially-mounted searchable snapshot must produce a
+     * single entry: the prefixed backing index resolves to the same data-stream name as the plain
+     * backing index, so both merge instead of emitting a spurious duplicate row.
+     */
+    public void testPartiallyMountedBackingIndexMergesWithPlainBackingIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page hot = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", ".ds-metrics-system.cpu-2024.01.15-000002");
+            Page frozen = buildPage(
+                blockFactory,
+                "{\"cpu_usage\": 0.9, \"host\": \"b\"}",
+                "partial-.ds-metrics-system.cpu-2024.01.15-000001"
+            );
+            op.addInput(hot);
+            op.addInput(frozen);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("metrics-system.cpu")));
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
      * Different metrics in the same tsid can have different dimension sets.
      * Metric A appears only with dim "host", metric B appears only with dim "mount".
      * After processing, A should have {host} and B should have {mount}, not the union.

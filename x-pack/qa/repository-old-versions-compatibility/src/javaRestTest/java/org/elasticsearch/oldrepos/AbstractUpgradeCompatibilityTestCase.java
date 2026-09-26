@@ -53,6 +53,13 @@ import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Upgrade suites that share one cluster and hop it forward one version per parameter.
+ * <p>
+ * A project hosting this suite must opt out of smart retry's individual test pruning in its {@code build.gradle}, otherwise a parameter
+ * that passed in an earlier build attempt is skipped on retry and the later hop fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ */
 @TestCaseOrdering(AbstractUpgradeCompatibilityTestCase.TestCaseOrdering.class)
 public class AbstractUpgradeCompatibilityTestCase extends ESRestTestCase {
 

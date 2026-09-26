@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
@@ -49,5 +51,46 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
             ActionListener.noop()
         );
         assertThat(task.execute(notRecoveredClusterState), sameInstance(notRecoveredClusterState));
+    }
+
+    public void testNewProjectGetsCreationBlock() {
+        ProjectId projectId = randomUniqueProjectId();
+        var task = new ReservedProjectStateUpdateTask(
+            projectId,
+            "dummy",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+
+        // project does not yet exist in cluster state
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState after = task.execute(before);
+
+        assertTrue(after.blocks().hasGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK));
+        assertTrue(after.metadata().hasProject(projectId));
+    }
+
+    public void testExistingProjectDoesNotGetCreationBlock() {
+        ProjectId projectId = randomUniqueProjectId();
+        var task = new ReservedProjectStateUpdateTask(
+            projectId,
+            "dummy",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+
+        // project already exists
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId)).build();
+        ClusterState after = task.execute(before);
+
+        assertFalse(after.blocks().hasGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK));
     }
 }

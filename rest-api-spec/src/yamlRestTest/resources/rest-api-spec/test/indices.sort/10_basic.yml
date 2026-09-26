@@ -163,3 +163,44 @@
           query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 3
+
+---
+"Runtime field cannot shadow index sort field":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}/_mapping
+          capabilities: [ reject_runtime_field_shadowing_sort_field ]
+      reason: "Rejection of runtime fields shadowing sort fields required"
+
+  - do:
+      indices.create:
+        index: test_sort_shadow
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.sort.field: "@timestamp"
+            index.sort.order: desc
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - do:
+      index:
+        index: test_sort_shadow
+        body: { "@timestamp": "2026-05-20T00:00:00Z", "message": "test" }
+
+  - do:
+      catch: /shadows an index sort field/
+      indices.put_mapping:
+        index: test_sort_shadow
+        body:
+          runtime:
+            "@timestamp":
+              type: date
+              script:
+                source: "emit(doc['@timestamp'].value.toInstant().toEpochMilli())"

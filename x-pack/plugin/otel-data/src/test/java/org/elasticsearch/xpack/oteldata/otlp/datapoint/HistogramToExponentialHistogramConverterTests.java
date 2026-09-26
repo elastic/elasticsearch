@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -46,6 +47,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
 
     private record TestCase(
         HistogramDataPoint dataPoint,
+        AggregationTemporality temporality,
         List<Long> expectedBucketCounts,
         List<Double> expectedBucketCenters,
         Double expectedSum,
@@ -54,6 +56,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
     ) {};
 
     private final HistogramDataPoint dataPoint;
+    private final AggregationTemporality temporality;
     private final List<Double> expectedBucketCenters;
     private final List<Long> expectedBucketCounts;
     private final Double expectedSum;
@@ -65,12 +68,12 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
     public HistogramToExponentialHistogramConverterTests(String name, Supplier<TestCase> testCaseSupplier) throws IOException {
         TestCase testCase = testCaseSupplier.get();
         this.dataPoint = testCase.dataPoint;
+        this.temporality = testCase.temporality;
         this.expectedBucketCounts = testCase.expectedBucketCounts;
         this.expectedBucketCenters = testCase.expectedBucketCenters;
         this.expectedSum = testCase.expectedSum;
         this.expectedMin = testCase.expectedMin;
         this.expectedMax = testCase.expectedMax;
-
     }
 
     public void testExponentialHistograms() throws IOException {
@@ -79,7 +82,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
             scratchBuffer.append(-42, 1L);
             scratchBuffer.append(42, 1L);
 
-            ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratchBuffer);
+            ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, temporality, builder, scratchBuffer);
             String json = Strings.toString(builder);
             ExponentialHistogram parsed;
             try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
@@ -159,12 +162,21 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
     public static List<Object[]> testCases() {
         List<Object[]> fixedTestCases = List.of(
             new Object[] {
-                "empty",
-                (Supplier<TestCase>) () -> new TestCase(HistogramDataPoint.newBuilder().build(), List.of(), List.of(), null, null, null) },
+                "delta/empty",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
+                ) },
             new Object[] {
-                "single bucket",
+                "delta/single bucket",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(10L, 0L)).addExplicitBounds(5.0).setSum(25.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(10L),
                     List.of(2.5),
                     25.0,
@@ -172,9 +184,10 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "two buckets",
+                "delta/two buckets",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(5L, 10L)).addExplicitBounds(5.0).setSum(65.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(5L, 10L),
                     List.of(2.5, 5.0),
                     65.0,
@@ -182,13 +195,14 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "three buckets",
+                "delta/three buckets",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(5L, 10L, 15L))
                         .addAllExplicitBounds(List.of(5.0, 10.0))
                         .setSum(200.0)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(5L, 10L, 15L),
                     List.of(2.5, 7.5, 10.0),
                     200.0,
@@ -196,12 +210,13 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "zero count buckets",
+                "delta/zero count buckets",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(5L, 0L, 15L))
                         .addAllExplicitBounds(List.of(5.0, 10.0))
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(5L, 15L),
                     List.of(2.5, 10.0),
                     null,
@@ -209,12 +224,13 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "negative bounds",
+                "delta/negative bounds",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(5L, 10L, 15L))
                         .addAllExplicitBounds(List.of(-10.0, 10.0))
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(5L, 10L, 15L),
                     List.of(-10.0, 0.0, 10.0),
                     null,
@@ -222,9 +238,10 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "all negative bounds",
+                "delta/all negative bounds",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(5L, 10L)).addExplicitBounds(-5.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(15L),
                     List.of(-5.0),
                     null,
@@ -232,12 +249,13 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "multiple buckets with varying distances",
+                "delta/multiple buckets with varying distances",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(5L, 10L, 15L, 20L))
                         .addAllExplicitBounds(List.of(1.0, 5.0, 20.0))
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(5L, 10L, 15L, 20L),
                     List.of(0.5, 3.0, 12.5, 20.0),
                     null,
@@ -245,7 +263,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "single bucket clamp to negative min",
+                "delta/single bucket clamp to negative min",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(1L, 0L))
@@ -253,6 +271,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setSum(25.0)
                         .setMin(-42)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L),
                     List.of(-42.0),
                     25.0,
@@ -260,7 +279,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null
                 ) },
             new Object[] {
-                "single bucket clamp to negative max",
+                "delta/single bucket clamp to negative max",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(1L, 0L))
@@ -268,6 +287,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setSum(25.0)
                         .setMax(-42)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L),
                     List.of(-42.0),
                     25.0,
@@ -275,7 +295,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     -42.0
                 ) },
             new Object[] {
-                "single bucket clamp to negative min and max",
+                "delta/single bucket clamp to negative min and max",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(10L, 0L))
@@ -284,6 +304,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setMax(-42)
                         .setMin(-42.0)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(10L),
                     List.of(-42.0),
                     25.0,
@@ -291,7 +312,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     -42.0
                 ) },
             new Object[] {
-                "multiple buckets with varying distances with separate min/max buckets",
+                "delta/multiple buckets with separate min/max buckets",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(5L, 10L, 15L, 20L))
@@ -299,6 +320,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setMin(0.25)
                         .setMax(100)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L, 4L, 10L, 15L, 19L, 1L),
                     List.of(0.25, 0.5, 3.0, 12.5, 20.0, 100.0),
                     null,
@@ -306,7 +328,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     100.0
                 ) },
             new Object[] {
-                "zero bucket and non-zero positive min/max values",
+                "delta/zero bucket and non-zero positive min/max values",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(0L, 2L, 0L))
@@ -314,6 +336,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setMin(0.25)
                         .setMax(0.5)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L, 1L),
                     List.of(0.25, 0.5),
                     null,
@@ -321,7 +344,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     0.5
                 ) },
             new Object[] {
-                "zero bucket and non-zero negative min/max values",
+                "delta/zero bucket and non-zero negative min/max values",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(0L, 2L, 0L))
@@ -329,6 +352,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setMin(-0.5)
                         .setMax(-0.25)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L, 1L),
                     List.of(-0.5, -0.25),
                     null,
@@ -336,7 +360,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     -0.25
                 ) },
             new Object[] {
-                "large zero bucket and non-zero min/max values",
+                "delta/large zero bucket and non-zero min/max values",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
                         .addAllBucketCounts(List.of(0L, 10L, 0L))
@@ -344,6 +368,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                         .setMin(-0.42)
                         .setMax(0.5)
                         .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(1L, 8L, 1L),
                     List.of(-0.42, 0.0, 0.5),
                     null,
@@ -351,12 +376,123 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     0.5
                 ) },
             new Object[] {
-                "no explicit bounds with count and sum",
+                "delta/no explicit bounds with count and sum",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder().setCount(10L).setSum(100.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
                     List.of(10L),
                     List.of(10.0),
                     100.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/no min/max extraction",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder()
+                        .addAllBucketCounts(List.of(5L, 10L, 15L, 20L))
+                        .addAllExplicitBounds(List.of(1.0, 5.0, 20.0))
+                        .setMin(0.25)
+                        .setMax(100)
+                        .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(5L, 10L, 15L, 20L),
+                    List.of(0.5, 3.0, 12.5, 20.0),
+                    null,
+                    0.25,
+                    100.0
+                ) },
+            new Object[] {
+                "cumulative/no explicit bounds uses zero bucket",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().setCount(10L).setSum(100.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(10L),
+                    List.of(0.0),
+                    100.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/no explicit bounds without sum uses zero bucket",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().setCount(5L).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(5L),
+                    List.of(0.0),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/empty",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/basic buckets with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder()
+                        .addAllBucketCounts(List.of(5L, 10L, 15L))
+                        .addAllExplicitBounds(List.of(5.0, 10.0))
+                        .setSum(200.0)
+                        .setMin(1.0)
+                        .setMax(15.0)
+                        .build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(5L, 10L, 15L),
+                    List.of(2.5, 7.5, 10.0),
+                    200.0,
+                    1.0,
+                    15.0
+                ) },
+            new Object[] {
+                "delta/single count no bounds with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(10L),
+                    List.of(10.0),
+                    100.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "delta/single count no bounds without sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(5L).setCount(5L).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(5L),
+                    List.of(0.0),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/single count no bounds with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(7L).setCount(7L).setSum(70.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(7L),
+                    List.of(0.0),
+                    70.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "delta/single count no bounds with zero count",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(0L).setCount(0L).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(),
+                    List.of(),
+                    null,
                     null,
                     null
                 ) }
@@ -374,6 +510,10 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
     private static final double RANDOM_HISTOGRAM_RANGE = 1e6;
 
     private static TestCase randomTestCase() {
+        AggregationTemporality temporality = randomBoolean()
+            ? AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA
+            : AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
+
         int boundaryCount = randomIntBetween(1, 100);
         Set<Double> boundariesSet = new HashSet<>();
         for (int i = 0; i < boundaryCount; i++) {
@@ -444,34 +584,36 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
             }
         }
 
-        // add the expected min/max adjustments if required
-        if (dataPoint.hasMin()) {
-            Double min = dataPoint.getMin();
-            if (expectedBucketCenters.get(0) <= min) {
-                expectedBucketCenters.set(0, min);
-            } else {
-                expectedBucketCounts.set(0, expectedBucketCounts.get(0) - 1);
-                if (expectedBucketCounts.get(0) == 0) {
-                    expectedBucketCounts.remove(0);
-                    expectedBucketCenters.remove(0);
+        // min/max extraction into separate buckets only applies to delta temporality
+        if (temporality == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
+            if (dataPoint.hasMin()) {
+                Double min = dataPoint.getMin();
+                if (expectedBucketCenters.get(0) <= min) {
+                    expectedBucketCenters.set(0, min);
+                } else {
+                    expectedBucketCounts.set(0, expectedBucketCounts.get(0) - 1);
+                    if (expectedBucketCounts.get(0) == 0) {
+                        expectedBucketCounts.remove(0);
+                        expectedBucketCenters.remove(0);
+                    }
+                    expectedBucketCenters.add(0, min);
+                    expectedBucketCounts.add(0, 1L);
                 }
-                expectedBucketCenters.add(0, min);
-                expectedBucketCounts.add(0, 1L);
             }
-        }
-        if (dataPoint.hasMax()) {
-            Double max = dataPoint.getMax();
-            int lastIndex = expectedBucketCenters.size() - 1;
-            if (expectedBucketCenters.get(lastIndex) >= max) {
-                expectedBucketCenters.set(lastIndex, max);
-            } else {
-                expectedBucketCounts.set(lastIndex, expectedBucketCounts.get(lastIndex) - 1);
-                if (expectedBucketCounts.get(lastIndex) == 0) {
-                    expectedBucketCounts.remove(lastIndex);
-                    expectedBucketCenters.remove(lastIndex);
+            if (dataPoint.hasMax()) {
+                Double max = dataPoint.getMax();
+                int lastIndex = expectedBucketCenters.size() - 1;
+                if (expectedBucketCenters.get(lastIndex) >= max) {
+                    expectedBucketCenters.set(lastIndex, max);
+                } else {
+                    expectedBucketCounts.set(lastIndex, expectedBucketCounts.get(lastIndex) - 1);
+                    if (expectedBucketCounts.get(lastIndex) == 0) {
+                        expectedBucketCounts.remove(lastIndex);
+                        expectedBucketCenters.remove(lastIndex);
+                    }
+                    expectedBucketCenters.add(max);
+                    expectedBucketCounts.add(1L);
                 }
-                expectedBucketCenters.add(max);
-                expectedBucketCounts.add(1L);
             }
         }
         // combine duplicate bucket centers that may have arisen from min/max adjustments
@@ -488,6 +630,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
         }
         return new TestCase(
             dataPoint,
+            temporality,
             finalBucketCounts,
             finalBucketCenters,
             dataPoint.hasSum() ? dataPoint.getSum() : null,

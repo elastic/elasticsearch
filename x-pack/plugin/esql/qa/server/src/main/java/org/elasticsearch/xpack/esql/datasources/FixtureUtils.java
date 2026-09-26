@@ -116,6 +116,8 @@ public class FixtureUtils {
         }
     }
 
+    static final long MAX_FIXTURE_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
     /**
      * Iterate fixture files under a resolved {@code iceberg-fixtures} directory on the filesystem.
      */
@@ -126,6 +128,15 @@ public class FixtureUtils {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String name = file.getFileName().toString();
                 if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+                    return FileVisitResult.CONTINUE;
+                }
+                if (attrs.size() > MAX_FIXTURE_FILE_SIZE) {
+                    logger.warn(
+                        "Skipping oversized fixture file [{}] ({} bytes, limit {} bytes)",
+                        file,
+                        attrs.size(),
+                        MAX_FIXTURE_FILE_SIZE
+                    );
                     return FileVisitResult.CONTINUE;
                 }
                 String relativePath = fixturesPath.relativize(file).toString().replace('\\', '/');
@@ -314,6 +325,19 @@ public class FixtureUtils {
         Path local = resolveLocalFixturesPath(logger, anchor);
         if (local != null) {
             return local.toAbsolutePath().toString();
+        }
+        return pathRepoFallback.get(anchor).toAbsolutePath().toString();
+    }
+
+    /**
+     * Like {@link #pathRepoRootForIcebergFixtures(Class)} but returns the <em>parent</em> of the
+     * {@code iceberg-fixtures} directory so that sibling fixture directories (e.g.
+     * {@code clickbench-fixtures/}) are also accessible under the same {@code path.repo} root.
+     */
+    public static String pathRepoRootForFixtures(Class<?> anchor) {
+        Path local = resolveLocalFixturesPath(logger, anchor);
+        if (local != null) {
+            return local.getParent().toAbsolutePath().toString();
         }
         return pathRepoFallback.get(anchor).toAbsolutePath().toString();
     }

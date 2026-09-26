@@ -123,6 +123,10 @@ import java.util.Map;
  *         from {@code doc_values}.
  *     </li>
  *     <li>
+ *         {@link BlockStoredFieldsReader.LongsFromNumbersBlockLoader} to read from a named
+ *         {@code stored} field.
+ *     </li>
+ *     <li>
  *         {@link org.elasticsearch.index.mapper.BlockSourceReader.LongsBlockLoader} to read from
  *         {@code _source}.
  *     </li>
@@ -139,13 +143,6 @@ import java.util.Map;
  *         {@code doc_values}.
  *     </li>
  * </ul>
- * <p>
- *     NOTE: We can't read from {@code long}s from {@code stored} fields which is a
- *     <a href="https://github.com/elastic/elasticsearch/issues/138019">bug</a>, but maybe not
- *     a terrible one because it's very uncommon to configure {@code long} to be {@code stored}
- *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
- *     code.
- * </p>
  * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
  *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.
@@ -260,36 +257,20 @@ public interface BlockLoader {
         default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
             return null;
         }
-    }
 
-    /**
-     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
-     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
-     * when a skipper is available for the field.
-     * <p>
-     * The returned iterator shares internal block-decoding state with the reader that produced it.
-     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
-     * exclusive ownership of that shared state.
-     * <p>
-     * The default implementation returns {@code null}, indicating no optimized iterator is available.
-     */
-    interface OptionalNumericRangeReader {
         /**
-         * Returns a {@link DocIdSetIterator} matching documents whose numeric value falls in
-         * {@code [lowerValue, upperValue]}, or {@code null} if this optimization is not supported.
+         * Returns a {@link DocIdSetIterator} that matches documents whose value is exactly equal to
+         * the given term, or {@code null} if this optimization is not supported by the underlying data.
          *
-         * <p>Implementations should override {@link DocIdSetIterator#intoBitSet} and
-         * {@link DocIdSetIterator#docIDRunEnd} (both honoring the caller's {@code upTo} bound)
-         * so Lucene's {@code DenseConjunctionBulkScorer} can bulk-collect dense ranges
-         * window-by-window — including a {@code bitSet.set(start, end+1)} fast path for
-         * skipper blocks that are entirely in range. These bulk overrides keep sub-segment
-         * slicing ({@code DataPartitioning.DOC}) linear while preserving the dense-range
-         * optimization on whole-leaf scans; the {@link TwoPhaseIterator} pattern used by
-         * {@link OptionalColumnAtATimeReader#tryContainsIterator} is intentionally not adopted
-         * here because the wrapper produced by {@link TwoPhaseIterator#asDocIdSetIterator}
-         * doesn't carry those bulk overrides through.
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) — see the rationale on
+         * {@link #tryContainsIterator}.
+         *
+         * <p>This optimization is only valid for single-valued fields. Callers must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before invoking this method
+         * and fall back to the slow per-doc predicate path for multi-valued fields.
          */
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
+        default DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
             return null;
         }
     }
@@ -768,7 +749,34 @@ public interface BlockLoader {
 
         LongRangeBuilder longRangeBuilder(int count);
 
+        DoubleRangeBuilder doubleRangeBuilder(int count);
+
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        /**
+         * A block of bytes named by ordinals into a dictionary the block carries with it, so a consumer resolves each
+         * distinct value once and compares ints for the rest.
+         *
+         * <p>Unlike the ordinals builders above, which read a column's own ordinals through {@link SortedDocValues} and
+         * remap them to the page, this takes a page that already arrived in that shape - a doc-values format that
+         * stores its values by ordinal internally can hand the page over as it is, with no lookup per distinct value
+         * and no remapping.
+         *
+         * @param ordinals       one entry per value, indexing {@code dictionary}, {@code valueCount} of them
+         * @param valueCount     values across every position
+         * @param valueCounts    values per position, or null when every position holds exactly one; a zero is a
+         *                       position with no value at all
+         * @param positionCount  positions the block covers
+         * @param dictionary     the distinct values, {@code dictionarySize} of them, copied by this call
+         */
+        Block buildOrdinalBytesRefDirect(
+            int[] ordinals,
+            int valueCount,
+            @Nullable int[] valueCounts,
+            int positionCount,
+            BytesRef[] dictionary,
+            int dictionarySize
+        );
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
 
@@ -944,6 +952,12 @@ public interface BlockLoader {
         LongBuilder from();
 
         LongBuilder to();
+    }
+
+    interface DoubleRangeBuilder extends Builder {
+        DoubleBuilder from();
+
+        DoubleBuilder to();
     }
 
     interface ExponentialHistogramBuilder extends Builder {

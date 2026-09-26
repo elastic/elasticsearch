@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -257,8 +258,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Linear
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -268,8 +269,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -279,8 +280,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -290,8 +291,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -301,8 +302,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -314,8 +315,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Exponential
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -325,8 +326,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -336,8 +337,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -347,8 +348,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -358,8 +359,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -371,8 +372,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Gaussian
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -382,8 +383,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -393,8 +394,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -404,8 +405,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -415,8 +416,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -428,8 +429,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Defaults
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 null,
                 null,
@@ -444,8 +445,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Linear
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -455,8 +456,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -466,8 +467,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -477,8 +478,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -488,8 +489,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -501,8 +502,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Exponential
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -512,8 +513,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -523,8 +524,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -534,8 +535,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -545,8 +546,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -558,8 +559,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Gaussian
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -569,8 +570,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -580,8 +581,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -591,8 +592,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -602,8 +603,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -615,8 +616,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos default
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 null,
                 null,

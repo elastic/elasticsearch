@@ -160,10 +160,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected static final NetworkService networkService = new NetworkService(List.of());
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeTransportServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettingsA = new ClusterSettings(Settings.EMPTY, getSupportedSettings());
         final Settings.Builder connectionSettingsBuilder = Settings.builder()
@@ -296,10 +294,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return buildService(name, version, transportVersion, clusterSettings, settings, true, true);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void verifyAndCloseTransportServices() throws Exception {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
@@ -561,7 +557,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             @SuppressWarnings("rawtypes")
-            public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+            public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
                 if (context.action().equals(ACTION)) {
                     responseReceived.incrementAndGet();
                 }

@@ -40,6 +40,9 @@ public class Main {
 
     private static final String SEPARATOR = "\t";
 
+    private static final String COVERED = "COVERED";
+    private static final String MISSING = "MISSING";
+
     private static String TRANSITIVE = "--transitive";
     private static String CHECK_INSTRUMENTATION = "--check-instrumentation";
     private static String INCLUDE_INCUBATOR = "--include-incubator";
@@ -48,6 +51,14 @@ public class Main {
 
     private static final Set<MethodDescriptor> INSTRUMENTED_METHODS = new HashSet<>();
     private static final Set<MethodDescriptor> ACCESSIBLE_JDK_METHODS = new HashSet<>();
+
+    /**
+     * Counters backing the summary printed at the end of a run. Finding no callers is a legitimate
+     * result, but it is indistinguishable from a misconfigured run unless the tool says so explicitly.
+     */
+    private static int inputMethodCount = 0;
+    private static int reportedCallerCount = 0;
+    private static int missingInstrumentationCount = 0;
 
     record CallChain(EntryPoint entryPoint, CallChain next) {
         boolean isPublic() {
@@ -163,6 +174,10 @@ public class Main {
             SEPARATOR,
             () -> Stream.concat(Arrays.stream(entryPointColumns), Arrays.stream(originalEntryPointColumns)).iterator()
         );
+        reportedCallerCount++;
+        if (Arrays.asList(entryPointColumns).contains(MISSING)) {
+            missingInstrumentationCount++;
+        }
         out.println(row);
     }
 
@@ -185,7 +200,7 @@ public class Main {
                 e.method().methodName(),
                 e.method().methodDescriptor(),
                 ExternalAccess.toString(e.access()),
-                INSTRUMENTED_METHODS.contains(e.method()) ? "COVERED" : "MISSING" };
+                INSTRUMENTED_METHODS.contains(e.method()) ? COVERED : MISSING };
         }
     }
 
@@ -203,6 +218,7 @@ public class Main {
 
     private static void parseCsv(Path csvPath, MethodDescriptorConsumer methodConsumer) throws IOException {
         var lines = Files.readAllLines(csvPath);
+        inputMethodCount = lines.size();
         for (var l : lines) {
             var tokens = l.split(SEPARATOR);
             var moduleName = tokens[0];
@@ -278,5 +294,25 @@ public class Main {
             csvFilePath,
             (method, module, access) -> identifyTopLevelEntryPoints(modulePredicate, method, module, access, bubbleUpFromPublic, out)
         );
+        printSummary(checkInstrumentation);
+    }
+
+    /**
+     * Reports what the run actually did, on stderr so it does not corrupt the CSV on stdout.
+     * Without this an empty result is ambiguous: it looks the same whether no callers exist or the
+     * tool was pointed at the wrong JDK or an empty input file.
+     */
+    @SuppressForbidden(reason = "cli tool printing to standard err/out")
+    private static void printSummary(boolean checkInstrumentation) {
+        var summary = new StringBuilder("Scanned ").append(Runtime.version())
+            .append(": ")
+            .append(inputMethodCount)
+            .append(" input method(s), ")
+            .append(reportedCallerCount)
+            .append(" public caller(s) found");
+        if (checkInstrumentation) {
+            summary.append(", ").append(missingInstrumentationCount).append(" requiring instrumentation (MISSING)");
+        }
+        System.err.println(summary);
     }
 }

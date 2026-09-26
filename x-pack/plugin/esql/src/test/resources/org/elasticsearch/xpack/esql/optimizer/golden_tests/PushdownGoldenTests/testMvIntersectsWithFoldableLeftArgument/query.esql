@@ -1,0 +1,2 @@
+    FROM employees
+    | WHERE mv_intersects(["Alice", "Anna", "Peter"], first_name)

@@ -23,12 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ColumnarIndexModeTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarFromString() {
         assertThat(IndexMode.fromString("columnar"), equalTo(IndexMode.COLUMNAR));
         assertThat(IndexMode.fromString("COLUMNAR"), equalTo(IndexMode.COLUMNAR));
@@ -46,8 +40,8 @@ public class ColumnarIndexModeTests extends ESTestCase {
     public void testColumnarSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR, out));
-            assertThat(e.getMessage(), containsString("cannot serialize index mode [columnar]"));
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR, out));
+            assertThat(e.getMessage(), containsString("[columnar] doesn't support serialization with transport version"));
         }
     }
 
@@ -83,14 +77,23 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertThat(IndexMode.LOGSDB.isColumnar(), equalTo(true));
         assertThat(IndexMode.COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOGSDB_COLUMNAR.isColumnar(), equalTo(true));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOOKUP.isColumnar(), equalTo(false));
     }
 
+    public void testIsSearchOptimizedColumnar() {
+        assertThat(IndexMode.STANDARD.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.TIME_SERIES.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(true));
+        assertThat(IndexMode.LOOKUP.isSearchOptimizedColumnar(), equalTo(false));
+    }
+
     public void testIndexDisabledByDefault() {
-        assumeTrue(
-            "index_disabled_by_default feature flag must be enabled",
-            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
-        );
         Settings settings = IndexSettingsTests.newIndexMeta(
             "test",
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()

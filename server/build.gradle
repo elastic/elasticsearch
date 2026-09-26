@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.foreign-api'
 
 publishing {
   publications {
@@ -41,7 +42,12 @@ dependencies {
   api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
+  implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
+  implementation project(":libs:simdjson")
+  // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
+  // types, so a mapper outside the server has to be able to name it.
+  api project(":libs:columnar")
   implementation project(":libs:entitlement")
 
   // lucene
@@ -62,7 +68,6 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
-
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
@@ -74,6 +79,7 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:native')
+  implementation project(':libs:zstd')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -90,9 +96,11 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
+  internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
@@ -243,7 +251,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.RecordMetadata',
             'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.codehaus.stax2.ri.Stax2WriterAdapter',
@@ -255,7 +262,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
-            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleRevision',

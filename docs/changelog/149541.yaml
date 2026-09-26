@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149541
-summary: Nullable defaults for ORC and Parquet attributes
-type: bug

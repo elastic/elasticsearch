@@ -92,20 +92,10 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
-        // Only register settings metrics for settings that are applicable to the current environment
-        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(QuerySettings.SETTINGS_BY_NAME.size());
-        for (var entry : QuerySettings.SETTINGS_BY_NAME.entrySet()) {
-            String settingName = entry.getKey();
-            QuerySettings.QuerySettingDef<?> def = entry.getValue();
-            // Skip snapshot-only settings in non-snapshot builds
-            if (def.snapshotOnly() && isSnapshot == false) {
-                continue;
-            }
-            // Skip serverless-only settings in stateful (non-serverless) deployments
-            if (def.serverlessOnly() && isServerless == false) {
-                continue;
-            }
-            sMap.put(settingName, new CounterMetric());
+        var applicable = QuerySettings.applicableIn(isSnapshot, isServerless);
+        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
+        for (var def : applicable) {
+            sMap.put(def.name(), new CounterMetric());
         }
         settingsMetrics = Collections.unmodifiableMap(sMap);
 

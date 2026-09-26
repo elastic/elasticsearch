@@ -1,0 +1,5 @@
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| RENAME extra2 AS other2
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2
+| MV_EXPAND other2
+| STATS absent(to_string(id_int))

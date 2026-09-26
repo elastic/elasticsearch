@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -28,7 +27,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        MatchFunctionIT.createAndPopulateIndex(this::ensureYellow);
+        MatchFunctionIT.createAndPopulateIndices(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -277,34 +276,22 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [something]"));
     }
 
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE upper_content:"FOX"
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereMatchOverWrittenColumn() {
         var query = """
             FROM test
             | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | EVAL content = to_text(CONCAT("document with ID ", to_str(id)))
             | WHERE content:"document"
+            | KEEP id, content
+            | SORT id
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "document with ID 1"), List.of(2, "document with ID 2")));
+        }
     }
 
     public void testWhereMatchAfterStats() {
@@ -333,19 +320,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE content:"fox"
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
-    }
-
     public void testMatchWithinEval() {
         var query = """
             FROM test
@@ -370,37 +344,129 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRuntimeMatchOperatorAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE summary : "fox"
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox; id 6 does too but is cut.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
     public void testMatchOperatorAfterMvExpand() {
         var query = """
             FROM test
             | MV_EXPAND content
+            | EVAL content = to_text(content)
             | WHERE content : "fox"
+            | SORT id, content
+            | KEEP id, content
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "This is a brown fox"), List.of(6, "The quick brown fox jumps over the lazy dog"))
+            );
+        }
     }
 
-    public void testMatchOperatorAfterMvExpandWithIntermediateCommands() {
-        var error = expectThrows(VerificationException.class, () -> run("""
+    public void testMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
             FROM test
-            | MV_EXPAND content
-            | EVAL upper_content = to_upper(content)
-            | WHERE content : "fox"
-            """));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
-
-        error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            | KEEP id
             | SORT id
-            | KEEP id, content
-            | WHERE content : "fox"
-            """));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchOperatorAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE content:"fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testNotMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT content:"brown fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
+    }
+
+    public void testMatchOperatorNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -408,8 +474,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             | WHERE content:"fox"
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testMatchOperatorWithLookupJoin() {
@@ -430,17 +497,13 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchWithRow() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
             | MV_EXPAND content
             | WHERE content:"dog"
             | SORT content
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(resp.values(), List.of(List.of("This dog is really brown"), List.of("This is a brown dog")));
@@ -448,8 +511,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeExpression() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " and a white cat"))
@@ -458,9 +519,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             | KEEP new_content
             """;
 
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("new_content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(
@@ -469,6 +528,27 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
                     List.of("The quick brown fox jumps over the lazy dog and a white cat"),
                     List.of("This is a brown fox and a white cat")
                 )
+            );
+        }
+    }
+
+    public void testMatchRuntimeExpressionWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE new_content:"fox cat"
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Runtime match scores one point per matched query term: every row gains "cat", docs 1 and 6 also
+            // contain "fox".
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 2.0), List.of(2, 1.0), List.of(3, 1.0), List.of(4, 1.0), List.of(5, 1.0), List.of(6, 2.0))
             );
         }
     }

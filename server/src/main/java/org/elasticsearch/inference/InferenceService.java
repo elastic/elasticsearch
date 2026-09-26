@@ -137,6 +137,16 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Whether this service supports non-streaming chat completion via the unified API.
+     * Services that return {@code true} here must handle {@link UnifiedCompletionRequest#stream()} being {@code false} in
+     * {@link #unifiedCompletionInfer}.
+     * @return {@code false} by default
+     */
+    default boolean supportsNonStreamingChatCompletion() {
+        return false;
+    }
+
+    /**
      * Perform completion inference on the model using the unified schema.
      *
      * @param model        The model
@@ -249,6 +259,15 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Called by {@code TransportUpdateInferenceModelAction} after a successful update has been persisted.
+     * Default no-op. Services can override to invalidate any per-model caches (for example,
+     * credential caches) when relevant fields have changed.
+     */
+    default void onModelUpdated(Model oldModel, Model newModel, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    /**
      * Update a text embedding model's dimensions based on a provided embedding
      * size and set the default similarity if required. The default behaviour is to just return the model.
      * @param model The original model without updated embedding details
@@ -282,7 +301,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, EndpointClusterState settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

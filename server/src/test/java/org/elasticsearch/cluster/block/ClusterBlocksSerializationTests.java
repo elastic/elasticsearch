@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class ClusterBlocksSerializationTests extends AbstractWireSerializingTestCase<
     ClusterBlocksSerializationTests.ClusterBlocksTestWrapper> {
@@ -60,7 +62,10 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
             builder.addIndexBlock(randomUniqueProjectId(), randomIdentifier(), randomIndexBlock());
         }
         if (randomBoolean()) {
-            builder.addProjectGlobalBlock(randomUniqueProjectId(), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+            builder.addProjectGlobalBlock(
+                randomUniqueProjectId(),
+                randomFrom(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+            );
         }
         return new ClusterBlocksTestWrapper(builder.build());
     }
@@ -120,13 +125,16 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
                 if (projectsWithProjectGlobalBlock.isEmpty() == false && randomBoolean()) {
-                    builder.removeProjectGlobalBlock(
-                        randomFrom(projectsWithProjectGlobalBlock),
-                        ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK
-                    );
+                    final var projectId = randomFrom(projectsWithProjectGlobalBlock);
+                    // should have one of them that we will remove
+                    builder.removeProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+                    builder.removeProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
                 } else {
                     var newProjectId = randomUniqueProjectId();
-                    builder.addProjectGlobalBlock(newProjectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+                    builder.addProjectGlobalBlock(
+                        newProjectId,
+                        randomFrom(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                    );
                 }
                 yield new ClusterBlocksTestWrapper(builder.build());
             }
@@ -178,6 +186,46 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         assertThat(e.getMessage(), containsString("Cannot write multi-project blocks to a stream with version"));
     }
 
+    public void testProjectUnderCreationBlockBwc() throws IOException {
+        final ProjectId projectUnderDeletion = randomUniqueProjectId();
+        final ProjectId projectUnderCreation = randomUniqueProjectId();
+        final ClusterBlock optionalExtraGlobalBlock = randomBoolean() ? null : randomGlobalBlock();
+        final ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder();
+        clusterBlocksBuilder.addGlobalBlock(randomGlobalBlock())
+            .addIndexBlock(Metadata.DEFAULT_PROJECT_ID, randomIdentifier(), randomIndexBlock())
+            .addIndexBlock(randomFrom(projectUnderCreation, projectUnderDeletion), randomIdentifier(), randomIndexBlock())
+            .addProjectGlobalBlock(projectUnderDeletion, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+            .addProjectGlobalBlock(projectUnderCreation, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        if (optionalExtraGlobalBlock != null) {
+            clusterBlocksBuilder.addProjectGlobalBlock(projectUnderCreation, optionalExtraGlobalBlock);
+        }
+        final ClusterBlocks clusterBlocks = clusterBlocksBuilder.build();
+
+        // A version that still supports multi-project and project global blocks but predates the under-creation block.
+        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(ClusterBlocks.PROJECT_CREATION_GLOBAL_BLOCK);
+        final var out = new BytesStreamOutput();
+        out.setTransportVersion(bwcVersion);
+        clusterBlocks.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(bwcVersion);
+        final ClusterBlocks deserialized = ClusterBlocks.readFrom(in);
+
+        // The under-creation block is dropped; every other block is preserved.
+        assertThat(deserialized.global(), equalTo(clusterBlocks.global()));
+        assertThat(deserialized.indices(Metadata.DEFAULT_PROJECT_ID), equalTo(clusterBlocks.indices(Metadata.DEFAULT_PROJECT_ID)));
+        assertThat(deserialized.indices(projectUnderDeletion), equalTo(clusterBlocks.indices(projectUnderDeletion)));
+        assertThat(deserialized.indices(projectUnderCreation), equalTo(clusterBlocks.indices(projectUnderCreation)));
+        assertThat(deserialized.projectGlobal(projectUnderDeletion), hasItem(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+        if (optionalExtraGlobalBlock != null) {
+            assertThat(deserialized.projectGlobal(projectUnderCreation).size(), equalTo(1));
+            assertThat(deserialized.projectGlobal(projectUnderCreation), hasItem(optionalExtraGlobalBlock));
+        } else {
+            assertThat(deserialized.projectGlobal(projectUnderCreation).size(), equalTo(0));
+        }
+        assertThat(deserialized.projectGlobal(projectUnderCreation), not(hasItem(ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)));
+    }
+
     public void testDiff() throws IOException {
         final ClusterBlocks base = ClusterBlocks.builder()
             .addIndexBlock(Metadata.DEFAULT_PROJECT_ID, randomIdentifier(), randomIndexBlock())
@@ -194,7 +242,10 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
             builder.addIndexBlock(Metadata.DEFAULT_PROJECT_ID, indexName, block);
         }
         if (randomBoolean()) {
-            builder.addProjectGlobalBlock(randomUniqueProjectId(), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+            builder.addProjectGlobalBlock(
+                randomUniqueProjectId(),
+                randomFrom(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+            );
         }
         final ClusterBlocks current = builder.build();
 

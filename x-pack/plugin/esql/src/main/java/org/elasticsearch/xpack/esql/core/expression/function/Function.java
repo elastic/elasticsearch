@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -58,14 +59,14 @@ public abstract class Function extends Expression {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(functionName()).append("(");
         List<Expression> args = arguments();
         for (int i = 0; i < args.size(); i++) {
             if (i > 0) {
                 sb.append(",");
             }
-            args.get(i).nodeString(sb, format);
+            args.get(i).nodeString(sb, format, mapper);
         }
         sb.append(")");
     }

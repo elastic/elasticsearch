@@ -13,40 +13,40 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Variance extends AggregateFunction implements ToAggregator {
+public class Variance extends NumericAggregate {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Variance", Variance::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Variance.class)
         .unary(Variance::new)
         .name("variance", "std_var");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .acrossSeries(Variance::new)
-        .description("Calculates the population standard variance across the input vector.")
+        .description("Calculates the population variance across the input vector.")
         .example("stdvar(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stdvar");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Returns the population variance of a numeric field.",
         description = "The population variance of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = { @Example(file = "stats", tag = "variance") }
@@ -69,22 +69,6 @@ public class Variance extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.DOUBLE;
-    }
-
-    @Override
-    protected Expression.TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
-            sourceText(),
-            DEFAULT,
-            "numeric except unsigned_long or counter types"
-        );
-    }
-
-    @Override
     protected NodeInfo<Variance> info() {
         return NodeInfo.create(this, Variance::new, field(), filter(), window());
     }
@@ -94,22 +78,18 @@ public class Variance extends AggregateFunction implements ToAggregator {
         return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
-    public Variance withFilter(Expression filter) {
-        return new Variance(source(), field(), filter, window());
+    @Override
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new StdDevLongAggregatorFunctionSupplier(false);
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
-        if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(false);
-        }
-        if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(false);
-        }
-        if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(false);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new StdDevIntAggregatorFunctionSupplier(false);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new StdDevDoubleAggregatorFunctionSupplier(false);
     }
 }

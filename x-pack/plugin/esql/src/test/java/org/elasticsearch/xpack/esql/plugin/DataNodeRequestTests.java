@@ -50,6 +50,7 @@ public class DataNodeRequestTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
 

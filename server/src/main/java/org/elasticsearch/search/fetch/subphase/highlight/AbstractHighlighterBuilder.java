@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -262,7 +263,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Negative values are
+     * rejected when parsing a request; the upper bound is enforced per index at request time, see
+     * {@link IndexSettings#MAX_NUMBER_OF_FRAGMENTS_SETTING}.
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -653,7 +656,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareString(HB::order, ORDER_FIELD);
         parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
-        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareInt((HB hb, Integer numOfFragments) -> {
+            if (numOfFragments < 0) {
+                throw new IllegalArgumentException("[" + NUMBER_OF_FRAGMENTS_FIELD + "] must not be negative");
+            }
+            hb.numOfFragments(numOfFragments);
+        }, NUMBER_OF_FRAGMENTS_FIELD);
         parser.declareString(HB::encoder, ENCODER_FIELD);
         parser.declareString(HB::tagsSchema, TAGS_SCHEMA_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);

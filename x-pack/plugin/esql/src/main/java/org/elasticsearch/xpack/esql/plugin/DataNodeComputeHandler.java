@@ -16,18 +16,23 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -50,9 +55,11 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -69,6 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -88,6 +96,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExchangeService exchangeService;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
+    /**
+     * Resolved once: {@link Federation#FEDERATION_ENABLED} is node scoped and takes effect only after a restart, so
+     * every external request on this node gets the same answer.
+     */
+    private final boolean federationAvailable;
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -106,6 +119,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
+        this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
@@ -119,6 +133,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        boolean retainSearchContexts,
+        // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
+        @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -169,6 +186,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        if (retainSearchContexts
+                            && connection.getTransportVersion()
+                                .supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+                            /*
+                             * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
+                             * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
+                             * the coordinator's cluster-state view. We cannot degrade here because the data-node and coordinator plans
+                             * have already been rewritten to exchange remote-fetch handles.
+                             */
+                            l.onFailure(
+                                new IllegalStateException(
+                                    "remote fetch TopN requires transport version ["
+                                        + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                                        + "] but node ["
+                                        + connection.getNode().getName()
+                                        + "] has ["
+                                        + connection.getTransportVersion()
+                                        + "]"
+                                )
+                            );
+                            return;
+                        }
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -188,14 +227,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             onGroupFailure = runOnTaskFailure;
                         }
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
-                        try (
-                            var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
-                        ) {
+                        try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))) {
                             final boolean sameNodeAsCoordinator = transportService.getLocalNode()
                                 .getId()
                                 .equals(connection.getNode().getId());
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
+                            if (retainSearchContexts) {
+                                assert remoteFetchRetainedSessionReleaser != null : "retainSearchContexts requires a session releaser";
+                                remoteFetchRetainedSessionReleaser.track(connection.getNode(), nodeReduceSessionId(childSessionId));
+                            }
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -210,8 +251,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                false
+                                retainSearchContexts,
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
+                            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -221,7 +264,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), DataNodeComputeResponse::new, searchExecutor)
+                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
@@ -255,72 +298,44 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         var queryPragmas = configuration.pragmas();
         boolean allowPartial = configuration.allowPartialResults();
-        boolean sentAny = false;
-        int nodesWithSplits = 0;
-        AtomicInteger failedNodes = new AtomicInteger(0);
 
         final var keepAlive = new ExchangeSourceLinkKeepAlive(exchangeSource);
         try {
-            for (Map.Entry<String, List<ExternalSplit>> entry : distributionPlan.nodeAssignments().entrySet()) {
-                String nodeId = entry.getKey();
-                List<ExternalSplit> nodeSplits = entry.getValue();
-                if (nodeSplits.isEmpty()) {
-                    continue;
-                }
-                nodesWithSplits++;
-
-                DiscoveryNode node = clusterService.state().nodes().get(nodeId);
-                if (node == null) {
-                    var nodeError = new IllegalStateException(
-                        "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
-                    );
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "node [{}] assigned {} external splits is no longer in the cluster state; skipping (partial results enabled)",
-                            nodeId,
-                            nodeSplits.size()
-                        );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
+            ExternalDispatchResolution beforeReassign = resolveExternalAssignments(
+                distributionPlan.nodeAssignments(),
+                nodeId -> clusterService.state().nodes().get(nodeId),
+                transportService::getConnection
+            );
+            ExternalDispatchResolution resolution = reassignUnreachableSplits(beforeReassign);
+            if (resolution.resolved().isEmpty()) {
+                if (resolution.unresolved().isEmpty() == false) {
                     LOGGER.warn(
-                        "node [{}] assigned {} external splits is no longer in the cluster state; failing external distribution",
-                        nodeId,
-                        nodeSplits.size()
+                        "external splits on [{}] unreachable nodes (0 reachable): [{}]",
+                        resolution.unresolved().size(),
+                        unresolvedNodeSummary(resolution.unresolved())
                     );
-                    parentComputeListener.acquireCompute().onFailure(nodeError);
-                    return;
+                    parentComputeListener.acquireCompute().onFailure(allExternalWorkersFailed(resolution.unresolved()));
+                } else {
+                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
                 }
+                return;
+            }
+            if (beforeReassign.unresolved().isEmpty() == false) {
+                LOGGER.debug(
+                    () -> Strings.format(
+                        "reassigned external splits from [%s] unreachable nodes onto [%s] reachable nodes: [%s]",
+                        beforeReassign.unresolved().size(),
+                        resolution.resolved().size(),
+                        unresolvedNodeSummary(beforeReassign.unresolved())
+                    )
+                );
+            }
 
-                final Transport.Connection connection;
-                try {
-                    connection = transportService.getConnection(node);
-                } catch (Exception e) {
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "failed to connect to node [{}] ({}) for external source execution with {} splits; skipping (partial results)",
-                            nodeId,
-                            node.getName(),
-                            nodeSplits.size(),
-                            e
-                        );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
-                    LOGGER.warn(
-                        "failed to connect to node [{}] ({}) for external source execution with {} splits",
-                        nodeId,
-                        node.getName(),
-                        nodeSplits.size(),
-                        e
-                    );
-                    parentComputeListener.acquireCompute().onFailure(e);
-                    return;
-                }
+            for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
+                DiscoveryNode node = target.node();
+                Transport.Connection connection = target.connection();
+                List<ExternalSplit> nodeSplits = target.splits();
 
-                sentAny = true;
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
@@ -354,7 +369,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     // into a dedicated parentComputeListener.acquireCompute() slot.
                     final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
-                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, ActionListener.wrap(info -> {
+                    try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
                             profileSlot.onResponse(info);
                         } finally {
@@ -379,8 +394,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             queryPragmas.nodeLevelReduction(),
                             false,
                             false,
+                            false,
                             nodeSplits
                         );
+                        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -389,7 +406,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
                                 computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
-                                DataNodeComputeResponse::new,
+                                in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
@@ -434,21 +451,145 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     return;
                 }
             }
-            if (sentAny == false) {
-                if (failedNodes.get() > 0 && failedNodes.get() >= nodesWithSplits) {
-                    parentComputeListener.acquireCompute()
-                        .onFailure(
-                            new IllegalStateException(
-                                "all [" + failedNodes.get() + "] nodes assigned external splits failed; cannot serve partial results"
-                            )
-                        );
-                } else {
-                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                }
-            }
         } finally {
             keepAlive.done();
         }
+    }
+
+    /**
+     * Result of looking up each assigned worker at dispatch. {@code unresolved} is every
+     * assignment whose node is gone from cluster state or whose connection cannot be opened.
+     */
+    record ExternalDispatchResolution(List<ResolvedExternalNode> resolved, List<UnresolvedExternalNode> unresolved) {
+        record ResolvedExternalNode(DiscoveryNode node, Transport.Connection connection, List<ExternalSplit> splits) {}
+
+        record UnresolvedExternalNode(String nodeId, List<ExternalSplit> splits, Exception error) {}
+    }
+
+    /**
+     * Looks up a transport connection for a resolved worker. Exists so
+     * {@link TransportService#getConnection} can throw and so tests can inject failures.
+     */
+    @FunctionalInterface
+    interface ExternalNodeConnectionLookup {
+        Transport.Connection get(DiscoveryNode node) throws Exception;
+    }
+
+    /**
+     * Resolves each assignment to a live node and connection. An empty assignment that
+     * connects is kept as a target so later reassignment can place orphans on it. An
+     * empty assignment that fails to resolve is dropped: it has no splits to move.
+     * Non-empty failures stay on {@code unresolved}; this step does not move splits.
+     */
+    static ExternalDispatchResolution resolveExternalAssignments(
+        Map<String, List<ExternalSplit>> nodeAssignments,
+        Function<String, DiscoveryNode> nodes,
+        ExternalNodeConnectionLookup connections
+    ) {
+        List<ExternalDispatchResolution.ResolvedExternalNode> resolved = new ArrayList<>();
+        List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved = new ArrayList<>();
+        for (Map.Entry<String, List<ExternalSplit>> entry : nodeAssignments.entrySet()) {
+            String nodeId = entry.getKey();
+            List<ExternalSplit> nodeSplits = entry.getValue();
+            DiscoveryNode node = nodes.apply(nodeId);
+            if (node == null) {
+                if (nodeSplits.isEmpty() == false) {
+                    unresolved.add(
+                        new ExternalDispatchResolution.UnresolvedExternalNode(
+                            nodeId,
+                            nodeSplits,
+                            new IllegalStateException(
+                                "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
+                            )
+                        )
+                    );
+                }
+                continue;
+            }
+            try {
+                resolved.add(new ExternalDispatchResolution.ResolvedExternalNode(node, connections.get(node), nodeSplits));
+            } catch (Exception e) {
+                if (nodeSplits.isEmpty() == false) {
+                    unresolved.add(new ExternalDispatchResolution.UnresolvedExternalNode(nodeId, nodeSplits, e));
+                }
+            }
+        }
+        return new ExternalDispatchResolution(List.copyOf(resolved), List.copyOf(unresolved));
+    }
+
+    /**
+     * Moves splits from unresolved workers onto resolved workers, appending round-robin
+     * in resolved-node order. Resolved workers that still have no splits after that are
+     * dropped so the dispatcher only sends work. When no worker resolved, the input is
+     * returned unchanged so the dispatcher can fail the query.
+     */
+    static ExternalDispatchResolution reassignUnreachableSplits(ExternalDispatchResolution resolution) {
+        if (resolution.resolved().isEmpty()) {
+            return resolution;
+        }
+        if (resolution.unresolved().isEmpty()) {
+            return withoutEmptyResolved(resolution);
+        }
+        List<List<ExternalSplit>> expanded = new ArrayList<>(resolution.resolved().size());
+        for (ExternalDispatchResolution.ResolvedExternalNode resolved : resolution.resolved()) {
+            expanded.add(new ArrayList<>(resolved.splits()));
+        }
+        int next = 0;
+        for (ExternalDispatchResolution.UnresolvedExternalNode unresolved : resolution.unresolved()) {
+            for (ExternalSplit split : unresolved.splits()) {
+                expanded.get(next % expanded.size()).add(split);
+                next++;
+            }
+        }
+        List<ExternalDispatchResolution.ResolvedExternalNode> reassigned = new ArrayList<>(resolution.resolved().size());
+        for (int i = 0; i < resolution.resolved().size(); i++) {
+            ExternalDispatchResolution.ResolvedExternalNode original = resolution.resolved().get(i);
+            reassigned.add(
+                new ExternalDispatchResolution.ResolvedExternalNode(original.node(), original.connection(), List.copyOf(expanded.get(i)))
+            );
+        }
+        return withoutEmptyResolved(new ExternalDispatchResolution(List.copyOf(reassigned), List.of()));
+    }
+
+    private static ExternalDispatchResolution withoutEmptyResolved(ExternalDispatchResolution resolution) {
+        List<ExternalDispatchResolution.ResolvedExternalNode> kept = new ArrayList<>(resolution.resolved().size());
+        for (ExternalDispatchResolution.ResolvedExternalNode resolved : resolution.resolved()) {
+            if (resolved.splits().isEmpty() == false) {
+                kept.add(resolved);
+            }
+        }
+        if (kept.size() == resolution.resolved().size()) {
+            return resolution;
+        }
+        return new ExternalDispatchResolution(List.copyOf(kept), resolution.unresolved());
+    }
+
+    /**
+     * Failure when every assigned worker with splits was unreachable. The first
+     * per-node error is the cause; the rest are suppressed. The message does not
+     * mention partial results: none of the work can run.
+     */
+    static IllegalStateException allExternalWorkersFailed(List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved) {
+        ExternalDispatchResolution.UnresolvedExternalNode first = unresolved.getFirst();
+        IllegalStateException failure = new IllegalStateException(
+            "all [" + unresolved.size() + "] nodes assigned external splits failed",
+            first.error()
+        );
+        for (int i = 1; i < unresolved.size(); i++) {
+            failure.addSuppressed(unresolved.get(i).error());
+        }
+        return failure;
+    }
+
+    private static String unresolvedNodeSummary(List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved) {
+        StringBuilder summary = new StringBuilder();
+        for (ExternalDispatchResolution.UnresolvedExternalNode node : unresolved) {
+            if (summary.isEmpty() == false) {
+                summary.append(',');
+            }
+            summary.append(node.nodeId()).append('=').append(node.splits().size());
+        }
+        return summary.toString();
     }
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
@@ -490,11 +631,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final EsqlFlags flags;
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
-        private final ExchangeSinkHandler exchangeSink;
+        private final LocalExchange exchange;
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
+        private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
@@ -503,9 +645,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             EsqlFlags flags,
             DataNodeRequest request,
             CancellableTask parentTask,
-            ExchangeSinkHandler exchangeSink,
+            LocalExchange exchange,
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
+            boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts
@@ -513,12 +656,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.flags = flags;
             this.request = request;
             this.parentTask = parentTask;
-            this.exchangeSink = exchangeSink;
+            this.exchange = exchange;
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
+            this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
-            this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.blockingSink = exchange.exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
         }
@@ -556,7 +700,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
-                            exchangeService.finishSinkHandler(request.sessionId(), e);
+                            exchange.finish(true);
                         } finally {
                             ref.onFailure(e);
                         }
@@ -583,7 +727,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                        () -> exchange.exchangeSink(pagesProduced::incrementAndGet),
+                        request.retainSearchContexts(),
+                        singleNodeOptimizations
                     );
                     computeService.runCompute(
                         parentTask,
@@ -670,14 +816,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
+            if (lastBatchIndex < request.shards().size() && exchange.isFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
-                // don't return until all pages are fetched
-                var completionListener = computeListener.acquireAvoid();
-                exchangeSink.addCompletionListener(
-                    ActionListener.runAfter(completionListener, () -> exchangeService.finishSinkHandler(request.sessionId(), null))
-                );
+                // don't return until the reduce driver has consumed all pages
+                exchange.addCompletionListener(computeListener.acquireAvoid());
                 blockingSink.finish();
             }
         }
@@ -706,19 +849,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
         try (
             ComputeListener computeListener = new ComputeListener(
-                transportService.getThreadPool(),
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
+            final LocalExchange internalExchange = new LocalExchange(request.pragmas().exchangeBufferSize());
             try {
+                assert request.singleNodeOptimizations() == false
+                    || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
+                    : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
-                var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
-                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                    internalExchange.finish(true);
                 });
                 EsqlFlags flags = computeService.createFlags();
                 int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
@@ -726,17 +871,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     flags,
                     request,
                     task,
-                    internalSink,
+                    internalExchange,
                     maxConcurrentShards,
                     failFastOnShardFailure,
+                    request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
                     searchContexts
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
                     task,
@@ -748,8 +892,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         searchContexts.globalView(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
-                        exchangeSource::createExchangeSource,
-                        () -> externalSink.createExchangeSink(() -> {})
+                        internalExchange::exchangeSource,
+                        () -> externalSink.createExchangeSink(() -> {}),
+                        request.retainSearchContexts(),
+                        request.singleNodeOptimizations()
                     ),
                     reducePlan,
                     plannerSettings,
@@ -772,7 +918,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onResponse(null);
             } catch (Exception e) {
                 exchangeService.finishSinkHandler(externalId, e);
-                exchangeService.finishSinkHandler(request.sessionId(), e);
+                internalExchange.finish(true);
                 parentListener.onFailure(e);
             }
         }
@@ -780,7 +926,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
+        ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
+        final ActionListener<DataNodeComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {
@@ -793,24 +947,46 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         ReductionPlan reductionPlan;
+        final String sessionId = request.sessionId();
+        final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            reductionPlan = ComputeService.reductionPlan(
-                computeService.plannerSettings().get(),
-                computeService.createFlags(),
-                configuration,
-                configuration.newFoldContext(),
-                plan,
-                request.runNodeLevelReduction(),
-                request.reductionLateMaterialization(),
-                planTimeProfile
-            );
+            try {
+                validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion(), computeService.createFlags());
+                if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
+                    reductionPlan = ComputeService.reductionPlan(
+                        computeService.plannerSettings().get(),
+                        computeService.createFlags(),
+                        configuration,
+                        configuration.newFoldContext(),
+                        plan,
+                        request.runNodeLevelReduction(),
+                        request.reductionLateMaterialization(),
+                        clusterService.localNode().getId(),
+                        nodeReduceSessionId,
+                        planTimeProfile
+                    );
+                } else {
+                    reductionPlan = ComputeService.reductionPlan(
+                        computeService.plannerSettings().get(),
+                        computeService.createFlags(),
+                        configuration,
+                        configuration.newFoldContext(),
+                        plan,
+                        request.runNodeLevelReduction(),
+                        request.reductionLateMaterialization(),
+                        planTimeProfile
+                    );
+                }
+            } catch (Exception e) {
+                failWithoutStarting(request, listener, e);
+                return;
+            }
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
         }
-        final String sessionId = request.sessionId();
         request = new DataNodeRequest(
-            sessionId + "[n]", // internal session
+            nodeReduceSessionId, // internal session
             request.configuration(),
             request.clusterAlias(),
             request.shards(),
@@ -821,11 +997,61 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
             request.retainSearchContexts(),
+            request.singleNodeOptimizations(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
+        ActionListener<DataNodeComputeResponse> responseListener;
+        if (request.retainSearchContexts()) {
+            final RetainedSearchContextsRegistry.Handle retainedSearchContexts;
+            try {
+                retainedSearchContexts = computeService.remoteFetchService()
+                    .retainSearchContexts(nodeReduceSessionId, computeSearchContexts);
+            } catch (Exception e) {
+                computeSearchContexts.close();
+                listener.onFailure(e);
+                return;
+            }
+            /*
+             * The compute holds its own lease on the retained contexts while its drivers run. Cancellation closes the
+             * registration asynchronously, which rejects new fetch leases immediately, but must not release the
+             * contexts out from under still-running drivers; that only happens once this lease is closed in the
+             * response listener, after the compute has completed.
+             */
+            final RetainedSearchContextsRegistry.Handle computeLease;
+            try {
+                computeLease = computeService.remoteFetchService().acquireRetainedContexts(nodeReduceSessionId);
+            } catch (Exception e) {
+                retainedSearchContexts.close();
+                listener.onFailure(e);
+                return;
+            }
+            ((CancellableTask) task).addListener(retainedSearchContexts::close);
+            responseListener = ActionListener.wrap(response -> {
+                boolean success = false;
+                try {
+                    // TODO: Keep a coordinator-owned lease or refresh this registration while global TopN is active. The idle reaper
+                    // must still clean abandoned sessions, but it currently cannot distinguish abandonment from waiting on a slower
+                    // data node.
+                    retainedSearchContexts.finishRegistration();
+                    listener.onResponse(response);
+                    success = true;
+                } finally {
+                    computeLease.close();
+                    if (success == false) {
+                        retainedSearchContexts.close();
+                    }
+                }
+            }, e -> {
+                try (retainedSearchContexts; computeLease) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            responseListener = ActionListener.releaseAfter(listener, computeSearchContexts);
+        }
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
@@ -835,7 +1061,72 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             computeSearchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            ActionListener.releaseAfter(listener, computeSearchContexts)
+            responseListener
+        );
+    }
+
+    private static String nodeReduceSessionId(String sessionId) {
+        return sessionId + "[n]";
+    }
+
+    static void validateRemoteFetchRequest(
+        PhysicalPlan plan,
+        boolean retainSearchContexts,
+        TransportVersion transportVersion,
+        EsqlFlags flags
+    ) {
+        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance) == false) {
+            return;
+        }
+        if (retainSearchContexts == false) {
+            throw new IllegalStateException("remote-fetch boundary requires retained search contexts");
+        }
+        if (flags.remoteFetchTopN() == false) {
+            throw new IllegalStateException(
+                "remote-fetch boundary requires cluster setting [" + EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey() + "]"
+            );
+        }
+        if (transportVersion.supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+            throw new IllegalStateException(
+                "remote-fetch boundary requires transport version ["
+                    + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                    + "] but request uses ["
+                    + transportVersion
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * Rejects an external request that never got as far as building a driver. The coordinator opened the exchange before
+     * sending the request, so a sink handler is already registered here; it has to be failed explicitly or the
+     * coordinator's exchange source only learns of the refusal through task cancellation and this node holds an
+     * unfinished sink until the inactive-sinks reaper runs.
+     */
+    private void failWithoutStarting(DataNodeRequest request, ActionListener<DataNodeComputeResponse> listener, Exception failure) {
+        exchangeService.finishSinkHandler(request.sessionId(), failure);
+        listener.onFailure(failure);
+    }
+
+    /**
+     * Diagnoses an old coordinator placing external scan work on an index node during a rolling
+     * upgrade. Deliberately does not reject: rejecting without reassignment would fail the query
+     * or return partial results, and rolling-upgrade tests run with assertions enabled.
+     * A coordinator's own self-assignment is suppressed so it does not duplicate the coordinator warning.
+     */
+    static void warnIfRemoteIndexWorker(DiscoveryNode localNode, String parentNodeId) {
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false) {
+            return;
+        }
+        // An unset parent task carries the empty node id of TaskId.EMPTY_TASK_ID, which names no coordinator
+        // and so cannot be attributed to an old one.
+        if (parentNodeId.isEmpty() || parentNodeId.equals(localNode.getId())) {
+            return;
+        }
+        LOGGER.warn(
+            "index node [{}] received external ES|QL scan work from coordinator [{}]; expected only during a mixed-version transition",
+            localNode.getId(),
+            parentNodeId
         );
     }
 
@@ -845,8 +1136,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener,
         PlanTimeProfile planTimeProfile
     ) {
+        warnIfRemoteIndexWorker(clusterService.localNode(), task.getParentTaskId().getNodeId());
+        // Federation gate for the whole external request, not just the operators it ends up building. The backstop in
+        // LocalExecutionPlanner.planExternalSource only fires for a plan that still contains an ExternalSourceExec, and
+        // localPlan() below can consume it: PushStatsToExternalSource answers an ungrouped COUNT/MIN/MAX from the split
+        // stats the coordinator discovered and leaves a LocalSourceExec behind. Refusing on entry means a node without
+        // federation serves no external data whatever the aggregate shape.
+        if (federationAvailable == false) {
+            failWithoutStarting(request, listener, Federation.notAvailableException());
+            return;
+        }
         if (request.plan() instanceof ExchangeSinkExec == false) {
-            listener.onFailure(new IllegalStateException("expected exchange sink for external compute; got " + request.plan()));
+            failWithoutStarting(
+                request,
+                listener,
+                new IllegalStateException("expected exchange sink for external compute; got " + request.plan())
+            );
             return;
         }
         ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();
@@ -858,7 +1163,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushAggregatesToExternalSource see them.
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
         PhysicalPlan planWithSplits = PlannerUtils.localPlan(
             plannerSettings,
             flags,
@@ -873,7 +1178,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         try (
             ComputeListener computeListener = new ComputeListener(
-                threadPool,
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
             )
@@ -898,7 +1202,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration,
                     configuration.newFoldContext(),
                     null,
-                    () -> externalSink.createExchangeSink(() -> {})
+                    () -> externalSink.createExchangeSink(() -> {}),
+                    false,
+                    false
                 );
                 computeService.runCompute(
                     task,
@@ -908,6 +1214,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
+                        // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
                             exchangeService.finishSinkHandler(sessionId, null);
                             driverCompletionListener.onResponse(resp);

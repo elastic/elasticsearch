@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -19,11 +23,19 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -33,6 +45,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -67,10 +84,319 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertTrue(child.splits().isEmpty());
     }
 
+    public void testScanStatsReportedForExternalSource() {
+        // createFileList sizes file i as 100*(i+1); three files => 100 + 200 + 300 bytes.
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        // Whole-file splits (no format registry), so one split per file and bytes == total file size.
+        assertEquals(3, result.filesScanned());
+        assertEquals(3, result.splitsScanned());
+        assertEquals(600L, result.bytesScanned());
+    }
+
+    /**
+     * The fragment path's seed derivation. A {@code Filter} above an {@code ExternalRelation} inside a fragment must be
+     * recovered as that relation's pruning seed — without this step there is no pruning at all, because lowering the
+     * relation to an {@code ExternalSourceExec} discards the
+     * {@code Filter} that stood above it.
+     */
+    public void testGuardedRelationsCollectsFilterAncestorsInFragment() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        Expression month = new Equals(SRC, relation.output().get(1), new Literal(SRC, 6, DataType.INTEGER));
+        // Two stacked Filters, as PushDownAndCombineFilters may leave them: both must reach the relation.
+        LogicalPlan fragment = new Filter(SRC, new Filter(SRC, relation, year), month);
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertSame(relation, guarded.get(0).relation());
+        assertEquals("both Filter ancestors must seed the relation", 2, guarded.get(0).filters().size());
+        assertTrue(guarded.get(0).filters().containsAll(List.of(year, month)));
+    }
+
+    /** An AND condition is split into its conjuncts, so each can be matched against a partition column on its own. */
+    public void testGuardedRelationsSplitsConjunction() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        Expression month = new Equals(SRC, relation.output().get(1), new Literal(SRC, 6, DataType.INTEGER));
+        LogicalPlan fragment = new Filter(SRC, relation, new And(SRC, year, month));
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("`a AND b` must arrive as two prunable conjuncts, not one opaque expression", 2, guarded.get(0).filters().size());
+    }
+
+    /**
+     * A filter above a {@code LIMIT} must not become a pruning seed. {@code SORT id | LIMIT 4 | WHERE year == 2025}
+     * takes four rows and filters them afterwards; pruning the non-2025 files first would refill the limit window from
+     * the survivors and return rows the query never asked for. The seed must be dropped at the cardinality-sensitive
+     * node, leaving the relation unguarded (full scan, correct answer).
+     */
+    public void testGuardedRelationsDoesNotSeedPastLimit() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        LogicalPlan fragment = new Filter(SRC, new Limit(SRC, new Literal(SRC, 4, DataType.INTEGER), relation), year);
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertTrue(
+            "a filter above a LIMIT must not prune the source — LIMIT does not commute with WHERE",
+            guarded.get(0).filters().isEmpty()
+        );
+    }
+
+    /** The complement: with the filter <em>below</em> the limit, WHERE genuinely runs first and pruning is sound. */
+    public void testGuardedRelationsSeedsFilterBelowLimit() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 4, DataType.INTEGER), new Filter(SRC, relation, year));
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("a filter below the LIMIT still prunes", List.of(year), guarded.get(0).filters());
+    }
+
+    /**
+     * The physical twin of {@link #testGuardedRelationsDoesNotSeedPastLimit}: a {@code FilterExec} above a
+     * {@code LimitExec} must not reach the source either. The two walks encode the same rule and have to agree — the
+     * whole reason this bug existed is that a second path was added and the rule was not carried over to it.
+     */
+    public void testFilterExecAboveLimitExecDoesNotReachSource() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        LimitExec limit = new LimitExec(SRC, exec, new Literal(SRC, 4, DataType.INTEGER), null);
+        Expression year = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2025, DataType.INTEGER));
+        FilterExec filter = new FilterExec(SRC, limit, year);
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(filter, factories);
+
+        assertTrue(
+            "a filter above a LIMIT must not prune the source on the physical path either",
+            recorder.lastContext.filterHints().isEmpty()
+        );
+    }
+
+    /** An unfiltered relation is guarded by nothing: every file must be read, and no conjunct may be invented. */
+    public void testGuardedRelationsWithoutFilterHasEmptySeed() {
+        ExternalRelation relation = externalRelation();
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(relation);
+
+        assertEquals(1, guarded.size());
+        assertTrue("no Filter above the relation means no pruning seed", guarded.get(0).filters().isEmpty());
+    }
+
+    /** An ExternalRelation with `year`/`month` output attributes, standing in for a Hive-partitioned dataset. */
+    private static ExternalRelation externalRelation() {
+        List<Attribute> output = List.of(fieldAttr("year", DataType.INTEGER), fieldAttr("month", DataType.INTEGER));
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(
+            output,
+            "parquet",
+            "s3://bucket/data/*.parquet",
+            null,
+            null,
+            Map.of(),
+            Map.of()
+        );
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, FileList.UNRESOLVED, Map.of());
+    }
+
+    public void testScanStatsZeroWhenNoSplitsDiscovered() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertEquals(0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
+    }
+
+    /**
+     * Exhaustive prune: a resolved, non-empty fileList whose split discovery yields nothing (every file pruned) must
+     * have its {@link ExternalSourceExec} swapped to read {@link FileList#EMPTY} and drop {@code schemaMap}, so the
+     * read path scans nothing and the coordinator does not keep the per-file schema. Stats stay honestly zero.
+     */
+    public void testExhaustivelyPrunedResolvedFileListSwappedToEmpty() {
+        FileList fileList = createFileList(3); // resolved, non-empty
+        StoragePath schemaPath = StoragePath.of("s3://bucket/data/a.parquet");
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withSchemaMap(
+            Map.of(schemaPath, new SchemaReconciliation.FileSchemaInfo(ExternalSchema.EMPTY, null, null))
+        );
+        assertFalse(exec.schemaMap().isEmpty());
+        // A provider that exhaustively prunes: zero splits out, reported as a row-count-safe prune.
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, true, 0L)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertTrue(result.plan() instanceof ExternalSourceExec);
+        ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
+        assertSame("an exhaustively-pruned resolved fileList must be swapped to FileList.EMPTY", FileList.EMPTY, resolved.fileList());
+        assertTrue("an exhaustive prune drops the per-file schema map", resolved.schemaMap().isEmpty());
+        assertTrue(resolved.splits().isEmpty());
+        assertEquals(0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
+    }
+
+    /**
+     * Empty splits are NOT enough to swap: when the provider reports the empty result is not an exhaustive prune
+     * (unresolved glob, empty file list, or a provider that cannot certify a filter contradiction), the source
+     * must fall through unchanged to the whole read so the row filter runs.
+     */
+    public void testEmptySplitsNotExhaustivelyPrunedNotSwapped() {
+        FileList fileList = createFileList(3); // resolved, non-empty
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // Zero splits, but explicitly NOT an exhaustive prune.
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
+        );
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result);
+        assertSame("the resolved fileList must be preserved for the whole read", fileList, ((ExternalSourceExec) result).fileList());
+    }
+
+    public void testNonExhaustiveEmptyResultAccountsWholeRead() {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result.plan());
+        assertEquals("the whole read that follows scans every file in the resolved list", 3, result.filesScanned());
+        assertEquals("the whole read processes each file as one unit", 3, result.splitsScanned());
+        assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
+    }
+
+    public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/b.parquet"), 0, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false, 0L)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame(exec, result.plan());
+        assertEquals(2, result.filesScanned());
+        assertEquals(2, result.splitsScanned());
+        assertEquals("only the known size contributes to the byte sum", 100L, result.bytesScanned());
+    }
+
+    /**
+     * An unresolved fileList (glob not yet expanded — resolved and read at runtime) must NOT be swapped when discovery
+     * returns no splits: there is nothing to prune yet, and swapping to EMPTY would make the source read nothing at
+     * all. It falls through unchanged to the runtime whole-fileList read.
+     */
+    public void testUnresolvedFileListNotSwappedOnEmptySplits() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertSame("an unresolved fileList must fall through unchanged, not be swapped to EMPTY", exec, result);
+        assertSame(FileList.UNRESOLVED, ((ExternalSourceExec) result).fileList());
+    }
+
+    /**
+     * A non-splitting SINGLE/connector source (no resolved fileList, carries {@link FileList#UNRESOLVED} in
+     * production) returns empty splits by design and must be left untouched — the whole-read at runtime is the
+     * intended behavior, not an exhaustive prune.
+     */
+    public void testSingleProviderLeavesUnresolvedFileListUnchanged() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "unknown_type");
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of());
+
+        assertSame("SINGLE provider on an unresolved fileList must not be swapped to EMPTY", exec, result);
+    }
+
+    /**
+     * An already-empty glob ({@link FileList#EMPTY}, {@code fileCount() == 0}) reads nothing regardless, so the
+     * {@code fileCount() > 0} guard leaves it untouched — no redundant swap.
+     */
+    public void testAlreadyEmptyFileListNotReswapped() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.EMPTY, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("an already-empty glob needs no swap", exec, result.plan());
+        assertEquals("an already-empty glob reads nothing", 0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
+    }
+
+    /** {@link ExternalRelation#withFileList} swaps only the fileList, preserving the rest of the relation. */
+    public void testExternalRelationWithFileListSwapsOnlyFileList() {
+        ExternalRelation relation = externalRelation();
+        assertSame(FileList.UNRESOLVED, relation.fileList());
+
+        ExternalRelation swapped = relation.withFileList(FileList.EMPTY);
+
+        assertSame(FileList.EMPTY, swapped.fileList());
+        assertEquals(relation.sourcePath(), swapped.sourcePath());
+        assertEquals(relation.output(), swapped.output());
+        assertEquals(relation.metadata(), swapped.metadata());
+    }
+
     public void testFilterExecAboveExternalSourceCollectsFilters() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
-        Expression condition = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
+        Expression condition = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2024, DataType.INTEGER));
         FilterExec filter = new FilterExec(SRC, exec, condition);
 
         RecordingSplitProvider recorder = new RecordingSplitProvider();
@@ -79,6 +405,68 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryPhase.resolveExternalSplits(filter, factories);
 
         assertEquals(1, recorder.lastContext.filterHints().size());
+    }
+
+    /**
+     * Fragment-path seeding: when the {@code ExternalSourceExec} is lowered from an isolated {@code ExternalRelation}
+     * — no surviving {@code FilterExec} ancestor — the coordinator must seed the recursive walk with the fragment's
+     * partition-column filter conjuncts, or L1 partition pruning never sees them.
+     * Asserts the seed overload plumbs {@code seedFilters} through to {@link SplitDiscoveryContext#filterHints()}.
+     */
+    public void testSeedFiltersReachContextWithoutFilterExec() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // The seed filter references the relation's own `year` output attribute (matching NameId), so the
+        // output-binding guard keeps it.
+        Expression seed = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2025, DataType.INTEGER));
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(seed)
+        );
+
+        assertEquals(
+            "seed filter must reach the split-discovery context on the fragment path",
+            1,
+            recorder.lastContext.filterHints().size()
+        );
+        assertSame(seed, recorder.lastContext.filterHints().get(0));
+    }
+
+    /**
+     * Shadowing guard: a seed conjunct that references an attribute NOT in the relation's output — e.g. a downstream
+     * {@code EVAL year = ...} that shadows the partition column with a fresh {@code NameId} — must be dropped before
+     * pruning, so the split provider never prunes files by the path partition value for a
+     * row-derived column. Binding is by id, not name: a same-named attribute with a different id is not kept.
+     */
+    public void testSeedFilterOverShadowingAttributeIsDropped() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // A fresh `year` FieldAttribute — same NAME as the relation's `year` output column, but a distinct NameId,
+        // standing in for a downstream-generated (EVAL/DISSECT/GROK) column. The guard must drop the filter over it.
+        Expression shadowing = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2025, DataType.INTEGER));
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(shadowing)
+        );
+
+        assertTrue(
+            "a filter over a shadowing (non-output) attribute must be dropped, not used to prune",
+            recorder.lastContext.filterHints().isEmpty()
+        );
     }
 
     public void testMultipleExternalSourcesEachGetOwnSplits() {
@@ -138,10 +526,10 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec1 = createExternalSourceExec(fileList1, "parquet");
         ExternalSourceExec exec2 = createExternalSourceExec(fileList2, "csv");
 
-        Expression cond1 = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
+        Expression cond1 = new Equals(SRC, outputAttr(exec1, "year"), new Literal(SRC, 2024, DataType.INTEGER));
         FilterExec filter1 = new FilterExec(SRC, exec1, cond1);
 
-        Expression cond2 = new Equals(SRC, fieldAttr("month", DataType.INTEGER), new Literal(SRC, 6, DataType.INTEGER));
+        Expression cond2 = new Equals(SRC, outputAttr(exec2, "month"), new Literal(SRC, 6, DataType.INTEGER));
         FilterExec filter2 = new FilterExec(SRC, exec2, cond2);
 
         RecordingSplitProvider recorder1 = new RecordingSplitProvider();
@@ -159,8 +547,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     public void testNestedFiltersAccumulateForDescendantSource() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
-        Expression cond1 = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
-        Expression cond2 = new Equals(SRC, fieldAttr("month", DataType.INTEGER), new Literal(SRC, 6, DataType.INTEGER));
+        Expression cond1 = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2024, DataType.INTEGER));
+        Expression cond2 = new Equals(SRC, outputAttr(exec, "month"), new Literal(SRC, 6, DataType.INTEGER));
         FilterExec inner = new FilterExec(SRC, exec, cond1);
         FilterExec outer = new FilterExec(SRC, inner, cond2);
 
@@ -170,6 +558,148 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryPhase.resolveExternalSplits(outer, factories);
 
         assertEquals(2, recorder.lastContext.filterHints().size());
+    }
+
+    public void testCancellationSignalThreadedIntoContext() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> true
+        );
+
+        assertNotNull(recorder.lastContext);
+        assertTrue(
+            "cancellation signal must be threaded into the split discovery context",
+            recorder.lastContext.isCancelled().getAsBoolean()
+        );
+    }
+
+    public void testDefaultContextIsNotCancelled() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertNotNull(recorder.lastContext);
+        assertFalse(recorder.lastContext.isCancelled().getAsBoolean());
+    }
+
+    public void testMetadataBindingsReachSyncAndAsyncDiscovery() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet").withAttributes(
+            List.of(
+                fieldAttr("_index", DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, "_version", DataType.LONG),
+                new ExternalMetadataAttribute(SRC, "_id", DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.KEYWORD)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        Set<String> expected = Set.of("_version", "_id", FileMetadataColumns.RECORD_REF);
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(expected, recorder.lastContext.metadataColumnNames());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(expected, recorder.lastContext.metadataColumnNames());
+    }
+
+    /**
+     * {@link ExternalMetadataAttribute} extends {@code TypedAttribute}, not the final
+     * {@code MetadataAttribute}, so an {@code instanceof MetadataAttribute} test lets every bound
+     * metadata column through. Discovery would then count the name as a projected data column and
+     * narrow per-file mappings against a column the reader never produces in the data channel.
+     */
+    public void testQuerySchemaExcludesBoundMetadataColumns() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new MetadataAttribute(SRC, "_index", DataType.KEYWORD, false),
+                fieldAttr("year", DataType.INTEGER)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        // `year` survives: buildFileTasks strips partition columns separately, via stripPartitionColumns.
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
+    }
+
+    public void testRetainedPartitionKeysFollowPostPruneOutput() {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        ExternalSourceExec dataOnly = exec.withAttributes(List.of(fieldAttr("id", DataType.LONG)));
+        recorder.lastContext = null;
+        SplitDiscoveryPhase.resolveExternalSplits(dataOnly, factories);
+        assertEquals(Set.of(), recorder.lastContext.retainedPartitionKeys());
+    }
+
+    /**
+     * A query that projects only metadata leaves no data columns, which is the same shape
+     * {@code COUNT(*)} already produces: the prune is skipped and {@code adaptSchema} short-circuits
+     * on the empty query schema rather than the reader widening to every column.
+     */
+    public void testMetadataOnlyProjectionYieldsEmptyQuerySchema() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet").withAttributes(
+            List.of(new ExternalMetadataAttribute(SRC, "_index", DataType.KEYWORD))
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertTrue(recorder.lastContext.querySchema().isEmpty());
     }
 
     public void testNoFiltersWhenNoFilterExecInPlan() {
@@ -185,6 +715,164 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertTrue(recorder.lastContext.filterHints().isEmpty());
     }
 
+    /**
+     * Default {@link SplitProvider#discoverSplitsAsync} wraps sync discovery on the executor so
+     * connectors keep a one-line {@code discoverSplits}. The inbound thread must still return.
+     */
+    public void testDiscoverSplitsAsyncDefaultWrapDoesNotBlockCaller() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        SplitProvider delayed = new SplitProvider() {
+            @Override
+            public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+                started.countDown();
+                try {
+                    if (release.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release sync wrap");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+                return SplitDiscoveryResult.EMPTY;
+            }
+        };
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(delayed));
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        try {
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                executor,
+                future
+            );
+            assertTrue("wrap must start on the executor after the caller returns", started.await(10, TimeUnit.SECONDS));
+            assertFalse(future.isDone());
+            release.countDown();
+            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).plan());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    public void testDiscoverSplitsAsyncMatchesSyncForFixedProvider() throws Exception {
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        SplitDiscoveryResult fixed = new SplitDiscoveryResult(List.of(), 0, true, 0L);
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FixedSplitProvider(fixed)));
+
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(sync.filesScanned(), async.filesScanned());
+        assertEquals(FileList.EMPTY, ((ExternalSourceExec) async.plan()).fileList());
+        assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
+    }
+
+    public void testSyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(false);
+    }
+
+    public void testAsyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(true);
+    }
+
+    private void assertDiscoveryPreservesFoldedStatistics(boolean async) {
+        Map<String, Object> folded = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4L,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnMinUnservableKey("x"),
+            true,
+            SourceStatisticsSerializer.columnMaxUnservableKey("x"),
+            true
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            "parquet",
+            List.of(fieldAttr("x", DataType.DOUBLE)),
+            Map.of(),
+            folded,
+            null,
+            null
+        ).withFileList(createFileList(2));
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        if (async) {
+            PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+            future.actionGet(30, TimeUnit.SECONDS);
+        } else {
+            SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        }
+        assertNotNull(recorder.lastContext.metadata());
+        assertEquals(folded, recorder.lastContext.metadata().sourceMetadata());
+    }
+
+    /**
+     * Async {@link SplitDiscoveryPhase.Result} must keep {@code cpuNanos} from the provider.
+     * The 4-arg Result constructor defaults CPU to 0 and would drop it from the query profile.
+     */
+    public void testAsyncDiscoveryForwardsCpuNanos() {
+        FileList fileList = createFileList(1);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        FileSplit split = new FileSplit("parquet", StoragePath.of("s3://bucket/data/file0.parquet"), 0, 100, "parquet", Map.of(), Map.of());
+        long cpuNanos = 42L;
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(split), 1, false, cpuNanos)))
+        );
+        SplitDiscoveryPhase.Result sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        SplitDiscoveryPhase.Result async = future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(cpuNanos, sync.cpuNanos());
+        assertEquals(cpuNanos, async.cpuNanos());
+    }
+
     // -- helpers --
 
     private static FileList createFileList(int fileCount) {
@@ -196,8 +884,41 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     private static ExternalSourceExec createExternalSourceExec(FileList fileList, String sourceType) {
-        List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG), fieldAttr("name", DataType.KEYWORD));
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null, fileList);
+        // Output carries a partition-like `year` and a `month` so tests can build a filter over the SAME attribute
+        // instances (matching NameId), which is what the analyzer produces in a real plan and what
+        // SplitDiscoveryPhase's NameId-binding guard requires.
+        List<Attribute> attrs = List.of(
+            fieldAttr("id", DataType.LONG),
+            fieldAttr("name", DataType.KEYWORD),
+            fieldAttr("year", DataType.INTEGER),
+            fieldAttr("month", DataType.INTEGER)
+        );
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null).withFileList(
+            fileList
+        );
+    }
+
+    /** The output attribute named {@code name} on {@code exec} — used to build filters whose reference id matches the relation output. */
+    private static Attribute outputAttr(ExternalSourceExec exec, String name) {
+        return exec.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static List<String> schemaNames(SplitDiscoveryContext context) {
+        return context.querySchema().attributes().stream().map(Attribute::name).toList();
+    }
+
+    private static void discoverAsync(PhysicalPlan plan, Map<String, ExternalSourceFactory> factories) {
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            plan,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {
@@ -238,9 +959,23 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryContext lastContext;
 
         @Override
-        public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+        public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
             this.lastContext = context;
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
+        }
+    }
+
+    /** Returns a fixed {@link SplitDiscoveryResult}, so a test can pin the phase's reaction to a specific result. */
+    private static class FixedSplitProvider implements SplitProvider {
+        private final SplitDiscoveryResult result;
+
+        FixedSplitProvider(SplitDiscoveryResult result) {
+            this.result = result;
+        }
+
+        @Override
+        public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+            return result;
         }
     }
 }

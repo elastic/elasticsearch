@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Decorates a {@link StorageProvider} with concurrency limiting. Each cloud API call
@@ -49,7 +49,7 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             StorageIterator delegateIterator = delegate.listObjects(prefix, recursive);
             return new ConcurrencyLimitedStorageIterator(delegateIterator, limiter);
@@ -60,8 +60,19 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // One remote call, fully materialized by the delegate: the permit brackets the call itself.
+        limiter.acquireChecked();
+        try {
+            return delegate.listChildren(prefix, limit);
+        } finally {
+            limiter.release();
+        }
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             return delegate.exists(path);
         } finally {
@@ -82,17 +93,6 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     @Override
     public void close() throws IOException {
         delegate.close();
-    }
-
-    private void acquirePermit() throws IOException {
-        try {
-            limiter.acquire();
-        } catch (TimeoutException e) {
-            throw new IOException("Failed to acquire concurrency permit for cloud API call", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while waiting for concurrency permit", e);
-        }
     }
 
     /**

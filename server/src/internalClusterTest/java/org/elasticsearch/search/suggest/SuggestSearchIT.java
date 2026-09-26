@@ -133,7 +133,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             searchSuggest("test", termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
                 ex.getCause().getMessage(),
                 anyOf(
@@ -141,7 +141,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     endsWith("Suggest entries have different sizes actual [2] expected [1]")
                 )
             );
-        } catch (IllegalStateException ex) {
+        } catch (IllegalArgumentException ex) {
             assertThat(
                 ex.getMessage(),
                 anyOf(
@@ -159,7 +159,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             searchSuggest("test", termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
                 ex.getCause().getMessage(),
                 anyOf(
@@ -167,7 +167,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")
                 )
             );
-        } catch (IllegalStateException ex) {
+        } catch (IllegalArgumentException ex) {
             assertThat(
                 ex.getMessage(),
                 anyOf(

@@ -1,0 +1,6 @@
+{
+  "properties": {
+    "id": { "type": "keyword" },
+    "path": { "type": "keyword" }
+  }
+}

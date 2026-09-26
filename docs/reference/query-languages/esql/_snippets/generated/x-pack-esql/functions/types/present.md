@@ -10,9 +10,12 @@
 | cartesian_shape | boolean |
 | date | boolean |
 | date_nanos | boolean |
+| date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | dense_vector | boolean |
 | double | boolean |
+| double_range {applies_to}`stack: preview 9.6.0` | boolean |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | boolean |
+| flattened {applies_to}`stack: preview 9.5.0` | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |
 | geohash | boolean |

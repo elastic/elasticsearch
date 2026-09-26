@@ -13,6 +13,9 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -29,14 +32,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -159,7 +160,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testDeltaTemporalityRate() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 new DocumentSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 5),
@@ -176,7 +176,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testMixedTemporalityRate() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 // cumulative TSID: monotonically increasing counter
@@ -199,6 +198,102 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("pod-delta", "delta", "2021-04-29T17:39:00.000Z", 4)
             ),
             "30m"
+        );
+    }
+
+    public void testDeltaTemporalityHistograms() {
+        runHistogramTest(
+            List.of(
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 1.0, 2.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:05:00.000Z", 3.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:10:00.000Z", 4.0, 5.0, 6.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:15:00.000Z", 7.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:32:00.000Z", 8.0, 9.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T17:39:00.000Z", 10.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T18:05:00.000Z", 2.0, 3.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T18:15:00.000Z", 4.0, 5.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T18:32:00.000Z", 6.0),
+                new HistogramDocSpec("pod", "delta", "2021-04-29T18:45:00.000Z", 7.0, 8.0, 9.0)
+            ),
+            "30m",
+            true
+        );
+    }
+
+    public void testCumulativeTemporalityHistograms() {
+        runHistogramTest(
+            List.of(
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:01:00.000Z", 1.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:05:00.000Z", 1.0, 2.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:10:00.000Z", 1.0, 2.0, 3.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:15:00.000Z", 1.0, 2.0, 3.0, 4.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:32:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:39:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T18:05:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T18:15:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T18:32:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0),
+                new HistogramDocSpec("pod", "cumulative", "2021-04-29T18:45:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+            ),
+            "30m",
+            false
+        );
+    }
+
+    public void testMixedTemporalityHistograms() {
+        runHistogramTest(
+            List.of(
+                // cumulative TSID: growing histogram
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:01:00.000Z", 1.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:05:00.000Z", 1.0, 2.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:10:00.000Z", 1.0, 2.0, 3.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:15:00.000Z", 1.0, 2.0, 3.0, 4.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:32:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:39:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:05:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0),
+                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:15:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0),
+                new HistogramDocSpec(
+                    "pod-cumulative",
+                    "cumulative",
+                    "2021-04-29T18:32:00.000Z",
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    8.0,
+                    9.0
+                ),
+                new HistogramDocSpec(
+                    "pod-cumulative",
+                    "cumulative",
+                    "2021-04-29T18:45:00.000Z",
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    8.0,
+                    9.0,
+                    10.0
+                ),
+                // delta TSID: per-interval histograms
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:01:00.000Z", 1.0, 2.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:05:00.000Z", 3.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:10:00.000Z", 4.0, 5.0, 6.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:15:00.000Z", 7.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:32:00.000Z", 8.0, 9.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:39:00.000Z", 10.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T18:05:00.000Z", 2.0, 3.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T18:15:00.000Z", 4.0, 5.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T18:32:00.000Z", 6.0),
+                new HistogramDocSpec("pod-delta", "delta", "2021-04-29T18:45:00.000Z", 7.0, 8.0, 9.0)
+            ),
+            "30m",
+            false
         );
     }
 
@@ -225,6 +320,28 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             var lastValueContender = queryRate(DOWNSAMPLED_LAST_VALUE_INDEX_NAME)
         ) {
             compareResults(baseline, aggregateContender, lastValueContender);
+        }
+    }
+
+    private void runHistogramTest(List<HistogramDocSpec> documentSpecs, String interval, boolean expectExactCount) {
+        createHistogramIndexWithTemporality();
+        indexHistogramDocuments(documentSpecs);
+        downsample(new DateHistogramInterval(interval));
+        List<CountResult> baselineRows = queryHistogramCount(INDEX_NAME);
+        List<CountResult> aggregatedRows = queryHistogramCount(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+        assertThat(aggregatedRows, hasSize(baselineRows.size()));
+        for (int i = 0; i < baselineRows.size(); i++) {
+            CountResult baselineRow = baselineRows.get(i);
+            CountResult aggregatedRow = aggregatedRows.get(i);
+            assertThat(aggregatedRow.timestamp, equalTo(baselineRow.timestamp));
+            if (expectExactCount) {
+                assertThat(aggregatedRow.count, equalTo(baselineRow.count));
+            } else {
+                // Cumulative histograms may lose precision: each downsample bucket preserves only its
+                // oldest value, so the increase computed across downsample bucket boundaries can be
+                // slightly lower than the original.
+                assertThat(aggregatedRow.count, lessThanOrEqualTo(baselineRow.count));
+            }
         }
     }
 
@@ -267,9 +384,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     private void assertResultColumns(EsqlQueryResponse response) {
-        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
-            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
-            : null;
         var columns = response.columns();
         assertThat(columns, hasSize(3));
         assertThat(
@@ -278,7 +392,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 List.of(
                     new ColumnInfoImpl("rate", "double", null),
                     new ColumnInfoImpl("_timeseries", "keyword", null),
-                    new ColumnInfoImpl("time_bucket", "date", null, bucketMeta)
+                    new ColumnInfoImpl("time_bucket", "date", null)
                 )
             )
         );
@@ -390,6 +504,78 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         safeAwait(listener);
     }
 
+    private static void createHistogramIndexWithTemporality() {
+        String histogramMappingFields = """
+            "@timestamp": {
+              "type": "date"
+            },
+            "metricset": {
+              "type": "keyword",
+              "time_series_dimension": true
+            },
+            "temporality": {
+              "type": "keyword",
+              "time_series_dimension": true
+            },
+            "latency": {
+              "type": "exponential_histogram",
+              "time_series_metric": "histogram"
+            }""";
+        CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
+        request.settings(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset,temporality")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
+                .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+        );
+        request.mapping("{ \"properties\": {" + histogramMappingFields + "}}");
+        assertAcked(client().admin().indices().create(request));
+    }
+
+    private void indexHistogramDocuments(List<HistogramDocSpec> documentSpecs) {
+        AtomicInteger i = new AtomicInteger();
+        Supplier<XContentBuilder> nextDoc = () -> {
+            try {
+                assertThat(i.get(), lessThan(documentSpecs.size()));
+                var docSpec = documentSpecs.get(i.getAndIncrement());
+                XContentBuilder builder = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", docSpec.timestamp)
+                    .field("metricset", docSpec.dimension)
+                    .field("temporality", docSpec.temporality);
+                try (var histogram = ExponentialHistogram.create(100, ExponentialHistogramCircuitBreaker.noop(), docSpec.values)) {
+                    builder.field("latency");
+                    ExponentialHistogramXContent.serialize(builder, histogram);
+                }
+                return builder.endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        bulkIndex(INDEX_NAME, nextDoc, documentSpecs.size());
+    }
+
+    private List<CountResult> queryHistogramCount(String indexName) {
+        String command = "TS " + indexName + " | STATS c=COUNT(latency) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
+        try (
+            var response = client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS)
+        ) {
+            var rows = new ArrayList<CountResult>((int) response.getRowCount());
+            for (Iterable<Object> objects : response.rows()) {
+                var row = objects.iterator();
+                while (row.hasNext()) {
+                    var count = (long) row.next();
+                    var timestamp = (String) row.next();
+                    rows.add(new CountResult(timestamp, count));
+                }
+            }
+            rows.sort(Comparator.comparing(CountResult::timestamp));
+            return rows;
+        }
+    }
+
     record DocumentSpec(String dimension, String temporality, String timestamp, int counter) {
         DocumentSpec(String timestamp, int counter) {
             this("pod", null, timestamp, counter);
@@ -400,5 +586,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         }
     }
 
+    record HistogramDocSpec(String dimension, String temporality, String timestamp, double... values) {}
+
     record RateResult(String timeseries, String timestamp, double rate) {}
+
+    record CountResult(String timestamp, long count) {}
 }

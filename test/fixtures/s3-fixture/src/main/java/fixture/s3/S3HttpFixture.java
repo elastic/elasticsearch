@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
@@ -60,8 +61,8 @@ public class S3HttpFixture extends ExternalResource {
     private final boolean enabled;
     @Nullable // if using HTTP
     private final TestTlsCertificate tlsCertificate;
-    private final String bucket;
-    private final String basePath;
+    private final Supplier<String> bucketSupplier;
+    private final Supplier<String> basePathSupplier;
     private final BiPredicate<String, String> authorizationPredicate;
     private final Supplier<S3ConsistencyModel> consistencyModel;
 
@@ -69,8 +70,8 @@ public class S3HttpFixture extends ExternalResource {
         this(
             enabled,
             null,
-            "bucket",
-            "base_path_integration_tests",
+            () -> "bucket",
+            () -> "base_path_integration_tests",
             consistencyModel,
             fixedAccessKey("s3_test_access_key", ANY_REGION, "s3")
         );
@@ -79,21 +80,21 @@ public class S3HttpFixture extends ExternalResource {
     public S3HttpFixture(
         boolean enabled,
         @Nullable /* to use HTTP */ TestTlsCertificate tlsCertificate,
-        String bucket,
-        String basePath,
+        Supplier<String> bucketSupplier,
+        Supplier<String> basePathSupplier,
         Supplier<S3ConsistencyModel> consistencyModel,
         BiPredicate<String, String> authorizationPredicate
     ) {
         this.tlsCertificate = tlsCertificate;
         this.enabled = enabled;
-        this.bucket = bucket;
-        this.basePath = basePath;
+        this.bucketSupplier = bucketSupplier;
+        this.basePathSupplier = basePathSupplier;
         this.authorizationPredicate = authorizationPredicate;
         this.consistencyModel = consistencyModel;
     }
 
     protected HttpHandler createHandler() {
-        return new S3HttpHandler(bucket, basePath, consistencyModel.get()) {
+        return new S3HttpHandler(bucketSupplier.get(), basePathSupplier.get(), consistencyModel.get()) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
@@ -111,13 +112,15 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
+        final var socketAddress = server.getAddress();
+        final var hostAddress = socketAddress.getAddress();
         return Strings.format(
             "%s://%s:%d",
             tlsCertificate == null ? "http" : "https",
-            tlsCertificate == null
-                ? InetAddresses.toUriString(server.getAddress().getAddress())
-                : server.getAddress().getAddress().getHostName(),
-            server.getAddress().getPort()
+            tlsCertificate == null ? InetAddresses.toUriString(hostAddress)
+                : Constants.WINDOWS && hostAddress.isLoopbackAddress() ? "localhost" /* otherwise yields "127.0.0.1" -> cert mismatch */
+                : hostAddress.getHostName(),
+            socketAddress.getPort()
         );
     }
 

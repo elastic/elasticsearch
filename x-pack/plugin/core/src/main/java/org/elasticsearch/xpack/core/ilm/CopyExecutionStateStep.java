@@ -111,9 +111,9 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             .putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
 
         // Remove the skip setting if it's present.
-        if (targetIndexMetadata.getSettings().hasValue(LifecycleSettings.LIFECYCLE_SKIP)) {
+        if (targetIndexMetadata.getSettings().hasValue(IndexMetadata.LIFECYCLE_SKIP)) {
             final var newSettings = Settings.builder().put(targetIndexMetadata.getSettings());
-            newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP);
+            newSettings.remove(IndexMetadata.LIFECYCLE_SKIP);
             indexMetadataBuilder.settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(newSettings);
         }
 

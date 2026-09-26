@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149598
-summary: "Snappy codec follow-up: override read(byte[])"
-type: enhancement

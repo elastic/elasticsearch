@@ -84,8 +84,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
     private TestHarness testHarness;
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeTestHarness() throws Exception {
         if (testHarness != null) {
             testHarness.close();
         }
@@ -299,7 +298,8 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                    ShardRouting.Role.INDEX_ONLY
+                    ShardRouting.Role.INDEX_ONLY,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 ),
                 nodeId
             )

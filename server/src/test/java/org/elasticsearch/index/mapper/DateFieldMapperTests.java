@@ -30,6 +30,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -128,8 +129,18 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        return DocValuesType.NUMERIC;
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     public void testNoDocValues() throws Exception {
@@ -180,7 +191,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 .errorMatches("failed to parse date field [true]"),
             exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
                 "Cannot parse object or array as a date value"
-            )
+            ).skipInColumnar()
         );
     }
 
@@ -607,16 +618,21 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupportInternal(ignoreMalformed, true);
+        return syntheticSourceSupportInternal(ignoreMalformed, true, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return syntheticSourceSupportInternal(ignoreMalformed, true, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
-        return syntheticSourceSupportInternal(ignoreMalformed, false);
+        return syntheticSourceSupportInternal(ignoreMalformed, false, false);
     }
 
-    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean isColumnar) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -628,10 +644,23 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
+            // date fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+            private final boolean enforceSingleValue = isColumnar && randomBoolean();
+
+            @Override
+            public boolean isColumnar() {
+                return isColumnar;
+            }
+
+            @Override
+            public boolean enforcesSingleValue() {
+                return enforceSingleValue;
+            }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                if (randomBoolean()) {
+                // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+                if (enforceSingleValue || randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
@@ -643,23 +672,24 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Value> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
 
-                List<String> outputFromDocValues = values.stream()
-                    .filter(v -> v.malformedOutput == null)
-                    .sorted(
+                Stream<Value> nonMalformed = values.stream().filter(v -> v.malformedOutput == null);
+                if (isColumnar == false) {
+                    nonMalformed = nonMalformed.sorted(
                         Comparator.comparing(
                             v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
                         )
-                    )
-                    .map(Value::output)
-                    .toList();
+                    );
+                }
+                List<String> outputFromDocValues = nonMalformed.map(Value::output).toList();
 
-                List<Object> malformedOutput = values.stream()
-                    .filter(v -> v.malformedOutput != null)
-                    .map(Value::malformedOutput)
-                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                    .toList();
+                // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+                // non-columnar indices use the SORTED ._ignore_malformed column.
+                Stream<Object> malformedStream = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                List<Object> malformedOutput = (isColumnar
+                    ? malformedStream
+                    : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
 
-                // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+                // Malformed values are always last in the implementation.
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
@@ -715,6 +745,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
+                }
+                if (enforceSingleValue) {
+                    b.startObject("doc_values");
+                    b.field("multi_value", false);
+                    b.endObject();
                 }
             }
 
@@ -881,7 +916,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // One big doc block
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -892,7 +927,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 // Smaller doc blocks
                 int docBlockSize = 1000;
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
@@ -905,7 +940,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // One smaller doc block:
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -916,7 +951,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // Read two tiny blocks:
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -965,5 +1000,22 @@ public class DateFieldMapperTests extends MapperTestCase {
                 false
             )
         );
+    }
+
+    public void testColumnarDateArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        // Use epoch_millis format so input numbers and synthetic-source output both serialize as raw millis strings without ambiguity.
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject())
+        ).documentMapper();
+        // Cap at year ~2096 to stay well within Java's date range.
+        long v1 = randomLongBetween(0L, 4_000_000_000_000L);
+        long v2 = randomLongBetween(0L, 4_000_000_000_000L);
+        long v3 = randomLongBetween(0L, 4_000_000_000_000L);
+        // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        // epoch_millis values are emitted as quoted strings under strict columnar synthetic source.
+        assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 }

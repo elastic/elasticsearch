@@ -34,6 +34,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,9 +74,8 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     private Client client;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpClientHeaders() throws Exception {
         Settings settings = Settings.builder()
             .put(HEADER_SETTINGS)
             .put("path.home", createTempDir().toString())
@@ -85,9 +86,8 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client = buildClient(settings, ACTIONS);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void tearDownClientHeaders() throws Exception {
         terminate(threadPool);
     }
 

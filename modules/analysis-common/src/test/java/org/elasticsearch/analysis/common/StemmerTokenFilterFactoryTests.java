@@ -141,6 +141,29 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         return analyzer;
     }
 
+    public void testNynorskStemmers() throws IOException {
+        for (String language : new String[] { "light_nynorsk", "lightNynorsk", "minimal_nynorsk", "minimalNynorsk" }) {
+            IndexVersion v = IndexVersionUtils.randomVersion();
+            Settings settings = Settings.builder()
+                .put("index.analysis.filter.my_nynorsk.type", "stemmer")
+                .put("index.analysis.filter.my_nynorsk.language", language)
+                .put("index.analysis.analyzer.my_nynorsk.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_nynorsk.filter", "my_nynorsk")
+                .put(SETTING_VERSION_CREATED, v)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_nynorsk");
+            assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader("jenta"));
+            // Constructing the filter must not throw (see https://github.com/elastic/elasticsearch/issues/150341)
+            TokenStream create = tokenFilter.create(tokenizer);
+            assertNotNull(create);
+        }
+    }
+
     public void testKpDeprecation() throws IOException {
         IndexVersion v = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()

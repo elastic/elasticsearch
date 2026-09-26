@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
@@ -22,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -126,6 +130,57 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             approximationPlan.output().stream().map(Attribute::name).toList(),
             contains("bad", "good", "_approximation_confidence_interval(good)", "_approximation_certified(good)")
         );
+    }
+
+    public void testApproximationPlan_percentileBucketUsesReducedCompression() {
+        assertBucketUsesReducedCompression("FROM test | STATS PERCENTILE(emp_no, 95)");
+    }
+
+    /**
+     * MEDIAN is substituted by PERCENTILE(50) during optimization. Bucket columns therefore appear as
+     * Percentile with reduced compression while the main aggregate retains full precision.
+     */
+    public void testApproximationPlan_medianBucketUsesReducedCompression() {
+        assertBucketUsesReducedCompression("FROM test | STATS MEDIAN(emp_no)");
+    }
+
+    private void assertBucketUsesReducedCompression(String query) {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(query);
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+
+        List<SampledAggregate> sampledAggs = approximationPlan.collect(SampledAggregate.class);
+        assertThat(sampledAggs, hasSize(1));
+        SampledAggregate sampledAgg = sampledAggs.getFirst();
+
+        // Bucket aggregates use reduced compression for memory efficiency.
+        List<Percentile> bucketPercentiles = sampledAgg.aggregates()
+            .stream()
+            .filter(
+                ne -> ne instanceof Alias a && a.child() instanceof Percentile && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART)
+            )
+            .map(ne -> (Percentile) ((Alias) ne).child())
+            .toList();
+        assertThat(bucketPercentiles, hasSize(ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT));
+        for (Percentile bucketPercentile : bucketPercentiles) {
+            assertThat(bucketPercentile.tDigestStateCompression(), equalTo(ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION));
+        }
+
+        // Main aggregate retains full compression for accurate results.
+        List<Percentile> mainPercentiles = sampledAgg.aggregates()
+            .stream()
+            .filter(
+                ne -> ne instanceof Alias a
+                    && a.child() instanceof Percentile
+                    && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART) == false
+            )
+            .map(ne -> (Percentile) ((Alias) ne).child())
+            .toList();
+        assertThat(mainPercentiles, hasSize(1));
+        assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
     }
 
     public void testColumnMetadata() {

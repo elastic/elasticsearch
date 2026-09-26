@@ -78,6 +78,15 @@ public abstract class AggregationBuilder
         return Optional.empty();
     }
 
+    /**
+     * Configured maximum number of ranked source documents this aggregation may emit per bucket.
+     * Default is {@code 1}. {@code top_metrics} overrides this with its {@code size} parameter so
+     * consumers such as transforms can persist a {@code top} array.
+     */
+    public int getRankedHitSize() {
+        return 1;
+    }
+
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
     protected abstract AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException;
 

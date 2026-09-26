@@ -126,7 +126,7 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
 
             Settings expectedSettings = Settings.builder()
                 .put(step.getTargetIndexSettingsSupplier().apply(null))
-                .put(LifecycleSettings.LIFECYCLE_SKIP, true)
+                .put(IndexMetadata.LIFECYCLE_SKIP, true)
                 .build();
             assertThat(request.getTargetIndexRequest().settings(), equalTo(expectedSettings));
             assertThat(request.getMaxPrimaryShardSize(), equalTo(step.getMaxPrimaryShardSize()));

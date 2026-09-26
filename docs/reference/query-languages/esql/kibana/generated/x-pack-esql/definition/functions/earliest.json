@@ -104,6 +104,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "The search field"

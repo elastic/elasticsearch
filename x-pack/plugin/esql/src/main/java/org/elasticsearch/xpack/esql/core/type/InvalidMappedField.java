@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -17,21 +15,21 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
+ * <p>
+ * N.B.: This class exists only as a backward-compatible version of {@link CompactInvalidMappedField}.
+ * </p>
  * Representation of a field mapped differently across indices. When {@code SET unmapped_fields="LOAD"} this also includes indices missing
  * the field in their mappings, in which case it is treated as {@link DataType#KEYWORD}.
- * <p>
  * Used during analysis only; the analyzer's {@code UnionTypesCleanup} converts any {@link InvalidMappedField}s before the plan leaves
  * the coordinator.
  */
-public class InvalidMappedField extends EsField {
+public final class InvalidMappedField extends TypeConflictedField {
+
+    /** How many index names per source type to spell out in {@link #errorMessage()} before collapsing the rest into "and [N] other". */
+    private static final int MAX_INDICES_TO_DISPLAY = 3;
 
     private final Map<String, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
-    /**
-     * Lazily derived from {@link #typesToIndices} and {@link #isPotentiallyUnmapped} on first access; not part of
-     * {@link #equals(Object)} / {@link #hashCode()}.
-     */
-    private String cachedErrorMessage;
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
@@ -62,23 +60,23 @@ public class InvalidMappedField extends EsField {
         super(name, DataType.UNSUPPORTED, properties, false, type);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
-        this.cachedErrorMessage = null;
     }
 
     @Override
-    public void writeContent(StreamOutput out) {
-        throw new UnsupportedOperationException("InvalidMappedField must never leave the coordinator");
+    Map<String, Sample> samples() {
+        // Preserve typesToIndices' own iteration order so the rendered error lists types in the order they were discovered (which the
+        // production resolver supplies as a TreeMap, but tests may supply in a deliberate insertion order).
+        Map<String, Sample> samples = new LinkedHashMap<>();
+        typesToIndices.forEach((type, indices) -> samples.put(type, toSample(indices)));
+        return samples;
     }
 
-    public Set<DataType> types() {
-        return typesToIndices.keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
-    }
-
-    public String errorMessage() {
-        if (cachedErrorMessage == null) {
-            cachedErrorMessage = makeErrorMessage(typesToIndices, isPotentiallyUnmapped);
-        }
-        return cachedErrorMessage;
+    private static Sample toSample(Set<String> indices) {
+        // At or below the display cap we show the full set in its original iteration order; above it we sort and take the first few so
+        // the rendered list is deterministic.
+        return indices.size() <= MAX_INDICES_TO_DISPLAY
+            ? new Sample(indices, indices.size())
+            : new Sample(indices.stream().sorted().limit(MAX_INDICES_TO_DISPLAY).toList(), indices.size());
     }
 
     @Override
@@ -97,57 +95,17 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    public EsField getExactField() {
-        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
-
-    }
-
-    @Override
-    public Exact getExactInfo() {
-        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
-    }
-
     public Map<String, Set<String>> getTypesToIndices() {
         return typesToIndices;
     }
 
+    @Override
     public boolean isPotentiallyUnmapped() {
         return isPotentiallyUnmapped;
     }
 
-    private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
-        StringBuilder errorMessage = new StringBuilder();
-        var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        if (isInsistKeywordOnlyKeyword) {
-            first = false;
-            errorMessage.append("[keyword] due to loading from _source");
-        }
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] ");
-            if (e.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword) {
-                errorMessage.append("due to loading from _source and in ");
-            } else {
-                errorMessage.append("in ");
-            }
-            if (e.getValue().size() <= 3) {
-                errorMessage.append(e.getValue());
-            } else {
-                errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
-                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
-                errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
-            }
-        }
-        return errorMessage.toString();
+    @Override
+    public Set<DataType> types() {
+        return getTypesToIndices().keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
     }
 }

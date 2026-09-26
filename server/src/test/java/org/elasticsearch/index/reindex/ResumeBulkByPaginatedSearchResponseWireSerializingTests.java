@@ -28,25 +28,25 @@ public class ResumeBulkByPaginatedSearchResponseWireSerializingTests extends Abs
 
     @Override
     protected Wrapper createTestInstance() {
-        return new Wrapper(new ResumeBulkByScrollResponse(new TaskId(randomAlphaOfLength(8), randomNonNegativeLong())));
+        return new Wrapper(new ResumeBulkByPaginatedSearchResponse(new TaskId(randomAlphaOfLength(8), randomNonNegativeLong())));
     }
 
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
         TaskId origId = instance.response.getTaskId();
         TaskId newId = randomValueOtherThan(origId, () -> new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
-        return new Wrapper(new ResumeBulkByScrollResponse(newId));
+        return new Wrapper(new ResumeBulkByPaginatedSearchResponse(newId));
     }
 
     static final class Wrapper implements Writeable {
-        private final ResumeBulkByScrollResponse response;
+        private final ResumeBulkByPaginatedSearchResponse response;
 
-        Wrapper(ResumeBulkByScrollResponse response) {
+        Wrapper(ResumeBulkByPaginatedSearchResponse response) {
             this.response = response;
         }
 
         Wrapper(StreamInput in) throws IOException {
-            this.response = new ResumeBulkByScrollResponse(in);
+            this.response = new ResumeBulkByPaginatedSearchResponse(in);
         }
 
         @Override

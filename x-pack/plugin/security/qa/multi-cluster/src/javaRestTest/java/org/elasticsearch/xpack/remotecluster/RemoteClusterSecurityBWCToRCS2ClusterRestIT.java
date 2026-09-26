@@ -86,9 +86,19 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void configureRemoteClusterForTest() throws Exception {
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, randomBoolean(), false);
-        super.setUp();
+    }
+
+    public void testUserManagedServiceAccountCcsAgainstOlderFulfillingCluster() throws Exception {
+        final boolean fulfillingClusterSupportsUserManagedServiceAccounts = fulfillingClusterSupportsUserManagedServiceAccounts();
+        try (var ignored = setupUserManagedServiceAccountCcsOnQueryCluster(fulfillingClusterSupportsUserManagedServiceAccounts)) {
+            final UserManagedServiceAccountCcsContext context = ignored.context();
+            if (fulfillingClusterSupportsUserManagedServiceAccounts) {
+                assertUserManagedServiceAccountCcsSucceeds(context);
+            } else {
+                assertUserManagedServiceAccountCcsFailsClosed(context);
+            }
+        }
     }
 }

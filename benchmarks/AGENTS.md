@@ -10,6 +10,20 @@ cd benchmarks
 ../gradlew run --args "org.elasticsearch.benchmark._nightly.BytesBuilderBenchmark -pdata=1000_ints -pimpl=paged -poperation=write -rf json -rff build/jmh-result.json" | tee /tmp/bench/paged_write
 ```
 
+## ColumNAR transform benchmarks
+
+```
+cd benchmarks
+../gradlew run --args="EncodeBlockTransformBenchmark" | tee /tmp/bench/encode_transform
+../gradlew run --args="DecodeBlockTransformBenchmark" | tee /tmp/bench/decode_transform
+
+# Single stage + pattern
+../gradlew run --args="EncodeBlockTransformBenchmark -p stage=splitDelta -p pattern=TSDB_SPLIT" | tee /tmp/bench/encode_splitdelta_tsdb
+
+# Quick smoke
+../gradlew run --args="EncodeBlockTransformBenchmark -wi 1 -i 1 -f 1 -w 1 -r 1 -p stage=delta -p pattern=MONOTONIC_TIMESTAMPS"
+```
+
 ## Self-test
 
 Never skip the self-test. Do not pass `-DskipSelfTest=true` or `--test` to `run.sh`. The

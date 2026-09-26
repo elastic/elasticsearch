@@ -11,14 +11,19 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -150,6 +155,51 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector valueVector, LongVector timestampVector) {
+    if (valueVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       int valueValue = valueVector.getInt(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
@@ -158,6 +208,66 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector valueVector, LongVector timestampVector, BooleanVector mask) {
+    if (valueVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int valueValue = specialized.getInt(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivIntAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

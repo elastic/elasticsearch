@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleCounter;
 
-import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
@@ -22,9 +20,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class DoubleAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
+class DoubleAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
 
-    public DoubleAsyncCounterAdapter(
+    DoubleAsyncCounterAdapter(
         Meter meter,
         String name,
         String description,
@@ -50,7 +48,7 @@ public class DoubleAsyncCounterAdapter extends AbstractAsyncInstrument<Observabl
                 .setDescription(description)
                 .setUnit(unit)
                 .ofDoubles()
-                .buildWithCallback(OtelHelper.doubleMeasurementCallback(name, observer));
+                .buildWithCallback(OtelHelper.doubleCounterMeasurementCallback(name, observer));
         }
     }
 }

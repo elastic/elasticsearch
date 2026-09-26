@@ -7,22 +7,68 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
+import java.io.IOException;
+import java.time.Clock;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 
 /**
  * Data source plugin providing S3 storage support for ESQL.
  * Supports s3://, s3a://, and s3n:// URI schemes.
+ *
+ * <p>Workload-identity sources (EKS IRSA + Pod Identity) are wired lazily on the first
+ * {@link #storageProviders(StorageProviderServices)} call rather than at node start, because the
+ * instance whose {@code storageProviders} runs is created reflectively by ESQL's SPI discovery and
+ * never receives {@code createComponents} (and therefore no {@code PluginServices}). The node-level
+ * {@link Environment} and {@code ResourceWatcherService} it needs arrive through the
+ * {@link StorageProviderServices} threaded into the SPI. {@code DataSourceModule} owns this
+ * instance's {@link #close()}.
  */
 public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    private static final Logger LOGGER = LogManager.getLogger(S3DataSourcePlugin.class);
+
+    /**
+     * IRSA web-identity provider, built once on the first {@link #storageProviders} call. The provider
+     * self-disables ({@code isActive() == false}) when {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset, so
+     * non-EKS deployments incur no cost beyond construction. Released by {@link #close()}.
+     */
+    private CustomWebIdentityTokenCredentialsProvider webIdentityProvider;
+
+    /**
+     * Pod Identity container-credentials provider, built once alongside the IRSA provider. Reads the
+     * entitled token file itself rather than redirecting the JVM-wide
+     * {@code aws.containerAuthorizationTokenFile} system property. Released by {@link #close()}.
+     */
+    private EsqlContainerCredentialsProvider containerCredentialsProvider;
+
+    /** Guards one-time wiring of the workload-identity sources; mutated only under {@code synchronized(this)}. */
+    private boolean workloadIdentityInitialized;
+
+    /** Set to {@code true} by {@link #close()}; prevents post-shutdown init from leaking resources. */
+    private boolean closed;
 
     @Override
     public Set<String> supportedSchemes() {
@@ -30,18 +76,171 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
-        StorageProviderFactory s3Factory = StorageProviderFactory.of(
-            () -> new S3StorageProvider(null),
+    public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        WorkloadIdentitySources sources = initWorkloadIdentitySources(services);
+        // Size the async client's connection pool from the single external-read concurrency knob
+        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
+        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
+        CharacterRunAutomaton allowedByOperator = buildAllowlistAutomaton(services.settings());
+        StorageProviderFactory s3Base = StorageProviderFactory.of(
+            () -> new S3StorageProvider(null, sources.webIdentity(), sources.containerCredentials(), maxConnections),
             S3Configuration::fromQueryConfig,
-            S3StorageProvider::new
+            cfg -> {
+                checkEndpointAgainstCurrentAllowlist(cfg, allowedByOperator);
+                return new S3StorageProvider(cfg, sources.webIdentity(), sources.containerCredentials(), maxConnections);
+            }
         );
+        StorageProviderFactory s3Factory = StorageProviderFactory.withTestConnection(s3Base, config -> {
+            S3Configuration cfg = S3Configuration.fromQueryConfig(config).value();
+            checkEndpointAgainstCurrentAllowlist(cfg, allowedByOperator);
+            S3StorageProvider p = new S3StorageProvider(cfg, sources.webIdentity(), sources.containerCredentials(), maxConnections);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
+    }
+
+    /**
+     * Runs {@link S3EndpointCheck#validate} against the node's current allowlist and throws if any endpoint is refused.
+     * The error appends recovery instructions so the operator knows how to unblock reads without restarting.
+     */
+    private static void checkEndpointAgainstCurrentAllowlist(S3Configuration cfg, CharacterRunAutomaton allowedByOperator) {
+        ValidationException errors = new ValidationException();
+        S3EndpointCheck.validate(cfg, allowedByOperator::run, errors);
+        if (errors.validationErrors().isEmpty() == false) {
+            errors.addValidationError(
+                "To recover, re-register the data source with an endpoint this node admits, or add the host to ["
+                    + ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "]. Note: ["
+                    + ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] does not re-admit a plain-http [sts_endpoint]."
+            );
+            throw errors;
+        }
+    }
+
+    /**
+     * Builds the IRSA and Pod Identity providers exactly once from the node-level services threaded
+     * through the SPI. Returns both (each possibly inactive) so callers can hand them to the
+     * {@link S3StorageProvider} credentials chain.
+     */
+    private synchronized WorkloadIdentitySources initWorkloadIdentitySources(StorageProviderServices services) {
+        if (closed) {
+            return new WorkloadIdentitySources(null, null);
+        }
+        if (workloadIdentityInitialized == false) {
+            buildWorkloadIdentitySources(services.environment(), services.resourceWatcherService(), System::getenv);
+        }
+        return new WorkloadIdentitySources(webIdentityProvider, containerCredentialsProvider);
+    }
+
+    /**
+     * Test seam: wires workload-identity sources with an injectable env lookup so unit tests can
+     * assert Pod Identity behaviour without manipulating real {@code System.getenv} state. Must be
+     * called before {@link #storageProviders} on a fresh plugin instance.
+     */
+    synchronized void initializeWorkloadIdentityForTesting(
+        Environment environment,
+        ResourceWatcherService resourceWatcherService,
+        Function<String, String> envLookup
+    ) {
+        if (workloadIdentityInitialized || closed) {
+            throw new IllegalStateException("workload-identity sources already initialized or plugin closed");
+        }
+        buildWorkloadIdentitySources(environment, resourceWatcherService, envLookup);
+    }
+
+    /**
+     * Builds Pod Identity first, then IRSA. Pod Identity is first so a construction failure there
+     * cannot leave a live IRSA provider (STS client / file watcher) to leak when
+     * {@code workloadIdentityInitialized} stays false and init is retried. If IRSA construction
+     * throws after Pod Identity succeeded, the container provider is closed in the {@code finally}.
+     */
+    private void buildWorkloadIdentitySources(
+        Environment environment,
+        ResourceWatcherService resourceWatcherService,
+        Function<String, String> envLookup
+    ) {
+        EsqlContainerCredentialsProvider container = null;
+        CustomWebIdentityTokenCredentialsProvider irsa = null;
+        try {
+            // Pod Identity: own the container-credentials exchange so we never write the JVM-global
+            // aws.containerAuthorizationTokenFile system property (which would redirect repository-s3
+            // and every other AWS SDK client in the process).
+            container = new EsqlContainerCredentialsProvider(environment, resourceWatcherService, envLookup);
+            // IRSA web-identity provider: file watcher and STS client live for the node lifetime.
+            irsa = new CustomWebIdentityTokenCredentialsProvider(environment, Clock.systemUTC(), resourceWatcherService, envLookup);
+            containerCredentialsProvider = container;
+            webIdentityProvider = irsa;
+            workloadIdentityInitialized = true;
+            if (containerCredentialsProvider.isActive()) {
+                LOGGER.debug(
+                    "Configured EKS Pod Identity for S3 data sources via entitled token at [{}]",
+                    EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION
+                );
+            }
+            // Ownership transferred to fields; clear locals so finally does not close them.
+            container = null;
+            irsa = null;
+        } finally {
+            IOUtils.closeWhileHandlingException(container, irsa);
+        }
     }
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
+        CharacterRunAutomaton allowedByOperator = buildAllowlistAutomaton(settings);
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withAdditionalDatasetKeys(
+            Set.of("region")
+        )
+            .withDeprecatedDatasourceKey(
+                "region",
+                "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
+            )
+            .withResourceCheck(S3ResourceCheck::validate)
+            // The cast holds because this same builder is given S3Configuration::fromMap as its config
+            // factory above, and the validator passes that factory's own product to the check.
+            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, allowedByOperator::run, errors));
         return Map.of(v.type(), v);
     }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return S3Configuration.secretFieldNames();
+    }
+
+    private static CharacterRunAutomaton buildAllowlistAutomaton(Settings settings) {
+        List<String> allowed = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings);
+        return new CharacterRunAutomaton(
+            allowed.isEmpty()
+                ? Automata.makeEmpty()
+                : Operations.determinize(
+                    Regex.simpleMatchToAutomaton(allowed.stream().map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new)),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                )
+        );
+    }
+
+    @Override
+    public synchronized void close() throws IOException {
+        closed = true;
+        try {
+            // Both providers are Closeable; IOUtils.close tolerates null.
+            IOUtils.close(webIdentityProvider, containerCredentialsProvider);
+        } finally {
+            webIdentityProvider = null;
+            containerCredentialsProvider = null;
+        }
+    }
+
+    private record WorkloadIdentitySources(
+        CustomWebIdentityTokenCredentialsProvider webIdentity,
+        EsqlContainerCredentialsProvider containerCredentials
+    ) {}
 }

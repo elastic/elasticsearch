@@ -29,6 +29,11 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
+    private static final Set<String> CAPABILITIES = Set.of(
+        DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
+        "frozen_transition_explain"
+    );
+
     @Override
     public String getName() {
         return "data_stream_lifecycle_explain_action";
@@ -62,6 +67,6 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+        return CAPABILITIES;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -89,6 +91,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.isTransientRejection;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
@@ -138,6 +141,40 @@ public class SearchServiceTests extends IndexShardTestCase {
         LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
         assertEquals(
             localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
+    }
+
+    // Verify that a range filter nested inside a bool `should` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideShouldClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::should);
+    }
+
+    // Verify that a range filter nested inside a bool `mustNot` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideMustNotClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::mustNot);
+    }
+
+    private void dotestNotTrackedTimeRangeFilter(BiFunction<BoolQueryBuilder, QueryBuilder, BoolQueryBuilder> queryWrapper)
+        throws IOException {
+        // outer filter: @timestamp >= 2025-12-01 (should match the indexed doc from 2025-12-09)
+        // inner should: @timestamp >= 2020-01-01 (old date in an optional clause — must not be tracked)
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder().query(
+                    queryWrapper.apply(
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01")),
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01"))
+                    )
+                )
+            );
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, true, null, false);
+        // Only the outer filter range should be reported; Math.min must not drag it back to 2020-01-01
+        LocalDateTime expectedFrom = LocalDateTime.of(2025, 12, 1, 0, 0);
+        assertEquals(
+            expectedFrom.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
             canMatchContext.getTimeRangeFilterFromMillis().longValue()
         );
     }
@@ -371,6 +408,20 @@ public class SearchServiceTests extends IndexShardTestCase {
         expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
         assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
         assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
+    }
+
+    public void testIsTransientRejection() {
+        assertTrue(isTransientRejection(new EsRejectedExecutionException("rejected", false)));
+        assertFalse(isTransientRejection(new EsRejectedExecutionException("shutdown", true)));
+        assertFalse(isTransientRejection(new RuntimeException("other")));
+
+        Exception wrapped = new RuntimeException(new EsRejectedExecutionException("rejected", false));
+        assertTrue(isTransientRejection(wrapped));
+
+        // suppressed-only rejection must not retain (cause-chain unwrap only)
+        RuntimeException primary = new RuntimeException("primary");
+        primary.addSuppressed(new EsRejectedExecutionException("rejected", false));
+        assertFalse(isTransientRejection(primary));
     }
 
     public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147584
-summary: Deduplicate Parquet iterator decode logic
-type: enhancement

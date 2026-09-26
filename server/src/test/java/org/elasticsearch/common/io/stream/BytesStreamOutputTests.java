@@ -26,8 +26,7 @@ public class BytesStreamOutputTests extends ESTestCase {
     private BytesStreamOutput stream;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initStream() throws Exception {
         stream = new BytesStreamOutput();
     }
 

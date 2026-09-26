@@ -22,20 +22,20 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Annotates an {@link ExternalSourceExec} with a Top-N grouping hint when the local plan tree has the shape
- * {@code TopNExec → AggregateExec → ... → ExternalSourceExec} and the sort is on a single grouping key
- * (not on an aggregation result). The hint flows through the planner into the {@code BlockHash}, which prunes
+ * {@code TopNExec → AggregateExec → ... → ExternalSourceExec} and every sort key maps to one of the
+ * aggregate's grouping attributes. The hint flows through the planner into the {@code BlockHash}, which prunes
  * non-competitive groups during aggregation, eliminating the need to materialize the full hash table.
  *
  * <p>Conditions for the rule to fire:
  * <ul>
- *   <li>The sort has exactly one {@link Order}.</li>
- *   <li>The sort key references one of the aggregate's grouping attributes (not an aggregation output).</li>
- *   <li>The aggregate has exactly one grouping (multi-key Top-N is deferred).</li>
- *   <li>The grouping element type is supported by a Top-N {@link BlockHash} implementation
+ *   <li>Every {@link Order} in the sort references one of the aggregate's grouping attributes
+ *       (not an aggregation output such as {@code COUNT(*)}).</li>
+ *   <li>The primary (first) sort key's element type is supported by a Top-N {@link BlockHash} implementation
  *       (currently {@link ElementType#LONG} and {@link ElementType#BYTES_REF}).</li>
  *   <li>The limit is a non-negative integer literal.</li>
  *   <li>The aggregate's child subtree contains an {@link ExternalSourceExec}.</li>
@@ -77,28 +77,43 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
      */
     private static BlockHash.TopNDef buildTopNDef(TopNExec topNExec, AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         List<Order> orders = topNExec.order();
-        if (orders.size() != 1) {
+        List<? extends Expression> groupings = aggregate.groupings();
+
+        // For each sort order, find the grouping attribute it references (by semantic equality).
+        // Every sort key must map to a grouping attribute; a sort on an aggregation result is rejected.
+        List<BlockHash.SortKey> sortKeys = new ArrayList<>(orders.size());
+        for (Order order : orders) {
+            Attribute sortAttr = Expressions.attribute(order.child());
+            if (sortAttr == null) {
+                return null;
+            }
+            int groupingIndex = -1;
+            for (int i = 0; i < groupings.size(); i++) {
+                Attribute groupAttr = Expressions.attribute(groupings.get(i));
+                if (groupAttr != null && sortAttr.semanticEquals(groupAttr)) {
+                    groupingIndex = i;
+                    break;
+                }
+            }
+            if (groupingIndex < 0) {
+                return null; // sort key does not reference any grouping attribute
+            }
+            boolean asc = order.direction() == Order.OrderDirection.ASC;
+            boolean nullsFirst = order.nullsPosition() == Order.NullsPosition.FIRST;
+            sortKeys.add(new BlockHash.SortKey(groupingIndex, asc, nullsFirst));
+        }
+
+        // Validate that the primary sort key's element type is handled by a Top-N BlockHash implementation.
+        // This keeps pushedTopN as a strict promise: a non-null value means BlockHash#build will honor it.
+        Attribute primaryGroupAttr = Expressions.attribute(groupings.get(sortKeys.get(0).groupingIndex()));
+        if (primaryGroupAttr == null) {
             return null;
         }
-        if (aggregate.groupings().size() != 1) {
+        ElementType primaryType = PlannerUtils.toElementType(primaryGroupAttr.dataType());
+        if (primaryType != ElementType.LONG && primaryType != ElementType.BYTES_REF) {
             return null;
         }
-        Attribute groupAttr = Expressions.attribute(aggregate.groupings().get(0));
-        if (groupAttr == null) {
-            return null;
-        }
-        // Skip the annotation when the grouping type is not yet handled by a Top-N BlockHash. This keeps the
-        // hint as a strict promise that BlockHash#build will honor it; downstream code can rely on a non-null
-        // pushedTopN to mean "Top-N pruning is wired in".
-        ElementType groupingElementType = PlannerUtils.toElementType(groupAttr.dataType());
-        if (groupingElementType != ElementType.LONG && groupingElementType != ElementType.BYTES_REF) {
-            return null;
-        }
-        Order order = orders.get(0);
-        Attribute sortAttr = Expressions.attribute(order.child());
-        if (sortAttr == null || sortAttr.semanticEquals(groupAttr) == false) {
-            return null;
-        }
+
         Expression limitExpr = topNExec.limit();
         if (limitExpr instanceof Literal == false || limitExpr.foldable() == false) {
             return null;
@@ -117,10 +132,7 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
             if (limit <= 0) {
                 return null;
             }
-            boolean asc = order.direction() == Order.OrderDirection.ASC;
-            boolean nullsFirst = order.nullsPosition() == Order.NullsPosition.FIRST;
-            // Order index 0 because we only allow a single grouping/sort key.
-            return new BlockHash.TopNDef(0, asc, nullsFirst, limit);
+            return new BlockHash.TopNDef(List.copyOf(sortKeys), limit);
         }
         return null;
     }

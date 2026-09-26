@@ -51,6 +51,12 @@
         "type": "list",
         "description": "Specific routing value"
       },
+      "slice": {
+        "type": "string",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); required to scope the operation to that slice",
+        "visibility": "feature_flag",
+        "feature_flag": "es.slice_indexing_feature_flag_enabled"
+      },
       "timeout": {
         "type": "time",
         "default": "1m",

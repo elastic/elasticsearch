@@ -59,6 +59,7 @@ public class CosineSimilarity extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the cosine similarity between two dense_vectors.",
         description = "Calculates the cosine similarity between two dense_vectors.",
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
         appliesTo = {

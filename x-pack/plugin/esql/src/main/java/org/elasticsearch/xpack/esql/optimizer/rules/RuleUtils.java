@@ -79,6 +79,20 @@ public final class RuleUtils {
 
     /**
      * Collects references to foldable expressions from the given logical plan, returning an {@link AttributeMap} that maps
+     * foldable aliases to their corresponding literal values. Equivalent to calling
+     * {@link #foldableReferencesSkipMVGroupings(LogicalPlan, LogicalOptimizerContext, Predicate)} with a predicate that
+     * never stops.
+     *
+     * @param plan The logical plan to analyze.
+     * @param ctx The optimizer context providing fold context.
+     * @return An {@link AttributeMap} containing foldable references and their literal values.
+     */
+    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        return foldableReferencesSkipMVGroupings(plan, ctx, __ -> false);
+    }
+
+    /**
+     * Collects references to foldable expressions from the given logical plan, returning an {@link AttributeMap} that maps
      * foldable aliases to their corresponding literal values.
      * <p>
      * Traverses plan nodes bottom-up. At {@link Aggregate} boundaries, multi-valued grouping keys are removed from
@@ -95,38 +109,53 @@ public final class RuleUtils {
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
+     * @param stopCondition A predicate that, when it returns {@code true} for a plan node, halts traversal into
+     *                      that node and its subtree.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
-    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(LogicalPlan plan, LogicalOptimizerContext ctx) {
+    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(
+        LogicalPlan plan,
+        LogicalOptimizerContext ctx,
+        Predicate<LogicalPlan> stopCondition
+    ) {
         AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
+        collectFoldableRefs(plan, collectRefsBuilder, ctx, stopCondition);
+        return collectRefsBuilder.build();
+    }
 
-        // Traverse plan nodes bottom-up, collecting foldable aliases from each node.
-        plan.forEachUp(node -> {
-            // At Aggregate boundaries, remove multi-valued grouping keys. After GROUP BY, these attributes
-            // represent expanded single values, not the original multi-valued literals.
-            if (node instanceof Aggregate aggregate) {
-                aggregate.groupings().forEach(group -> {
-                    Expression resolved = collectRefsBuilder.build().resolve(group, group);
-                    if (resolved instanceof Literal literal && literal.value() instanceof List<?>) {
-                        collectRefsBuilder.remove(group);
-                    }
-                });
-            }
-
-            node.forEachExpression(Alias.class, a -> {
-                var c = a.child();
-                boolean shouldCollect = c.foldable();
-                // try to resolve the expression based on existing foldables
-                if (shouldCollect == false) {
-                    c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
-                    shouldCollect = c.foldable();
-                }
-                if (shouldCollect) {
-                    collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+    private static void collectFoldableRefs(
+        LogicalPlan plan,
+        AttributeMap.Builder<Expression> collectRefsBuilder,
+        LogicalOptimizerContext ctx,
+        Predicate<LogicalPlan> stopCondition
+    ) {
+        if (stopCondition.test(plan)) {
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
+        }
+        // At Aggregate boundaries, remove multi-valued grouping keys before processing this node's expressions.
+        // After GROUP BY, these attributes represent expanded single values, not the original multi-valued literals.
+        if (plan instanceof Aggregate aggregate) {
+            aggregate.groupings().forEach(group -> {
+                Expression resolved = collectRefsBuilder.build().resolve(group, group);
+                if (resolved instanceof Literal literal && literal.value() instanceof List<?>) {
+                    collectRefsBuilder.remove(group);
                 }
             });
+        }
+        plan.forEachExpression(Alias.class, a -> {
+            var c = a.child();
+            boolean shouldCollect = c.foldable();
+            if (shouldCollect == false) {
+                // try to resolve the expression based on existing foldables
+                c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
+                shouldCollect = c.foldable();
+            }
+            if (shouldCollect) {
+                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+            }
         });
-
-        return collectRefsBuilder.build();
     }
 }

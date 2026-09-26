@@ -22,6 +22,7 @@ import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureExtracter;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.joni.Region;
 
 import java.util.ArrayList;
@@ -211,7 +212,11 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         Arrays.fill(firstValues, null);
         for (int c = 0; c < valueCount; c++) {
             BytesRef input = inputBlock.getBytesRef(position + c, spare);
-            parser.match(input.bytes, input.offset, input.length, this);
+            try {
+                parser.match(input.bytes, input.offset, input.length, this);
+            } catch (RuntimeException e) {
+                throw new EsqlClientException(e.getMessage(), e);
+            }
         }
         for (int i = 0; i < firstValues.length; i++) {
             if (firstValues[i] == null) {

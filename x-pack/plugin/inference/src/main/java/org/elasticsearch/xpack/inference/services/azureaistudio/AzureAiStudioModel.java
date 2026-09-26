@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -29,7 +29,7 @@ import java.util.Objects;
  * - provider:
  * - endpointType:
  */
-public abstract class AzureAiStudioModel extends Model {
+public abstract class AzureAiStudioModel extends RateLimitGroupingModel {
     protected String target;
     protected URI uri;
     protected AzureAiStudioProvider provider;
@@ -70,6 +70,12 @@ public abstract class AzureAiStudioModel extends Model {
         return this.target;
     }
 
+    @Override
+    public int rateLimitGroupingHash() {
+        return target().hashCode();
+    }
+
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return this.rateLimitSettings;
     }

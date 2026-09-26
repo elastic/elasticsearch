@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -82,7 +83,7 @@ public class AggregatorBenchmark {
     private static final int TOP_N_LIMIT = 3;
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -209,7 +210,12 @@ public class AggregatorBenchmark {
                 new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             case TOP_N_LONGS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG, null, new BlockHash.TopNDef(0, true, true, TOP_N_LIMIT))
+                new BlockHash.GroupSpec(
+                    0,
+                    ElementType.LONG,
+                    null,
+                    new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, true, true)), TOP_N_LIMIT)
+                )
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };

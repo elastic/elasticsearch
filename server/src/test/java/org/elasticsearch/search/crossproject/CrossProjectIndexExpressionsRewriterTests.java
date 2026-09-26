@@ -306,6 +306,19 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
 
         {
+            // Explicit deterministic coverage for linked project index exclusion syntax variants.
+            final var excludeByProjectPrefix = "-P1:logs";
+            final var excludeByIndexPrefix = "P1:-logs";
+            final var byProjectPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByProjectPrefix);
+            final var byIndexPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByIndexPrefix);
+
+            assertThat(byProjectPrefix.keySet(), containsInAnyOrder("*", excludeByProjectPrefix));
+            assertThat(byIndexPrefix.keySet(), containsInAnyOrder("*", excludeByIndexPrefix));
+            assertIndexRewriteResultsContains(byProjectPrefix.get(excludeByProjectPrefix), containsInAnyOrder(excludeByProjectPrefix));
+            assertIndexRewriteResultsContains(byIndexPrefix.get(excludeByIndexPrefix), containsInAnyOrder(excludeByIndexPrefix));
+        }
+
+        {
             // Exclusion on origin project or index throws 404 if origin is filtered out by project routing
             final String excludedIndex = randomFrom("*", "metrics*", "metrics");
             final var excludeExpression = randomBoolean() ? "-_origin:" + excludedIndex : "_origin:-" + excludedIndex;
@@ -685,8 +698,23 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
 
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }

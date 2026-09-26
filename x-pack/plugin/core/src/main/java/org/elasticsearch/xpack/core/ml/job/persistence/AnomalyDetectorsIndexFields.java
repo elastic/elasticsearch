@@ -10,6 +10,14 @@ public final class AnomalyDetectorsIndexFields {
 
     public static final String STATE_INDEX_PREFIX = ".ml-state";
 
+    /**
+     * Prefix for ML state indices created by major-version system-index reindex migration.
+     * See {@link AnomalyDetectorsIndex#jobStateIndexPattern()}.
+     */
+    public static final String REINDEXED_V7_STATE_INDEX_PREFIX = ".reindexed-v7-ml-state";
+
+    public static final String REINDEXED_V8_STATE_INDEX_PREFIX = ".reindexed-v8-ml-state";
+
     public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     // ".write" rather than simply "write" to avoid the danger of clashing
     // with the read alias of a job whose name begins with "write-"

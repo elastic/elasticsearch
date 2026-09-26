@@ -157,11 +157,17 @@ public class ScriptClassInfo {
         this.needsMethods = unmodifiableList(needsMethods);
         this.getMethods = unmodifiableList(getMethods);
         this.getReturns = unmodifiableList(getReturns);
-        this.supportsCancellation = detectCancellationSupport(baseClass);
+        this.supportsCancellation = supportsCancellation(baseClass);
     }
 
-    /** See {@link #supportsCancellation()}. */
-    private static boolean detectCancellationSupport(Class<?> baseClass) {
+    /**
+     * Reflective check for whether a script base class opts into the persistent cancellation
+     * mechanism by overriding {@code _getCancellationCheck()} with a non-default implementation
+     * returning a {@code Runnable}.  Same semantics as {@link #supportsCancellation()} but
+     * usable from places (e.g. {@link org.elasticsearch.painless.lookup.PainlessLookupBuilder})
+     * that don't have a {@code ScriptClassInfo} on hand.
+     */
+    public static boolean supportsCancellation(Class<?> baseClass) {
         try {
             java.lang.reflect.Method m = baseClass.getMethod("_getCancellationCheck");
             return m.isDefault() == false && m.getReturnType() == Runnable.class;
@@ -216,7 +222,7 @@ public class ScriptClassInfo {
 
     /**
      * Whether the script base class overrides {@code _getCancellationCheck()}. Drives
-     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck} attachment.
+     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck} attachment.
      */
     public boolean supportsCancellation() {
         return supportsCancellation;

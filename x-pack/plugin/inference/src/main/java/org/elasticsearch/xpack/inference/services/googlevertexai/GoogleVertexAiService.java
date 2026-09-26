@@ -175,7 +175,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             inputs.getRequest()
         );
         try {
-            var manager = createRequestManager(updatedChatCompletionModel);
+            var manager = createRequestManager(updatedChatCompletionModel, inputs.getRequest().excludeReasoning());
             var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(getSender(), manager, errorMessage);
             action.execute(inputs, timeout, listener);
@@ -187,13 +187,17 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
     /**
      * Helper method to create a GenericRequestManager with a specified response handler.
      * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
+     * @param excludeReasoning whether to suppress reasoning blocks in the response.
      * @return A GenericRequestManager configured with the provided response handler.
      */
-    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(
+        GoogleVertexAiChatCompletionModel model,
+        boolean excludeReasoning
+    ) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(excludeReasoning),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );
@@ -228,12 +232,17 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             serviceSettings.maxBatchSize() == null ? EMBEDDING_MAX_BATCH_SIZE : serviceSettings.maxBatchSize(),
+            getRegexReadLimitFactor(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = googleVertexAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -299,12 +308,12 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
                 configurationMap.put(
                     LOCATION,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
-                        .setDescription(
-                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                                + "For more information, refer to the {geminiVertexAIDocs}."
-                        )
+                        .setDescription("""
+                            Please provide the GCP region where the Vertex AI API(s) is enabled. \
+                            Omit this field to target the Vertex AI global endpoint. \
+                            For more information, refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Region")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -313,10 +322,9 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
-                            + "on the URL, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
+                        The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, \
+                        refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Project")
                         .setRequired(true)
                         .setSensitive(false)

@@ -469,7 +469,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 try (
                     Engine.SearcherSupplier searcher = readOnlyEngine.acquireSearcherSupplier(
                         Function.identity(),
-                        randomFrom(Engine.SearcherScope.values())
+                        randomFrom(Engine.SearcherScope.values()),
+                        SplitShardCountSummary.IRRELEVANT
                     )
                 ) {
                     assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));

@@ -3,8 +3,9 @@ import { readFileSync, readdirSync } from "fs";
 import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
-import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
-import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
+import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
+import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions.ts";
+import { getLaterBranches } from "./later-branches.ts";
 
 // Auto-retry configuration for PR pipelines.
 // - exit_status "-1": Agent/infrastructure failures (2 retries)
@@ -13,6 +14,7 @@ import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   automatic: [
     { exit_status: "-1", limit: 2, signal_reason: "none" },
+    { exit_status: process.env.GCP_PREEMPTION_EXIT_CODE ?? "47", limit: 3, signal_reason: "none" }, // This is the spot preemption exit code
     { signal_reason: "agent_stop", limit: 2 },
     { exit_status: "1", limit: 1 },
   ],
@@ -23,7 +25,7 @@ const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   },
 };
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../..`);
 
 const getArray = (strOrArray: string | string[] | undefined): string[] => {
   if (typeof strOrArray === "undefined") {
@@ -34,7 +36,7 @@ const getArray = (strOrArray: string | string[] | undefined): string[] => {
 };
 
 const labelCheckAllow = (pipeline: EsPipeline, labels: string[]): boolean => {
-  if (pipeline.config?.["allow-labels"]) {
+  if (pipeline.config?.["allow-labels"]?.length) {
     return getArray(pipeline.config["allow-labels"]).some((label) => labels.includes(label));
   }
   return true;
@@ -51,7 +53,7 @@ const labelCheckSkip = (pipeline: EsPipeline, labels: string[]): boolean => {
 const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -61,7 +63,17 @@ const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[])
 const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region)),
+    );
+  }
+  return true;
+};
+
+// Include the pipeline if any of the changed files in the PR is in at least one included region
+const changedFilesAnyIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
+  if (pipeline.config?.["any-included-regions"]) {
+    return changedFiles.some((file) =>
+      getArray(pipeline.config?.["any-included-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -130,7 +142,7 @@ const injectAutoRetry = (pipeline: EsPipeline) => {
 
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
-  changedFiles: string[] = []
+  changedFiles: string[] = [],
 ) => {
   let defaults: EsPipelineConfig = { config: {} };
   defaults = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
@@ -145,6 +157,17 @@ export const generatePipelines = (
 
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
     yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
+
+    if (yaml.includes("$LATER_BRANCHES")) {
+      const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
+      if (laterBranches.length === 0) {
+        // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
+        // Also guards against an empty matrix dimension, which buildkite rejects.
+        continue;
+      }
+      yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
+    }
+
     const pipeline: EsPipeline = parse(yaml) || {};
 
     pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
@@ -166,7 +189,7 @@ export const generatePipelines = (
     console.log("Doing git fetch and getting merge-base");
     const mergeBase = execSync(
       `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT }
+      { cwd: PROJECT_ROOT },
     )
       .toString()
       .trim();
@@ -190,6 +213,7 @@ export const generatePipelines = (
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+    (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
   ];
 
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
@@ -197,7 +221,7 @@ export const generatePipelines = (
   if (
     process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
     !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i
+      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i,
     )
   ) {
     filters = [triggerCommentCheck];

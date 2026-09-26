@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,6 +44,14 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         AutoExpandReplicas::parse,
         Property.Dynamic,
         Property.IndexScope
+    );
+
+    public static final Setting<AutoExpandReplicas> SYSTEM_INDICES_SETTING = new Setting<>(
+        SystemIndices.AUTO_EXPAND_REPLICAS_SETTING_NAME,
+        SETTING,
+        AutoExpandReplicas::parse,
+        Property.Dynamic,
+        Property.NodeScope
     );
 
     private static AutoExpandReplicas parse(String value) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Earliest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Earliest";
-    private final Expression timestamp;
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Earliest.class).binary(Earliest::new).name("earliest");
 
     @FunctionInfo(
@@ -47,6 +47,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "dense_vector",
             "double",
             "exponential_histogram",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -59,6 +60,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "tdigest",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the earliest value of a field sorted by timestamp.",
         description = """
             An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
             the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
@@ -78,6 +80,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "dense_vector",
                 "double",
                 "exponential_histogram",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -95,12 +98,20 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
         ) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, timestamp, Literal.TRUE, NO_WINDOW);
     }
 
-    private Earliest(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
-        this.timestamp = timestamp;
+    private Earliest(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
+    }
+
+    public Expression field() {
+        return fields().get(0);
+    }
+
+    @Override
+    public Expression timestamp() {
+        return fields().get(1);
     }
 
     @Override
@@ -109,13 +120,13 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
     }
 
     @Override
-    public Expression surrogate() {
-        return new First(source(), field(), timestamp);
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
-    public Expression timestamp() {
-        return timestamp;
+    public Expression surrogate() {
+        return new First(source(), field(), timestamp());
     }
 
     @Override
@@ -147,6 +158,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
                 || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
@@ -154,13 +166,14 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "date",
             "dense_vector",
             "exponential_histogram",
+            "flattened",
             "ip",
             "string",
             "tdigest",
             "numeric except counter types"
         ).and(
             isType(
-                timestamp,
+                timestamp(),
                 dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 IMPLICIT,
@@ -171,17 +184,12 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Earliest::new, field(), timestamp);
+        return NodeInfo.create(this, Earliest::new, field(), timestamp());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Earliest(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
-    }
-
-    @Override
-    public Earliest withFilter(Expression filter) {
-        return new Earliest(source(), field(), filter, window(), timestamp);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUnifiedChatCompletionResponseHandler;
@@ -30,11 +32,13 @@ import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceCompletionResponseHandler.COMPLETIONS_REQUEST_DESCRIPTION;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUnifiedChatCompletionResponseHandler.CHAT_COMPLETIONS_REQUEST_DESCRIPTION;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
 record ModelStrategyFactory(ServiceComponents serviceComponents) {
@@ -44,6 +48,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             T model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         );
 
@@ -66,6 +71,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceSparseEmbeddingsModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -80,6 +86,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),
+                    preferences,
                     authApplier
                 ),
                 EmbeddingsInput.class
@@ -105,6 +112,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceRerankModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -113,12 +121,13 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                 model,
                 RERANK_HANDLER,
                 (rerankInput) -> new ElasticInferenceServiceRerankRequest(
-                    rerankInput.getQueryAsString(),
-                    rerankInput.getDocsAsStrings(),
+                    rerankInput.getQuery(),
+                    rerankInput.getDocs(),
                     rerankInput.getTopN(),
                     model,
                     traceContext,
                     metadata,
+                    preferences,
                     authApplier
                 ),
                 QueryAndDocsInputs.class
@@ -147,6 +156,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceDenseEmbeddingsModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -160,6 +170,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),
+                    preferences,
                     authApplier
                 ),
                 EmbeddingsInput.class
@@ -172,15 +183,43 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         }
     };
 
-    private static final String CHAT_COMPLETIONS_REQUEST_DESCRIPTION = Strings.format(
-        "%s chat completions",
-        ELASTIC_INFERENCE_SERVICE_IDENTIFIER
-    );
+    private static final ResponseHandler COMPLETIONS_HANDLER = new ElasticInferenceServiceCompletionResponseHandler();
+
+    private static final Strategy<ElasticInferenceServiceCompletionModel> COMPLETIONS_STRATEGY = new Strategy<>() {
+        @Override
+        public RequestManager createRequestManager(
+            ElasticInferenceServiceCompletionModel model,
+            ServiceComponents serviceComponents,
+            TraceContext traceContext,
+            InferencePreferences preferences,
+            CCMAuthenticationApplierFactory.AuthApplier authApplier
+        ) {
+            var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
+            return new GenericRequestManager<>(
+                serviceComponents.threadPool(),
+                model,
+                COMPLETIONS_HANDLER,
+                (unifiedChatInput) -> new ElasticInferenceServiceUnifiedChatCompletionRequest(
+                    unifiedChatInput,
+                    model,
+                    traceContext,
+                    metadata,
+                    preferences,
+                    authApplier
+                ),
+                UnifiedChatInput.class
+            );
+        }
+
+        @Override
+        public String requestDescription() {
+            return COMPLETIONS_REQUEST_DESCRIPTION;
+        }
+    };
 
     private static final ResponseHandler CHAT_COMPLETIONS_HANDLER = new ElasticInferenceServiceUnifiedChatCompletionResponseHandler(
-        "elastic inference service completion",
-        // ElasticInferenceServiceResponseEntity is a subset of OpenAiChatCompletionResponseEntity, so we reuse it here.
-        OpenAiChatCompletionResponseEntity::fromResponse
+        CHAT_COMPLETIONS_REQUEST_DESCRIPTION,
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     private static final Strategy<ElasticInferenceServiceCompletionModel> CHAT_COMPLETIONS_STRATEGY = new Strategy<>() {
@@ -189,6 +228,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceCompletionModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -201,6 +241,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     model,
                     traceContext,
                     metadata,
+                    preferences,
                     authApplier
                 ),
                 UnifiedChatInput.class
@@ -219,7 +260,16 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             case ElasticInferenceServiceSparseEmbeddingsModel ignored -> (Strategy<T>) SPARSE_EMBEDDINGS_STRATEGY;
             case ElasticInferenceServiceRerankModel ignored -> (Strategy<T>) RERANK_STRATEGY;
             case ElasticInferenceServiceDenseEmbeddingsModel ignored -> (Strategy<T>) EMBEDDING_STRATEGY;
-            case ElasticInferenceServiceCompletionModel ignored -> (Strategy<T>) CHAT_COMPLETIONS_STRATEGY;
+            case ElasticInferenceServiceCompletionModel completionModel -> {
+                var taskType = completionModel.getTaskType();
+                yield switch (taskType) {
+                    case CHAT_COMPLETION -> (Strategy<T>) CHAT_COMPLETIONS_STRATEGY;
+                    case COMPLETION -> (Strategy<T>) COMPLETIONS_STRATEGY;
+                    default -> throw new IllegalArgumentException(
+                        Strings.format("No strategy found for completion model with task type: %s", taskType)
+                    );
+                };
+            }
             default -> throw new IllegalArgumentException("No strategy found for model type: " + model.getClass().getSimpleName());
         };
     }

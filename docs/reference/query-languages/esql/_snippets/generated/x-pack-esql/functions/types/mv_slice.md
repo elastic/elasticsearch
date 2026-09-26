@@ -10,6 +10,7 @@
 | date | integer | integer | date |
 | date_nanos | integer | integer | date_nanos |
 | double | integer | integer | double |
+| flattened {applies_to}`stack: preview 9.5.0` | integer | integer | flattened |
 | geo_point | integer | integer | geo_point |
 | geo_shape | integer | integer | geo_shape |
 | geohash | integer | integer | geohash |

@@ -34,7 +34,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
@@ -54,11 +54,14 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
         if (hasDocValues && useDocValues) {
-            // Sorted and no duplicates
-            var resultList = convertValues.andThen(Stream::distinct)
-                .andThen(Stream::sorted)
-                .andThen(Stream::toList)
-                .apply(((List<String>) value).stream());
+            // Columnar index modes preserve arrival order via offsets
+            boolean preserveOrder = params.indexMode().isColumnar();
+            var resultList = preserveOrder
+                ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
+                : convertValues.andThen(Stream::distinct)
+                    .andThen(Stream::sorted)
+                    .andThen(Stream::toList)
+                    .apply(((List<String>) value).stream());
             return maybeFoldList(resultList);
         }
 

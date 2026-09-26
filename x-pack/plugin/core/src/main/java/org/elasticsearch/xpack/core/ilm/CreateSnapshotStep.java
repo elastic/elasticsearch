@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.util.Objects;
 
@@ -110,6 +111,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         // complete
         request.waitForCompletion(true);
         request.includeGlobalState(false);
+        request.partial(true);
 
         getClient(projectId).admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(
@@ -120,25 +122,34 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             );
             final SnapshotInfo snapInfo = response.getSnapshotInfo();
 
-            // Check that there are no failed shards, since the request may not entirely
-            // fail, but may still have failures (such as in the case of an aborted snapshot)
-            if (snapInfo.failedShards() == 0) {
+            if (snapshotCompletedSuccessfully(snapInfo, forceMergedIndexName)) {
                 return true;
             } else {
                 logger.warn(
                     Strings.format(
-                        "failed to create snapshot [%s:%s] for policy [%s] and index [%s]: %s of %s shards failed",
+                        "snapshot [%s:%s] for policy [%s] and index [%s] did not complete successfully: "
+                            + "state [%s], successful shards [%s], failed shards [%s] of [%s], indices %s",
                         snapshotRepository,
                         snapshotName,
                         policyName,
                         forceMergedIndexName,
+                        snapInfo.state(),
+                        snapInfo.successfulShards(),
                         snapInfo.failedShards(),
-                        snapInfo.totalShards()
+                        snapInfo.totalShards(),
+                        snapInfo.indices()
                     )
                 );
                 return false;
             }
         }));
+    }
+
+    static boolean snapshotCompletedSuccessfully(SnapshotInfo snapshotInfo, String indexName) {
+        return snapshotInfo.state() == SnapshotState.SUCCESS
+            && snapshotInfo.failedShards() == 0
+            && snapshotInfo.successfulShards() > 0
+            && snapshotInfo.indices().contains(indexName);
     }
 
     @Override

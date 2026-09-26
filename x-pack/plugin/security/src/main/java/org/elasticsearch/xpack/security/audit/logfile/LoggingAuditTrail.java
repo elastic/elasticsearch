@@ -27,6 +27,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -88,14 +89,23 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
+import org.elasticsearch.xpack.core.security.audit.AuditSubject;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -156,7 +166,9 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.hasProtobufContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestRawContent;
 
 public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
@@ -182,6 +194,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
+    public static final String PRINCIPAL_FULL_NAME_FIELD_NAME = "user.full_name";
+    public static final String PRINCIPAL_EMAIL_FIELD_NAME = "user.email";
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
@@ -202,6 +216,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String URL_QUERY_FIELD_NAME = "url.query";
     public static final String REQUEST_METHOD_FIELD_NAME = "request.method";
     public static final String REQUEST_BODY_FIELD_NAME = "request.body";
+    public static final String RAW_REQUEST_BODY_FIELD_NAME = "request.raw_body";
+    public static final String RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME = "request.raw_body_content_type";
+    public static final String RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME = "request.raw_body_content_encoding";
     public static final String REQUEST_ID_FIELD_NAME = "request.id";
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
@@ -288,6 +305,36 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Property.NodeScope,
         Property.Dynamic
     );
+    public static final Setting<Boolean> EMIT_SECURITY_CONFIG_CHANGE_ACTOR = Setting.boolSetting(
+        setting("audit.logfile.events.emit_security_config_change_actor"),
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+    /**
+     * Maximum size, in bytes, of the rendered body that may be included in audit events when
+     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the representation
+     * written to the log rather than the raw request bytes: the UTF-8 JSON output of
+     * {@link org.elasticsearch.xpack.security.audit.RequestBodyRenderer#render} for {@code request.body},
+     * or the base64 encoding for {@code request.raw_body}. It therefore accounts for format
+     * differences (e.g. SMILE expanding to JSON, base64 expanding by 4/3).
+     * Rendering is bounded mid-stream: requests whose rendered body would exceed this limit are
+     * rejected with HTTP 413 to keep the audit log a complete record of every accepted request.
+     * <p>
+     * {@code 0} disables the limit (no rejection); use with caution on endpoints that may receive
+     * large bodies such as OTLP or Prometheus remote-write ingestion endpoints.
+     * <p>
+     * The default is {@link Integer#MAX_VALUE} bytes (the maximum representable value), which
+     * effectively imposes no limit beyond what the JVM can address in a single buffer.
+     */
+    public static final Setting<ByteSizeValue> MAX_REQUEST_BODY_SIZE = Setting.byteSizeSetting(
+        setting("audit.logfile.events.max_request_body_size"),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.NodeScope,
+        Property.Dynamic
+    );
     // actions (and their requests) that are audited as "security change" events
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(
         PutUserAction.NAME,
@@ -307,7 +354,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         InvalidateApiKeyAction.NAME,
         DeletePrivilegesAction.NAME,
         CreateServiceAccountTokenAction.NAME,
+        CreateUserManagedServiceAccountTokenAction.NAME,
         DeleteServiceAccountTokenAction.NAME,
+        DeleteUserManagedServiceAccountTokenAction.NAME,
+        PutUserManagedServiceAccountAction.NAME,
+        DeleteUserManagedServiceAccountAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
         SetProfileEnabledAction.NAME,
@@ -351,10 +402,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private final Logger logger;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
+    private final AuditLogCustomizer customizer;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
     volatile boolean includeRequestBody;
+    volatile boolean includeSecurityConfigChangeActor;
+    /** Maximum bytes for {@code request.body}; {@code 0} means unlimited. Package-private for testing. */
+    volatile int maxRequestBodyBytes;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -364,13 +419,31 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
+        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP);
+    }
+
+    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool, AuditLogCustomizer customizer) {
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext(), customizer);
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
+        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP);
+    }
+
+    @SuppressWarnings("this-escape")
+    LoggingAuditTrail(
+        Settings settings,
+        ClusterService clusterService,
+        Logger logger,
+        ThreadContext threadContext,
+        AuditLogCustomizer customizer
+    ) {
+        this.customizer = customizer;
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
+        this.includeSecurityConfigChangeActor = EMIT_SECURITY_CONFIG_CHANGE_ACTOR.get(settings);
+        this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(settings).getBytes();
         this.threadContext = threadContext;
         this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
@@ -379,9 +452,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
             this.entryCommonFields = this.entryCommonFields.withNewSettings(newSettings);
             this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
+            this.includeSecurityConfigChangeActor = EMIT_SECURITY_CONFIG_CHANGE_ACTOR.get(newSettings);
+            this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(newSettings).getBytes();
             // `events` is a volatile field! Keep `events` write last so that
-            // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
-            // always read before `entryCommonFields` and `includeRequestBody`.
+            // `entryCommonFields`, `includeRequestBody`, `includeSecurityConfigChangeActor`, and
+            // `maxRequestBodyBytes` writes happen-before!
+            // `events` is always read before those fields.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
         },
             Arrays.asList(
@@ -393,7 +469,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 EMIT_CLUSTER_UUID_SETTING,
                 INCLUDE_EVENT_SETTINGS,
                 EXCLUDE_EVENT_SETTINGS,
-                INCLUDE_REQUEST_BODY
+                INCLUDE_REQUEST_BODY,
+                EMIT_SECURITY_CONFIG_CHANGE_ACTOR,
+                MAX_REQUEST_BODY_SIZE
             )
         );
         clusterService.getClusterSettings()
@@ -443,31 +521,35 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             // should never happen
             throw new ElasticsearchSecurityException("Context is not authenticated");
         }
-        if (events.contains(AUTHENTICATION_SUCCESS)
-            && eventFilterPolicyRegistry.ignorePredicate()
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(null, null, realm, AuditSubject.from(authentication));
+            if (customizer.suppress(ctx)) return;
+            if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty()
                     )
                 ) == false) {
-            // this is redundant information maintained for bwc purposes
-            final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
-            new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
-                .with(REALM_FIELD_NAME, authnRealm)
-                // Not adding domain since "realm" field is considered redundant for bwc purposes
-                .withRestUriAndMethod(request.getHttpRequest())
-                .withRequestId(requestId)
-                .withAuthentication(authentication)
-                .withRestOrigin(threadContext)
-                .withRequestBody(request)
-                .withThreadContext(securityContext.getThreadContext())
-                .build();
+                // this is redundant information maintained for bwc purposes
+                final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
+                new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
+                    .with(REALM_FIELD_NAME, authnRealm)
+                    // Not adding domain since "realm" field is considered redundant for bwc purposes
+                    .withRestUriAndMethod(request.getHttpRequest())
+                    .withRequestId(requestId)
+                    .withAuthentication(authentication)
+                    .withRestOrigin(threadContext)
+                    .withRequestBody(request)
+                    .withContext(ctx)
+                    .build();
+            }
         }
     }
 
@@ -475,12 +557,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.empty(),
                         indices,
                         Optional.of(action)
@@ -493,8 +578,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -504,6 +589,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -512,8 +599,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -528,7 +615,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -537,6 +623,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
                 final LogEntryBuilder logEntryBuilder = new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -546,8 +634,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext);
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx);
                 if (token instanceof ServiceAccountToken) {
                     logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
                 }
@@ -564,7 +652,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -573,6 +660,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -581,8 +670,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -598,8 +687,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestId(requestId)
-                .withThreadContext(threadContext);
+                .withRequestId(requestId);
             if (token instanceof ServiceAccountToken) {
                 logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
             }
@@ -617,6 +705,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -628,8 +718,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -648,7 +738,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -665,17 +754,25 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         final boolean isSystem = user instanceof InternalUser;
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                .test(
-                    new AuditEventMetaInfo(
-                        Optional.of(user),
-                        // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
-                        Optional.of(authorizationInfo),
-                        indices,
-                        Optional.of(action)
-                    )
-                ) == false) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
+            if (customizer.suppress(ctx) == false
+                && eventFilterPolicyRegistry.ignorePredicate()
+                    .test(
+                        new AuditEventMetaInfo(
+                            Optional.of(user),
+                            // can be null for API keys created before version 7.7
+                            Optional.ofNullable(realm),
+                            Optional.of(authorizationInfo),
+                            indices,
+                            Optional.of(action)
+                        )
+                    ) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                     .with(ACTION_FIELD_NAME, action)
@@ -683,8 +780,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .build();
             }
@@ -697,83 +794,93 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             try {
                 if (msg instanceof PutUserRequest) {
                     assert PutUserAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutUserRequest) msg).build();
                 } else if (msg instanceof PutRoleRequest) {
                     assert PutRoleAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutRoleRequest) msg).build();
                 } else if (msg instanceof BulkPutRolesRequest bulkPutRolesRequest) {
                     assert ActionTypes.BULK_PUT_ROLES.name().equals(action);
                     for (RoleDescriptor roleDescriptor : bulkPutRolesRequest.getRoles()) {
-                        securityChangeLogEntryBuilder(requestId).withRequestBody(roleDescriptor.getName(), roleDescriptor).build();
+                        securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(roleDescriptor.getName(), roleDescriptor)
+                            .build();
                     }
                 } else if (msg instanceof PutRoleMappingRequest) {
                     assert PutRoleMappingAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutRoleMappingRequest) msg).build();
                 } else if (msg instanceof SetEnabledRequest) {
                     assert TransportSetEnabledAction.TYPE.name().equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((SetEnabledRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((SetEnabledRequest) msg).build();
                 } else if (msg instanceof ChangePasswordRequest) {
                     assert TransportChangePasswordAction.TYPE.name().equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((ChangePasswordRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((ChangePasswordRequest) msg).build();
                 } else if (msg instanceof CreateApiKeyRequest) {
                     assert CreateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((CreateApiKeyRequest) msg).build();
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((GrantApiKeyRequest) msg).build();
                 } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
                     assert CloneApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(cloneApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(cloneApiKeyRequest).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
                     assert PutPrivilegesAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((PutPrivilegesRequest) msg).build();
                 } else if (msg instanceof DeleteUserRequest) {
                     assert DeleteUserAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteUserRequest) msg).build();
                 } else if (msg instanceof DeleteRoleRequest) {
                     assert DeleteRoleAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteRoleRequest) msg).build();
                 } else if (msg instanceof BulkDeleteRolesRequest bulkDeleteRolesRequest) {
                     assert ActionTypes.BULK_DELETE_ROLES.name().equals(action);
                     for (String roleName : bulkDeleteRolesRequest.getRoleNames()) {
-                        securityChangeLogEntryBuilder(requestId).withDeleteRole(roleName).build();
+                        securityChangeLogEntryBuilder(requestId, authentication).withDeleteRole(roleName).build();
                     }
                 } else if (msg instanceof DeleteRoleMappingRequest) {
                     assert DeleteRoleMappingAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeleteRoleMappingRequest) msg).build();
                 } else if (msg instanceof InvalidateApiKeyRequest) {
                     assert InvalidateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((InvalidateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((InvalidateApiKeyRequest) msg).build();
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
-                } else if (msg instanceof CreateServiceAccountTokenRequest) {
-                    assert CreateServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
-                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
-                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody((DeletePrivilegesRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest createServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action)
+                        || CreateUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(createServiceAccountTokenRequest).build();
+                } else if (msg instanceof PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) {
+                    assert PutUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(putUserManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) {
+                    assert DeleteUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteUserManagedServiceAccountRequest)
+                        .build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action)
+                        || DeleteUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(activateProfileRequest).build();
                 } else if (msg instanceof final UpdateProfileDataRequest updateProfileDataRequest) {
                     assert UpdateProfileDataAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateProfileDataRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateProfileDataRequest).build();
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(setProfileEnabledRequest).build();
                 } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
                     assert UpdateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateApiKeyRequest).build();
                 } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
                     assert BulkUpdateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(bulkUpdateApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(bulkUpdateApiKeyRequest).build();
                 } else if (msg instanceof final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
                     assert CreateCrossClusterApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(createCrossClusterApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(createCrossClusterApiKeyRequest).build();
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateCrossClusterApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -806,12 +913,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(user),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.of(authorizationInfo),
                         Optional.of(indices),
                         Optional.of(action)
@@ -823,8 +933,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, requestName)
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
-                    .with(INDICES_FIELD_NAME, indices)
-                    .withThreadContext(threadContext)
+                    .withIndices(indices)
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap());
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
                 if (restAddress != null) {
@@ -849,12 +959,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.of(authorizationInfo),
                         indices,
                         Optional.of(action)
@@ -867,9 +985,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -883,7 +1001,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -892,6 +1009,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -900,8 +1019,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -911,12 +1030,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.empty(),
                         indices,
                         Optional.of(action)
@@ -929,8 +1051,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withAuthentication(authentication)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
-                    .withThreadContext(threadContext)
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .build();
             }
         }
@@ -948,7 +1070,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -965,7 +1086,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -980,12 +1100,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.of(authorizationInfo),
                         indices,
                         Optional.of(action)
@@ -998,9 +1126,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRunAsSubject(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1016,12 +1144,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.of(authorizationInfo),
                         indices,
                         Optional.of(action)
@@ -1034,9 +1170,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRunAsSubject(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with(INDICES_FIELD_NAME, indices.orElse(null))
+                    .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1044,27 +1180,31 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
-        if (events.contains(RUN_AS_DENIED)
-            && eventFilterPolicyRegistry.ignorePredicate()
+        if (events.contains(RUN_AS_DENIED)) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
+            if (customizer.suppress(ctx)) return;
+            if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
-                        Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
+                        Optional.ofNullable(realm),
                         Optional.of(authorizationInfo),
                         Optional.empty(),
                         Optional.empty()
                     )
                 ) == false) {
-            new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                .with(authorizationInfo.asMap())
-                .withRestUriAndMethod(request)
-                .withRunAsSubject(authentication)
-                .withRestOrigin(threadContext)
-                .withRequestId(requestId)
-                .withThreadContext(threadContext)
-                .build();
+                new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
+                    .with(authorizationInfo.asMap())
+                    .withRestUriAndMethod(request)
+                    .withRunAsSubject(authentication)
+                    .withRestOrigin(threadContext)
+                    .withRequestId(requestId)
+                    .withContext(ctx)
+                    .build();
+            }
         }
     }
 
@@ -1083,13 +1223,24 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return includeRequestBody;
     }
 
-    private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
-        return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
+    public int maxRequestBodyBytes() {
+        return maxRequestBodyBytes;
+    }
+
+    private LogEntryBuilder securityChangeLogEntryBuilder(String requestId, Authentication authentication) {
+        LogEntryBuilder builder = new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
+            .withRequestId(requestId);
+        if (includeSecurityConfigChangeActor) {
+            builder.withAuthentication(authentication);
+        }
+        return builder;
     }
 
     private class LogEntryBuilder {
 
         private final StringMapMessage logEntry;
+        private AuditEventContext eventContext = AuditEventContext.EMPTY;
+        private boolean includeThreadContext = true;
 
         LogEntryBuilder() {
             this(true);
@@ -1100,6 +1251,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
+                includeThreadContext = false;
             }
         }
 
@@ -1487,6 +1639,38 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", putUserManagedServiceAccountRequest.getNamespace())
+                .field("service", putUserManagedServiceAccountRequest.getServiceName())
+                .array("roles", putUserManagedServiceAccountRequest.getRoles().toArray(String[]::new))
+                .field("enabled", putUserManagedServiceAccountRequest.isEnabled());
+            if (putUserManagedServiceAccountRequest.getDescription() != null) {
+                builder.field("description", putUserManagedServiceAccountRequest.getDescription());
+            }
+            builder.endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", deleteUserManagedServiceAccountRequest.getNamespace())
+                .field("service", deleteUserManagedServiceAccountRequest.getServiceName())
+                .field("force", deleteUserManagedServiceAccountRequest.isForce())
+                .endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_token");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1593,9 +1777,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
+            final User authenticatingUser = authentication.getAuthenticatingSubject().getUser();
+            logEntry.with(PRINCIPAL_FIELD_NAME, authenticatingUser.principal())
                 .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            addUserFullNameAndEmail(logEntry, authenticatingUser);
             if (authentication.getAuthenticatingSubject().getRealm().getDomain() != null) {
                 logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getDomain().name());
             }
@@ -1639,12 +1825,32 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                final String requestContent = restRequestContent(request);
-                if (Strings.hasLength(requestContent)) {
-                    logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                if (hasProtobufContent(request)) {
+                    withRawRequestBody(request);
+                } else {
+                    final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+                    if (Strings.hasLength(requestContent)) {
+                        logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                    }
                 }
             }
             return this;
+        }
+
+        private void withRawRequestBody(RestRequest request) {
+            final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+            if (Strings.hasLength(rawContent) == false) {
+                return;
+            }
+            logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
+            final String contentType = request.header("Content-Type");
+            if (Strings.hasLength(contentType)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
+            }
+            final String contentEncoding = request.header("Content-Encoding");
+            if (Strings.hasLength(contentEncoding)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+            }
         }
 
         LogEntryBuilder withRequestId(String requestId) {
@@ -1654,14 +1860,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withThreadContext(ThreadContext threadContext) {
-            setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
-            setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
-            setThreadContextField(threadContext, Task.TRACE_ID, TRACE_ID_FIELD_NAME);
+        LogEntryBuilder withThreadContext() {
+            setThreadContextField(AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
+            setThreadContextField(Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
+            setThreadContextField(Task.TRACE_ID, TRACE_ID_FIELD_NAME);
             return this;
         }
 
-        private void setThreadContextField(ThreadContext threadContext, String threadContextFieldName, String auditLogFieldName) {
+        private void setThreadContextField(String threadContextFieldName, String auditLogFieldName) {
             final String fieldValue = threadContext.getHeader(threadContextFieldName);
             if (fieldValue != null) {
                 logEntry.with(auditLogFieldName, fieldValue);
@@ -1675,7 +1881,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            assert false == authentication.isCloudServiceAccount() : "audit logging for Cloud service accounts is not supported";
+            final User effectiveUser = authentication.getEffectiveSubject().getUser();
+            logEntry.with(PRINCIPAL_FIELD_NAME, effectiveUser.principal());
+            addUserFullNameAndEmail(logEntry, effectiveUser);
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
                 logEntry.with(
@@ -1751,6 +1960,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
         }
 
+        /**
+         * Emits ECS/OTel {@code user.full_name} and {@code user.email} for the user already recorded as {@code user.name}.
+         * Not included in the PatternLayout or the final logfile output.
+         */
+        private static void addUserFullNameAndEmail(StringMapMessage logEntry, User user) {
+            if (user.fullName() != null) {
+                logEntry.with(PRINCIPAL_FULL_NAME_FIELD_NAME, user.fullName());
+            }
+            if (user.email() != null) {
+                logEntry.with(PRINCIPAL_EMAIL_FIELD_NAME, user.email());
+            }
+        }
+
         LogEntryBuilder with(String key, String value) {
             if (value != null) {
                 logEntry.with(key, value);
@@ -1762,6 +1984,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (values != null) {
                 logEntry.with(key, toQuotedJsonArray(values));
             }
+            return this;
+        }
+
+        LogEntryBuilder withIndices(String[] values) {
+            if (values != null) {
+                logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(values));
+            }
+            return this;
+        }
+
+        LogEntryBuilder withContext(AuditEventContext ctx) {
+            this.eventContext = ctx;
             return this;
         }
 
@@ -1778,7 +2012,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         void build() {
-            logger.info(AUDIT_MARKER, logEntry);
+            if (includeThreadContext) {
+                withThreadContext();
+            }
+            logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
         }
 
         static String toQuotedJsonArray(Object[] values) {
@@ -1801,6 +2038,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
     }
 
+    @Nullable
+    private static String[] principalRoles(AuthorizationInfo authorizationInfo) {
+        return authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME) instanceof String[] roles ? roles : null;
+    }
+
     public static void registerSettings(List<Setting<?>> settings) {
         settings.add(EMIT_HOST_ADDRESS_SETTING);
         settings.add(EMIT_HOST_NAME_SETTING);
@@ -1811,6 +2053,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
+        settings.add(EMIT_SECURITY_CONFIG_CHANGE_ACTOR);
+        settings.add(MAX_REQUEST_BODY_SIZE);
         settings.add(FILTER_POLICY_IGNORE_PRINCIPALS);
         settings.add(FILTER_POLICY_IGNORE_INDICES);
         settings.add(FILTER_POLICY_IGNORE_ROLES);

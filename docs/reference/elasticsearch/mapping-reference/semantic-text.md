@@ -13,11 +13,18 @@ applies_to:
 The `semantic_text` field mapping can be added regardless of license state. However, it typically calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). In these cases, using `semantic_text` in a cluster without the appropriate license causes operations such as indexing and reindexing to fail.
 :::::
 
-The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing sensible defaults that automate most of the manual work typically required for vector search. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
+The `semantic_text` field type accepts text only. To index or search images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
+
+For text-based [semantic search](docs-content://solutions/search/semantic-search.md), `semantic_text` provides sensible defaults that automate most of the manual work typically required for vector search. You don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
 
 - Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the {{infer}} endpoint.
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
+
+Elasticsearch refers to `semantic` and `semantic_text` as *inference fields*: mapped fields that use {{infer}} endpoints and store generated embeddings in internal subfields.
+
+:::{include} _snippets/semantic-field-type-comparison.md
+:::
 
 ## Basic `semantic_text` mapping example
 
@@ -98,10 +105,8 @@ The [Reference](./semantic-text-reference.md) section provides technical referen
 
 The [How-to guides](./semantic-text-how-tos.md) section organizes procedure descriptions and examples into the following guides:
 
-- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default endpoints, Jina on EIS, ELSER on EIS, third-party models on EIS, external {{infer}}, and dedicated endpoints for ingestion and search operations.
 
 - [Ingest data with `semantic_text` fields](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 
 - [Search and retrieve `semantic_text` fields](./semantic-text-search-retrieval.md): Learn how to query `semantic_text` fields, retrieve indexed chunks, return field embeddings, and highlight the most relevant fragments from search results.
-
-

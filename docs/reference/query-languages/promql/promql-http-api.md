@@ -2,21 +2,17 @@
 description: Prometheus-compatible HTTP endpoints for PromQL queries and metric discovery against time series data in Elasticsearch.
 navigation_title: HTTP API
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack: preview 9.4, ga 9.5
+  serverless: ga
 products:
   - id: elasticsearch
 ---
 
 # PromQL HTTP API [promql-http-api]
 
-::::{warning}
-This functionality is in technical preview and might be changed or removed in a future release.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 These endpoints run under the `/_prometheus/` prefix.
 They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
+To connect Grafana to {{es}}, see [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md).
 
 These APIs only consider metric data stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
@@ -28,6 +24,7 @@ Every path has two forms:
 - Explicit index expression: `/_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-generic.prometheus-*`) that restricts which indices are considered in the query.
+Index aliases are also accepted; when using an alias, API key privileges must be granted on the alias name, not the underlying index names.
 This can reduce latency on clusters that contain many large time series data streams when you query a subset of indices.
 
 When you omit `{index}` in the path, qualifying indices are identified through the default index expression `metrics-*`.
@@ -130,7 +127,7 @@ At least one `match[]` parameter is required.
 
 ### Metric metadata [promql-http-api-metadata-endpoint]
 
-{applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.5` {applies_to}`stack: ga 9.5`
 
 `GET /_prometheus/api/v1/metadata`\
 `GET /_prometheus/{index}/api/v1/metadata`
@@ -152,7 +149,7 @@ The `metadata` route does not support `match[]`, `start`, or `end`.
 
 ### Build information [promql-http-api-buildinfo]
 
-{applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.5` {applies_to}`stack: ga 9.5`
 
 `GET /_prometheus/api/v1/status/buildinfo`\
 `GET /_prometheus/{index}/api/v1/status/buildinfo`
@@ -246,4 +243,5 @@ Server errors (HTTP 5xx) and timeout responses reflect operational failures insi
 - [Prometheus query API](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
+- [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
 - [Limitations](promql-limitations.md)

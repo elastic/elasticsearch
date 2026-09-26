@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -17,20 +18,34 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.ref.Cleaner;
 import java.util.BitSet;
 
 public class BlockFactory {
+
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
+    /**
+     * Local breakers should reserve as much as they can to minimize calls to the global breaker.
+     * Live drivers are bounded by roughly 1.5 * CPUs, and CPUs scale with heap, so the reserve is sized by heap:
+     * - under 4GB: 8KB / 512KB
+     * - 4GB to 8GB: 128KB / 2MB
+     * - over 8GB: 512KB / 4MB
+     */
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = defaultLocalBreakerOverReserved(
+        JvmInfo.jvmInfo().getMem().getHeapMax()
+    );
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = defaultLocalBreakerMaxOverReserved(
+        JvmInfo.jvmInfo().getMem().getHeapMax()
+    );
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -39,6 +54,15 @@ public class BlockFactory {
     public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
     // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
+
+    /**
+     * Exact-fit rounding policy for the Arrow root allocator. We use {@code arrow-memory-unsafe},
+     * whose {@code UnsafeAllocationManager} is a straight malloc/free with no free list or size
+     * classes. The default power-of-two rounding exists to feed a pooled allocator
+     * ({@code arrow-memory-netty}); without that pool, it only wastes memory (up to 2x for
+     * sub-16 MiB allocations). Pass this policy to let the OS allocator handle alignment.
+     */
+    private static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
 
     private static final Logger log = LogManager.getLogger(BlockFactory.class);
 
@@ -80,6 +104,16 @@ public class BlockFactory {
         return breaker;
     }
 
+    /**
+     * Returns the Arrow {@link BufferAllocator} bound to this factory. One root allocator per
+     * top-level factory; child factories share it. There is no per-query close hook
+     * ({@code BlockFactory} is not {@link org.elasticsearch.core.Releasable}).
+     *
+     * @deprecated Do not allocate storage-read buffers here. Those paths use heap {@code byte[]}
+     *             charged to {@link #breaker()}. This allocator remains for wrapping Arrow vectors
+     *             (compute ArrowBuf blocks, Flight).
+     */
+    @Deprecated
     public BufferAllocator arrowAllocator() {
         // There's one root Arrow allocator per top-level block factory.
         // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no
@@ -91,8 +125,7 @@ public class BlockFactory {
                     if (this.parent == null) {
                         // Root block factory
                         var listener = new CircuitBreakerAllocationListener(breaker);
-                        // TODO: see if the default rounding policy (power of 2) is appropriate
-                        var allocator = new RootAllocator(listener, Long.MAX_VALUE);
+                        var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
                         cleaner.register(this, () -> {
                             try {
                                 allocator.close();
@@ -664,11 +697,40 @@ public class BlockFactory {
     }
 
     public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
-        try (var builder = newLongRangeBlockBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                builder.appendLongRange(value);
+        LongBlock fromBlock = null;
+        LongBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantLongBlockWith(value.from(), positions);
+            toBlock = newConstantLongBlockWith(value.to(), positions);
+            var block = new LongRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
             }
-            return builder.build();
+        }
+    }
+
+    public DoubleRangeBlockBuilder newDoubleRangeBlockBuilder(int estimatedSize) {
+        return new DoubleRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public DoubleRangeBlock newConstantDoubleRangeBlockWith(DoubleRangeBlockBuilder.DoubleRange value, int positions) {
+        DoubleBlock fromBlock = null;
+        DoubleBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantDoubleBlockWith(value.from(), positions);
+            toBlock = newConstantDoubleBlockWith(value.to(), positions);
+            var block = new DoubleRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
+            }
         }
     }
 
@@ -679,4 +741,23 @@ public class BlockFactory {
         return maxPrimitiveArrayBytes;
     }
 
+    static ByteSizeValue defaultLocalBreakerOverReserved(ByteSizeValue heapSize) {
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(4).getBytes()) {
+            return ByteSizeValue.ofKb(8);
+        }
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(8).getBytes()) {
+            return ByteSizeValue.ofKb(128);
+        }
+        return ByteSizeValue.ofKb(512);
+    }
+
+    static ByteSizeValue defaultLocalBreakerMaxOverReserved(ByteSizeValue heapSize) {
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(4).getBytes()) {
+            return ByteSizeValue.ofKb(512);
+        }
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(8).getBytes()) {
+            return ByteSizeValue.ofMb(2);
+        }
+        return ByteSizeValue.ofMb(4);
+    }
 }

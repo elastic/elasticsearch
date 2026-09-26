@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 95120
+pr: 153513
+summary: "Extend case_insensitive queries to use Unicode simple case folding (previously ASCII-only)"
+type: bug

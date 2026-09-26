@@ -13,7 +13,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Uid;
 
 import java.util.List;
 
@@ -53,7 +52,8 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) {
         if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            addValue(Uid.decodeId(value));
+            // needsField only accepts this field, so `field` is the _id field type and knows how its stored bytes decode.
+            addValue(IdFieldMapper.decodeStoredId(field, value));
         } else {
             addValue(new BytesRef(value));
         }

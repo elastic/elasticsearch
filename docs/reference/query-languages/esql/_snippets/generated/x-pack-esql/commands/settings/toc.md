@@ -3,6 +3,9 @@
 :::{include} approximation.md
 :::
 
+:::{include} column_metadata.md
+:::
+
 :::{include} project_routing.md
 :::
 
@@ -10,5 +13,8 @@
 :::
 
 :::{include} unmapped_fields.md
+:::
+
+:::{include} wildcards_match_datasets.md
 :::
 

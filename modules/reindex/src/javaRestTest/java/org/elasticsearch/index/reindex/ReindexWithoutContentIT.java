@@ -11,13 +11,12 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class ReindexWithoutContentIT extends ESRestTestCase {
+public class ReindexWithoutContentIT extends AbstractReindexIT {
     public void testReindexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
             ResponseException.class,

@@ -2,7 +2,12 @@
 
 ```{applies_to}
 stack: ga 9.4.0
+serverless: ga
 ```
+
+
+:::{include} ../briefSummary/to_exponential_histogram.md
+:::
 
 ## Syntax
 

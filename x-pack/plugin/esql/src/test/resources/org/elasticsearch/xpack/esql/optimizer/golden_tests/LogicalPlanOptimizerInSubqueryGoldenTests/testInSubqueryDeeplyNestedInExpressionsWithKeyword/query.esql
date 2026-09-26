@@ -1,0 +1,4 @@
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "A", "B") == "A"
+  AND COALESCE(CASE(languages IN (FROM employees | KEEP languages), "X", null), "Y") != "Z"
+  AND TO_STRING((salary IN (FROM employees | KEEP salary)) IS NULL) == "false"

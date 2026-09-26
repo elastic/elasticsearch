@@ -161,9 +161,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
             if (acceptedCount == positionCount) {
                 lastOutput = page.shallowCopy();
             } else {
-                int[] positions = new int[acceptedCount];
-                System.arraycopy(accepted, 0, positions, 0, acceptedCount);
-                lastOutput = page.filter(false, positions);
+                lastOutput = page.filter(false, accepted, 0, acceptedCount);
             }
         } finally {
             page.releaseBlocks();

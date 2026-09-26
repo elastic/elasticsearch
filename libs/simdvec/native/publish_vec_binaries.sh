@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.130"
+VERSION="1.0.153"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -34,12 +34,20 @@ if [ "$LOCAL" = false ] || [ "$FORCE_UPLOAD" = true ]; then
   UPLOAD=true
 fi
 
+# zip runs inside the upload pipelines below; if it is missing, pipefail only
+# aborts after curl has already uploaded an empty archive from the dead pipe,
+# permanently burning the version number. Fail fast instead.
+if ! command -v zip > /dev/null; then
+  echo 'Error: zip must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
 fi
@@ -53,7 +61,7 @@ if [ "$UPLOAD" = true ]; then
   fi
 fi
 
-echo 'Building all binaries...'
+echo 'Building all binaries (darwin-aarch64 + linux-aarch64 + linux-x64 + windows-x64)...'
 docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
@@ -63,17 +71,21 @@ docker run --rm \
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
 mkdir -p "$TEMP/linux-x64"
+mkdir -p "$TEMP/windows-x64"
 cp build/libs/vec/shared/aarch64/libvec.dylib "$TEMP/darwin-aarch64/"
 cp build/libs/vec/shared/aarch64/libvec.so    "$TEMP/linux-aarch64/"
 cp build/libs/vec/shared/amd64/libvec.so      "$TEMP/linux-x64/"
+cp build/libs/vec/shared/windows-x64/vec.dll  "$TEMP/windows-x64/"
 
 TEMP_DBG=$(mktemp -d)
 mkdir -p "$TEMP_DBG/darwin-aarch64"
 mkdir -p "$TEMP_DBG/linux-aarch64"
 mkdir -p "$TEMP_DBG/linux-x64"
+mkdir -p "$TEMP_DBG/windows-x64"
 cp -r build/libs/vec/shared/aarch64/libvec.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
 cp    build/libs/vec/shared/aarch64/libvec.so.debug   "$TEMP_DBG/linux-aarch64/"
 cp    build/libs/vec/shared/amd64/libvec.so.debug     "$TEMP_DBG/linux-x64/"
+cp    build/libs/vec/shared/windows-x64/vec.pdb       "$TEMP_DBG/windows-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'

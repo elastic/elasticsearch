@@ -1,0 +1,7 @@
+{
+  "properties": {
+    "id": { "type": "keyword" },
+    "data": { "type": "flattened" },
+    "key": { "type": "keyword" }
+  }
+}

@@ -19,20 +19,29 @@ import java.util.Set;
 final class IpDataLookupInfoImpl implements IpDataLookupInfo {
 
     private final SequencedMap<String, Class<?>> fields;
+    private final SequencedMap<String, Class<?>> defaultFields;
     private final String databaseType;
 
-    IpDataLookupInfoImpl(Set<DatabaseProperty> properties, String databaseType) {
-        LinkedHashMap<String, Class<?>> map = new LinkedHashMap<>();
-        for (DatabaseProperty property : properties) {
-            map.put(property.fieldName(), property.fieldType());
-        }
-        this.fields = map;
+    IpDataLookupInfoImpl(Set<DatabaseProperty> properties, Set<DatabaseProperty> defaultProperties, String databaseType) {
+        this.fields = toFieldMap(properties);
+        this.defaultFields = toFieldMap(defaultProperties);
         this.databaseType = databaseType;
+    }
+
+    private static LinkedHashMap<String, Class<?>> toFieldMap(Set<DatabaseProperty> properties) {
+        LinkedHashMap<String, Class<?>> map = new LinkedHashMap<>();
+        properties.stream().sorted().forEach(property -> map.put(property.fieldName(), property.fieldType()));
+        return map;
     }
 
     @Override
     public SequencedMap<String, Class<?>> getFields() {
         return fields;
+    }
+
+    @Override
+    public SequencedMap<String, Class<?>> getDefaultFields() {
+        return defaultFields;
     }
 
     @Override

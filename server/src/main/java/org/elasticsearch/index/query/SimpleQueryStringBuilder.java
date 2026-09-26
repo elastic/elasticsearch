@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
@@ -395,6 +396,7 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public Query doToQuery(SearchExecutionContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
@@ -408,7 +410,7 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
                 context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields)
             );
-            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+            isAllField = context.hasAllFieldsWildcardDefaultField();
         }
 
         if (isAllField) {
@@ -427,7 +429,18 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
         }
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
         sqp.setType(type);
-        Query query = sqp.parse(queryText);
+        Query query;
+        try {
+            query = sqp.parse(queryText);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(queryText, 1024)
+            );
+        }
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 

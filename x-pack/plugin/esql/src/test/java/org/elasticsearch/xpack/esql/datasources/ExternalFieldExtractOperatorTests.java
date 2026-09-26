@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -15,9 +19,15 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,9 +40,17 @@ import static org.mockito.Mockito.when;
  * {@code _rowPosition} from the page, materialises deferred columns via the driver-shared
  * {@link SourceExtractors} registry, and assembles the output page in declared output order.
  */
-public class ExternalFieldExtractOperatorTests extends ESTestCase {
+public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
 
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+    // Leak-tracking factory: ComputeTestCase's teardown asserts every block allocated by any
+    // test is released, so each test doubles as a leak test. Initialized in a @Before method
+    // rather than a field initializer to avoid a this-escape during construction.
+    private BlockFactory blockFactory;
+
+    @Before
+    public void initBlockFactory() {
+        blockFactory = blockFactory();
+    }
 
     public void testReshapeAndExtract() {
         try (SourceExtractors registry = new SourceExtractors()) {
@@ -63,6 +81,7 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(/* rowPositionChannel = */ 1,
                 /* passThroughChannels = */ List.of(0, 2),
                 /* deferredColumnNames = */ List.of("col"),
+                /* deferredColumnTypes = */ List.of(DataType.INTEGER),
                 registry,
                 blockFactory
             );
@@ -105,7 +124,14 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
 
             Page empty = newPage(new long[0], new long[0], new int[0]);
 
-            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(1, List.of(0, 2), List.of("col"), registry, blockFactory);
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
             op.addInput(empty);
             op.finish();
             Page output = op.getOutput();
@@ -123,29 +149,91 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Empty pages go through {@code reshapeEmpty()}, whose only breaker-checked allocation is
+     * {@code newConstantNullBlock} per deferred column. A cranky breaker will eventually trip
+     * there — including after the first placeholder has already been allocated — and must not
+     * leak the input page or the pass-through refs already {@code incRef}'d. Input blocks are
+     * built on the leak-tracking factory so construction itself cannot trip; the operator uses
+     * the cranky factory. Leak detection is {@link ComputeTestCase}'s teardown plus a per-attempt
+     * breaker check.
+     */
+    public void testReshapeEmptyWithCrankyBreakerDoesNotLeak() {
+        BlockFactory cranky = crankyBlockFactory();
+        for (int attempt = 0; attempt < 100; attempt++) {
+            try (SourceExtractors registry = new SourceExtractors()) {
+                registry.register(new IntListExtractor(new int[] { 1 }));
+                // Two deferred columns so the breaker can trip after the first placeholder is live,
+                // exercising reshapeEmpty's cleanup of a partially filled outBlocks array.
+                Page empty = newPage(new long[0], new long[0], new int[0]);
+                ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                    1,
+                    List.of(0, 2),
+                    List.of("colA", "colB"),
+                    List.of(DataType.INTEGER, DataType.INTEGER),
+                    registry,
+                    cranky
+                );
+                op.addInput(empty);
+                op.finish();
+                try {
+                    Page output = op.getOutput();
+                    try {
+                        assertEquals(4, output.getBlockCount());
+                        assertEquals(0, output.getPositionCount());
+                    } finally {
+                        output.releaseBlocks();
+                    }
+                } catch (CircuitBreakingException e) {
+                    assertEquals(CrankyCircuitBreakerService.ERROR_MESSAGE, e.getMessage());
+                } finally {
+                    op.close();
+                }
+            }
+            assertEquals("breaker leaked on attempt " + attempt, 0L, cranky.breaker().getUsed());
+        }
+    }
+
     public void testFactoryRejectsNullsAndNegatives() {
         SourceExtractors registry = new SourceExtractors();
         try {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry)
             );
-            expectThrows(IllegalArgumentException.class, () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null)
+            );
         } finally {
             registry.close();
         }
     }
 
     public void testFactoryRejectsNullRegistryLookup() {
-        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), ctx -> null);
+        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
+            0,
+            List.of(),
+            List.of(),
+            List.of(),
+            ctx -> null
+        );
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
         expectThrows(IllegalStateException.class, () -> factory.get(driverContext));
@@ -156,9 +244,186 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             registry.register(new IntListExtractor(new int[] { 1 }));
             Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(0, 0) }, new int[] { 9 });
 
-            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(1, List.of(0, 2), List.of("col"), registry, blockFactory);
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
             op.addInput(page);
             // Don't drain; close must release the pending page so we don't leak blocks.
+            op.close();
+        }
+    }
+
+    /**
+     * A failure inside {@code registry.materialize(...)} — the realistic trigger is a breaker
+     * trip while allocating the deferred columns — must not leak the detached input page:
+     * {@link ExternalFieldExtractOperator#getOutput()} owns the page and releases it on every
+     * path, including {@link Error}s. Leak detection is {@link ComputeTestCase}'s teardown.
+     */
+    public void testMaterializeFailureReleasesPage() {
+        CircuitBreakingException breaker = new CircuitBreakingException(
+            "simulated breaker trip during extraction",
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        AssertionError error = new AssertionError("simulated error during extraction");
+        for (Throwable failure : List.of(breaker, error)) {
+            try (SourceExtractors registry = new SourceExtractors()) {
+                int id = registry.register(new ThrowingExtractor(failure));
+                Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+                ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                    1,
+                    List.of(0, 2),
+                    List.of("col"),
+                    List.of(DataType.INTEGER),
+                    registry,
+                    blockFactory
+                );
+                op.addInput(page);
+                try {
+                    if (failure instanceof CircuitBreakingException) {
+                        CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, op::getOutput);
+                        assertSame(failure, thrown);
+                        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(thrown));
+                    } else {
+                        assertSame(failure, expectThrows(AssertionError.class, op::getOutput));
+                    }
+                } finally {
+                    op.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * A checked I/O failure during deferred extraction is an external-read failure, even though it
+     * occurs after TopN on the driver thread. The first extractor successfully allocates its block
+     * before the second fails, so leak tracking also verifies cleanup of partial registry output.
+     */
+    public void testIoFailureDuringMaterializationIsClassified() {
+        IOException failure = new IOException("Access denied reading object s3://bucket/hits.parquet");
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int successfulId = registry.register(new IntListExtractor(new int[] { 10 }));
+            int failingId = registry.register(new ThrowingExtractor(failure));
+            Page page = newPage(
+                new long[] { 1L, 2L },
+                new long[] { SourceExtractors.encode(successfulId, 0), SourceExtractors.encode(failingId, 0) },
+                new int[] { 9, 10 }
+            );
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            op.finish();
+            try {
+                ExternalClientException thrown = expectThrows(ExternalClientException.class, op::getOutput);
+                assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
+                assertEquals("external_client_exception", ElasticsearchException.getExceptionName(thrown));
+                assertTrue(thrown.getMessage().startsWith("Failed to read external source: "));
+                assertTrue(thrown.getMessage().contains(failure.getMessage()));
+                assertSame(failure, thrown.getCause());
+            } finally {
+                op.close();
+            }
+        }
+    }
+
+    /**
+     * A storage-layer 503 already carries the retryable status. Classification at this operator
+     * must leave it unchanged rather than re-wrapping it as a client or server exception.
+     */
+    public void testUnavailableExceptionDuringMaterializationStays503() {
+        ExternalUnavailableException failure = new ExternalUnavailableException("store 503", new IOException("connection reset"));
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int id = registry.register(new ThrowingExtractor(failure));
+            Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            op.finish();
+            try {
+                ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, op::getOutput);
+                assertSame(failure, thrown);
+                assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+                assertEquals("external_unavailable_exception", ElasticsearchException.getExceptionName(thrown));
+            } finally {
+                op.close();
+            }
+        }
+    }
+
+    /**
+     * Materializing against a closed registry is a broken invariant, not bad input. Classification
+     * at this operator must turn that {@link IllegalStateException} into a 500.
+     */
+    public void testClosedRegistryDuringMaterializationIsServerException() {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            op.finish();
+            registry.close();
+            try {
+                ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
+                assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
+                assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
+                assertTrue(thrown.getCause() instanceof IllegalStateException);
+                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
+            } finally {
+                op.close();
+            }
+        }
+    }
+
+    /**
+     * The {@code _rowPosition} type check throws before materialization even starts; the
+     * detached input page must still be released by {@code getOutput()}.
+     */
+    public void testBadRowPositionChannelReleasesPage() {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            registry.register(new IntListExtractor(new int[] { 1 }));
+            // The _rowPosition channel (1) holds ints instead of the encoded longs the operator requires.
+            Block sortBlock = blockFactory.newLongArrayVector(new long[] { 1L }, 1).asBlock();
+            Block badRpBlock = blockFactory.newIntArrayVector(new int[] { 0 }, 1).asBlock();
+            Block passBlock = blockFactory.newIntArrayVector(new int[] { 9 }, 1).asBlock();
+            Page page = new Page(1, sortBlock, badRpBlock, passBlock);
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            expectThrows(IllegalStateException.class, op::getOutput);
             op.close();
         }
     }
@@ -186,7 +451,8 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory factory) throws IOException {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+            throws IOException {
             Block[] result = new Block[columnNames.length];
             boolean built = false;
             try {
@@ -203,6 +469,41 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             } finally {
                 if (built == false) org.elasticsearch.core.Releasables.closeExpectNoException(result);
             }
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Extractor that allocates nothing and rethrows a supplied checked exception, runtime
+     * exception, or error unchanged.
+     */
+    private static final class ThrowingExtractor implements ColumnExtractor {
+        private final Throwable failure;
+
+        ThrowingExtractor(Throwable failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public long rowCount() {
+            return 1;
+        }
+
+        @Override
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+            throws IOException {
+            if (failure instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (failure instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            throw new AssertionError("unsupported test failure", failure);
         }
 
         @Override

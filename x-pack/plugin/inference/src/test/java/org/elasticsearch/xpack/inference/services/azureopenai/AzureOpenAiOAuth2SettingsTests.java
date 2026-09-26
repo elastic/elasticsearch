@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -98,9 +99,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         assertThat(settings, is(nullValue()));
 
         var expectedError = Strings.format(
-            "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
+            "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: %s",
             ModelConfigurations.SERVICE_SETTINGS,
-            OAuth2Settings.REQUIRED_FIELDS
+            new TreeSet<>(OAuth2Settings.REQUIRED_FIELDS)
         );
         var errors = validationException.validationErrors();
         assertThat(errors, hasSize(1));

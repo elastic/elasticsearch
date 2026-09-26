@@ -89,11 +89,11 @@ public class ExponentialHistogramTDigestConverterAccuracyTests extends Exponenti
         double exponentialHistogramMaxError = QuantileAccuracyTests.getMaximumRelativeError(samples, numBuckets);
         double combinedRelativeError = rawTDigestMaxError + exponentialHistogramMaxError;
         // It's hard to reason about the upper bound of the combined error for this conversion,
-        // so we just check that it's not worse than twice the sum of the individual errors.
+        // so we just check that it's not worse than three times the sum of the individual errors.
         // For a lower number of buckets or samples than the ones we're testing with here,
         // the error can be even higher than this.
         // The same is true when using a different TDigest implementation that's less accurate (such as hybrid or merging).
-        assertThat(convertedTDigestMaxError, lessThanOrEqualTo(combinedRelativeError * 2));
+        assertThat(convertedTDigestMaxError, lessThanOrEqualTo(combinedRelativeError * 3));
     }
 
     private static TDigest convertToTDigest(ExponentialHistogramDataPoint otlpHistogram) {

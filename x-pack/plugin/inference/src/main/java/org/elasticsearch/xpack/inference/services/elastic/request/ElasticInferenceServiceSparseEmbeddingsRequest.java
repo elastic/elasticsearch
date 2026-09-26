@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundSparseEmbeddingRequest;
@@ -48,9 +49,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
         InputType inputType,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, preferences, authApplier);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
@@ -105,6 +107,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             traceContextHandler.traceContext(),
             getMetadata(),
             inputType,
+            getPreferences(),
             authApplier
         );
     }

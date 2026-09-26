@@ -15,15 +15,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -80,7 +80,6 @@ final class RequestXContent {
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
-    static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
@@ -91,20 +90,23 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
-    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
-    private static final ParseField APPROXIMATION_FIELD = new ParseField("approximation");
+    static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
-        return SYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = SYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     /** Parses an asynchronous request. */
     static EsqlQueryRequest parseAsync(XContentParser parser) {
-        return ASYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
@@ -120,17 +122,85 @@ final class RequestXContent {
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
-        parser.declareString((request, timeZone) -> request.timeZone(ZoneId.of(timeZone)), TIME_ZONE_FIELD);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
-        parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
-        parser.declareObjectOrBooleanOrNull(
-            EsqlQueryRequest::approximation,
-            (p, c) -> ApproximationSettings.fromXContent(p),
-            ApproximationSettings.EXPLICIT_NULL,
-            APPROXIMATION_FIELD
-        );
+        declareRegistryAliases(parser);
+        parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    /** Declares one parser per registered body alias. Nested-path aliases throw at parser-build time. */
+    private static void declareRegistryAliases(ObjectParser<EsqlQueryRequest, ?> parser) {
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            for (QuerySettingDef.RequestBodyBinding alias : def.aliases()) {
+                if (alias.isAtRoot() == false) {
+                    throw new IllegalStateException(
+                        "Body alias for setting ["
+                            + def.name()
+                            + "] at nested path ["
+                            + alias.parentPath()
+                            + "."
+                            + alias.name()
+                            + "] is not wired in RequestXContent yet; only root-level aliases are currently parsed."
+                    );
+                }
+                declareRootAlias(parser, def, alias.name());
+            }
+        }
+    }
+
+    private static <T> void declareRootAlias(ObjectParser<EsqlQueryRequest, ?> parser, QuerySettingDef<T> def, String aliasName) {
+        parser.declareField((p, request, c) -> {
+            // Deprecation warns on every surface a setting can arrive — including this legacy top-level alias,
+            // which is where the BWC-aliased settings are most commonly supplied.
+            QuerySettings.warnIfDeprecated(def);
+            request.set(def, def.readFromJson(p));
+        }, new ParseField(aliasName), VALUE_OBJECT_ARRAY);
+    }
+
+    private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
+        if (p.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(p.getTokenLocation(), "[" + SETTINGS_FIELD.getPreferredName() + "] must be an object");
+        }
+        XContentParser.Token token;
+        while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Expected a setting name inside [" + SETTINGS_FIELD.getPreferredName() + "], got [" + token + "]"
+                );
+            }
+            String settingName = p.currentName();
+            QuerySettingDef<?> def = QuerySettings.lookup(settingName);
+            if (def == null) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Unknown setting [" + settingName + "] under [" + SETTINGS_FIELD.getPreferredName() + "]"
+                );
+            }
+            if (def.requestBody() == false) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Setting [" + settingName + "] is not exposed as a request body parameter"
+                );
+            }
+            QuerySettings.warnIfDeprecated(def);
+            p.nextToken(); // move to value
+            Object value;
+            try {
+                value = def.readFromJson(p);
+            } catch (IOException e) {
+                // Propagate low-level parse/IO failures unwrapped; only reader-thrown validation errors below
+                // get turned into a friendly "Failed to parse value" message.
+                throw e;
+            } catch (Exception e) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Failed to parse value for setting [" + settingName + "]: " + e.getMessage()
+                );
+            }
+            request.canonicalRequestSettings().put(def, value);
+        }
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
@@ -201,6 +271,9 @@ final class RequestXContent {
                             classification = VALUE;
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
+                        if (classification == VALUE && paramValue instanceof List<?> list && list.isEmpty()) {
+                            paramValue = null;
+                        }
                         type = DataType.fromJava(paramValue);
                         currentParam = new QueryParam(
                             paramName,
@@ -230,7 +303,11 @@ final class RequestXContent {
                         } else if (mixedTypesFound) {
                             addMixedTypesError(errors, loc, null, paramValues);
                         }
-                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        if (paramValues.isEmpty()) {
+                            unNamedParams.add(new QueryParam(null, null, DataType.NULL, VALUE));
+                        } else {
+                            unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        }
                     } else {
                         ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                         unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));
@@ -422,19 +499,6 @@ final class RequestXContent {
                     new XContentParseException(
                         loc,
                         entry + " parameter is multivalued, only " + VALUE.name() + " parameters can be multivalued"
-                    )
-                );
-                return;
-            }
-            if (valueList.isEmpty()) {
-                errors.add(
-                    new XContentParseException(
-                        loc,
-                        "Empty lists are not allowed as named parameter values. Got parameter ["
-                            + entry.getKey()
-                            + "] with value ["
-                            + valueList
-                            + "]"
                     )
                 );
                 return;

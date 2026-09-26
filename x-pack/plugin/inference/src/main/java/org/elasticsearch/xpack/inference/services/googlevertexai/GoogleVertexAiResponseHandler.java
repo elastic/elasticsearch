@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
@@ -40,29 +40,25 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 503) {
-            throw new RetryException(true, buildError(GOOGLE_VERTEX_AI_UNAVAILABLE, outboundRequest, result));
+            return new RetryException(true, buildError(GOOGLE_VERTEX_AI_UNAVAILABLE, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 404) {
-            throw new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
+            return new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
         } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
+            return new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 
@@ -73,6 +69,6 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(googleVertexAiProcessor);
-        return new StreamingChatCompletionResults(googleVertexAiProcessor);
+        return new StreamingCompletionResults(googleVertexAiProcessor);
     }
 }

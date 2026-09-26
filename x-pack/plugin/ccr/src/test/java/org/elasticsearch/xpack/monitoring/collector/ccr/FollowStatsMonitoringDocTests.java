@@ -44,10 +44,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private ShardFollowNodeTaskStatus status;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initStatusMock() throws Exception {
         status = mock(ShardFollowNodeTaskStatus.class);
     }
 

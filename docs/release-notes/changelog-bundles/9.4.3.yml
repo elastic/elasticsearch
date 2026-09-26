@@ -1,0 +1,209 @@
+version: 9.4.3
+released: true
+generated: 2026-06-30T15:35:00.320720593Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 107188
+    summary: Fix bug causing incorrect error on force deleting already deleted model
+    area: Machine Learning
+    type: bug
+    issues:
+      - 105420
+  - pr: 142335
+    summary: Pass through `includeSourceInError`
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 145967
+    summary: Fix CLI tests failures due to unconsumed output
+    area: SQL
+    type: bug
+    issues:
+      - 143646
+      - 143645
+  - pr: 148519
+    summary: Avoid long overflows on AVG by casting to double
+    area: ES|QL
+    type: bug
+    issues:
+      - 99575
+  - pr: 149418
+    summary: Fix wildcard view resolution losing duplicate copies
+    area: ES|QL
+    type: bug
+    issues:
+      - 149416
+  - pr: 149512
+    summary: Fix GPU SQ format name to match CPU equivalent
+    area: Vector Search
+    type: bug
+    issues:
+      - 148975
+  - pr: 149535
+    summary: Add filter capture for ESQL query
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149683
+    summary: Fix `ValuesReader` assertion error
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149775
+    summary: Carry over synthetic attributes from conversions to the `Project` above `UnionAll`
+    area: ES|QL
+    type: bug
+    issues:
+      - 149509
+  - pr: 149783
+    summary: Fix subquery/fork with inline stats pruning
+    area: ES|QL
+    type: bug
+    issues:
+      - 149589
+  - pr: 149935
+    summary: Guard against null zeroTermsQuery in cross_fields multi_match
+    area: Search
+    type: bug
+    issues:
+      - 149934
+  - pr: 150127
+    summary: Add query filter logging to SQL and EQL queries
+    area: Infra/Logging
+    type: enhancement
+    issues: []
+  - pr: 150433
+    summary: Fix prefix escape for synthetic id
+    area: TSDB
+    type: bug
+    issues:
+      - 150389
+  - pr: 150560
+    summary: Run remote child task cancellation as system user
+    area: Security
+    type: bug
+    issues: []
+  - pr: 150636
+    summary: Don't allow runtime fields to shadow fields used in index sort
+    area: Mapping
+    type: bug
+    issues:
+      - 149500
+  - pr: 150704
+    summary: Make subquery with counter type not present in all branches behave more consistently
+    area: ES|QL
+    type: bug
+    issues:
+      - 150640
+      - 150641
+      - 150644
+      - 150645
+  - pr: 150808
+    summary: Fix division of `max_docs` between slices in reindex
+    area: Reindex
+    type: bug
+    issues: []
+  - pr: 151181
+    summary: Fix AVLTreeDigest CDF monotonicity for penultimate centroid
+    area: Aggregations
+    type: bug
+    issues:
+      - 151012
+  - pr: 151234
+    summary: "Ids Query: Throw `IllegalArgumentException`"
+    area: Search
+    type: bug
+    issues:
+      - 150305
+  - pr: 151633
+    summary: Resolve surrogates in union type field resolution before plan serialization
+    area: ES|QL
+    type: bug
+    issues:
+      - 151475
+  - pr: 151664
+    summary: Upgrade Apache Iceberg to 1.10.2
+    area: ES|QL
+    type: upgrade
+    issues: []
+  - pr: 151794
+    summary: "[Inference] Add requires org.apache.commons.lang3 to module-info"
+    area: Inference
+    type: upgrade
+    issues: []
+  - pr: 151979
+    summary: Fix non-monotonic T-Digest centroids caused by floating-point errors
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 152000
+    summary: "Revert \"[ML] Add extra validation in `trained_model` creation\""
+    area: Machine Learning
+    type: bug
+    issues: []

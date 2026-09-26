@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 
 import java.time.Instant;
 import java.util.List;
@@ -78,7 +77,7 @@ final class PrometheusMetadataPlanBuilder {
     static LogicalPlan buildPlan(String index, String metric, int limit, int limitPerMetric, Instant start, Instant end) {
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
         plan = new Filter(Source.EMPTY, plan, buildFilterCondition(start, end, metric));
-        plan = new MetricsInfo(Source.EMPTY, plan);
+        plan = PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, plan);
 
         // MetricsInfo may return multi-valued metric_type or unit fields when backing indices within a
         // data stream disagree on those values. MV_MIN collapses them to a single value before the

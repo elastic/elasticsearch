@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -18,6 +16,7 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -48,16 +47,16 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -75,16 +74,20 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
@@ -93,75 +96,12 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
-        )];
-        boolean disableFlatOnFlush = random().nextBoolean();
-        if (rarely()) {
-            int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold,
-                null
-            );
-        } else if (rarely()) {
-            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                flatVectorThreshold,
-                null
-            );
-        } else {
-            // run with low numbers to force many clusters with parents
-            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                vectorPerCluster,
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold,
-                null
-            );
-        }
-        super.setUp();
-    }
-
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return RandomPicks.randomFrom(
-            random(),
-            List.of(
-                VectorSimilarityFunction.DOT_PRODUCT,
-                VectorSimilarityFunction.EUCLIDEAN,
-                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
-            )
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
         );
     }
 
@@ -177,6 +117,60 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            QuantEncoding encoding = randomFrom(QuantEncoding.values());
+            boolean disableFlatOnFlush = random().nextBoolean();
+            if (rarely()) {
+                int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold,
+                    null
+                );
+            } else if (rarely()) {
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    true,
+                    random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                    flatVectorThreshold,
+                    null
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+                int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
+                format = new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    false,
+                    null,
+                    1,
+                    false,
+                    DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatVectorThreshold,
+                    null
+                );
+            }
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -191,7 +185,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            assertThat(offHeap.size(), equalTo(3));
+            assertThat(offHeap, aMapWithSize(3));
             assertThat(totalByteSize, greaterThanOrEqualTo(0L));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
@@ -240,7 +234,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(3, offHeap.size());
+                    assertThat(offHeap, aMapWithSize(3));
                 }
             }
         }
@@ -277,7 +271,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
                         Integer.MAX_VALUE
                     );
-                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
                 }
 
             }
@@ -311,7 +305,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
                         Integer.MAX_VALUE
                     );
-                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
                 }
 
             }
@@ -404,10 +398,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc())
                 );
                 TopDocs topDocs = collector.topDocs();
-                assertEquals(3, topDocs.scoreDocs.length);
-                assertEquals(0, topDocs.scoreDocs[0].doc);
-                assertEquals(1, topDocs.scoreDocs[1].doc);
-                assertEquals(2, topDocs.scoreDocs[2].doc);
+                assertThat(topDocs.scoreDocs, transformedArrayItemsMatch(sd -> sd.doc, arrayContaining(0, 1, 2)));
             }
         }
     }
@@ -519,7 +510,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
                     assertThat(document.getField("k").binaryValue().utf8ToString(), equalTo("B"));
                 }
-                assertEquals(matchingDocs, uniqueDocIds.size());
+                assertThat(uniqueDocIds, hasSize(matchingDocs));
             }
         }
     }
@@ -529,6 +520,233 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
         doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
         writer.addDocument(doc);
+    }
+
+    /**
+     * Exercises {@link ESNextDiskBBQVectorsFormat#validateSliceSort} directly. The writer test below covers the same
+     * branches end to end, but the reader calls this method too and no writer-produced segment can reach its failure
+     * paths, so this pins the logic both call sites share.
+     */
+    public void testValidateSliceSort() {
+        String sliceField = "_slice";
+
+        // no slice field configured: any sort, or none, is fine
+        ESNextDiskBBQVectorsFormat.validateSliceSort(null, null);
+        ESNextDiskBBQVectorsFormat.validateSliceSort(null, new Sort(new SortField("other", SortField.Type.LONG)));
+
+        SortField valid = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid));
+        // trailing sort fields are allowed
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid, new SortField("other", SortField.Type.LONG)));
+
+        assertValidateSliceSortThrows(sliceField, null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING, false, SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(otherPrimary, valid), "must be primary index sort");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true, SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(descending), "must be ascending");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.STRING)), "missing=LAST");
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_FIRST);
+        assertValidateSliceSortThrows(sliceField, new Sort(missingFirst), "missing=LAST");
+    }
+
+    private static void assertValidateSliceSortThrows(String sliceField, Sort sort, String message) {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, sort)
+        );
+        assertThat(e.getMessage(), containsString(message));
+    }
+
+    /**
+     * A sliced format must refuse to write unless the primary index sort is the slice field, of type STRING,
+     * ascending, with missing values last. Sliced search assumes exactly that layout, so the writer rejects
+     * anything else up front rather than producing segments that would fail or return wrong results at query time.
+     */
+    public void testSlicedFormatRejectsInvalidIndexSort() throws IOException {
+        String sliceField = "_slice";
+        ESNextDiskBBQVectorsFormat slicedFormat = new ESNextDiskBBQVectorsFormat(128, 4, sliceField);
+
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING, false, SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(otherPrimary), "must be primary index sort");
+
+        // Give the slice field numeric doc values here so Lucene's own sort/doc-values type check passes and ours is the one that fires.
+        Document numericSliceDoc = new Document();
+        numericSliceDoc.add(new NumericDocValuesField(sliceField, 0L));
+        numericSliceDoc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        assertSliceSortRejected(slicedFormat, numericSliceDoc, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true, SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(descending), "must be ascending");
+
+        assertSliceSortRejected(
+            slicedFormat,
+            slicedVectorDoc(sliceField),
+            new Sort(new SortField(sliceField, SortField.Type.STRING)),
+            "missing=LAST"
+        );
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_FIRST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(missingFirst), "missing=LAST");
+
+        // the valid configuration writes without complaint
+        SortField valid = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(valid));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            w.addDocument(slicedVectorDoc(sliceField));
+            w.commit();
+        }
+    }
+
+    private static void assertSliceSortRejected(ESNextDiskBBQVectorsFormat slicedFormat, Document doc, Sort sort, String message)
+        throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (sort != null) {
+            iwc.setIndexSort(sort);
+        }
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> w.addDocument(doc));
+            assertThat(e.getMessage(), containsString(message));
+        }
+    }
+
+    private static Document slicedVectorDoc(String sliceField) {
+        Document doc = new Document();
+        doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("0")));
+        doc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        return doc;
+    }
+
+    public void testSlicedIndexOneVectorPerSlice() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int slices = random().nextInt(2, 100);
+        int dimensions = random().nextInt(12, 500);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            random().nextInt(100, 1000),
+            sliceField
+        );
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int slice = 0; slice < slices; slice++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals(1, reader.leaves().size());
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorReader = fieldsReader.getFieldReader(vectorField);
+                }
+                assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                try (
+                    IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                        vectorField
+                    )
+                ) {
+                    assertNotNull(centroidData);
+                    assertThat(centroidData.numCentroids(), equalTo(1));
+                    assertThat(centroidData.centroids().size(), equalTo(1));
+                }
+            }
+        }
+    }
+
+    /**
+     * A sliced segment produced by a single flush is not clustered per slice ({@code numSlices == 0}) and is
+     * searched over a doc id range. Plain Lucene {@link AcceptDocs} (as used by {@code CheckIndex}) carry no slice
+     * information and must fall back to the whole segment, while an {@link ESAcceptDocs} without a slice ordinal
+     * violates the reader contract and is rejected by assertion rather than silently searching a wrong range.
+     */
+    public void testSlicedFlushedSegmentWithoutSliceOrdinal() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int numDocs = random().nextInt(10, 200);
+        int dimensions = random().nextInt(12, 500);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            sliceField
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
+                for (LeafReaderContext context : reader.leaves()) {
+                    LeafReader leafReader = context.reader();
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        vectorReader = fieldsReader.getFieldReader(vectorField);
+                    }
+                    assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                    // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
+                    try (
+                        IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                            vectorField
+                        )
+                    ) {
+                        assertThat(centroidData.numCentroids(), equalTo(1));
+                    }
+                    float[] vector = randomVector(dimensions);
+                    KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
+                    leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
+                    Set<Integer> docIds = new HashSet<>();
+                    for (ScoreDoc scoreDoc : collector.topDocs().scoreDocs) {
+                        docIds.add(scoreDoc.doc);
+                    }
+                    assertThat(docIds, hasSize(leafReader.maxDoc()));
+
+                    // Call getPostingVisitor directly via a package-private test helper, bypassing the
+                    // assertion in getNumberOfVectors, to test the fix in the numSlices==0 branch itself.
+                    // With the old dead null-guard (esAccept.sliceAcceptDocs() != null) this threw
+                    // NullPointerException; with the fix it throws AssertionError.
+                    ESNextDiskBBQVectorsReader esNextReader = (ESNextDiskBBQVectorsReader) vectorReader;
+                    AssertionError error = expectThrows(
+                        AssertionError.class,
+                        () -> esNextReader.getPostingVisitorForTest(vectorField, vector, new ESAcceptDocs.ESAcceptDocsAll())
+                    );
+                    assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
+                }
+            }
+        }
     }
 
     public void testSlicesDense() throws IOException {
@@ -566,9 +784,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         String filterValue = "match";
         String filterMiss = "miss";
         String docIdField = "_doc_id";
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
-        )];
+        QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
         int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
         ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
             encoding,
@@ -591,8 +807,9 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         int[] docSlices = new int[numDocs];
         boolean[] docHasVector = new boolean[numDocs];
         boolean[] docFilterMatch = new boolean[numDocs];
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING, false, SortField.STRING_LAST);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {
@@ -683,7 +900,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                                 continue;
                             }
                             acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
-                                filterSupplier,
+                                () -> filterSupplier.get(Long.MAX_VALUE).iterator(),
+                                filterSupplier::cost,
                                 liveDocs,
                                 leafReader.maxDoc(),
                                 ord,
@@ -717,7 +935,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                             assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
                         }
                     }
-                    assertEquals(expectedDocs, uniqueDocIds.size());
+                    assertThat(uniqueDocIds, hasSize(expectedDocs));
                 }
             }
         }

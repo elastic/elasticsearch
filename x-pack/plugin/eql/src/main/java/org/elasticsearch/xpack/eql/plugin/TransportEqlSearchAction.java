@@ -294,6 +294,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());
+                response.setDirectoryMetrics(r.directoryMetrics());
                 // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
                 // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
                 if (requestIsAsync(request)) {

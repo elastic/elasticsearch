@@ -231,6 +231,18 @@ public class SnapshotResiliencyTestHelper {
             .build();
     }
 
+    /**
+     * Creates a {@link FeatureService} that reports only {@code supportedFeatures} as supported by the cluster.
+     */
+    private static FeatureService createFeatureService(Set<NodeFeature> supportedFeatures) {
+        return new FeatureService(List.of()) {
+            @Override
+            public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                return supportedFeatures.contains(feature);
+            }
+        };
+    }
+
     public static class TestClusterNodes {
 
         protected static final Logger logger = LogManager.getLogger(TestClusterNodes.class);
@@ -454,6 +466,10 @@ public class SnapshotResiliencyTestHelper {
         }
 
         public class TestClusterNode {
+            private static final Set<NodeFeature> SUPPORTED_FEATURES = Set.of(
+                DataStream.DATA_STREAM_FAILURE_STORE_FEATURE,
+                RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
+            );
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
@@ -482,6 +498,8 @@ public class SnapshotResiliencyTestHelper {
             private TransportService transportService;
 
             private ClusterService clusterService;
+
+            private FeatureService featureService;
 
             protected SearchService searchService;
 
@@ -578,6 +596,7 @@ public class SnapshotResiliencyTestHelper {
                         }
                     }
                 );
+                featureService = createFeatureService(SUPPORTED_FEATURES);
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
@@ -727,6 +746,7 @@ public class SnapshotResiliencyTestHelper {
                     .bigArrays(bigArrays)
                     .scriptService(scriptService)
                     .clusterService(clusterService)
+                    .featureService(featureService)
                     .projectResolver(projectResolver)
                     .client(client)
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
@@ -909,12 +929,7 @@ public class SnapshotResiliencyTestHelper {
                             IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
-                            new FeatureService(List.of()) {
-                                @Override
-                                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                                }
-                            }
+                            featureService
                         ),
                         client,
                         actionFilters,
@@ -924,12 +939,7 @@ public class SnapshotResiliencyTestHelper {
                         projectResolver,
                         FailureStoreMetrics.NOOP,
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                        new FeatureService(List.of()) {
-                            @Override
-                            public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                                return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                            }
-                        },
+                        featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),
                         DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
@@ -959,6 +969,7 @@ public class SnapshotResiliencyTestHelper {
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,
+                        featureService,
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
@@ -972,12 +983,7 @@ public class SnapshotResiliencyTestHelper {
                     threadPool,
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                    new FeatureService(List.of()) {
-                        @Override
-                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
-                        }
-                    }
+                    featureService
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,
@@ -1359,7 +1365,7 @@ public class SnapshotResiliencyTestHelper {
                     getLeaderHeartbeatService(),
                     createPrevoteCollector(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    new FeatureService(List.of()),
+                    featureService,
                     this.clusterService
                 );
                 masterService.setClusterStatePublisher(coordinator);

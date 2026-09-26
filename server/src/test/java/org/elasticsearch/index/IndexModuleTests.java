@@ -51,6 +51,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -171,6 +172,7 @@ public class IndexModuleTests extends ESTestCase {
     private BigArrays bigArrays;
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private FeatureService featureService;
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Before
@@ -208,6 +210,7 @@ public class IndexModuleTests extends ESTestCase {
             TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         clusterService = ClusterServiceUtils.createClusterService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings));
+        featureService = new FeatureService(List.of());
         nodeEnvironment = new NodeEnvironment(settings, environment);
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
@@ -242,6 +245,7 @@ public class IndexModuleTests extends ESTestCase {
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             null,
             indicesQueryCache,
             mapperRegistry,

@@ -16,6 +16,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -36,7 +38,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_RECOVERY;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,6 +49,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ParametrizedMapperTests extends MapperServiceTestCase {
+
+    private static final NodeFeature FEATURE_A = new NodeFeature("test_mapper.feature_a");
+    private static final NodeFeature FEATURE_B = new NodeFeature("test_mapper.feature_b");
 
     public enum DummyEnumType {
         NAME1,
@@ -147,6 +155,19 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             EnumSet.of(DummyEnumType.NAME1, DummyEnumType.NAME2)
         );
 
+        final Parameter<String> gated = new Parameter<>("gated", true, () -> "default", (n, c, o) -> {
+            String value = XContentMapValues.nodeStringValue(o);
+            if ("b".equals(value) && c.clusterHasFeature(FEATURE_B) == false) {
+                throw new MapperParsingException(
+                    "value [b] for parameter [gated] on mapper [" + n + "] is not supported until all nodes in the cluster support it"
+                );
+            }
+            return value;
+        }, m -> toType(m).gated, XContentBuilder::field, Function.identity()).requiresFeatures(FEATURE_A);
+
+        final Parameter<Boolean> doubleGated = Parameter.boolParam("double_gated", true, m -> toType(m).doubleGated, false)
+            .requiresFeatures(FEATURE_A, FEATURE_B);
+
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
@@ -168,7 +189,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 searchAnalyzer,
                 required,
                 enumField,
-                restrictedEnumField };
+                restrictedEnumField,
+                gated,
+                doubleGated };
         }
 
         @Override
@@ -206,6 +229,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final String required;
         private final DummyEnumType enumField;
         private final DummyEnumType restrictedEnumField;
+        private final String gated;
+        private final boolean doubleGated;
 
         protected TestMapper(String simpleName, String fullName, BuilderParams builderParams, ParametrizedMapperTests.Builder builder) {
             super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), builderParams);
@@ -220,6 +245,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             this.required = builder.required.getValue();
             this.enumField = builder.enumField.getValue();
             this.restrictedEnumField = builder.restrictedEnumField.getValue();
+            this.gated = builder.gated.getValue();
+            this.doubleGated = builder.doubleGated.getValue();
         }
 
         @Override
@@ -248,6 +275,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TransportVersion transportVersion,
         boolean fromDynamicTemplate
     ) {
+        return builderFromMapping(mapping, version, transportVersion, fromDynamicTemplate, f -> true);
+    }
+
+    private static Builder builderFromMapping(
+        String mapping,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        boolean fromDynamicTemplate,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
             Map.of(
@@ -274,6 +311,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             name -> null,
             version,
             () -> transportVersion,
+            clusterSupportsFeature,
             () -> null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
@@ -306,6 +344,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
     private static TestMapper fromMapping(String mapping) {
         return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
+    }
+
+    private static TestMapper fromMapping(String mapping, boolean fromDynamicTemplate, Predicate<NodeFeature> clusterSupportsFeature) {
+        return (TestMapper) builderFromMapping(
+            mapping,
+            IndexVersion.current(),
+            TransportVersion.current(),
+            fromDynamicTemplate,
+            clusterSupportsFeature
+        ).build(MapperBuilderContext.root(false, false));
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {
@@ -343,7 +391,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "analyzer": "_keyword",
                 "required": "value",
                 "enum_field": "name1",
-                "restricted_enum_field": "name1"
+                "restricted_enum_field": "name1",
+                "gated": "default",
+                "double_gated": false
               }
             }"""), toStringWithDefaults(mapper));
     }
@@ -652,7 +702,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "analyzer": "default",
                 "required": "value",
                 "enum_field": "name1",
-                "restricted_enum_field": "name1"
+                "restricted_enum_field": "name1",
+                "gated": "default",
+                "double_gated": false
               }
             }"""), toStringWithDefaults(mapper));
     }
@@ -732,5 +784,108 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             b.field("int_value", 5);    // custom merge validator says that int_value can only increase
         })));
         assertThat(e.getMessage(), containsString("int_value"));
+    }
+
+    public void testFeatureGatedParameter() {
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            String mappingWithValue = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingWithValue, fromDynamicTemplate, f -> true);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithValue + "}", Strings.toString(mapper));
+
+            MapperParsingException mappingWithValueException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingWithValue, fromDynamicTemplate, f -> false)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                mappingWithValueException.getMessage()
+            );
+
+            // the gate only applies to parameters that are actually present in the mapping
+            String mappingWithoutValue = """
+                {"type":"test_mapper","required":"value"}""";
+            mapper = fromMapping(mappingWithoutValue, fromDynamicTemplate, f -> false);
+            assertEquals("default", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithoutValue + "}", Strings.toString(mapper));
+
+            // a parameter gated on several features is only allowed once every one of them is supported
+            String doubleGatedMapping = """
+                {"type":"test_mapper","required":"value","double_gated":true}""";
+            MapperParsingException doubleGatedMappingException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(doubleGatedMapping, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "parameter [double_gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster"
+                    + " support it",
+                doubleGatedMappingException.getMessage()
+            );
+
+            mapper = fromMapping(doubleGatedMapping, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertTrue(mapper.doubleGated);
+            assertEquals("{\"field\":" + doubleGatedMapping + "}", Strings.toString(mapper));
+        }
+    }
+
+    // recovering an existing mapping must never fail on the gate, otherwise an index whose mapping was
+    // written while the feature was supported could no longer be recovered
+    public void testFeatureGatedParameterMappingRecovery() throws IOException {
+        // use "b" so that both the key-level gate (FEATURE_A) and the value-level gate (FEATURE_B) must be bypassed
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        String mapping = """
+            {"_doc":{"properties":{"field":{"type":"test_mapper","required":"value","gated":"b"}}}}""";
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, MAPPING_UPDATE, mapping));
+        assertEquals(
+            "Failed to parse mapping: parameter [gated] on mapper [field] of type [test_mapper] "
+                + "is not supported until all nodes in the cluster support it",
+            e.getMessage()
+        );
+
+        merge(mapperService, MAPPING_RECOVERY, mapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TestMapper.class));
+    }
+
+    // value "a" is always allowed (once the key-level FEATURE_A gate is satisfied); value "b" additionally
+    // requires FEATURE_B, enforced inside the parser lambda
+    public void testFeatureGatedParameterValue() {
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            // value "a" is allowed with FEATURE_A alone
+            String mappingValueA = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingValueA, fromDynamicTemplate, FEATURE_A::equals);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueA + "}", Strings.toString(mapper));
+
+            // value "b" is rejected when FEATURE_B is absent
+            String mappingValueB = """
+                {"type":"test_mapper","required":"value","gated":"b"}""";
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "value [b] for parameter [gated] on mapper [field] is not supported until all nodes in the cluster support it",
+                e.getMessage()
+            );
+
+            // value "b" is accepted when both features are supported
+            mapper = fromMapping(mappingValueB, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertEquals("b", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueB + "}", Strings.toString(mapper));
+
+            // the key-level gate (FEATURE_A) fires before the parser lambda, so supplying only FEATURE_B
+            // produces the key-level error message, not the value-level one
+            MapperParsingException keyLevelError = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_B::equals)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                keyLevelError.getMessage()
+            );
+        }
     }
 }

@@ -90,6 +90,51 @@ public final class ExternalUnavailableException extends ExternalException {
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
 
+    /**
+     * Structured constructor. The condition should be {@link Condition#STORE_UNAVAILABLE} for
+     * plain transient failures or {@link Condition#STORE_THROTTLED} for back-pressure (429/503).
+     * Only the object name (last path segment) appears in the message — the full URI is never
+     * included.
+     *
+     * @param condition      {@link Condition#STORE_UNAVAILABLE} or {@link Condition#STORE_THROTTLED}
+     * @param path           storage path — only {@link StoragePath#objectName()} is used in the message
+     * @param detailCode     short qualifier, e.g. "HTTP 503"; empty string if absent
+     * @param remedy         actionable advice; empty string if absent
+     * @param throttling     {@code true} for a 429/503 back-pressure signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param cause          underlying cause
+     */
+    public ExternalUnavailableException(
+        Condition condition,
+        StoragePath path,
+        String detailCode,
+        String remedy,
+        boolean throttling,
+        long retryAfterMs,
+        Throwable cause
+    ) {
+        super(condition, path, detailCode, remedy, cause);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalUnavailableException(Condition, StoragePath, String, String, boolean, long, Throwable)}.
+     */
+    public ExternalUnavailableException(
+        Condition condition,
+        StoragePath path,
+        String detailCode,
+        String remedy,
+        boolean throttling,
+        long retryAfterMs
+    ) {
+        super(condition, path, detailCode, remedy);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

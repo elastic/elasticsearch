@@ -38,7 +38,6 @@ public class S3TransientTypingInputStreamTests extends ESTestCase {
         assertSame(expired, e.getCause());
         assertThat(e.getMessage(), containsString("expired or invalid"));
         assertThat(e.getMessage(), containsString("HTTP 403 ExpiredToken"));
-        assertThat(e.getMessage(), containsString("reading [" + PATH + "]"));
     }
 
     public void testMidReadExpiredTokenViaBulkReadIsCredentialsExpired() {

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -112,7 +113,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
             assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
             assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
-            assertEquals(thrown.getCause().getMessage(), thrown.getMessage());
+            assertThat(thrown.getMessage(), containsString(thrown.getCause().getMessage()));
             assertEquals(1, thrown.getMessage().toLowerCase(Locale.ROOT).split("timed out", -1).length - 1);
         } finally {
             held.close();

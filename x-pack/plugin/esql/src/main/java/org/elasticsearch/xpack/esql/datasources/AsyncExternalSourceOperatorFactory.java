@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -280,6 +281,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private volatile SharedMinCompetitive.Supplier minCompetitiveSupplier;
     @Nullable
     private volatile String thresholdColumnName;
+    /**
+     * Pre-formatted dataset label set by the planner after factory construction, e.g.
+     * {@code "in dataset [tmax] from data source [noaa] (s3)"}. {@code null} for inline
+     * {@code EXTERNAL} and tests that do not wire it. Passed to each operator in
+     * {@link #get(DriverContext)} so classified failures carry the dataset context.
+     */
+    @Nullable
+    private volatile String datasetLabel;
     @Nullable
     private volatile ElementType thresholdElementType;
     private volatile boolean thresholdAscending;
@@ -822,6 +831,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         closeDynamicThreshold();
     }
 
+    /**
+     * Assembles and sets the dataset label from its components. Delegates to
+     * {@link ExternalException#buildDatasetLabel(String, String, String)} for the label format.
+     * Must be called during planning, before the first {@link #get(DriverContext)} call.
+     */
+    public void setDatasetContext(String datasetName, String datasourceName, String datasourceType) {
+        this.datasetLabel = ExternalException.buildDatasetLabel(datasetName, datasourceName, datasourceType);
+    }
+
+    /**
+     * Sets the pre-formatted dataset label annotated onto classified failures, e.g.
+     * {@code "in dataset [tmax] from data source [noaa] (s3)"}. Must be called during planning,
+     * before the first {@link #get(DriverContext)} call creates source operators from this factory.
+     */
+    public void setDatasetLabel(String label) {
+        this.datasetLabel = label;
+    }
+
+    @Override
+    public String datasetLabel() {
+        return datasetLabel;
+    }
+
     @Override
     public SourceOperator get(DriverContext driverContext) {
         // Producer hold: released by existing {@link #releaseOperator} sites when this instance's
@@ -895,7 +927,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 externalSourceMetrics,
                 scheme,
                 formatName,
-                operatorHold
+                operatorHold,
+                datasetLabel
             );
             succeeded = true;
             return operator;
@@ -2028,10 +2061,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
-        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(
-            errorPolicy,
-            ExternalFailures.redactHttpUrl(fileSplit.path().toString())
-        );
+        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(errorPolicy, fileSplit.path().objectName());
         // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
         // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
         boolean adapterOwnsRowCount = false;
@@ -2341,7 +2371,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ),
                 filePath.objectName()
             );
-            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, ExternalFailures.redactHttpUrl(filePath.toString()));
+            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.objectName());
             pages = openWithParallelism(
                 fileReader,
                 obj,
@@ -3074,7 +3104,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             + ", mode="
             + asyncMode
             + ", path="
-            + path
+            + path.objectName()
             + ", batchSize="
             + batchSize
             + ", maxBufferBytes="

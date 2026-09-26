@@ -32,6 +32,22 @@ public final class ExternalClientException extends ExternalException {
         super(message, args);
     }
 
+    /**
+     * Structured constructor: message built from {@code condition.render(path.objectName(), detailCode, remedy)}.
+     * Only the object name is embedded — the full URI never appears.
+     */
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(condition, path, detailCode, remedy, cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalClientException(Condition, StoragePath, String, String, Throwable)}.
+     */
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy) {
+        super(condition, path, detailCode, remedy);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

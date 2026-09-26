@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.versionfield.Version;
  * identifier kind. A {@code default} method here would let a partial override silently inherit
  * pass-through behavior for the methods it didn't define, which is exactly the leak vector this
  * SPI exists to prevent. The {@link #IDENTITY} constant is one concrete implementation of the
- * contract — pass-through for all three kinds — embedded here so call sites that want the raw
+ * contract — pass-through for all four kinds — embedded here so call sites that want the raw
  * rendering can name it directly.
  * <p>
- * Stays narrow on purpose: only three methods, all generic. Pattern-bearing classes (Dissect,
+ * Stays narrow on purpose: only four methods, all generic. Pattern-bearing classes (Dissect,
  * Grok, RegexMatch, UnresolvedNamePattern, ...) parse their own pattern structure and route each
  * extracted capture / identifier through {@link #column}; the mapper never carries syntax-
  * specific knowledge. Adding a new pattern type doesn't touch this interface.
@@ -53,6 +53,15 @@ public interface NodeStringMapper {
      * field in place with no {@code == IDENTITY} branch — same shape, redacted value.
      */
     String opaque(String text);
+
+    /**
+     * Map an external storage location string — typically the object name (last path segment) of
+     * a dataset path. Returns the text verbatim under {@link #IDENTITY}; an anonymizing mapper
+     * returns a redaction marker to prevent any path component from appearing in anonymized plan
+     * strings. Separate from {@link #opaque} to give implementations fine-grained control over
+     * whether location identifiers should be treated differently from other opaque fragments.
+     */
+    String location(String text);
 
     /** Pass-through. The default for raw rendering. */
     NodeStringMapper IDENTITY = new NodeStringMapper() {
@@ -86,6 +95,11 @@ public interface NodeStringMapper {
 
         @Override
         public String opaque(String text) {
+            return text;
+        }
+
+        @Override
+        public String location(String text) {
             return text;
         }
     };

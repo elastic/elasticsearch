@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
@@ -425,16 +424,19 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             return tail;
         } catch (ExecutionException e) {
-            // rethrowStructural handles Error/IOException/CircuitBreakingException/
-            // ElasticsearchException; anything else (typically a plain RuntimeException from
-            // orc-core indicating a corrupt tail) is returned for format-specific wrapping.
-            // Unlike Parquet there is no orc-tagged exception factory; surface a structurally
-            // tagged IOException so log lines clearly attribute the failure to ORC tail parsing.
-            Throwable other = ParsedFooterCache.rethrowStructural(e);
-            if (other instanceof RuntimeException re) {
-                throw re;
+            // The ORC library embeds the full storage URI in both its IOException ("Malformed ORC
+            // file <uri>. ...") and RuntimeException messages. Log the full cause for server-side
+            // diagnosis, but do not chain it: the caused_by chain is serialized into API responses
+            // and would expose the storage URI to the caller. Only the object name appears in the
+            // user-facing message.
+            LOGGER.debug(() -> "ORC tail parse failure for [" + path.getName() + "]", e);
+            Throwable re;
+            try {
+                re = ParsedFooterCache.rethrowStructural(e);
+            } catch (IOException io) {
+                throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + io.getClass().getSimpleName());
             }
-            throw new IOException("Failed to parse ORC tail for [" + path + "]", other);
+            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + re.getClass().getSimpleName());
         }
     }
 
@@ -597,8 +599,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-            ExternalFailures.redactHttpUrl(object.path().toString()),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -749,8 +750,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-            ExternalFailures.redactHttpUrl(object.path().toString()),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()

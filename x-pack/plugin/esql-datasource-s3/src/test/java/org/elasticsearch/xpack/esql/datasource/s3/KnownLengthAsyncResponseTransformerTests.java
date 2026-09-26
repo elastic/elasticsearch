@@ -174,7 +174,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
         assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
         assertThat(ex.getCause().getMessage(), containsString("exceeded expected length"));
-        assertThat(ex.getCause().getMessage(), containsString(PATH.toString()));
+        assertThat(ex.getCause().getMessage(), containsString(PATH.objectName()));
         assertTrue("subscription should be cancelled on overflow", cancelled.get());
         // The subscriber requests unbounded demand on subscribe (Reactive Streams §3.4); guard
         // against a future regression that adds backpressure without considering this contract.
@@ -203,7 +203,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
         assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
         assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
-        assertThat(ex.getCause().getMessage(), containsString(PATH.toString()));
+        assertThat(ex.getCause().getMessage(), containsString(PATH.objectName()));
     }
 
     public void testOnErrorPropagates() {

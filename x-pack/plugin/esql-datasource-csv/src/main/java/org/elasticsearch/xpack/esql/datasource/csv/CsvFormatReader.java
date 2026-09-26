@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
@@ -67,6 +66,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -1150,7 +1152,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of ["
+                        + object.path().objectName()
+                        + "] has duplicate column name ["
+                        + name
+                        + "]; declared columns cannot bind by name"
                 );
             }
         }
@@ -1258,7 +1264,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
         List<Attribute> schema = readSchema(object, warnings::add);
-        String location = object.path().toString();
+        String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
@@ -1301,8 +1307,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        // Only messages read this, so redact once here: a pre-signed URL's query string is a credential.
-        String sourceLocation = ExternalFailures.redactHttpUrl(object.path().toString());
+        String objectName = object.path().objectName();
+        String sourceLocation = objectName.isEmpty() ? object.path().toString() : objectName;
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1559,10 +1565,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String dup : duplicates) {
                 rendered.add("'" + dup + "'");
             }
-            throw new ExternalClientException(
-                "CSV header has duplicate column names {}; if the file has no header row, " + "set header_row=false",
-                rendered.toString()
+            ExternalClientException headerEx = new ExternalClientException(
+                ExternalException.Condition.MALFORMED_DATA,
+                StoragePath.NONE,
+                "",
+                ""
             );
+            headerEx.setDetail(
+                "CSV header has duplicate column names " + rendered + "; if the file has no header row, set header_row=false"
+            );
+            throw headerEx;
         }
     }
 
@@ -1810,7 +1822,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new ExternalClientException(
             e,
             "{}",
-            "schema sampling failed at row ["
+            "CSV schema sampling failed at row ["
                 + row
                 + "]: "
                 + rowErrorReason(cause != null ? cause.getMessage() : "(no message)")
@@ -1833,7 +1845,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append(policy.trippedLimit(errorCount))
             .append("; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException budgetEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        budgetEx.setDetail(details.toString());
+        return budgetEx;
     }
 
     /**
@@ -1865,7 +1885,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
         StringBuilder details = new StringBuilder("CSV schema inference failed: no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException zeroEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        zeroEx.setDetail(details.toString());
+        return zeroEx;
     }
 
     private static void appendCapturedErrors(StringBuilder details, List<String> capturedErrors) {
@@ -2079,7 +2107,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (headerColumns == null) {
                     throw new IllegalStateException(
                         "headered declared-provenance read of ["
-                            + object.path()
+                            + object.path().objectName()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
                     );
@@ -2157,6 +2185,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredBinding,
             effective,
             object.path().toString(),
+            object.path(),
             cacheable ? object : null,
             cacheable ? stream : null,
             pinnedMtimeMillis,
@@ -2320,9 +2349,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
+            String objectName = object.path().objectName();
+            String loc = objectName.isEmpty() ? object.path().toString() : objectName;
             throw new IllegalArgumentException(
                 "["
-                    + object.path()
+                    + loc
                     + "] has ["
                     + fields.length
                     + "] columns, the schema has ["
@@ -2382,7 +2413,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedColumn = column.trim();
             String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
-                throw new ExternalClientException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
+                ExternalClientException schemaEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                schemaEx.setDetail("Invalid CSV schema format: [" + column + "]. Expected 'name:type'");
+                throw schemaEx;
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
@@ -2416,7 +2454,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw new ExternalClientException("illegal data type [{}]", typeName);
+            default -> {
+                ExternalClientException dtEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                dtEx.setDetail("illegal data type [" + typeName + "]");
+                throw dtEx;
+            }
         };
     }
 
@@ -3371,8 +3418,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean bracketMultiValues;
         private final String sourceLocation;
         /**
-         * {@link #sourceLocation} as messages render it, with an HTTP location's query string and user info removed.
-         * {@link #sourceLocation} itself keys stats and cache entries, so it keeps the location verbatim.
+         * Object name (last path segment) used in user-facing messages; avoids leaking bucket/prefix for
+         * object-store sources.
          */
         private final String messageLocation;
         private final SkipWarnings skipWarnings;
@@ -3643,6 +3690,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             @Nullable DeclaredBinding declaredBinding,
             ErrorPolicy errorPolicy,
             String sourceLocation,
+            StoragePath objectPath,
             StorageObject cacheableObject,
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
@@ -3674,7 +3722,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            this.messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
+            String objectName = objectPath.objectName();
+            this.messageLocation = objectName.isEmpty() ? objectPath.toString() : objectName;
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;

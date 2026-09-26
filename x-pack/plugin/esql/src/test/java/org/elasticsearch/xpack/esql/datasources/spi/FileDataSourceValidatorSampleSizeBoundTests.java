@@ -182,7 +182,7 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
             ValidationException.class,
             () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events", Map.of("schema_sample_size", "100"))
         );
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("file:///data/events")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     public void testParquetRejectionErrorNamesTheSettingAndTheFormat() {

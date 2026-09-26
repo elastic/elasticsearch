@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -734,15 +733,24 @@ public final class GlobExpander {
         String excludedExample,
         String excludedExampleEntry
     ) {
-        return LoggerMessageFormat.format(
-            EXCLUSION_NOTICE,
-            excludedCount,
-            matchedCount + excludedCount,
-            prefix,
-            ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
-            excludedExample,
-            excludedExampleEntry
-        );
+        // Use only the last non-empty path segment of the prefix so warnings remain distinct across
+        // segments of a comma list (needed for exact-text dedup in NoticeBuffer) without leaking the
+        // full storage URI.
+        String trimmed = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        int slash = trimmed.lastIndexOf('/');
+        String prefixName = slash >= 0 && slash < trimmed.length() - 1 ? trimmed.substring(slash + 1) : trimmed;
+        return excludedCount
+            + " of "
+            + (matchedCount + excludedCount)
+            + " objects matching the resource under ["
+            + prefixName
+            + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
+            + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
+            + "] dataset setting, for example ["
+            + excludedExample
+            + "] which matched entry ["
+            + excludedExampleEntry
+            + "]";
     }
 
     /**

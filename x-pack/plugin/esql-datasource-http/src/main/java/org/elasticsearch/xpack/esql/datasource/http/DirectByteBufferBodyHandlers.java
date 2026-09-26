@@ -93,7 +93,8 @@ final class DirectByteBufferBodyHandlers {
             }
             this.expectedLength = expectedLength;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("HTTP", HttpUrls.redact(path), expectedLength);
+            String loc = path.objectName();
+            this.fill = new KnownLengthBodyFill("HTTP", loc.isEmpty() ? HttpUrls.redact(path) : loc, expectedLength);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();
@@ -268,7 +269,8 @@ final class DirectByteBufferBodyHandlers {
             this.length = length;
             this.skipRemaining = skip;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("HTTP", HttpUrls.redact(path), length);
+            String loc = path.objectName();
+            this.fill = new KnownLengthBodyFill("HTTP", loc.isEmpty() ? HttpUrls.redact(path) : loc, length);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();

@@ -28,10 +28,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
@@ -52,6 +54,7 @@ import javax.net.ssl.SSLHandshakeException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -214,7 +217,8 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(expired, thrown.getCause());
         assertThat(thrown.getMessage(), containsString("expired or invalid"));
         assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
-        assertThat(thrown.getMessage(), containsString("reading [" + PATH + "]"));
+        // The storage path is intentionally omitted from the exception message.
+        assertThat(thrown.getMessage(), not(containsString(PATH.toString())));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
         assertSame(thrown, ExternalFailures.classify(thrown));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
@@ -277,15 +281,16 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(malformed, thrown.getCause());
     }
 
-    public void testNoSuchKeyStaysIoException() {
+    public void testNoSuchKeyIsObjectNotFound() {
         S3Client mockS3 = mock(S3Client.class);
         NoSuchKeyException missing = NoSuchKeyException.builder().statusCode(404).message("Not Found").build();
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
-        IOException io = expectThrows(IOException.class, obj::newStream);
-        assertEquals("Object not found: " + PATH, io.getMessage());
-        assertSame(missing, io.getCause());
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertThat(ex.getMessage(), containsString("not found"));
+        assertThat(ex.getMessage(), containsString(PATH.objectName()));
+        assertSame(missing, ex.getCause());
     }
 
     public void testProgrammingIllegalStateExceptionStays500() {
@@ -315,7 +320,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
         // The sync path names the object in its transient-read failures; the async one must not be less useful
         // just because the exception is passed through failure mapping untouched.
-        assertThat(thrown.getMessage(), containsString(PATH.toString()));
+        assertThat(thrown.getMessage(), containsString(PATH.objectName()));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
     }
@@ -327,12 +332,24 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
      */
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         ExternalUnavailableException withCause = new ExternalUnavailableException(
-            "S3 response body shorter than expected reading [" + PATH + "]",
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
             new IOException("connection reset")
         );
         assertSame(withCause, readAsyncFailure(asyncClientFailingWith(withCause), 10));
 
-        ExternalUnavailableException wrapped = new ExternalUnavailableException("S3 response body shorter than expected");
+        ExternalUnavailableException wrapped = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
         Throwable sdkWrapped = new CompletionException(SdkClientException.create("Unable to execute HTTP request", wrapped));
         assertSame(wrapped, readAsyncFailure(asyncClientFailingWith(sdkWrapped), 10));
     }

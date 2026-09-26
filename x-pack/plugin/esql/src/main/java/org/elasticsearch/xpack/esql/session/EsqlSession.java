@@ -52,6 +52,7 @@ import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -78,6 +79,8 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
@@ -247,6 +250,7 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -382,6 +386,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
+        this.transportService = services.transportService();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -803,7 +808,12 @@ public class EsqlSession {
      * it silently drops rows from EXPLAIN output.
      */
     private void recordExplainSubPlan(LogicalPlan subPlan, PhysicalPlan physicalSubPlan) {
-        explainContext.subPlans.add(new ExplainSubPlan(subPlan.toString(), physicalSubPlan.toString()));
+        explainContext.subPlans.add(
+            new ExplainSubPlan(
+                subPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
+                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY)
+            )
+        );
     }
 
     /**
@@ -818,7 +828,7 @@ public class EsqlSession {
      * row from EXPLAIN output (caught by the assertion in {@link #createExplainListener}).
      */
     private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
-        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString();
+        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     /**
@@ -836,7 +846,7 @@ public class EsqlSession {
         // now. explainContext fields written during execution (coordinatorPhysicalPlanString,
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
-        String optimizedLogicalPlanString = optimizedPlan.toString();
+        String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
             List<List<Object>> values = new ArrayList<>();

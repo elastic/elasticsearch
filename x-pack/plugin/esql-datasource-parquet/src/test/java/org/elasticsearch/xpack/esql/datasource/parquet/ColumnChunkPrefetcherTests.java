@@ -26,10 +26,11 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -475,7 +476,15 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     }
 
     public void testFetchSyncExternalUnavailableStays503() {
-        ExternalUnavailableException injected = new ExternalUnavailableException("store 503", new IOException("pool"));
+        ExternalUnavailableException injected = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException("pool")
+        );
         BlockMetaData block = createBlockWithColumns(new ColMeta("id", 100, 50));
 
         ExternalUnavailableException exception = expectThrows(

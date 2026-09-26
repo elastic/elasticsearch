@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -190,7 +191,14 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     public void testUnavailableExceptionKeepsServiceUnavailableStatus() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
-        ExternalUnavailableException original = new ExternalUnavailableException(true, "S3 store unavailable");
+        ExternalUnavailableException original = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         SplitProvider failingProvider = ctx -> { throw original; };
 
         ExternalUnavailableException e = expectThrows(

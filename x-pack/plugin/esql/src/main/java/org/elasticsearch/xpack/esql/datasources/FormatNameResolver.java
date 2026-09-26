@@ -206,7 +206,7 @@ public final class FormatNameResolver {
             }
         }
         if (implied.size() != 1) {
-            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(resource, implied));
+            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(implied));
         }
         return implied.iterator().next();
     }
@@ -231,34 +231,29 @@ public final class FormatNameResolver {
         try {
             String inferred = resolveFormatName(null, objectName, registry);
             if (inferred.equalsIgnoreCase(datasetFormat) == false) {
-                throw new IllegalArgumentException(listedFormatConflictMessage(path.toString(), inferred, datasetFormat));
+                throw new IllegalArgumentException(listedFormatConflictMessage(inferred, datasetFormat));
             }
         } catch (FormatReaderRegistry.UnreadableObjectException e) {
             // Unrecognized extension under a declared format is allowed.
         }
     }
 
-    public static String ambiguousDatasetFormatMessage(String resource) {
-        return "Cannot determine a single format for ["
-            + resource
-            + "]; set the dataset's [format] setting, or split mixed formats into separate datasets.";
+    public static String ambiguousDatasetFormatMessage() {
+        return "Cannot determine a single format for the dataset resource; "
+            + "set the dataset's [format] setting, or split mixed formats into separate datasets.";
     }
 
-    static String ambiguousDatasetFormatMessage(String resource, Set<String> implied) {
+    static String ambiguousDatasetFormatMessage(Set<String> implied) {
         if (implied == null || implied.isEmpty()) {
-            return ambiguousDatasetFormatMessage(resource);
+            return ambiguousDatasetFormatMessage();
         }
-        return "Cannot determine a single format for ["
-            + resource
-            + "]: implied formats "
+        return "Cannot determine a single format for the dataset resource: implied formats "
             + implied
             + "; set the dataset's [format] setting, or split mixed formats into separate datasets.";
     }
 
-    public static String listedFormatConflictMessage(String file, String inferred, String datasetFormat) {
-        return "File ["
-            + file
-            + "] has format ["
+    public static String listedFormatConflictMessage(String inferred, String datasetFormat) {
+        return "A listed file has format ["
             + inferred
             + "] which differs from the dataset format ["
             + datasetFormat

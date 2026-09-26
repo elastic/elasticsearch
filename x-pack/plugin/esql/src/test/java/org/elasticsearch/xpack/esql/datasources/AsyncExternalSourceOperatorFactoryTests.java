@@ -261,7 +261,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
-        assertTrue(description.contains("file:///data/test.csv"));
+        assertTrue(description.contains("test.csv"));
         assertTrue(description.contains("500"));
         assertTrue(description.contains("maxBufferBytes="));
     }
@@ -297,7 +297,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
-        assertTrue(description.contains("s3://bucket/data.parquet"));
+        assertTrue(description.contains("data.parquet"));
     }
 
     public void testAccessors() {
@@ -4282,7 +4282,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
-                throw new IOException("Simulated read error on file: " + object.path());
+                throw new IOException("Simulated read error on file: " + object.path().objectName());
             }
             Page page = createTestPage();
             return new CloseableIterator<>() {

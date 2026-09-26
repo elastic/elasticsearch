@@ -212,17 +212,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * on record, not a silenced failure — delete it when the underlying issue is fixed and the gate will hold the
      * new behaviour.
      */
-    private static final Map<String, String> KNOWN_OPEN = Map.of(
-        "bucket does not exist",
-        "reports \"Object not found\", the same as a genuinely absent key. The direct-object path asks HeadObject, "
-            + "and an HTTP HEAD response carries no body -- so S3's NoSuchBucket error code never reaches the SDK, "
-            + "which falls back to NoSuchKeyException. No fixture can change that; distinguishing it needs a second "
-            + "call (HeadBucket) on the not-found path. The listing path, which is a GET, already names it correctly",
-        "key is a prefix, not an object",
-        "reports \"Object not found\", the same as a genuinely absent key. The store can tell the two apart -- a "
-            + "prefix has children a listing would return -- so this is a defect to improve, not one condition "
-            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement"
-    );
+    private static final Map<String, String> KNOWN_OPEN = Map.of();
 
     /**
      * The status every probe is expected to return. This is the contract: a change here is a change to what

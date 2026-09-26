@@ -57,7 +57,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -198,10 +201,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
             Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
             props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+            Exception ex = expectThrows(
+                Exception.class,
                 () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.DATETIME)), props, dynamic)
             );
+            Exception e = ex;
             assertThat(e.getMessage(), containsString("[format] on column [ts]"));
             assertThat(e.getMessage(), containsString("datetime"));
             assertThat(e.getMessage(), containsString("epoch unit"));
@@ -215,10 +219,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testDeclaredDateOnBooleanColumnRejectedByTypeCheckNotFormatCheck() throws Exception {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        Exception ex = expectThrows(
+            Exception.class,
             () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.BOOLEAN)), props, DatasetMapping.Dynamic.TRUE)
         );
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
     }
@@ -1436,8 +1441,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("schema_resolution", "union_by_name");
         config.put("file_sort_by", "list");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        Exception ex = expectThrows(
+            Exception.class,
             () -> resolveMultiFileWithConfig(
                 "s3://bucket/data/*.parquet",
                 schemasByPath,
@@ -1445,6 +1450,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 config
             )
         );
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("file_sort_by"));
         assertThat(e.getMessage(), containsString("file_order"));
         assertThat(e.getMessage(), containsString("first_file_wins"));
@@ -3624,10 +3630,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/file.parquet", 100)));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        Exception ex = expectThrows(
+            Exception.class,
             () -> resolveMultiplePaths(List.of("s3://bucket/data/file.parquet"), schemasByPath, listingsByPrefix)
         );
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("ReferenceAttribute"));
         assertThat(e.getMessage(), containsString("FieldAttribute"));
     }
@@ -3669,7 +3676,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("bogus_unknown_key"));
     }
 
@@ -3691,7 +3698,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("bogus_unknown_key"));
         assertEquals("validateConfig must fire before resolveMetadata; the format reader must not be reached", 0, readerCallCount.get());
     }
@@ -3727,7 +3734,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 formatName,
                 format[1],
                 schemasByPath,
-                () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                () -> new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L),
                 null
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -3735,7 +3742,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
-            assertThat(e.getMessage(), containsString(path));
         }
     }
 
@@ -3757,7 +3763,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     formatName,
                     format[1],
                     schemasByPath,
-                    () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                    () -> new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L),
                     cacheService
                 );
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -3765,7 +3771,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
-                assertThat(e.getMessage(), containsString(path));
             }
         }
     }
@@ -3793,7 +3798,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
-            assertThat(e.getMessage(), containsString(path));
         }
     }
 
@@ -3820,7 +3824,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
-                assertThat(e.getMessage(), containsString(path));
             }
         }
     }
@@ -3856,32 +3859,36 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String where = "format [" + formatName + "]";
             Exception e = expectThrows(Exception.class, future::actionGet);
-            assertThat(where + " must name the source", e.getMessage(), containsString(path));
-            assertThat(where + " must carry the reader's diagnosis", e.getMessage(), containsString(detail));
-            assertThat(where + " must not leak a java type name", e.getMessage(), not(containsString("java.")));
+            String msg = e.getMessage();
+            assertThat(where + " must carry the reader's diagnosis", msg, containsString(detail));
+            assertThat(where + " must not expose the storage path", msg, not(containsString(path)));
+            assertThat(where + " must not leak a java type name", msg, not(containsString("java.")));
         }
     }
 
     /**
-     * The path is context, not the diagnosis, and it is added by exactly one layer. Historically the factory wrapper
-     * and the resolver's fall-through wrapper both stated it, and the message said nothing else. Pins that the
-     * user-visible reason names the path once, on the cached and uncached paths alike.
+     * The storage path (bucket, prefix, full URI) must never appear in the error message — the reader's
+     * diagnosis is the only user-visible content. Pins that neither the factory wrapper nor the resolver's
+     * fall-through wrapper leaks the path.
      */
-    public void testResolutionFailureNamesThePathOnce() {
+    public void testResolutionFailureDoesNotExposeStoragePath() {
         String path = "s3://bucket/data/file.csv";
+        String detail = "CSV file has no schema line";
         Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
         ExternalSourceResolver resolver = createResolverWithFailingMetadata(
             "csv",
             ".csv",
             schemasByPath,
-            () -> new IOException("CSV file has no schema line"),
+            () -> new IOException(detail),
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(path), Map.of(), future);
 
-        String message = expectThrows(Exception.class, future::actionGet).getMessage();
-        assertEquals("the path must appear once in [" + message + "]", 1, occurrences(message, path));
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        String msg = e.getMessage();
+        assertThat("the storage path must not appear in the error message", msg, not(containsString(path)));
+        assertThat("the reader's diagnosis must be preserved", msg, containsString(detail));
     }
 
     /**
@@ -3986,7 +3993,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals("an unreadable extension is a client error, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("WITH")));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
@@ -4005,7 +4012,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -4023,12 +4030,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
-        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
         // A failed resolve delivers no notices, so the one that explains the empty listing rides the message.
-        assertThat(
-            e.getMessage(),
-            containsString("[1] of [1] files under [s3://bucket/vpcflow/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])")
-        );
+        // The prefix is shown as its last segment only (no storage URI leak).
+        assertThat(e.getMessage(), containsString("1 of 1 objects matching the resource under [vpcflow]"));
+        assertThat(e.getMessage(), containsString("excluded by the [file_exclusions] dataset setting"));
+        assertThat(e.getMessage(), containsString("for example [_SUCCESS] which matched entry [**/_*]"));
+        assertThat(e.getMessage(), not(containsString("s3://")));
     }
 
     /**
@@ -4056,7 +4063,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<String> warnings = resolution.warnings();
         assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
         for (String warning : warnings.subList(0, SkipWarnings.MAX_ADDED_WARNINGS)) {
-            assertThat(warning, containsString("skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"));
+            assertThat(warning, containsString("excluded by the [file_exclusions] dataset setting"));
         }
         assertEquals(SkipWarnings.overflowMessage(), warnings.get(SkipWarnings.MAX_ADDED_WARNINGS));
     }
@@ -4093,7 +4100,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(
             "the listing channel is still capped on its own",
             SkipWarnings.MAX_ADDED_WARNINGS,
-            warnings.stream().filter(w -> w.contains("skipped by [file_exclusions]")).count()
+            warnings.stream().filter(w -> w.contains("excluded by the [file_exclusions]")).count()
         );
         assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
     }
@@ -4122,43 +4129,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testAClientErrorKeepsItsStatusThroughAWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        // IAE message contains a storage URI — classify() must suppress it.
         IllegalArgumentException original = new IllegalArgumentException("Cannot determine how to read [s3://b/x.log.gz]");
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+        assertThat(
+            "IAE must be wrapped in ExternalClientException to carry dataset context",
+            mapped,
+            instanceOf(ExternalClientException.class)
+        );
+        assertThat("storage path must not appear in the mapped message", mapped.getMessage(), not(containsString("s3://b/x.log.gz")));
     }
 
-    /**
-     * A cache {@code ExecutionException} wrapping expired session credentials must stay 400, not fall
-     * through to the terminal 500 arm. The store message already names the object, so the wrapper
-     * must not name it again.
-     */
     public void testCredentialsExpiredKeepsIts400ThroughAWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         String path = "s3://b/x.parquet";
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired reading [" + path + "]. Refresh the data source credentials and re-run the query."
-        );
+        // Providers no longer embed the storage path in the message; only the refresh hint appears.
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
 
         RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(expired));
 
         assertThat(mapped, instanceOf(ExternalCredentialsExpiredException.class));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
         assertThat(mapped.getMessage(), containsString("Refresh the data source credentials"));
-        assertEquals(
-            "the object is named once, not once by the store and again by the wrapper",
-            mapped.getMessage().indexOf(path),
-            mapped.getMessage().lastIndexOf(path)
-        );
+        assertThat("storage path must not be exposed", mapped.getMessage(), not(containsString(path)));
     }
 
     public void testCredentialsExpiredRawStays400() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired reading [s3://b/k]. Refresh the data source credentials and re-run the query."
-        );
+        // Providers no longer embed the storage path in the message.
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/k", expired);
 
@@ -4175,11 +4177,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         String path = "s3://b/x.parquet";
         ExternalUnavailableException store = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.of(path),
+            "HTTP 503",
+            "",
             false,
-            (Throwable) null,
-            "S3 store unavailable reading [{}] (HTTP {})",
-            path,
-            503
+            0L
         );
 
         RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(store));
@@ -4217,7 +4220,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testAnIoErrorKeepsIts400ThroughAWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
-        IOException original = new IOException("Object not found: s3://b/x.parquet");
+        IOException original = new IOException("External data object not found");
         // Cache#computeIfAbsent wraps loader failures with new ExecutionException(cause), which uses
         // cause.toString() as its message — so rootDetail() can see through it to the IOException message.
         ExecutionException wrapper = new ExecutionException(original);
@@ -4229,19 +4232,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(mapped)
         );
-        assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
-        assertThat(mapped.getMessage(), containsString("Object not found"));
-        // The detail already names the object, so the wrapper must not name it a second time. containsString on
-        // each half passes either way; the count is what holds the resolver to ExternalFailures.locate.
-        assertEquals(
-            "the object is named once, not once by the detail and again by the wrapper",
-            mapped.getMessage().indexOf("s3://b/x.parquet"),
-            mapped.getMessage().lastIndexOf("s3://b/x.parquet")
-        );
+        // The IOException message is stripped from the user-facing message to prevent URI leaks;
+        // only the safe METADATA_UNAVAILABLE condition message appears.
+        assertThat(mapped.getMessage(), containsString("Failed to get external data metadata"));
+        assertThat(mapped.getMessage(), not(containsString("s3://b/x.parquet")));
+        assertThat(mapped.getMessage(), not(containsString("External data object not found")));
         // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
         for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
             assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
         }
+    }
+
+    /**
+     * An {@link ExternalClientException} buried in the cache's {@code ExecutionException} must keep its 400.
+     * Storage connectors raise {@code ExternalClientException} (not {@code IOException}) for access-denied and
+     * object-not-found; without an explicit arm the exception fell through to the terminal 500 branch.
+     */
+    public void testAnExternalClientExceptionKeepsIts400ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExternalClientException original = new ExternalClientException(
+            ExternalClientException.Condition.OBJECT_NOT_FOUND,
+            StoragePath.of("s3://b/x.parquet"),
+            "",
+            "",
+            null
+        );
+        ExecutionException wrapper = new ExecutionException(original);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", wrapper);
+
+        assertSame("the original ExternalClientException must be surfaced, not a re-wrap", original, mapped);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
     }
 
     /**
@@ -4269,7 +4290,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/archive.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/archive.gz")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
+        assertThat(e.getMessage(), not(containsString("s3://bucket")));
     }
 
     /**
@@ -4281,10 +4303,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/2026.07.26.data.xyz", schemasByPath));
 
-        assertThat(
-            e.getMessage(),
-            containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/2026.07.26.data.xyz"))
-        );
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -4324,7 +4343,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -4353,7 +4372,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/vpcflow/a.log.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/a.log.gz")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 
@@ -4376,7 +4395,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(
             "must fail with the dataset-format error, not an Iceberg metadata error",
             e.getMessage(),
-            containsString(FormatNameResolver.ambiguousDatasetFormatMessage(path))
+            containsString(FormatNameResolver.ambiguousDatasetFormatMessage())
         );
     }
 
@@ -4389,7 +4408,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/data/events.avro", schemasByPath));
 
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/data/events.avro")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -4411,7 +4430,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertEquals(FormatNameResolver.listedFormatConflictMessage("s3://bucket/b.parquet", "parquet", "csv"), e.getMessage());
+        assertEquals(FormatNameResolver.listedFormatConflictMessage("parquet", "csv"), e.getMessage());
+        assertThat(e.getMessage(), not(containsString("s3://bucket")));
     }
 
     /**
@@ -6404,10 +6424,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            // Pins what the caller needs — which file aborted the fan-out and why — rather than the wrapper's
-            // boilerplate. The wrapper now keeps the reader's diagnosis instead of replacing it with a constant.
-            assertThat(e.getMessage(), containsString("simulated read failure"));
-            assertThat(e.getMessage(), containsString(failPath));
+            // Read failure with a URI-bearing message surfaces as a 400 with the path redacted.
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            assertThat("full storage path must not appear in user-facing message", e.getMessage(), not(containsString("s3://")));
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();
@@ -7198,7 +7217,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), future);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
         assertThat(e.getMessage(), containsString("discovered too many files"));
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
@@ -7240,7 +7259,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
         PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
         resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, fail::actionGet);
+        Exception e = expectThrows(Exception.class, fail::actionGet);
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
 
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10).build());
@@ -7287,7 +7306,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
             PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
             resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, fail::actionGet);
+            Exception e = expectThrows(Exception.class, fail::actionGet);
             assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
         }
     }
@@ -7314,7 +7333,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
             resolver.resolve(List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+            Exception e = expectThrows(Exception.class, future::actionGet);
             assertEquals(
                 "format [" + format[0] + "]: a rejected reader setting is a client error",
                 RestStatus.BAD_REQUEST,
@@ -7681,4 +7700,5 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyB);
         assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);
     }
+
 }

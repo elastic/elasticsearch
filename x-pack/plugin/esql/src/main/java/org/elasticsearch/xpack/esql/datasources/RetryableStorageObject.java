@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -565,15 +566,16 @@ class RetryableStorageObject implements StorageObject {
                     return n;
                 }
                 if (n < 0 && isPrematureEof()) {
-                    reopenOrThrow(
-                        new ExternalUnavailableException(
-                            false,
-                            "Premature end of object body for [{}] after [{}] of [{}] bytes",
-                            delegate.path(),
-                            delivered,
-                            expectedCount()
-                        )
+                    ExternalUnavailableException peof = new ExternalUnavailableException(
+                        Condition.STORE_UNAVAILABLE,
+                        delegate.path(),
+                        "",
+                        "",
+                        false,
+                        0L
                     );
+                    peof.setDetail("premature end after " + delivered + " of " + expectedCount() + " bytes");
+                    reopenOrThrow(peof);
                     continue;
                 }
                 return n;
@@ -610,14 +612,18 @@ class RetryableStorageObject implements StorageObject {
                 MIN_PROGRESS_BYTES_PER_SEC
             );
             belowProgressFloor = true;
-            throw new ExternalUnavailableException(
-                false,
-                "Read of [{}] at byte [{}] below progress floor: [{}] bytes in [{}] ms",
+            ExternalUnavailableException belowFloor = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
                 delegate.path(),
-                position + delivered,
-                bytesInWindow,
-                elapsedMs
+                "",
+                "",
+                false,
+                0L
             );
+            belowFloor.setDetail(
+                "below progress floor at byte " + (position + delivered) + ": " + bytesInWindow + " bytes in " + elapsedMs + " ms"
+            );
+            throw belowFloor;
         }
 
         private static long minBytesForWindow(long windowMs) {
@@ -759,19 +765,19 @@ class RetryableStorageObject implements StorageObject {
             String observed = delegate.contentGeneration();
             if (pinnedGeneration == null) {
                 if (observed != null && delivered > 0) {
-                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                    throw new ExternalObjectChangedException(delegate.path());
                 }
                 pinnedGeneration = observed;
             } else if (observed != null && pinnedGeneration.equals(observed) == false) {
                 // Providers set the pin once, so this is unreachable today; kept as an assertion of that
                 // invariant rather than as a silent splice if a provider ever moves its pin.
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
             long observedLength = delegate.knownLength();
             if (pinnedKnownLength == READ_TO_END) {
                 pinnedKnownLength = observedLength;
             } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
         }
 

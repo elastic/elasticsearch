@@ -125,7 +125,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
             resource,
             Map.of("schema_sample_size", 100)
         );
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /** The setting keeps working where it applies: a CSV dataset registers with it and reads end to end. */

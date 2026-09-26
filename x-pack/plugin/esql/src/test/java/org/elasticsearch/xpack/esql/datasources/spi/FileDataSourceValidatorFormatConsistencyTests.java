@@ -88,7 +88,7 @@ public class FileDataSourceValidatorFormatConsistencyTests extends ESTestCase {
         FileDataSourceValidator validator = consistencyValidator();
         for (String resource : List.of("s3://bucket/data.tar.gz", "s3://bucket/no_extension", "s3://bucket/hits/*")) {
             ValidationException e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), resource, Map.of()));
-            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
+            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         }
     }
 

@@ -30,6 +30,22 @@ public final class ExternalObjectChangedException extends ExternalException {
         super(message, args);
     }
 
+    /**
+     * Structured constructor for the mid-query object-replacement case. The message is built from
+     * {@link Condition#OBJECT_CHANGED} using the object name from {@code path}.
+     */
+    public ExternalObjectChangedException(StoragePath path, Throwable cause) {
+        super(Condition.OBJECT_CHANGED, path, "", "", cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalObjectChangedException(StoragePath, Throwable)}.
+     */
+    public ExternalObjectChangedException(StoragePath path) {
+        super(Condition.OBJECT_CHANGED, path, "", "");
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

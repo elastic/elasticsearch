@@ -5,19 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Classifies a failure raised while reading an external data source into the exception an external-read
@@ -35,8 +33,7 @@ import java.util.concurrent.ExecutionException;
  * for index queries, so those are unaffected. Classification runs co-located with the throw, on the node
  * that reads the external source, before the failure is serialized back to the coordinator — so it relies
  * on the concrete exception type while it is still available, and only the resulting public exception
- * name and {@code status()} need to cross the wire (see
- * {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
+ * name and {@code status()} need to cross the wire (see {@link ExternalException}). The policy:
  * <ul>
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
@@ -48,7 +45,9 @@ import java.util.concurrent.ExecutionException;
  *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
  *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
  *     invariant and reported as 500.</li>
- *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
+ *     <li>An {@link IllegalArgumentException} from a format reader may embed a full storage URI; it is wrapped
+ *     in an {@link ExternalClientException} (400) with a path-free message and no cause chain, so the IAE
+ *     message never appears in {@code caused_by}. The original is logged at {@code WARN} on this node.</li>
  *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
  *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
@@ -66,6 +65,8 @@ import java.util.concurrent.ExecutionException;
  */
 public final class ExternalFailures {
 
+    private static final Logger logger = LogManager.getLogger(ExternalFailures.class);
+
     private ExternalFailures() {}
 
     /**
@@ -82,35 +83,111 @@ public final class ExternalFailures {
      */
     private static final Set<String> MALFORMED_DATA_EXCEPTIONS = Set.of("org.apache.parquet.io.ParquetDecodingException");
 
-    /** Depth bound for {@link #rootDetail}'s walk. Real chains here are 2-4 deep; this only stops a pathological one. */
+    /** Depth bound for cause-chain walks. Real chains are 2-4 deep; this only stops a pathological one. */
     private static final int MAX_CAUSE_DEPTH = 12;
+
+    /**
+     * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
+     * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
+     * <p>
+     * Scope: covers object-store schemes (S3, GCS, Azure Blob) and generic HTTP/HTTPS endpoints.
+     * The Flight/gRPC datasource ({@code esql-datasource-grpc}) is explicitly out of scope for
+     * this PR: Flight provider messages embed location/endpoint strings but use non-HTTP schemes
+     * (e.g. {@code grpc://}, {@code grpcs://}). Hardening that module is tracked separately.
+     * When that work lands, add {@code "grpc://"} and {@code "grpcs://"} to this array so the
+     * {@code assert} guard in {@link #classify} catches Flight path leaks too.
+     */
+    private static final String[] STORAGE_URI_SCHEMES = {
+        "s3://",
+        "s3a://",
+        "s3n://",
+        "gs://",
+        "wasb://",
+        "wasbs://",
+        "http://",
+        "https://" };
+
+    /**
+     * Returns {@code true} when no message in {@code e}'s full cause chain contains a known
+     * storage-URI scheme. A {@code false} result means a full object-store path leaked into a
+     * user-facing exception message.
+     */
+    static boolean noStoragePathLeaked(RuntimeException e) {
+        Throwable current = e;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            if (containsStoragePath(current.getMessage())) {
+                return false;
+            }
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            current = cause;
+        }
+        return true;
+    }
+
+    private static boolean containsStoragePath(String msg) {
+        if (msg == null) {
+            return false;
+        }
+        for (String scheme : STORAGE_URI_SCHEMES) {
+            if (msg.contains(scheme)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code message} contains no known storage-URI scheme. Callers
+     * outside the {@code spi} package use this to decide whether a diagnostic message from a
+     * third-party library is safe to forward to the user.
+     */
+    public static boolean safeForUserMessage(String message) {
+        return containsStoragePath(message) == false;
+    }
 
     /**
      * Returns the {@link RuntimeException} to throw for the given read failure. May instead throw if
      * {@code t} is an {@link Error}, which must propagate unchanged.
+     * <p>
+     * Under {@code -ea} (assertions enabled), verifies that no message in the result's full cause chain
+     * contains a known storage-URI scheme — a debug guard that fires immediately if a new throw site
+     * embeds a full path instead of using the structured constructors on {@link ExternalException}.
+     * See {@link #noStoragePathLeaked}.
      */
     public static RuntimeException classify(Throwable t) {
         if (t instanceof Error error) {
             throw error;
         }
         if (t instanceof ElasticsearchException ese) {
+            assert noStoragePathLeaked(ese) : "storage path leaked in ExternalException: " + ese.getMessage();
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
-            // A thread pool refusing the task (e.g. the node shutting down) is client-actionable backpressure,
-            // not a server fault. The type already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status,
-            // so it is returned unchanged rather than falling through to the 500 ExternalServerException below.
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            return iae;
+            // IAE from format readers may embed storage URIs in the message. Log at WARN on this node for
+            // debugging; do not chain it into the exception so its message never crosses the wire.
+            logger.warn("External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
+            ExternalClientException iaeResult = new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
+            // Include the IAE detail only when it is free of storage-URI schemes; a Parquet reader may surface
+            // a column name or file basename that is useful for diagnosis without leaking the full object path.
+            if (iae.getMessage() != null && containsStoragePath(iae.getMessage()) == false) {
+                iaeResult.setDetail(iae.getMessage());
+            }
+            return iaeResult;
         }
+        RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+            result = new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+        } else {
+            result = new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
         }
-        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
-        // its class name instead of a useless "null", while the original cause stays chained for the stack.
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
+        assert noStoragePathLeaked(result) : "storage path leaked in classified exception: " + result.getMessage();
+        return result;
     }
 
     /**
@@ -139,30 +216,27 @@ public final class ExternalFailures {
      *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
      *     no evidence it is the caller's fault, so we keep the bug visible.</li>
      * </ul>
-     * Calling {@code surface} at the worker rethrow site lets a read-boundary {@link #classify} call
-     * compose cleanly on the result: an {@link ExternalException} returned here passes
-     * straight through {@code classify} unchanged; a non-classified {@link RuntimeException} is the only
-     * shape {@code classify} still actively re-wraps (into {@link ExternalServerException}, the same status
-     * {@code surface} would have produced for an unrecognized worker fault).
      *
      * @param failure the raw stored worker-side throwable; <em>not</em> a status-neutral wrapper around it
-     * @param fallbackMessage non-null context prefix (e.g. the coordinator/iterator name); included in
-     *                        every wrapped result so the throw-site origin survives classification
+     * @param fallbackMessage non-null context prefix included in every wrapped result
      */
     public static RuntimeException surface(Throwable failure, String fallbackMessage) {
         if (failure instanceof Error error) {
             throw error;
         }
-        // UncheckedIOException is checked before the generic RuntimeException branch so its IO origin is
-        // typed as 400 with the coordinator's context prefix, instead of falling through unchanged and
-        // letting classify() re-wrap it with the boundary's generic message.
+        RuntimeException result;
         if (failure instanceof IOException || failure instanceof UncheckedIOException) {
-            return new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
-        }
-        if (failure instanceof RuntimeException re) {
+            result = new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
+        } else if (failure instanceof RuntimeException re) {
             return re;
+        } else {
+            result = new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
         }
-        return new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
+        // Only check the failure's own message — it is the part that can embed a URI from a third-party
+        // or un-migrated throw site. fallbackMessage is our own controlled code and is not checked here.
+        assert containsStoragePath(detail(failure)) == false
+            : "storage path leaked via IOException message in surface(): " + detail(failure);
+        return result;
     }
 
     private static boolean isMalformedDataException(Throwable t) {
@@ -181,9 +255,7 @@ public final class ExternalFailures {
     }
 
     /**
-     * Best-effort short description of a failure for inclusion in a typed exception's message: the
-     * {@code getMessage()} if set, otherwise the class's simple name (so a null-message
-     * {@link InterruptedException} reads as {@code "InterruptedException"} rather than {@code "null"}).
+     * Best-effort short description of a failure for inclusion in a typed exception's message.
      */
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
@@ -230,27 +302,13 @@ public final class ExternalFailures {
     /**
      * {@link #detail} of the first exception in {@code failure}'s chain that carries a message someone wrote, rather
      * than one a wrapper derived from {@link Throwable#toString()}.
-     * <p>
-     * A resolution failure can arrive inside a transparent wrapper: the caches run their loader inside
-     * {@code Cache#computeIfAbsent}, which reports a loader failure as an {@link ExecutionException} whose message is
-     * its cause's {@code toString()}. Reading only the top message therefore yields
-     * {@code "java.io.IOException: Object not found: …"} — a JVM type name in front of the user.
-     * {@code ExternalSourceResolver#mapResolveFailure} recovers a buried {@link IllegalArgumentException} by type, but
-     * the file-metadata rail raises a plain {@link IOException}, which no type-specific arm claims; this reads through
-     * the wrapper whatever the cause's type turns out to be.
-     * <p>
-     * Only wrappers that add no message of their own are stepped through — anything given a real message keeps it,
-     * because that message is the more specific one. Cycle-guarded and depth-bounded.
      */
     public static String rootDetail(Throwable failure) {
         return detail(rootCause(failure));
     }
 
     /**
-     * The throwable {@link #rootDetail} takes its message from. Chain this rather than the wrapper when building a
-     * user-facing exception: a wrapper whose message is the cause's {@code toString()} renders a JVM type name into
-     * {@code caused_by}. {@code ExceptionsHelper#unwrapCause} does not help here — it only steps through
-     * {@code ElasticsearchWrapperException}, and the wrapper in this path is a plain {@code ExecutionException}.
+     * The throwable {@link #rootDetail} takes its message from.
      */
     public static Throwable rootCause(Throwable failure) {
         Throwable current = failure;
@@ -264,12 +322,6 @@ public final class ExternalFailures {
         return current;
     }
 
-    /**
-     * Whether {@code wrapper}'s message is just {@code cause.toString()} — the shape every
-     * {@code XxxException(Throwable)} constructor produces, and the one that leaks a type name into user-facing text.
-     * Compared by value rather than by wrapper type so it holds for any such constructor, not only the
-     * {@link ExecutionException} that motivated it.
-     */
     private static boolean derivesMessageFrom(Throwable wrapper, Throwable cause) {
         String message = wrapper.getMessage();
         return message == null || message.equals(cause.toString());

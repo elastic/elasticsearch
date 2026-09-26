@@ -29,6 +29,22 @@ public final class ExternalServerException extends ExternalException {
         super(message, args);
     }
 
+    /**
+     * Structured constructor: message built from {@code condition.render(path.objectName(), detailCode, remedy)}.
+     * Only the object name is embedded — the full URI never appears.
+     */
+    public ExternalServerException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(condition, path, detailCode, remedy, cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalServerException(Condition, StoragePath, String, String, Throwable)}.
+     */
+    public ExternalServerException(Condition condition, StoragePath path, String detailCode, String remedy) {
+        super(condition, path, detailCode, remedy);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.INTERNAL_SERVER_ERROR;

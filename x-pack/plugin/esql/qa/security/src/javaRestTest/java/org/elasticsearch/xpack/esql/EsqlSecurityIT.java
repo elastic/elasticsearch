@@ -3583,7 +3583,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
+            // Verify the authorized dataset was actually reached, not just that any 400 occurred.
+            assertThat(ex.getMessage(), containsString(authorized));
         } finally {
             deleteDatasetAsAdmin(authorized);
         }
@@ -3639,7 +3640,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM " + namedExactly + ",security_it_ds_keep_* | STATS COUNT(*)")
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("exact-" + suffix));
+            // Verify the exact-named dataset was actually reached, not just that any 400 occurred.
+            assertThat(ex.getMessage(), containsString(namedExactly));
         } finally {
             deleteDatasetAsAdmin(namedExactly);
             deleteDatasetAsAdmin(wildcardOnly);
@@ -3679,7 +3681,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 equalTo(HttpStatus.SC_BAD_REQUEST)
             );
             assertThat(ex.getMessage(), not(containsString("document or field level security")));
-            assertThat(ex.getMessage(), containsString("ok-" + suffix));
+            // The exactly-named ok dataset must have been reached (its resource fails the query).
+            assertThat(ex.getMessage(), containsString(ok));
         } finally {
             deleteDatasetAsAdmin(ok);
             deleteDatasetAsAdmin(dls);

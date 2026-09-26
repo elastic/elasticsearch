@@ -5,9 +5,9 @@ LimitExec[1000[INTEGER],null]
     | \_ExchangeExec[[$$partial$$c$count{r}#10, $$partial$$c$seen{r}#11, $$partial$$d$partial{r}#12],true]
     |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),salary{r}#9 > 0[INTEGER],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
-\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#8, salary{r}#9, dept{r}#13]<>]]
+\_ExternalRelation[heavy_a.parquet][parquet][emp_no{r}#8, salary{r}#9, dept{r}#13]<>]]
     \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION]),salary{r}#15 > 0[INTEGER],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2],FINAL,[$$partial$$c$count{r}#16, $$partial$$c$seen{r}#17, $$partial$$d$partial{r}#18],null]
       \_ExchangeExec[[$$partial$$c$count{r}#16, $$partial$$c$seen{r}#17, $$partial$$d$partial{r}#18],true]
         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION]),salary{r}#15 > 0[INTEGER],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#14,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
-\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#14, salary{r}#15, dept{r}#19]<>]]
+\_ExternalRelation[heavy_b.parquet][parquet][emp_no{r}#14, salary{r}#15, dept{r}#19]<>]]

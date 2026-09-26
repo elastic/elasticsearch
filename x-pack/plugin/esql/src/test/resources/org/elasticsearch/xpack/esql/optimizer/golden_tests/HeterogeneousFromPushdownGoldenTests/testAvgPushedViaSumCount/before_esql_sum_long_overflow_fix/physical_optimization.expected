@@ -7,9 +7,9 @@ ProjectExec[[a{r}#0, dept{r}#1]]
         | \_ExchangeExec[[dept{r}#11, $$partial$$$$SUM$a$2$sum{r}#13, $$partial$$$$SUM$a$3$seen{r}#14, $$partial$$$$COUNT$a$6$count{r}#15, $$partial$$$$COUNT$a$5$seen{r}#16],true]
         |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[dept{r}#11],[SUM(salary{r}#12,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS $$partial$$$$SUM$a$0#5, COUNT(salary{r}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$$$COUNT$a$1#6, dept{r}#11 AS dept#4]]
-\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#17, salary{r}#12, dept{r}#11]<>]]
+\_ExternalRelation[heavy_a.parquet][parquet][emp_no{r}#17, salary{r}#12, dept{r}#11]<>]]
         \_AggregateExec[[dept{r}#18],[SUM(salary{r}#19,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS $$partial$$$$SUM$a$0#5, COUNT(salary{r}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$$$COUNT$a$1#6, dept{r}#18 AS dept#4],FINAL,[dept{r}#18, $$partial$$$$SUM$a$2$sum{r}#20, $$partial$$$$SUM$a$3$seen{r}#21, $$partial$$$$COUNT$a$6$count{r}#22, $$partial$$$$COUNT$a$5$seen{r}#23],null]
           \_ExchangeExec[[dept{r}#18, $$partial$$$$SUM$a$2$sum{r}#20, $$partial$$$$SUM$a$3$seen{r}#21, $$partial$$$$COUNT$a$6$count{r}#22, $$partial$$$$COUNT$a$5$seen{r}#23],true]
             \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[dept{r}#18],[SUM(salary{r}#19,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS $$partial$$$$SUM$a$0#5, COUNT(salary{r}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$$$COUNT$a$1#6, dept{r}#18 AS dept#4]]
-\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#24, salary{r}#19, dept{r}#18]<>]]
+\_ExternalRelation[heavy_b.parquet][parquet][emp_no{r}#24, salary{r}#19, dept{r}#18]<>]]

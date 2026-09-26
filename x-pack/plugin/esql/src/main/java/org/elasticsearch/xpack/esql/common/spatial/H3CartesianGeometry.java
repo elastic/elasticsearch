@@ -14,8 +14,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.ArrayUtil;
 
 /**
- * Lucene geometry representing an H3 bin on the cartesian plane.
- * Adapted from {@code H3CartesianGeometry} in the spatial module.
+ * Lucene geometry representing an H3 bin on the cartesian space.
+ * TODO: This class is a copy of the same class in org.elasticsearch.xpack.spatial.common, we should find a common location for it.
  */
 class H3CartesianGeometry extends LatLonGeometry {
 
@@ -94,10 +94,11 @@ class H3CartesianGeometry extends LatLonGeometry {
 
         @Override
         public boolean contains(double x, double y) {
+            // fail fast if we're outside the bounding box
             if (Rectangle.containsPoint(y, x, getMinY(), getMaxY(), getMinX(), getMaxX()) == false) {
                 return false;
             }
-            return H3CartesianUtil.relatePoint(xs, ys, xs.length, crossesDateline, x, y);
+            return H3CartesianUtil.relatePoint(xs, ys, xs.length, crossesDateline, x, y) != GeoRelation.QUERY_DISJOINT;
         }
 
         @Override
@@ -208,6 +209,7 @@ class H3CartesianGeometry extends LatLonGeometry {
                     cY,
                     false
                 ) == false);
+
         }
 
         @Override
@@ -259,11 +261,16 @@ class H3CartesianGeometry extends LatLonGeometry {
                 return WithinRelation.DISJOINT;
             }
 
+            // if any of the points is inside the polygon, the polygon cannot be within this indexed
+            // shape because points belong to the original indexed shape.
             if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
                 return WithinRelation.NOTWITHIN;
             }
 
             WithinRelation relation = WithinRelation.DISJOINT;
+            // if any of the edges intersects and the edge belongs to the shape then it cannot be within.
+            // if it only intersects edges that do not belong to the shape, then it is a candidate
+            // we skip edges at the dateline to support shapes crossing it
             if (crossesLine(minX, maxX, minY, maxY, aX, aY, bX, bY, true)) {
                 if (ab) {
                     return WithinRelation.NOTWITHIN;
@@ -287,10 +294,13 @@ class H3CartesianGeometry extends LatLonGeometry {
                 }
             }
 
+            // if any of the edges crosses and edge that does not belong to the shape
+            // then it is a candidate for within
             if (relation == WithinRelation.CANDIDATE) {
                 return WithinRelation.CANDIDATE;
             }
 
+            // Check if shape is within the triangle
             if (Component2D.pointInTriangle(minX, maxX, minY, maxY, xs[0], ys[0], aX, aY, bX, bY, cX, cY)) {
                 return WithinRelation.CANDIDATE;
             }

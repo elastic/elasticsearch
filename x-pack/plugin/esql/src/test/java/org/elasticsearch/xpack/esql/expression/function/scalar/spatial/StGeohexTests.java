@@ -26,6 +26,7 @@ import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -90,7 +91,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
         if (geometry instanceof Point point) {
             StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid.Factory(precision, bbox).get(null);
             long gridId = bounds.calculateGridId(point);
-            return gridId < 0 ? null : gridId;
+            return gridId == -1L ? null : gridId;
         }
         try {
             return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, bbox, warnings));

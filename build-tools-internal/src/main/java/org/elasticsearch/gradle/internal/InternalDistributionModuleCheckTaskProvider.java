@@ -91,13 +91,13 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
     static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {
+        final var extractionDir = checkExtraction.map(Copy::getDestinationDir);
         return project.getTasks().register("checkModules", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    final Path libPath = checkExtraction.get()
-                        .getDestinationDir()
+                    final Path libPath = extractionDir.get()
                         .toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch())
                         .resolve("lib");

@@ -494,4 +494,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOverTimeFunctionsOverACounter}. */
+    public void testRangeOverTimeFunctionsOverACounter() throws Exception {
+        PrometheusInstantQueryRestIT.ingestCounters(this, QUERY_END);
+        assertBinopRangeValues("count_over_time(req_total[5m])", 5, 5);
+        assertBinopRangeValues("count_over_time(err_total[5m])", 5);
+        assertBinopRangeValues("present_over_time(req_total[5m])", 1, 1);
+        assertBinopRangeValues("sum_over_time(req_total[5m])", 100, 100);
+    }
 }

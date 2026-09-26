@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -1015,6 +1016,26 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
                 .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
                 .toList();
+            // Where the metric name is a label too (remote write: `labels.__name__` a dimension and the sample of a series
+            // named `m` in the field `metrics.m`), the name selects the series at the source as well. A document of another
+            // metric with the same labels holds no sample of this one, and a value function reads it as null, but a count or
+            // presence over it would still emit a value for a series that is not this metric's. A document without a name
+            // label (several metrics per document, from another ingest path) is not another metric's and stays; so does a
+            // metric selected by its full field path, an ES-side selection whose `__name__` need not agree.
+            Attribute nameField = find(dimensions, LabelMatcher.NAME);
+            LabelMatcher nameMatcher = selector.labelMatchers().nameLabel();
+            if (nameField != null
+                && nameMatcher != null
+                && nameMatcher.matcher() == LabelMatcher.Matcher.EQ
+                && namedInNamespace(input.output(), nameMatcher.getFirstValue())) {
+                Source source = selector.source();
+                Expression byName = new Or(
+                    source,
+                    new IsNull(source, nameField),
+                    emitMatcherConditionExpression(source, nameField, nameMatcher)
+                );
+                matcher = matcher == null ? byName : new And(source, matcher, byName);
+            }
             // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
             Header header = required.project(mapFinite(dimensions));
             return new IntermediateResult(input, header, expr, stepAttr(), matcher);
@@ -1197,6 +1218,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */
     private static LogicalPlan emitNullsFilter(Source source, LogicalPlan plan, Attribute value) {
         return new Filter(source, plan, new IsNotNull(value.source(), value));
+    }
+
+    /**
+     * Whether the metric name is the name of a field under a namespace ({@code metrics.<name>}, as remote write stores a
+     * sample), which the series was selected through, rather than a full field path. The relation exposes the namespaced
+     * field next to its bare alias, whichever of the two the name resolved to.
+     */
+    private static boolean namedInNamespace(List<Attribute> fields, String name) {
+        String suffix = "." + name;
+        return fields.stream().anyMatch(attr -> attr instanceof FieldAttribute field && field.fieldName().string().endsWith(suffix));
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {

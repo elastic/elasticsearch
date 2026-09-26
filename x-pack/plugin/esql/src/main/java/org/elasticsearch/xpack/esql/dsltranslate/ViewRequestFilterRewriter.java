@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -243,26 +242,14 @@ public final class ViewRequestFilterRewriter {
         return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
     }
 
-    /**
-     * Translates {@code filter} into a {@link QueryDslTranslator.TranslationResult} bound against the given output
-     * schema. A field present in {@code output} binds to its {@link Attribute}; a field absent from {@code output}
-     * binds to {@link Literal#NULL} so that the DSL's missing-field leniency is reproduced automatically.
-     */
+    /** Translates {@code filter} against one view branch's output schema — see {@link QueryDslTranslator#forOutput}. */
     private static QueryDslTranslator.TranslationResult translateFilter(
         List<Attribute> output,
         QueryBuilder filter,
         Configuration configuration,
         TransportVersion minimumVersion
     ) {
-        Map<String, Attribute> byName = new HashMap<>();
-        for (Attribute a : output) {
-            byName.put(a.name(), a);
-        }
-        QueryDslTranslator translator = new QueryDslTranslator(name -> {
-            Attribute a = byName.get(name);
-            return a != null ? a : Literal.NULL;
-        }, byName.keySet(), configuration, minimumVersion);
-        return translator.translate(filter);
+        return QueryDslTranslator.forOutput(output, configuration, minimumVersion).translate(filter);
     }
 
     /** Warns, via a response header, which constructs were dropped from the filter and on which views. */

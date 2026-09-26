@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -47,10 +48,10 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -97,8 +98,21 @@ public final class QueryDslTranslator {
         }
     }
 
+    /**
+     * Resolves a DSL field-name reference — a bare name or a pattern — to the concrete fields of this source it
+     * covers, in the source's own order. The Query DSL does not always mean one column by one name: {@code exists}
+     * treats its field as a pattern and falls back to the object prefix, and {@code multi_match} resolves patterns
+     * against the whole schema. A reference that covers nothing returns an empty collection.
+     */
+    public interface FieldNames {
+        Collection<String> matching(String reference);
+    }
+
+    /** The reference that covers every field — the only one that cannot be narrowed to a pattern over the schema. */
+    static final String ALL_FIELDS = "*";
+
     private final Function<String, Expression> fieldBinder;
-    private final Set<String> fieldNames;
+    private final FieldNames fieldNames;
     private final Configuration configuration;
     private final long nowInMillis;
     private final TransportVersion minimumVersion;
@@ -106,8 +120,9 @@ public final class QueryDslTranslator {
     /**
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
      *                      source's attribute when the field exists, {@link Literal#NULL} when it does not.
-     * @param fieldNames    every field the source has, used to expand a {@code multi_match}'s field patterns (a bare
-     *                      function binder cannot be enumerated). Leaves still bind through {@code fieldBinder}.
+     * @param fieldNames    resolves a name reference to the fields of this source it covers — the schema behind the
+     *                      bare {@code fieldBinder}, which cannot be enumerated. Leaves still bind through
+     *                      {@code fieldBinder}.
      * @param configuration the query configuration — the source of {@code now} for date math (so {@code "now-15m"}
      *                      resolves to the same instant the index path would use for this request) and of the locale
      *                      used to case-fold a {@code case_insensitive} term.
@@ -116,7 +131,7 @@ public final class QueryDslTranslator {
      */
     public QueryDslTranslator(
         Function<String, Expression> fieldBinder,
-        Set<String> fieldNames,
+        FieldNames fieldNames,
         Configuration configuration,
         TransportVersion minimumVersion
     ) {
@@ -125,6 +140,49 @@ public final class QueryDslTranslator {
         this.configuration = configuration;
         this.nowInMillis = configuration.absoluteStartedTimeInMillis();
         this.minimumVersion = minimumVersion;
+    }
+
+    /**
+     * A translator bound against a plan node's output schema: a field present in {@code output} binds to its
+     * {@link Attribute} and one absent binds to {@link Literal#NULL}, so the DSL's missing-field leniency falls out of
+     * every leaf folding a null to false. The map is insertion-ordered so a reference covering several fields emits them
+     * in the node's output order rather than in hash order; nothing depends on that, it just keeps an emitted shape
+     * readable and stable between runs.
+     */
+    static QueryDslTranslator forOutput(List<? extends Attribute> output, Configuration configuration, TransportVersion minimumVersion) {
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute a : output) {
+            byName.put(a.name(), a);
+        }
+        return new QueryDslTranslator(name -> {
+            Attribute a = byName.get(name);
+            return a != null ? a : Literal.NULL;
+        }, over(byName.keySet()), configuration, minimumVersion);
+    }
+
+    /**
+     * A {@link FieldNames} over a known schema: every reference is matched against {@code names} as a pattern, which
+     * for a reference carrying no wildcard is an equality test — {@code FieldTypeLookup.getMatchingFieldNames} answers
+     * a mapping the same way, by the singleton leaf or nothing.
+     *
+     * <p>Where this and a mapping part company, because it is the seam this whole path rests on. An index resolves a
+     * reference through {@code QueryRewriteContext.getMatchingFieldNames}, which layers request-time runtime mappings,
+     * slice-field aliases and a field-level-security filter over {@code FieldTypeLookup} — and {@code FieldTypeLookup}
+     * resolves a bare name through {@code get}, which falls through to {@code getDynamicField}, so even its
+     * no-wildcard branch can answer with a dynamic key under a flattened field. A source's output schema has none of
+     * those layers: it is the fields there are. For a dataset and for a view's output the two therefore coincide, and
+     * for anything that acquires fields at request time they do not.
+     */
+    public static FieldNames over(Collection<String> names) {
+        return reference -> {
+            List<String> matching = new ArrayList<>();
+            for (String name : names) {
+                if (Regex.simpleMatch(reference, name)) {
+                    matching.add(name);
+                }
+            }
+            return matching;
+        };
     }
 
     /**
@@ -459,9 +517,10 @@ public final class QueryDslTranslator {
             throw new TranslationUnsupportedException("multi_match[unsupported option]");
         }
         Map<String, Float> fields = multiMatch.fields();
-        Collection<String> patterns = fields.isEmpty() ? fieldNames : fields.keySet();
+        Collection<String> all = fieldNames.matching(ALL_FIELDS);
+        Collection<String> patterns = fields.isEmpty() ? all : fields.keySet();
         List<String> resolved = new ArrayList<>();
-        for (String name : fieldNames) {
+        for (String name : all) {
             for (String pattern : patterns) {
                 if (Regex.simpleMatch(pattern, name)) {
                     resolved.add(name);
@@ -515,8 +574,32 @@ public final class QueryDslTranslator {
         return level.get(0);
     }
 
+    /**
+     * {@code exists} does not name one column. The index resolves the field as a <em>pattern</em>, and when that
+     * matches nothing retries it as an object prefix ({@code ExistsQueryBuilder.getMappedFields}:
+     * {@code getMatchingFieldNames(pattern)}, else {@code getMatchingFieldNames(pattern + ".*")}), then ORs
+     * {@code existsQuery} over every field it found. So {@code exists:{field:"user"}} against a source holding
+     * {@code user.name} means "that subfield has a value", not "there is a column called user" — binding the bare name
+     * would fold to false and drop every row the index returns, which is the one direction this translation must never
+     * move in. Mirror both steps, and answer a reference covering no field with the index's match-no-docs.
+     */
     private Expression exists(ExistsQueryBuilder exists) {
-        return new IsNotNull(Source.EMPTY, fieldBinder.apply(exists.fieldName()));
+        return existsOn(exists.fieldName());
+    }
+
+    private Expression existsOn(String reference) {
+        Collection<String> names = fieldNames.matching(reference);
+        if (names.isEmpty()) {
+            names = fieldNames.matching(reference + ".*");
+        }
+        if (names.isEmpty()) {
+            return Literal.FALSE;
+        }
+        List<Expression> disjuncts = new ArrayList<>(names.size());
+        for (String name : names) {
+            disjuncts.add(new IsNotNull(Source.EMPTY, fieldBinder.apply(name)));
+        }
+        return orAll(disjuncts);
     }
 
     private Expression terms(TermsQueryBuilder terms) {
@@ -601,10 +684,16 @@ public final class QueryDslTranslator {
     }
 
     private Expression range(RangeQueryBuilder range) {
-        // Neither bound: RangeQueryBuilder.doToQuery answers this as an exists query before it reads the time zone, the
-        // format or the field's type, so it means "has a value", not "matches everything". Checked first so none of those
-        // options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns those rows too,
-        // and under must_not it returns none of the rows the index returns.
+        // Neither bound: RangeQueryBuilder.doToQuery answers this with ExistsQueryBuilder.newFilter before it reads the
+        // time zone, the format or the field's type, so it means "has a value", not "matches everything". Checked first
+        // so none of those options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns
+        // those rows too, and under must_not it returns none of the rows the index returns.
+        //
+        // It is NOT existsOn: a range never reaches doToQuery unless its field names one mapped field. RangeQueryBuilder
+        // rewrites first — doSearchRewrite -> getRelation, which answers DISJOINT when getFieldType(fieldName) is null,
+        // and toQueryBuilder turns DISJOINT into match_none. So an object path or a pattern matches nothing here, where
+        // the same reference under exists expands. Binding the name itself reproduces that: a reference the source has
+        // no column for is null-bound and folds to false.
         if (range.from() == null && range.to() == null) {
             return new IsNotNull(Source.EMPTY, fieldBinder.apply(range.fieldName()));
         }

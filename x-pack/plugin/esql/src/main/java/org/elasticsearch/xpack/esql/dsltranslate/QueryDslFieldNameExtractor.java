@@ -12,10 +12,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.AbstractSet;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -62,14 +61,14 @@ public final class QueryDslFieldNameExtractor {
      */
     public static Result extract(QueryBuilder filter, Configuration configuration) {
         Set<String> collected = new HashSet<>();
-        FieldListAccessRecorder fieldList = new FieldListAccessRecorder();
+        NameReferenceRecorder references = new NameReferenceRecorder(collected);
         QueryDslTranslator translator = new QueryDslTranslator(name -> {
             collected.add(name);
             // Bind to NULL: only the requested names matter here, not the expression that comes out. This mirrors what
             // the rewriter does for a field absent from the output, so translation stays on a supported path.
             return Literal.NULL;
         },
-            fieldList,
+            references,
             configuration,
             // The expression is discarded here — only the names are kept — so nothing built reaches another node.
             TransportVersion.current()
@@ -83,27 +82,35 @@ public final class QueryDslFieldNameExtractor {
             // does reach one, the rewriter reports the problem properly.
             return Result.ALL_FIELDS;
         }
-        return (result.isComplete() && fieldList.accessed == false) ? new Result(collected, false) : Result.ALL_FIELDS;
+        return (result.isComplete() && references.requiresAllFields == false) ? new Result(collected, false) : Result.ALL_FIELDS;
     }
 
     /**
-     * An empty field list that records whether it was read. {@link QueryDslTranslator} consults its field list only to
-     * expand {@code multi_match} patterns, so any read means the translation depended on knowing every field. Recording
-     * the access — rather than inspecting the DSL for {@code multi_match} ourselves — keeps this tied to the translator's
-     * actual behaviour, so a future construct that needs the full list is handled conservatively by default.
+     * Records the name references the translator resolves against the source's schema. There is no schema here, so every
+     * reference resolves to nothing and only the names matter — and a reference is itself a field-caps pattern, so
+     * collecting it verbatim requests exactly what the construct covers: {@code user} and {@code user.*} for an
+     * {@code exists} over an object path. The one reference that cannot be narrowed is {@code *}, which
+     * {@code multi_match} resolves for every shape it has (it matches its own field patterns against the whole schema
+     * rather than resolving them here), so any {@code multi_match} forces the caller's all-fields fallback. Recording
+     * what the translator actually asks for, rather than inspecting the DSL ourselves, keeps this tied to its
+     * behaviour: a future construct resolving {@code *} is handled conservatively by default.
      */
-    private static final class FieldListAccessRecorder extends AbstractSet<String> {
-        private boolean accessed;
+    private static final class NameReferenceRecorder implements QueryDslTranslator.FieldNames {
+        private final Set<String> collected;
+        private boolean requiresAllFields;
 
-        @Override
-        public Iterator<String> iterator() {
-            accessed = true;
-            return Collections.emptyIterator();
+        private NameReferenceRecorder(Set<String> collected) {
+            this.collected = collected;
         }
 
         @Override
-        public int size() {
-            return 0;
+        public Collection<String> matching(String reference) {
+            if (QueryDslTranslator.ALL_FIELDS.equals(reference)) {
+                requiresAllFields = true;
+            } else {
+                collected.add(reference);
+            }
+            return List.of();
         }
     }
 }

@@ -683,6 +683,23 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum_over_time(req_total[5m])", 100, 100);
     }
 
+    /**
+     * Prometheus treats a label with an empty value as absent: a label function that empties a label drops it from the series,
+     * so {@code label_replace(tx, "host", "", "host", "a")} leaves host a with no {@code host} label and its own group.
+     */
+    public void testInstantEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertThat(metricLabelNames("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))"), equalTo(List.of()));
+        assertBinopInstantValues("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))", 3);
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofInstant(
+            executeBinopInstantQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
     /** Five samples a minute apart ending at {@code at}: {@code req_total} for pods p1 and p2, {@code err_total} for p1. */
     static void ingestCounters(AbstractPrometheusRestIT test, Instant at) throws Exception {
         RemoteWrite.WriteRequest.Builder request = RemoteWrite.WriteRequest.newBuilder();

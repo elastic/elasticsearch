@@ -44,6 +44,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.EmbeddingInferenceService;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
@@ -219,6 +220,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
+
+    private record EmbeddingInferenceRequestBatch(List<InferenceStringFieldInferenceRequest> requests, boolean isolated) {
+        private EmbeddingInferenceRequestBatch {
+            assert isolated == false || requests.size() == 1 : "Isolated inference batches must contain exactly one request";
+        }
+    }
 
     private record FieldInferenceResponseAccumulator(
         int id,
@@ -472,80 +479,129 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<InferenceStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+            try (var batchRefs = new RefCountingRunnable(onFinish::close)) {
+                for (var batch : partitionEmbeddingRequests(inferenceProvider, requests)) {
+                    executeEmbeddingInferenceBatchAsync(inferenceProvider, batch, batchRefs.acquire());
+                }
+            }
+        }
 
-            ActionListener<InferenceServiceResults> completionListener = ActionListener.wrap(results -> {
-                try (onFinish) {
-                    if (results instanceof EmbeddingResults<?> == false) {
-                        var typeMismatchException = new IllegalStateException(
-                            "Unexpected inference result type ["
-                                + results.getClass().getName()
-                                + "] for inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "]"
-                        );
-                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), typeMismatchException);
-                        failAllInferenceRequests(
-                            requests,
-                            r -> new InferenceException(
-                                "Unexpected state when running inference on field [{}]",
-                                typeMismatchException,
-                                r.field()
-                            )
-                        );
-                        return;
-                    }
+        /**
+         * Splits requests into one isolated batch per input that must be sent alone and one batch containing all other inputs.
+         */
+        private List<EmbeddingInferenceRequestBatch> partitionEmbeddingRequests(
+            InferenceProvider inferenceProvider,
+            List<InferenceStringFieldInferenceRequest> requests
+        ) {
+            final List<EmbeddingInferenceRequestBatch> batches = new ArrayList<>();
+            final List<InferenceStringFieldInferenceRequest> sharedRequests = new ArrayList<>();
+            for (var request : requests) {
+                if (inferenceProvider.service() instanceof EmbeddingInferenceService embeddingService
+                    && embeddingService.requiresSingleInputEmbeddingRequest(inferenceProvider.model(), request.input())) {
+                    batches.add(new EmbeddingInferenceRequestBatch(List.of(request), true));
+                } else {
+                    sharedRequests.add(request);
+                }
+            }
+            if (sharedRequests.isEmpty() == false) {
+                batches.add(new EmbeddingInferenceRequestBatch(sharedRequests, false));
+            }
+            return batches;
+        }
 
-                    EmbeddingResults<?> embeddingResults = (EmbeddingResults<?>) results;
-                    List<? extends EmbeddingResults.Embedding<?>> embeddings = embeddingResults.embeddings();
+        private void executeEmbeddingInferenceBatchAsync(
+            InferenceProvider inferenceProvider,
+            EmbeddingInferenceRequestBatch batch,
+            Releasable onBatchFinish
+        ) {
+            final var requests = batch.requests();
+            final var inferenceId = inferenceProvider.model().getInferenceEntityId();
+            ActionListener<InferenceServiceResults> batchListener = ActionListener.releaseAfter(ActionListener.wrap(results -> {
+                if (results instanceof EmbeddingResults<?> == false) {
+                    onUnexpectedInferenceResult(
+                        inferenceProvider,
+                        requests,
+                        new IllegalStateException(
+                            "Unexpected inference result type [" + results.getClass().getName() + "] for inference id [" + inferenceId + "]"
+                        )
+                    );
+                    return;
+                }
+
+                var embeddingResults = (EmbeddingResults<?>) results;
+                List<? extends EmbeddingResults.Embedding<?>> embeddings = embeddingResults.embeddings();
+                if (embeddings.isEmpty()) {
+                    onUnexpectedInferenceResult(
+                        inferenceProvider,
+                        requests,
+                        new IllegalStateException("No inference results returned for inference id [" + inferenceId + "]")
+                    );
+                    return;
+                }
+                if (batch.isolated()) {
+                    addEmbeddingInferenceResponse(inferenceProvider, requests.getFirst(), embeddings);
+                } else {
                     if (embeddings.size() != requests.size()) {
-                        var sizeMismatchException = new IllegalStateException(
-                            "Inference result count ["
-                                + embeddings.size()
-                                + "] does not match request count ["
-                                + requests.size()
-                                + "] for inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "]"
-                        );
-                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), sizeMismatchException);
-                        failAllInferenceRequests(
+                        onUnexpectedInferenceResult(
+                            inferenceProvider,
                             requests,
-                            r -> new InferenceException(
-                                "Unexpected state when running inference on field [{}]",
-                                sizeMismatchException,
-                                r.field()
+                            new IllegalStateException(
+                                "Inference result count ["
+                                    + embeddings.size()
+                                    + "] does not match request count ["
+                                    + requests.size()
+                                    + "] for inference id ["
+                                    + inferenceId
+                                    + "]"
                             )
                         );
                         return;
                     }
-
                     var requestsIterator = requests.iterator();
                     for (var embedding : embeddings) {
-                        var request = requestsIterator.next();
-                        inferenceResults.get(request.bulkItemIndex())
-                            .addOrUpdateResponse(
-                                new InferenceStringFieldInferenceResponse(
-                                    request.field(),
-                                    request.sourceField(),
-                                    request.fieldInputOrder(),
-                                    request.sourceFieldInputIndex(),
-                                    inferenceProvider.model,
-                                    embedding
-                                )
-                            );
+                        addEmbeddingInferenceResponse(inferenceProvider, requestsIterator.next(), List.of(embedding));
                     }
-                    recordRequestCountMetrics(inferenceProvider.model, requests.size(), null);
                 }
-            }, exc -> {
-                try (onFinish) {
-                    onInferenceServiceFailure(inferenceProvider, requests, exc);
-                }
-            });
+                recordRequestCountMetrics(inferenceProvider.model(), requests.size(), null);
+            }, exc -> onInferenceServiceFailure(inferenceProvider, requests, exc)), onBatchFinish);
 
-            EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
-            inferenceProvider.service()
-                .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, completionListener);
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+            var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+            ActionListener.run(
+                batchListener,
+                listener -> inferenceProvider.service()
+                    .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener)
+            );
+        }
+
+        private void addEmbeddingInferenceResponse(
+            InferenceProvider inferenceProvider,
+            InferenceStringFieldInferenceRequest request,
+            List<? extends EmbeddingResults.Embedding<?>> embeddings
+        ) {
+            inferenceResults.get(request.bulkItemIndex())
+                .addOrUpdateResponse(
+                    new InferenceStringFieldInferenceResponse(
+                        request.field(),
+                        request.sourceField(),
+                        request.fieldInputOrder(),
+                        request.sourceFieldInputIndex(),
+                        inferenceProvider.model,
+                        embeddings
+                    )
+                );
+        }
+
+        private void onUnexpectedInferenceResult(
+            InferenceProvider inferenceProvider,
+            List<? extends FieldInferenceRequest> requests,
+            Exception exc
+        ) {
+            recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
+            failAllInferenceRequests(
+                requests,
+                request -> new InferenceException("Unexpected state when running inference on field [{}]", exc, request.field())
+            );
         }
 
         private void failAllInferenceRequests(

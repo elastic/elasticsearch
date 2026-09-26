@@ -313,7 +313,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     private static FooterByteCache.Key key(String path, long length) {
-        return new FooterByteCache.Key(path, length);
+        return new FooterByteCache.Key("", path, length);
     }
 
     private static Thread startHerdThread(String name, AtomicReference<AssertionError> failure, CheckedRunnable<Exception> body) {

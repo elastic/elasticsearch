@@ -81,6 +81,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final RetryStrategy asyncRetryStrategy;
+    private final String storageIdentity;
     private final String bucket;
     private final String key;
     private final StoragePath path;
@@ -114,6 +115,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String key,
         StoragePath path
     ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, "", bucket, key, path);
+    }
+
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        String storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path
+    ) {
         if (s3Client == null) {
             throw new IllegalArgumentException("s3Client cannot be null");
         }
@@ -132,6 +145,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.asyncRetryStrategy = asyncRetryStrategy;
+        this.storageIdentity = storageIdentity;
         this.bucket = bucket;
         this.key = key;
         this.path = path;
@@ -155,6 +169,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.cachedLength = length;
     }
 
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        String storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path,
+        long length
+    ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, storageIdentity, bucket, key, path);
+        this.cachedLength = length;
+    }
+
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length, Instant lastModified) {
         this(s3Client, bucket, key, path, length);
         this.cachedLastModified = lastModified;
@@ -171,6 +199,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Instant lastModified
     ) {
         this(s3Client, s3AsyncClient, asyncRetryStrategy, bucket, key, path, length);
+        this.cachedLastModified = lastModified;
+    }
+
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        String storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, storageIdentity, bucket, key, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -671,6 +714,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         cachedExists = false;
         cachedLength = 0L;
         cachedLastModified = null;
+    }
+
+    @Override
+    public String storageIdentity() {
+        return storageIdentity;
     }
 
     public String bucket() {

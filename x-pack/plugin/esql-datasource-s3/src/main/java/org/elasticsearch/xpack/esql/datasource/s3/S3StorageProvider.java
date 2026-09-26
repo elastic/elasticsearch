@@ -117,6 +117,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
     private final S3Configuration config;
+    private final String storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
     // Used by buildRetryClient() to rebuild the S3 client at a discovered region.
     @Nullable
@@ -172,6 +173,7 @@ public class S3StorageProvider implements StorageProvider {
         int maxConnections
     ) {
         this.config = config;
+        this.storageIdentity = computeStorageIdentity(config);
         this.maxConnections = maxConnections;
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
         // the MANAGED_IDENTITY path) can read them.
@@ -250,6 +252,7 @@ public class S3StorageProvider implements StorageProvider {
         EsqlContainerCredentialsProvider containerCredentialsProvider
     ) {
         this.config = null;
+        this.storageIdentity = "";
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
@@ -271,6 +274,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     S3StorageProvider(S3Configuration config, S3Client s3Client) {
         this.config = config;
+        this.storageIdentity = computeStorageIdentity(config);
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = null;
@@ -740,7 +744,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
     }
 
     @Override
@@ -751,7 +755,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path, length);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
     }
 
     @Override
@@ -762,7 +766,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path, length, lastModified);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
     }
 
     @Override
@@ -1203,5 +1207,15 @@ public class S3StorageProvider implements StorageProvider {
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
         }
+    }
+
+    /** Stable storage identity string encoding endpoint and credential identity. Neither component is secret. */
+    static String computeStorageIdentity(S3Configuration config) {
+        if (config == null) {
+            return "";
+        }
+        String ep = config.endpoint() != null ? config.endpoint() : "";
+        String ak = config.accessKey() != null ? config.accessKey() : "";
+        return ep + "|" + ak;
     }
 }

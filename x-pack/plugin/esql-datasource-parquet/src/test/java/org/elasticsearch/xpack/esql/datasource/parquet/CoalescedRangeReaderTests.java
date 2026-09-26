@@ -843,7 +843,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         cache.put(key, data);
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
-            cache.put(new FooterByteCache.Key("memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+            cache.put(new FooterByteCache.Key("", "memory://other-" + i + ".parquet", 256), sequentialBytes(256));
         }
         assertNull(cache.get(key));
 

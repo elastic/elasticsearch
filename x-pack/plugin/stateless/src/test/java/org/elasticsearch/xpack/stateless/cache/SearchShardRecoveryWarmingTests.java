@@ -110,6 +110,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_TIMEOUT_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -891,7 +893,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(() -> state, mockIndexShard(self), null, null, null, resume);
             // recovery is resumed
             assertTrue(resume.isDone());
             // make sure warming started running
@@ -947,7 +949,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
@@ -1002,7 +1004,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 null,
@@ -1066,7 +1068,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
@@ -1156,8 +1158,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                randomAlphaOfLength(10),
+                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                    TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                    randomAlphaOfLength(10)
+                ),
+                () -> null,
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -1187,8 +1192,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                randomAlphaOfLength(10),
+                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                    TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                    randomAlphaOfLength(10)
+                ),
+                () -> null,
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -1215,8 +1223,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             Exception thrown = safeAwaitFailure(
                 Void.class,
                 resumeListener -> service.searchRecoveryWarmingListener(
-                    TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                    randomAlphaOfLength(10),
+                    new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                        TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                        randomAlphaOfLength(10)
+                    ),
+                    () -> null,
                     randomMockIndexShard(),
                     mockDirectory(),
                     randomNonNegativeLong(),
@@ -1327,8 +1338,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var service = newWarmingService(threadPool);
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                timeout,
-                timeoutContext,
+                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(timeout, timeoutContext),
+                () -> null,
                 mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
                 // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
                 mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),

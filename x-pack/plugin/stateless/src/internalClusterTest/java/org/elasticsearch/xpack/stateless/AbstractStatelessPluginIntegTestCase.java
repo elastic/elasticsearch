@@ -398,6 +398,12 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         if (randomBoolean()) {
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(),
+                randomBoolean()
+            );
+        }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         // Sometimes explicitly set the setting to its default value, which doubles as a test for the setting being registered.
         if (randomBoolean()) {

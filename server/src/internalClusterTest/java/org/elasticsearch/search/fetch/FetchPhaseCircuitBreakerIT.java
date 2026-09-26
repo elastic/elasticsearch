@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -30,6 +32,9 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -45,6 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -63,7 +69,9 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     private static final String INDEX = "test_idx";
     private static final String SORT_FIELD = "sort_field";
     private static final String LARGE_LIST_SCRIPT = "build_large_list";
-    private static final int LARGE_LIST_ENTRIES = 5_000;
+    // Must exceed search.memory_accounting_buffer_size (1 MB minimum) per hit so that a
+    // single-hit search exercises the circuit-breaker check path in FetchPhase#nextDoc.
+    private static final int LARGE_LIST_ENTRIES = 30_000;
 
     private static final String FAIL_AFTER_FIRST_CALL_SCRIPT = "fail_after_first_call";
     private static final AtomicInteger FAIL_AFTER_FIRST_CALL_COUNT = new AtomicInteger(0);
@@ -589,6 +597,251 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         );
     }
 
+    /**
+     * Verifies that bytes charged to the request circuit breaker for the {@code fields} API
+     * (FetchFieldsPhase — doc values / runtime fields) are released after the search completes.
+     */
+    public void testFieldsBytesReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        // Index docs where 'tag' holds a large array of keyword values so the fields-phase heap is
+        // measurable and guaranteed to be charged via the new central-charge path in FetchPhase#nextDoc.
+        String fieldsIndex = "fields_release_idx";
+        assertAcked(
+            prepareCreate(fieldsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("sort_field", "type=long", "tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(fieldsIndex, 50, 200);
+        ensureSearchable(fieldsIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .fetchField(new FieldAndFormat("tag", null));
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(fieldsIndex).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getFields().get("tag"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after fields fetch completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that bytes charged for {@code stored_fields} (StoredFieldsPhase) are released after
+     * the search completes.
+     */
+    public void testStoredFieldsBytesReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        // "text" is mapped with store=true in createIndexForTest.
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery()).size(20).fetchSource(false).storedField("text");
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(INDEX).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getFields().get("text"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after stored_fields fetch completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large {@code fields}
+     * arrays exceeds the configured limit, and that the breaker is released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeFieldsFetch() throws Exception {
+        // 100 KB is enough for a single small fetch but not for 20 docs each carrying
+        // 500 keyword values (~7–10 KB of estimated heap per doc after estimator overhead).
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String fieldsIndex = "fields_trip_idx";
+        assertAcked(
+            prepareCreate(fieldsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(fieldsIndex, 20, 500);
+        ensureSearchable(fieldsIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .fetchField(new FieldAndFormat("tag", null));
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(fieldsIndex).setSource(source).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Regression test for double-counting: when the same stored field is requested via both
+     * {@code stored_fields} (StoredFieldsPhase) and {@code fields} (FetchFieldsPhase), the
+     * central charge in FetchPhase#nextDoc covers only the final state of the hit's field maps
+     * (FetchFieldsPhase's {@code putAll} replaces the earlier StoredFieldsPhase entry). The
+     * search must succeed and the breaker must return to baseline — neither a spurious trip
+     * nor a leak.
+     */
+    public void testFieldsAndStoredFieldsOverlapDoesNotDoubleCharge() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        // 'tag' is keyword + store=true so it can be read by both stored_fields and fields.
+        String overlapIndex = "overlap_test_idx";
+        assertAcked(
+            prepareCreate(overlapIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("""
+                {
+                  "properties": {
+                    "tag": { "type": "keyword", "store": true }
+                  }
+                }
+                """)
+        );
+        populateIndexWithKeywordArray(overlapIndex, 50, 200);
+        ensureSearchable(overlapIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Request the same field via both mechanisms: StoredFieldsPhase adds it, FetchFieldsPhase
+        // replaces it via putAll. The final map has one copy; the charge is for that one copy only.
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .storedField("tag")
+            .fetchField(new FieldAndFormat("tag", null));
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(overlapIndex).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getFields().get("tag"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released with no double-charge after overlapping fields+stored_fields",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that bytes charged for inner-hit fields (via InnerHitsPhase → chargeInnerHitsBytes
+     * → the parent's request breaker) are released after the search completes.
+     */
+    public void testInnerHitsFieldsReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String nestedIndex = "nested_fields_idx";
+        assertAcked(
+            prepareCreate(nestedIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("""
+                {
+                  "properties": {
+                    "items": {
+                      "type": "nested",
+                      "properties": {
+                        "value": { "type": "keyword" }
+                      }
+                    }
+                  }
+                }
+                """)
+        );
+
+        // Index parent docs each with many nested items so inner-hit field bytes are measurable.
+        int nParents = 20;
+        int nestedPerParent = 50;
+        List<IndexRequestBuilder> nestedBuilders = new ArrayList<>();
+        for (int i = 0; i < nParents; i++) {
+            var doc = jsonBuilder().startObject().startArray("items");
+            for (int j = 0; j < nestedPerParent; j++) {
+                doc.startObject().field("value", "item-" + i + "-" + j).endObject();
+            }
+            doc.endArray().endObject();
+            nestedBuilders.add(prepareIndex(nestedIndex).setId(Integer.toString(i)).setSource(doc));
+        }
+        indexRandom(true, nestedBuilders);
+        ensureSearchable(nestedIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Inner hits request 'items.value' via the fields API; InnerHitsPhase transfers the charged
+        // bytes to the parent context via chargeInnerHitsBytes.
+        InnerHitBuilder innerHits = new InnerHitBuilder().setSize(10)
+            .setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
+            .setFetchFields(List.of(new FieldAndFormat("items.value", null)));
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(nestedIndex)
+                .setQuery(nestedQuery("items", matchAllQuery(), ScoreMode.None).innerHit(innerHits))
+                .setSize(10),
+            response -> {
+                assertThat(response.getHits().getHits().length, greaterThan(0));
+                assertThat(response.getHits().getHits()[0].getInnerHits().get("items"), notNullValue());
+            }
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after inner-hits fields fetch completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
     private String startDataNode(String cbRequestLimit) {
         return internalCluster().startNode(
             Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
@@ -617,6 +870,25 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                     "type=keyword"
                 )
         );
+    }
+
+    /**
+     * Indexes {@code nDocs} documents each carrying a {@code tag} keyword array of {@code tagsPerDoc}
+     * entries. Used by the fields-API tests to produce measurable per-hit heap.
+     */
+    private void populateIndexWithKeywordArray(String indexName, int nDocs, int tagsPerDoc) throws IOException {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < nDocs; i++) {
+            List<String> tags = new ArrayList<>(tagsPerDoc);
+            for (int j = 0; j < tagsPerDoc; j++) {
+                tags.add("tag-" + i + "-" + j);
+            }
+            builders.add(
+                prepareIndex(indexName).setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().array("tag", tags.toArray(new String[0])).endObject())
+            );
+        }
+        indexRandom(true, builders);
     }
 
     private void populateIndex(String indexName, int nDocs, int textSize) throws IOException {

@@ -42,7 +42,7 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
-    private LongConsumer scriptFieldsByteChecker = bytes -> {};
+    private LongConsumer innerHitsByteChecker = bytes -> {};
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -287,18 +287,19 @@ public class FetchContext {
         }
     }
 
-    public void setScriptFieldsByteChecker(LongConsumer scriptFieldsByteChecker) {
-        this.scriptFieldsByteChecker = scriptFieldsByteChecker;
+    public void setInnerHitsByteChecker(LongConsumer innerHitsByteChecker) {
+        this.innerHitsByteChecker = innerHitsByteChecker;
     }
 
     /**
-     * Charges {@code bytes} for a scripted {@link org.elasticsearch.common.document.DocumentField}
-     * against the configured checker.
+     * Charges {@code bytes} for an inner-hit {@link org.elasticsearch.common.document.DocumentField}
+     * against the configured checker. Called by {@code InnerHitsPhase} to transfer the bytes that were
+     * accumulated by the nested fetch onto the parent fetch context's circuit-breaker counter.
      */
-    public void chargeScriptFieldsBytes(long bytes) {
+    public void chargeInnerHitsBytes(long bytes) {
         if (bytes <= 0L) {
             return;
         }
-        scriptFieldsByteChecker.accept(bytes);
+        innerHitsByteChecker.accept(bytes);
     }
 }

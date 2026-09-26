@@ -30,10 +30,22 @@ public final class SearchHitRamUsageEstimator {
 
     private SearchHitRamUsageEstimator() {}
 
+    /**
+     * Returns the estimated retained heap of all {@link org.elasticsearch.common.document.DocumentField}s
+     * on {@code hit}, covering both the {@link SearchHit#getDocumentFields() document fields} and the
+     * {@link SearchHit#getMetadataFields() metadata fields} maps.
+     * <p>
+     * Inner hits are deliberately <em>excluded</em>: their bytes are accounted separately by the nested
+     * fetch and transferred to the parent context by {@code InnerHitsPhase}. Including them here would
+     * double-count.
+     */
+    public static long estimateDocumentFields(SearchHit hit) {
+        return estimateFields(hit.getDocumentFields()) + estimateFields(hit.getMetadataFields());
+    }
+
     public static long estimate(SearchHit hit) {
         long size = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR + hit.rawSourceLength();
-        size += estimateFields(hit.getDocumentFields());
-        size += estimateFields(hit.getMetadataFields());
+        size += estimateDocumentFields(hit);
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
             size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()

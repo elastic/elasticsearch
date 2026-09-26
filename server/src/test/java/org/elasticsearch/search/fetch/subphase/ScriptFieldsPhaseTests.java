@@ -26,40 +26,49 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * Tests for {@link ScriptFieldsPhase} behaviour (field population, exception handling).
+ * <p>
+ * Circuit-breaker accounting for script fields is now done by {@code FetchPhase#nextDoc} after all
+ * sub-phases have run, using {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}.
+ * The byte-level accounting assertions formerly in this class have moved to
+ * {@code FetchPhaseFieldAccountingTests}.
+ */
 public class ScriptFieldsPhaseTests extends ESTestCase {
 
     private static final String FIELD_NAME = "scripted";
 
-    public void testSuccessfulScriptChargesActualBytesOnce() throws Exception {
+    /** A successful script execution must populate the field on the hit. */
+    public void testSuccessfulScriptPopulatesField() throws Exception {
         try (TestRun run = new TestRun(false)) {
-            long actual = run.processHit();
-            assertThat(actual, greaterThan(0L));
-            assertThat(run.deltas, contains(actual));
+            run.processHit();
+            assertThat(run.lastHit().field(FIELD_NAME), notNullValue());
         }
     }
 
-    public void testScriptExceptionDoesNotChargeBreaker() throws Exception {
+    /** If a script throws and ignoreException is false the exception must propagate. */
+    public void testScriptExceptionPropagates() throws Exception {
         try (TestRun run = new TestRun(false)) {
             run.throwOnExecute = true;
-            RuntimeException thrown = expectThrows(RuntimeException.class, run::processHit);
-            assertEquals("boom", thrown.getMessage());
-            assertThat(run.deltas, empty());
+            expectThrows(RuntimeException.class, run::processHit);
         }
     }
 
-    public void testIgnoredScriptExceptionDoesNotChargeBreaker() throws Exception {
+    /** If a script throws and ignoreException is true the field must not appear on the hit. */
+    public void testIgnoredScriptExceptionLeavesFieldAbsent() throws Exception {
         try (TestRun run = new TestRun(true)) {
             run.throwOnExecute = true;
-            long actual = run.processHit();
-            assertEquals(0L, actual);
-            assertThat(run.deltas, empty());
+            run.processHit();
+            assertThat(run.lastHit().field(FIELD_NAME), nullValue());
         }
     }
 
+    /** A pre-existing field must not be replaced by the script output. */
     public void testPreExistingFieldIsNotOverwrittenAndNoBytesCharged() throws Exception {
         try (TestRun run = new TestRun(false)) {
             DocumentField existing = new DocumentField(FIELD_NAME, List.of("pre-existing"));
@@ -68,25 +77,42 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
             HitContext hitContext = new HitContext(hit, run.leafReaderContext, 0, Map.of(), Source.empty(null), null);
             run.processor.process(hitContext);
             assertSame(existing, hit.field(FIELD_NAME));
-            assertThat(run.deltas, empty());
         }
     }
 
+    /**
+     * ScriptFieldsPhase must NOT charge any bytes directly to the configured checker.
+     * Bytes are now charged by FetchPhase#nextDoc after all sub-phases have run.
+     */
+    public void testScriptFieldPhaseDoesNotChargeBytes() throws Exception {
+        List<Long> received = new ArrayList<>();
+        // Wire in a checker that would capture any stray charges; it should stay empty.
+        try (TestRun run = new TestRun(false, received)) {
+            run.processHit();
+            assertThat("ScriptFieldsPhase must not charge bytes directly", received, is(empty()));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+
     private static final class TestRun implements AutoCloseable {
-        final List<Long> deltas = new ArrayList<>();
         final FetchSubPhaseProcessor processor;
         final LeafReaderContext leafReaderContext;
         final TestSearchContext searchContext;
         Object scriptPayload = buildPayload(50);
         boolean throwOnExecute = false;
+        private SearchHit lastHit;
 
         TestRun(boolean ignoreException) throws Exception {
+            this(ignoreException, new ArrayList<>());
+        }
+
+        TestRun(boolean ignoreException, List<Long> byteReceiver) throws Exception {
             ScriptFieldsContext scriptFieldsContext = new ScriptFieldsContext();
             scriptFieldsContext.add(new ScriptFieldsContext.ScriptField(FIELD_NAME, ctx -> new TestFieldScript(this), ignoreException));
 
             // TestSearchContext is used because FetchContext requires a SearchContext; we override
-            // scriptFields() so ScriptFieldsPhase can read the configured script. The byte checker is
-            // wired via setScriptFieldsByteChecker so no live circuit breaker is needed.
+            // scriptFields() so ScriptFieldsPhase can read the configured script.
             searchContext = new TestSearchContext((SearchExecutionContext) null) {
                 @Override
                 public boolean hasScriptFields() {
@@ -99,7 +125,8 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
                 }
             };
             FetchContext fetchContext = new FetchContext(searchContext, null);
-            fetchContext.setScriptFieldsByteChecker(bytes -> deltas.add(bytes));
+            // Wire the inner-hits checker so any accidental chargeInnerHitsBytes calls would be captured.
+            fetchContext.setInnerHitsByteChecker(byteReceiver::add);
 
             MemoryIndex index = new MemoryIndex();
             leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
@@ -109,11 +136,14 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
             processor.setNextReader(leafReaderContext);
         }
 
-        long processHit() throws IOException {
-            SearchHit hit = SearchHit.unpooled(0, null);
-            HitContext hitContext = new HitContext(hit, leafReaderContext, 0, Map.of(), Source.empty(null), null);
+        void processHit() throws IOException {
+            lastHit = SearchHit.unpooled(0, null);
+            HitContext hitContext = new HitContext(lastHit, leafReaderContext, 0, Map.of(), Source.empty(null), null);
             processor.process(hitContext);
-            return hit.field(FIELD_NAME) == null ? 0L : hit.field(FIELD_NAME).ramBytesUsedEstimate();
+        }
+
+        SearchHit lastHit() {
+            return lastHit;
         }
 
         @Override

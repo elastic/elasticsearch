@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -3979,7 +3980,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
 
         assertEquals("the bound is a key budget, so it decides the file count here", 1000, result.fileCount());
@@ -4003,42 +4004,13 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
 
         assertEquals(5000, result.fileCount());
         assertFalse(result.isTruncated());
         assertEquals(5000, provider.keysPulled());
         assertNotNull("a complete multi-file listing still identifies its file set", result.fileSetFingerprint());
-    }
-
-    /**
-     * The ordering gate. A bound keeps the first keys the provider reports, so it is only sound where the
-     * dataset's order IS listing order. Under {@code file_sort_by: name, file_order: desc} the anchor
-     * FIRST_FILE_WINS would pick sits at the far end of the glob, so the bound is dropped and everything listed.
-     */
-    public void testBoundIsDroppedWhenFileOrderIsNotListingOrder() throws IOException {
-        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
-        Map<String, Object> config = new HashMap<>();
-        config.put(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
-        config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "name");
-        config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
-
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/*.parquet",
-            provider,
-            null,
-            config,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            1000
-        );
-
-        assertEquals("a dataset ordering the glob itself cannot be answered from a prefix of it", 5000, result.fileCount());
-        assertFalse(result.isTruncated());
-        assertEquals(5000, provider.keysPulled());
-        assertEquals("file_order still decides the anchor", "s3://bucket/data/part-004999.parquet", result.path(0).toString());
     }
 
     /**
@@ -4061,12 +4033,72 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
 
         assertEquals("the file past the bound is still found", 1, result.fileCount());
         assertEquals("s3://bucket/data/zzz.parquet", result.path(0).toString());
         assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+    }
+
+    /**
+     * The re-list after a bounded page matched nothing is the whole glob, so partition detection folds over all of
+     * it. Keeping the partition sample across that retry would type a column from the front of a listing that
+     * shipped every file, and leave every file past the sample with no partition values at all.
+     */
+    public void testRelistAfterAnEmptyBoundedPageTypesPartitionsFromEveryFile() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/skip.csv", 50),
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=abc/b.parquet", 100)
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            new CountingStubProvider(listing),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1, 1)
+        );
+
+        assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(
+            "year is typed from every path the re-list returned, not from the first one",
+            DataType.KEYWORD,
+            result.partitionMetadata().partitionColumns().get("year")
+        );
+    }
+
+    /**
+     * A brace-enumerable pattern probes each candidate and returns every match, honouring no file-set extent. Its
+     * listing is therefore never a prefix, and partition detection folds over all of it.
+     */
+    public void testEnumeratedCandidatesTypePartitionsFromEveryMatch() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/year=2024/f.parquet");
+        provider.existingPaths.add("s3://bucket/data/year=abc/f.parquet");
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year={2024,abc}/f.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1, 1)
+        );
+
+        assertEquals(2, result.fileCount());
+        assertEquals(
+            "year is typed from both candidates, whatever the partition sample says",
+            DataType.KEYWORD,
+            result.partitionMetadata().partitionColumns().get("year")
+        );
     }
 
     /** Partition columns come from the paths visited, so a bound decides them along with the file set. */
@@ -4086,7 +4118,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
 
         assertTrue(result.isTruncated());
@@ -4115,45 +4147,12 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
 
         assertTrue(result.isTruncated());
         assertEquals(1000, provider.keysPulled());
         assertEquals("the drain must stop asking at the bound, not one call past it", 1000, provider.hasNextCalls());
-    }
-
-    /**
-     * The backstop in {@code expand} must decline the bound under the same conditions as
-     * {@code ExternalSourceResolver.listingBoundFor}, including a {@code _file.*} hint. That hint prunes no
-     * folder, so it is not a partition-pruning hint, but it selects the anchor - and this entry point is
-     * reachable without the resolver, so a direct caller must not be able to bound past it.
-     */
-    public void testBoundIsDeclinedForAFileMetadataHint() throws IOException {
-        List<StorageEntry> listing = new ArrayList<>();
-        for (int i = 0; i < 1005; i++) {
-            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/f-%04d.parquet", i), 100));
-        }
-        var fileHint = new PartitionFilterHintExtractor.PartitionFilterHint(
-            FileMetadataColumns.NAME,
-            PartitionFilterHintExtractor.Operator.EQUALS,
-            List.of("f-1004.parquet")
-        );
-        CountingStubProvider provider = new CountingStubProvider(listing);
-
-        FileList result = GlobExpander.expand(
-            "s3://bucket/data/" + "**/*.parquet",
-            provider,
-            List.of(fileHint),
-            HIVE_ON,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            1000
-        );
-
-        assertFalse("a _file.* hint must decline the bound, as listingBoundFor does", result.isTruncated());
-        assertEquals("the whole glob must be listed so the hint can select its file", 1005, provider.keysPulled());
     }
 
     /**
@@ -4176,7 +4175,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
         FileList unbounded = GlobExpander.expand(
             "s3://bucket/data/" + "**/*.parquet",
@@ -4186,7 +4185,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
 
         assertTrue(bounded.isTruncated());
@@ -4228,7 +4227,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            1000
+            new ListingExtents(1000, 1000)
         );
         FileList full = GlobExpander.expandAndCompact(
             pattern,
@@ -4239,7 +4238,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
 
         assertTrue(bounded.isTruncated());
@@ -4253,25 +4252,19 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A bound is only a prefix of the same listing when nothing else is narrowing it. Partition-pruning hints are
-     * such a narrowing: the unbounded listing descends only the directories the hint admits, while the flat
-     * listing a bound forces applies no partition pruning at all — the hints it consults are the complement of
-     * the pruning ones. Honouring a bound here would answer from the first keys of the WHOLE dataset while the
-     * unbounded query answers from the pruned subtree, and {@code FIRST_FILE_WINS} would read a different file
-     * and report a different schema for the same query with a different limit. So the bound is declined.
+     * The expander honours the extents it is given and takes no second opinion on whether they were a good idea.
+     * Whether a bound is eligible at all — no narrowing hints, no dataset-chosen file order — is decided once, by
+     * the resolver, before it chooses between the listing cache and a bounded expansion. Stating that rule here as
+     * well is what let the two statements drift; the decline it used to assert now lives in
+     * {@code ExternalSourceResolverTests#testPartitionPruningHintDeclinesTheBound}.
      */
-    public void testBoundIsDeclinedWhenPartitionHintsPruneTheListing() throws IOException {
+    public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
 
-        FileList unbounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, Integer.MAX_VALUE);
-        // A bound of 1 would keep exactly the first key of the unpruned listing, which is under year=2024.
-        FileList bounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, 1);
+        FileList bounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, new ListingExtents(1, 1));
 
-        assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", bounded.isTruncated());
-        assertEquals("the hinted answer must not depend on whether a bound was offered", paths(unbounded), paths(bounded));
-        for (String path : paths(bounded)) {
-            assertTrue(path + " must be under year=2025", path.startsWith("s3://bucket/data/year=2025/"));
-        }
+        assertTrue("the extents are the caller's decision, and this caller asked for one key", bounded.isTruncated());
+        assertEquals(1, bounded.fileCount());
     }
 
     /** Counts what the drain actually pulled, which is what separates a saved request from a filtered key. */

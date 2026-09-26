@@ -2244,6 +2244,39 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * A partition-pruning hint narrows the listing before any bound applies: the pruned listing descends only the
+     * folders the hint admits, while a bounded flat listing keeps the first keys of the whole dataset. Honouring a
+     * bound under such a hint would answer FIRST_FILE_WINS from a different file than the unhinted query reads, so
+     * the resolver declines it. This is the sole statement of that rule; the expander is told the extents and
+     * honours them.
+     */
+    public void testPartitionPruningHintDeclinesTheBound() throws Exception {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 200)
+        );
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", List.of(attr("from_2024", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/year=2025/b.parquet", List.of(attr("from_2025", DataType.INTEGER)));
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2025)
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
+
+        String glob = PREFIX + "year=*/*.parquet";
+        ExternalSourceResolver resolver = createResolver(schemas, Map.of(PREFIX, listing));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
+
+        ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
+        assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", source.fileList().isTruncated());
+        assertEquals("every file the pattern matched is in the list, not the first key of it", 2, source.fileList().fileCount());
+    }
+
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);

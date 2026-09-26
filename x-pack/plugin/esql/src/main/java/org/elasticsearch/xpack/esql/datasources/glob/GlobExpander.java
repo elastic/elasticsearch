@@ -128,19 +128,23 @@ public final class GlobExpander {
             maxDiscoveredFiles,
             maxGlobExpansion,
             maxListedObjects,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
     }
 
     /**
-     * As above, stopping after {@code listingBound} keys have been visited rather than draining the glob.
+     * As above, stopping after {@code extents.maxFiles()} keys have been visited rather than draining the glob.
      * <p>
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
      * is left uncompacted, because neither compacted encoding carries the truncation flag — see
      * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
-     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
+     * resolution may bound the file set; {@link ListingExtents#UNBOUNDED} is the path every reading query takes,
      * byte for byte as before.
+     * <p>
+     * Whether a bound is eligible at all — nothing else already narrowing the listing, no dataset-chosen file
+     * order — is the caller's to establish, and {@code ExternalSourceResolver#listingExtentsFor} is where that
+     * is decided. This class honours the extents it is handed and does not second-guess them.
      */
     public static FileList expandAndCompact(
         String path,
@@ -151,9 +155,9 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion,
         int maxListedObjects,
-        int listingBound
+        ListingExtents extents
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, listingBound);
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, extents);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -193,7 +197,7 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects
     ) throws IOException {
-        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, Integer.MAX_VALUE);
+        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, ListingExtents.UNBOUNDED);
     }
 
     public static FileList expand(
@@ -204,19 +208,11 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion,
         int maxListedObjects,
-        int listingBound
+        ListingExtents extents
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        // A backstop for direct callers, not the decision: the resolver declines the bound for all of these
-        // first, because it must decide before choosing whether to bypass the listing cache. Repeated here
-        // because this class is reachable without the resolver, and a bound honoured under any of them would
-        // pick a different anchor than the unbounded listing. Any hint counts, not only a pruning one: a
-        // _file.* hint prunes no folder but selects the anchor, so it must match ExternalSourceResolver's
-        // listingBoundFor. The two conditions are stated in both places and must not drift apart.
-        boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && (hints == null || hints.isEmpty());
-        int effectiveBound = prefixOfTheWholeGlob ? listingBound : Integer.MAX_VALUE;
         // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
         return isTopLevelCommaList(path)
             ? doExpandCommaSeparated(
@@ -240,7 +236,7 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                effectiveBound
+                extents
             );
     }
 
@@ -274,10 +270,10 @@ public final class GlobExpander {
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
-        int listingBound
+        ListingExtents extents
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
-        boolean bounded = listingBound != Integer.MAX_VALUE;
+        boolean bounded = extents.boundsFileSet();
         if (rewritten == false && bounded == false) {
             return doExpandGlob(
                 pattern,
@@ -289,7 +285,7 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                Integer.MAX_VALUE
+                extents
             );
         }
 
@@ -308,7 +304,7 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                listingBound
+                extents
             );
         } catch (IOException e) {
             failure = e;
@@ -340,7 +336,10 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                Integer.MAX_VALUE
+                // Both extents are dropped, not just the file set: this listing is the whole glob, so partition
+                // detection folds over all of it. Sampling a full listing is a different change, with a different
+                // story for the files past the sample, which carry no partition values.
+                ListingExtents.UNBOUNDED
             );
         } catch (IOException retryFailure) {
             if (failure != null) {
@@ -428,7 +427,7 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             nameFilter,
             fileOrder,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
     }
 
@@ -464,7 +463,7 @@ public final class GlobExpander {
             maxListedObjects,
             nameFilter,
             fileOrder,
-            Integer.MAX_VALUE
+            ListingExtents.UNBOUNDED
         );
     }
 
@@ -478,7 +477,7 @@ public final class GlobExpander {
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
-        int listingBound
+        ListingExtents extents
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -538,6 +537,8 @@ public final class GlobExpander {
             }
             fileOrder.apply(matched);
             List<String> notices = new ArrayList<>();
+            // Probed key by key, so this branch returns every match and honours no file-set extent. The listing is
+            // not a prefix of anything, and detection folds over all of it.
             PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
             return new GenericFileList(matched, pattern, partitionMetadata, notices);
         }
@@ -549,7 +550,7 @@ public final class GlobExpander {
         // below; see PartitionPruningWalk for the fail-closed rules and the trust boundary.
         // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
         // requests; the flat path under a bound costs one page and is what the bound was asked for.
-        if (listingBound == Integer.MAX_VALUE && globstarLeads(glob) && walkableStrategy(partitionConfig)) {
+        if (extents.boundsFileSet() == false && globstarLeads(glob) && walkableStrategy(partitionConfig)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             if (partitionHints.isEmpty() == false) {
                 PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
@@ -577,6 +578,8 @@ public final class GlobExpander {
                     }
                     fileOrder.apply(walked);
                     List<String> walkNotices = new ArrayList<>();
+                    // Reached only when the file set is unbounded, so this listing is never a prefix: detection
+                    // folds over all of it, as it did before the extents were split.
                     PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
@@ -621,16 +624,16 @@ public final class GlobExpander {
         String excludedExampleEntry = null;
         int listed = 0;
 
-        // Set below, once the drain has stopped: true when it stopped at listingBound rather than exhausting.
+        // Set below, once the drain has stopped: true when it stopped at the file-set extent rather than exhausting.
         boolean truncated = false;
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             // The bound is tested before hasNext(), not inside the loop: on S3 hasNext() fetches the next page as
             // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
             // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
-            // establishing that more keys exist - a dataset of exactly listingBound keys is marked truncated when it is
+            // establishing that more keys exist - a dataset of exactly the file-set extent is marked truncated when it is
             // not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
             // request.
-            while (listed < listingBound && iterator.hasNext()) {
+            while (listed < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
                 checkListedObjectsLimit(listed, maxListedObjects);
@@ -675,7 +678,7 @@ public final class GlobExpander {
             }
         }
 
-        truncated = listed >= listingBound;
+        truncated = listed >= extents.maxFiles();
 
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
@@ -707,7 +710,7 @@ public final class GlobExpander {
 
         fileOrder.apply(matched);
 
-        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
+        PartitionMetadata partitionMetadata = detectPartitions(extents.partitionSampleOf(matched), partitionConfig, listingWarnings::add);
 
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
@@ -857,20 +860,6 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
-     * <p>
-     * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
-     * nothing else narrows it. Partition pruning does narrow it — {@link PartitionPruningWalk} descends only the
-     * directories a hint admits — and the flat listing applies no partition pruning at all, since the hints it
-     * consults ({@link #fileMetadataHints}) are the complement of these. So a bounded listing and an unbounded one
-     * over the same hinted glob enumerate different files, not a prefix and its whole, and would disagree about
-     * which file is first. Callers that must preserve the anchor use this to decline the bound.
-     */
-    public static boolean hasPartitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
-        return partitionPruningHints(hints).isEmpty() == false;
-    }
-
-    /**
      * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
      * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
      */
@@ -1010,7 +999,7 @@ public final class GlobExpander {
                     FileOrderConfig.DEFAULT,
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
-                    Integer.MAX_VALUE
+                    ListingExtents.UNBOUNDED
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

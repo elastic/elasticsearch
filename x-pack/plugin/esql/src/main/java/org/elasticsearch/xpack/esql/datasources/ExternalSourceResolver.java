@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -1459,7 +1460,7 @@ public class ExternalSourceResolver {
      *
      * <p>A bounded listing is a prefix of the dataset, and cache entries are keyed by the path and its filters
      * rather than by what the query needed, so a bounded listing never touches the cache in either direction.
-     * See {@link #listingBoundFor}.
+     * See {@link #listingExtentsFor}.
      */
     private FileList listAndRecord(
         String path,
@@ -1472,19 +1473,20 @@ public class ExternalSourceResolver {
         ResolutionDemand demand
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
-        int listingBound = listingBoundFor(demand, SchemaBreadth.of(schemaResolution), config, hints);
-        FileList listing = cacheable && listingBound == Integer.MAX_VALUE
+        ListingExtents extents = listingExtentsFor(demand, schemaResolution, config, hints);
+        FileList listing = cacheable && extents.boundsFileSet() == false
             ? cachedListing(path, storagePath, provider, hints, config)
-            : expandAndCompact(path, provider, hints, config, storagePath, listingBound);
-        assert listing.isTruncated() == false || listingBound != Integer.MAX_VALUE
-            : "a listing was truncated without a bound being asked for";
+            : expandAndCompact(path, provider, hints, config, storagePath, extents);
+        assert listing.isTruncated() == false || extents.boundsFileSet()
+            : "a listing was truncated without a file-set extent being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
     }
 
     /**
-     * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
+     * How far this resolution's listing runs: how many files it returns, and how many paths partition detection
+     * folds over. {@link ListingExtents#UNBOUNDED} is the whole glob for both.
      *
      * <p>Answered here and nowhere else, and answered before the caller chooses whether to consult the listing
      * cache, because the two are one decision: a bound revoked after the cache was bypassed lists the whole glob
@@ -1495,26 +1497,43 @@ public class ExternalSourceResolver {
      * listing — a dataset-chosen file order or partition pruning each make the listing something other than the
      * whole glob in provider order, so a prefix of it would move the file {@code FIRST_FILE_WINS} reads.
      */
-    private int listingBoundFor(
+    private ListingExtents listingExtentsFor(
         ResolutionDemand demand,
-        SchemaBreadth schemaBreadth,
+        @Nullable FormatReader.SchemaResolution schemaResolution,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints
     ) {
-        if (demand.isSchemaDiscovery() == false || schemaBreadth.answerableFromAPrefix() == false) {
-            return Integer.MAX_VALUE;
+        if (demand.isSchemaDiscovery() == false || schemaAnswerableFromAPrefix(schemaResolution) == false) {
+            return ListingExtents.UNBOUNDED;
         }
         if (FileOrderConfig.forListing(config).equals(FileOrderConfig.DEFAULT) == false) {
-            return Integer.MAX_VALUE;
+            return ListingExtents.UNBOUNDED;
         }
         // Any hint, not only a pruning one. A _file.* filter prunes no folder, but it decides which entry becomes
         // the anchor: when nothing in the listing matches it, the first entry visited is stashed and used. Over a
         // prefix that is the first key of the dataset; over the whole glob it is the matching file. Bounding here
         // would answer a schema request from a different file than the query that reads rows would use.
         if (hints != null && hints.isEmpty() == false) {
-            return Integer.MAX_VALUE;
+            return ListingExtents.UNBOUNDED;
         }
-        return PartitionConfig.sampleSize(config);
+        int sampleSize = PartitionConfig.sampleSize(config);
+        return new ListingExtents(sampleSize, sampleSize);
+    }
+
+    /**
+     * How much of a dataset its schema depends on, reduced to the one thing every extent decision needs: whether it
+     * can be answered from the front of the listing at all. A declared mapping ({@code null} here) needs no file,
+     * {@code first_file_wins} needs one, and union-by-name and strict need every file by contract.
+     * <p>
+     * The answer is taken here, where the mode and the mapping are both in hand, and only the extents travel on.
+     * Nothing downstream re-reads the mode, so a dataset that reaches "one file" through a non-strict declared
+     * overlay is indistinguishable from one that reaches it directly.
+     * <p>
+     * A new resolution mode is classified as spanning every file until it says otherwise, which declines the
+     * bound rather than granting it — the safe direction for a mode nobody has considered here yet.
+     */
+    private static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
+        return schemaResolution == null || schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS;
     }
 
     /**
@@ -1540,7 +1559,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         StoragePath storagePath
     ) throws Exception {
-        return expandAndCompact(path, provider, hints, config, storagePath, Integer.MAX_VALUE);
+        return expandAndCompact(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED);
     }
 
     private FileList expandAndCompact(
@@ -1549,7 +1568,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         StoragePath storagePath,
-        int listingBound
+        ListingExtents extents
     ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
@@ -1560,7 +1579,7 @@ public class ExternalSourceResolver {
             maxDiscoveredFiles.getAsInt(),
             maxGlobExpansion.getAsInt(),
             maxListedObjects.getAsInt(),
-            listingBound
+            extents
         );
     }
 
@@ -3726,10 +3745,11 @@ public class ExternalSourceResolver {
         long discoveryStartNanos = System.nanoTime();
         // A declaration is the whole schema for every file, so this listing only counts files and derives
         // partition columns from the paths: the count is marked partial below, coverage is partition_sample_size.
-        // A declared mapping is used whatever schema_resolution says, so the breadth is the declaration's. The
-        // file order is still consulted in listingBoundFor, where forListing answers NAME_ASC for every mode but
-        // first_file_wins — so a declared mapping is bounded only under first_file_wins, the default.
-        int listingBound = listingBoundFor(demand, SchemaBreadth.DECLARATION, config, hints);
+        // A declared mapping is used whatever schema_resolution says, so no file defines the schema — a null
+        // resolution is how that is said here. The file order is still consulted in listingExtentsFor, where
+        // forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping is bounded only
+        // under first_file_wins, the default.
+        ListingExtents extents = listingExtentsFor(demand, null, config, hints);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,
@@ -3739,12 +3759,12 @@ public class ExternalSourceResolver {
                 maxDiscoveredFiles.getAsInt(),
                 maxGlobExpansion.getAsInt(),
                 maxListedObjects.getAsInt(),
-                listingBound
+                extents
             );
-        } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
+        } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
             listing = cachedListing(path, storagePath, provider, hints, config);
         } else {
-            listing = expandAndCompact(path, provider, hints, config, storagePath, listingBound);
+            listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));

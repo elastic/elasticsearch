@@ -1107,7 +1107,7 @@ GET /my-data-stream/_eql/search
 ```
 % TEST[setup:sec_logs]
 
-The event category field must be mapped as a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) family field type. The timestamp field should be mapped as a [`date`](/reference/elasticsearch/mapping-reference/date.md) field type. [`date_nanos`](/reference/elasticsearch/mapping-reference/date_nanos.md) timestamp fields are not supported. You cannot use a [`nested`](/reference/elasticsearch/mapping-reference/nested.md) field or the sub-fields of a `nested` field as the timestamp or event category field.
+The event category field must be mapped as a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) family field type. The timestamp field should be mapped as a [`date`](/reference/elasticsearch/mapping-reference/date.md) or [`date_nanos`](/reference/elasticsearch/mapping-reference/date_nanos.md) field type. You cannot use a [`nested`](/reference/elasticsearch/mapping-reference/nested.md) field or the sub-fields of a `nested` field as the timestamp or event category field.
 
 
 ## Specify a sort tiebreaker [eql-search-specify-a-sort-tiebreaker]

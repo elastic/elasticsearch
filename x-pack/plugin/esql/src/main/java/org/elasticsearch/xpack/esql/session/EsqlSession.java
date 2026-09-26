@@ -475,6 +475,7 @@ public class EsqlSession {
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan(),
             preserveViewBoundaries,
             listener.delegateFailureAndWrap((l, viewResolution) -> {

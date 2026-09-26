@@ -38,6 +38,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvePattern() {
         assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
 
         indexRandom(
             true,
@@ -48,7 +49,15 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-*"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "view-index", "test-index");
+                assertResultConcreteIndices(response, "test-index"); // no views by default
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index"); // views are opt-out
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
             }
         }
     }
@@ -62,15 +71,15 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *-view"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .non-hidden-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1", "regular-index-1");// matched index and view
             }

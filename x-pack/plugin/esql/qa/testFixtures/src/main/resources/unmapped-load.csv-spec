@@ -3608,8 +3608,10 @@ loadViewWildcardCountryViewsLoadMode
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
 
 SET unmapped_fields="load"\;
+SET wildcards_match_views=true\;
 FROM country_*
 | STATS count=SUM(count) BY country
 | WHERE count > 11

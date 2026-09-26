@@ -573,6 +573,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
+    public void testWildcardsMatchViewsFalseDoesNotExpandWildcard() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        // wildcard pattern — skipped; relation returned unchanged
+        assertThat(replaceViews(query("FROM view*"), false), matchesPlan(query("FROM view*")));
+        // exact name — still matched regardless of the setting
+        assertThat(replaceViews(query("FROM view1"), false), matchesPlan(query("FROM emp1")));
+        // cluster-alias wildcard with concrete index expression — the `*` is a project selector, not an
+        // index wildcard, so the pattern is not filtered and reaches the view resolver. In a non-CPS context
+        // (this test), no view matches `*:view1` (remote pattern), so the relation is returned unchanged.
+        // In CPS mode the resolver would create a REQUIRED shadow for the linked-project lookup.
+        assertThat(replaceViews(query("FROM *:view1"), false), matchesPlan(query("FROM *:view1")));
+    }
+
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
         addView("view1", "FROM emp");
         addIndex("index1");
@@ -1299,7 +1313,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, true, this::parse, false, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1307,7 +1321,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, true, this::parse, false, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2803,6 +2817,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
     }
 
+    private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(plan, null, wildcardsMatchViews, this::parse, false, future);
+        return COMPACTION.apply(future.actionGet().plan());
+    }
+
     /**
      * Run view resolution under CPS so {@link ViewShadowRelation} siblings are emitted alongside
      * the strict resolution. Default for the uncompacted-shape tests because most of them assert
@@ -2824,7 +2844,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, this::parse, false, future);
+        resolver.replaceViews(plan, null, true, this::parse, false, future);
         return future.actionGet().plan();
     }
 

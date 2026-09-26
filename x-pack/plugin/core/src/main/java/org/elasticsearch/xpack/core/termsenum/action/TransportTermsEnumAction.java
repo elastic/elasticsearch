@@ -94,6 +94,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRequest, TermsEnumResponse> {
 
@@ -451,13 +452,23 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
+            var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            var mappedFieldType = indexService.mapperService().fieldType(request.field());
+            var fieldName = mappedFieldType != null ? mappedFieldType.name() : request.field();
+
+            if (indexAccessControl != null
+                && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                && (indexAccessControl.isDlsFlsImplicit() || FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState))
+                && indexAccessControl.getFieldPermissions().grantsAccessTo(fieldName) == false) {
+                return false;
+            }
+
             if (indexAccessControl != null
                 && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
                 && (indexAccessControl.isDlsFlsImplicit() || DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState))) {
                 // Check to see if any of the roles defined for the current user rewrite to match_all
 
                 SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                 final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
                     shardId.id(),
                     0,

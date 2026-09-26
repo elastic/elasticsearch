@@ -22,10 +22,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -85,6 +87,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -398,7 +401,14 @@ public class QueryRewriteContext {
         }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(fieldName);
+        }
+
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            return constantFieldType.applyFieldVisibility(isFieldVisible(fieldType.name()));
+        }
+        return fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {
@@ -432,6 +442,10 @@ public class QueryRewriteContext {
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
@@ -680,6 +694,13 @@ public class QueryRewriteContext {
                 && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
         }
         return false;
+    }
+
+    public boolean isFieldVisible(String field) {
+        return runtimeMappings.containsKey(field)
+            || mappingLookup.isRuntimeField(field)
+            || (mapperService != null && mapperService.isMetadataField(field))
+            || fieldVisibilityPredicate.test(field);
     }
 
     public ResolvedIndices getResolvedIndices() {

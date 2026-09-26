@@ -154,6 +154,29 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNullFieldValue, -1, ignoredValues));
     }
 
+    public void testApplyFieldVisibility() {
+        Map<String, String> meta = Map.of("key", "value");
+        var fieldType = new ConstantKeywordFieldType("field", "constant", meta);
+
+        // A visible field is unchanged.
+        assertSame(fieldType, fieldType.applyFieldVisibility(true));
+        assertEquals("constant", fieldType.value());
+
+        // A hidden field retains its mapping identity but loses the constant.
+        var hidden = (ConstantKeywordFieldType) fieldType.applyFieldVisibility(false);
+        assertNotSame(fieldType, hidden);
+        assertEquals("field", hidden.name());
+        assertEquals(meta, hidden.meta());
+        assertNull(hidden.value());
+
+        // Sanitizing the copy did not mutate the mapping's original field type.
+        assertEquals("constant", fieldType.value());
+
+        // Once value-less, applying visibility again cannot restore the value.
+        assertSame(hidden, hidden.applyFieldVisibility(false));
+        assertSame(hidden, hidden.applyFieldVisibility(true));
+    }
+
     @Override
     public MappedFieldType getMappedFieldType() {
         return new ConstantKeywordFieldMapper.ConstantKeywordFieldType(randomAlphaOfLength(5), randomAlphaOfLength(5));

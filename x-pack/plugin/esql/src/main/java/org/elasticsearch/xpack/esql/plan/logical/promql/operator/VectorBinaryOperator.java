@@ -20,10 +20,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -450,8 +454,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // TimeSeriesAggregate, where source fields (like `labels.__name__`) are still present. Combining the two
         // filters with AND on the source relation would exclude all rows for cross-metric binary ops: a row matches
         // `labels.__name__ = "metric_a"` or `labels.__name__ = "metric_b"` but never both simultaneously.
-        Expression leftMax = applySeriesFilter(new Max(leftSource, left.value()), left.pendingFilter());
-        Expression rightMax = applySeriesFilter(new Max(rightSource, right.value()), right.pendingFilter());
+        Expression leftMax = applySeriesFilter(new Max(leftSource, emptyCountAsNull(left.value())), left.pendingFilter());
+        Expression rightMax = applySeriesFilter(new Max(rightSource, emptyCountAsNull(right.value())), right.pendingFilter());
         Expression leftExpr = new ToDouble(leftSource, leftMax);
         Expression rightExpr = new ToDouble(rightSource, rightMax);
         Expression paired = binaryOp.asFunction().create(source(), leftExpr, rightExpr, translation.configuration());
@@ -474,6 +478,28 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return expr;
         }
         return expr.transformDown(TimeSeriesAggregateFunction.class, f -> f.withFilter(filter));
+    }
+
+    /**
+     * A count is at least 1 for an element: {@code count} counts a group's series, {@code count_over_time} a series'
+     * samples in the window, and a group or series with none is no element. Fused with the other operand's aggregate, a
+     * count reads 0 in a group that only the other operand's rows create, so a 0 is the absence of an element: it becomes
+     * null and the pair drops like any unmatched one. Other aggregates are null over no rows already.
+     */
+    private static Expression emptyCountAsNull(Expression value) {
+        return value.transformUp(e -> {
+            if (e instanceof Count || e instanceof CountOverTime) {
+                Expression empty = new Equals(e.source(), e, new Literal(e.source(), 0L, DataType.LONG));
+                return new Case(e.source(), empty, List.of(Literal.NULL, e));
+            }
+            return e;
+        });
+    }
+
+    private static List<? extends Expression> emptyCountsAsNull(List<? extends Expression> aggregates) {
+        return aggregates.stream()
+            .map(e -> e instanceof Alias a ? new Alias(a.source(), a.name(), emptyCountAsNull(a.child()), a.id()) : e)
+            .toList();
     }
 
     /**
@@ -553,8 +579,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 .toList();
 
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter()));
-            uniqueAggregates.addAll(withSeriesFilter(rightAggregates, right.pendingFilter()));
+            uniqueAggregates.addAll(emptyCountsAsNull(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter())));
+            uniqueAggregates.addAll(emptyCountsAsNull(withSeriesFilter(rightAggregates, right.pendingFilter())));
             if (dropMetricName) {
                 // the dropped grouping is no longer an output column either
                 uniqueAggregates.removeIf(e -> e instanceof Attribute a && isMetricName(a));

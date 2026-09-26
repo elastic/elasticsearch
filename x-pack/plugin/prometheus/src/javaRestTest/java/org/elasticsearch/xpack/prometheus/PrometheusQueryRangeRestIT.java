@@ -680,4 +680,14 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be scalar or instant vector"));
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantCountOverNothingIsNoElement}. */
+    public void testRangeCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopRangeValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopRangeValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopRangeGroups("count_over_time(tx[5m]) + count_over_time(rx{host=\"a\"}[5m])", "host", Map.of("a", 4.0));
+        assertBinopRangeValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(rx{host=~\"nope\"}[5m])");
+    }
 }

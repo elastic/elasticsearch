@@ -838,4 +838,17 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             );
         }
     }
+
+    /**
+     * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
+     * operator has no {@code qa} pair; two counts over nothing pair nothing.
+     */
+    public void testInstantCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopInstantGroups("count_over_time(tx[5m]) + count_over_time(rx{host=\"a\"}[5m])", "host", Map.of("a", 4.0));
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(rx{host=~\"nope\"}[5m])");
+    }
 }

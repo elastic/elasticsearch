@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1189,6 +1192,28 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             Aggregate regroup = plan.collect(Aggregate.class).getFirst();
             boolean filtersNullPairs = regroup.child().anyMatch(p -> p instanceof Filter f && f.condition() instanceof IsNotNull);
             assertTrue(promql + ": the pair must be filtered before the regroup\n" + plan, filtersNullPairs);
+        }
+    }
+
+    /**
+     * A count is at least 1 for an element and a group with none is no element. Fused with the other operand's aggregate,
+     * an operand's count reads 0 in a group that only the other operand's rows create; the plan turns that 0 into null so
+     * the pair drops with the unmatched ones, for the series count and for the sample count alike.
+     */
+    public void testEmptyCountOperandIsNull() {
+        for (String promql : List.of(
+            "count by (cluster) (requests) - count by (cluster) (errors{pod=\"p1\"})",
+            "count_over_time(requests[5m]) - count_over_time(errors{pod=\"p1\"}[5m])",
+            "count(requests{pod=~\"nope\"}) - count(errors{pod=~\"nope\"})"
+        )) {
+            LogicalPlan plan = planMetricNameIndex(promql);
+            List<Expression> zeroAsNull = new ArrayList<>();
+            plan.forEachExpressionDown(Case.class, c -> {
+                if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+                    zeroAsNull.add(c);
+                }
+            });
+            assertThat(promql + ": one null-when-empty count per operand\n" + plan, zeroAsNull, hasSize(2));
         }
     }
 

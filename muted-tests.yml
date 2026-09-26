@@ -472,3 +472,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160380
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStaticMappingChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/160381

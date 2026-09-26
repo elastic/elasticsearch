@@ -278,7 +278,8 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      */
     public void testTheObjectPathCasesNeedASurvivingViewBoundary() {
         String prefiltered = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
-        // Order in the dump is depth: the predicate has to sit BELOW the view boundary, not above it.
+        // The dump is a pre-order walk, so "later" means descendant or later sibling. This query is a single spine,
+        // where the two coincide: the predicate has to sit BELOW the view boundary, not above it.
         assertThat(prefiltered, containsString("ViewUnionAll"));
         assertThat(prefiltered, containsString("ISNOTNULL(user.name"));
         assertThat(

@@ -511,4 +511,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("max by (host) (tx) * rx");
         assertBinopRangeValues("sum(tx) / rx");
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantUnmatchedPairsNeverReachTheEnclosingAggregate}. */
+    public void testRangeUnmatchedPairsNeverReachTheEnclosingAggregate() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("count by (cluster) (tx / rx{host!=\"c\"})", "cluster", Map.of("prod", 2.0));
+        assertBinopRangeValues("count(tx / rx{host!=\"c\"})", 2);
+        assertBinopRangeGroups("sum by (cluster) (tx - rx{host!=\"c\"})", "cluster", Map.of("prod", 35.0));
+        assertBinopRangeValues("count(tx / rx{host=~\"nope\"})");
+    }
 }

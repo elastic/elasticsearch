@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -369,8 +370,18 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             : Kind.BEFORE_INITIAL_AGGREGATE;
         // OUT: the vector operand's labels (left when both are) - `__name__` for a name-dropping operator
         Map<TranslationColumn, Attribute> labels = dropMetricName ? ir.drop(name).labels() : ir.labels();
-        TranslationResult result = new TranslationResult(plan, labels, null, ir.step(), filter, kind);
-        return translation.eval(result, binaryExpr);
+        TranslationResult result = translation.eval(new TranslationResult(plan, labels, null, ir.step(), filter, kind), binaryExpr);
+        return vectors && kind == Kind.AFTER_INITIAL_AGGREGATE ? dropUnmatched(result) : result;
+    }
+
+    /**
+     * A series without a partner is not part of a vector operation's result. The paired collapse and the fused aggregate
+     * compute the operator row by row and leave a null where one side is missing; the rows go here, before an enclosing
+     * aggregate could count them as a group ({@code count by (k) (a / b)} has no group for an unmatched series).
+     */
+    private static TranslationResult dropUnmatched(TranslationResult paired) {
+        Attribute value = paired.valueColumn();
+        return paired.with(new Filter(value.source(), paired.plan(), new IsNotNull(value.source(), value)), value);
     }
 
     /** A raw (not yet collapsed) instant-vector operand, as opposed to a scalar or an aggregated table. */
@@ -450,7 +461,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             null,
             Kind.BEFORE_INITIAL_AGGREGATE
         );
-        return translation.aggregate(raw, paired);
+        return dropUnmatched(translation.aggregate(raw, paired));
     }
 
     private static Expression applySeriesFilter(Expression expr, Expression filter) {

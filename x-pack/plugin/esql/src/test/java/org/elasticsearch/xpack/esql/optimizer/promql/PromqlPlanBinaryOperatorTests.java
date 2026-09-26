@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -1173,6 +1174,22 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         LogicalPlan swapped = planMetricNameIndex("errors / sum by (pod) (requests)");
         assertThat(swapped.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "pod")));
         assertThat(swapped.collect(InnerJoin.class), hasSize(1));
+    }
+
+    /**
+     * The paired collapse and the fused aggregate leave a null value for a series without a partner; the operator drops
+     * those rows before an enclosing aggregate regroups, so an unmatched series produces no group (and no zero count).
+     */
+    public void testUnmatchedPairsAreFilteredBeforeTheEnclosingAggregate() {
+        for (String promql : List.of(
+            "count by (cluster) (requests / errors)",
+            "sum by (pod) (sum by (pod, cluster) (requests) / sum by (pod, cluster) (errors))"
+        )) {
+            LogicalPlan plan = planMetricNameIndex(promql);
+            Aggregate regroup = plan.collect(Aggregate.class).getFirst();
+            boolean filtersNullPairs = regroup.child().anyMatch(p -> p instanceof Filter f && f.condition() instanceof IsNotNull);
+            assertTrue(promql + ": the pair must be filtered before the regroup\n" + plan, filtersNullPairs);
+        }
     }
 
     /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */

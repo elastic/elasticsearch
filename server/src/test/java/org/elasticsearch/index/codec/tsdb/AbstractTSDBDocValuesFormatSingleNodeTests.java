@@ -23,11 +23,13 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.MetricingCodec;
 import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -40,6 +42,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(ShardMetrics.CODEC_METRICS_ENABLED.getKey(), randomBoolean()).build();
+    }
 
     protected abstract void assertTSDBDocValuesFormat(DocValuesFormat format, String field);
 
@@ -174,7 +181,10 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     private DocValuesFormat getDocValuesFormatForField(final IndexShard shard, final String field) {
-        final Codec codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+        Codec codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+        if (codec instanceof MetricingCodec metricingCodec) {
+            codec = metricingCodec.delegate();
+        }
 
         if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
             return es93104codec.getDocValuesFormatForField(field);

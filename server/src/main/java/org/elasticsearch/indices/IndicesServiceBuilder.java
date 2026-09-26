@@ -27,10 +27,10 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -86,7 +86,7 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
-    MergeMetrics mergeMetrics;
+    ShardMetrics shardMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
@@ -196,8 +196,8 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder mergeMetrics(MergeMetrics mergeMetrics) {
-        this.mergeMetrics = mergeMetrics;
+    public IndicesServiceBuilder shardMetrics(ShardMetrics shardMetrics) {
+        this.shardMetrics = shardMetrics;
         return this;
     }
 
@@ -244,7 +244,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
-        Objects.requireNonNull(mergeMetrics);
+        Objects.requireNonNull(shardMetrics);
         Objects.requireNonNull(searchOperationListener);
         Objects.requireNonNull(loggingFieldsProvider);
         Objects.requireNonNull(throttlingRecoveryService);

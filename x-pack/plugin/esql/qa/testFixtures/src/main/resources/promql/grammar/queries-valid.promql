@@ -249,3 +249,5 @@ foo offset -(1^2);
 (sum(foo));
 (sum(foo) by (bar));
 (sum by (bar) (foo));
+sort(some_metric);
+sort_desc(some_metric);

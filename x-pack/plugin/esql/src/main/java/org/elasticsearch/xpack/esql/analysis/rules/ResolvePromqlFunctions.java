@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -173,6 +174,7 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
+            case RESULT_ORDERING -> new SortFunction(unresolved.source(), child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );

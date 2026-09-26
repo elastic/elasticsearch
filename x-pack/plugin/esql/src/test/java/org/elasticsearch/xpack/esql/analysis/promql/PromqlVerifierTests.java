@@ -453,6 +453,20 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testSortRejectsRangeVector() {
+        tsdb.error(
+            "PROMQL index=test step=5m sort(network.bytes_in[5m])",
+            containsString("expected type instant_vector in call to function [sort], got range_vector")
+        );
+    }
+
+    public void testSortDescRejectsRangeVector() {
+        tsdb.error(
+            "PROMQL index=test step=5m sort_desc(network.bytes_in[5m])",
+            containsString("expected type instant_vector in call to function [sort_desc], got range_vector")
+        );
+    }
+
     public void testInstantVectorExpectedWithGrouping() {
         tsdb.error(
             "PROMQL index=test step=5m avg by (pod) (network.bytes_in[5m])",

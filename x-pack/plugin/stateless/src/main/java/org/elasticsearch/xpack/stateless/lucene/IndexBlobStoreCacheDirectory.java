@@ -11,9 +11,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -130,6 +132,60 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                     totalBytesWarmedFromObjectStore,
                     BlobCacheMetrics.CachePopulationReason.Warming
                 );
+            }
+        };
+    }
+
+    /// Same as [createNewBlobStoreCacheDirectoryForWarming] but uses different
+    /// [org.elasticsearch.blobcache.BlobCacheMetrics.CachePopulationReason] so we have better visibility on misses during a BCC-chain walk
+    /// during recovery.
+    public IndexBlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForBccChainWalkDuringRelocation() {
+        return new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.BccChainWalkDuringRelocation
+                );
+            }
+
+            // override this method to return the blob-cache directory for BCC-chain walks and hence use the above `getCacheBlobReader`
+            // because otherwise we'll end up with `createNewBlobStoreCacheDirectoryForWarming`
+            @Override
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+                return createNewBlobStoreCacheDirectoryForBccChainWalkDuringRelocation();
+            }
+
+            @Override
+            protected SharedBlobCacheService.CacheMissHandler createCacheMissHandler() {
+                final var delegate = super.createCacheMissHandler();
+                return new SharedBlobCacheService.CacheMissHandler() {
+                    @Override
+                    public Releasable record(long bytes) {
+                        final long start = System.nanoTime();
+                        final Releasable inner = delegate.record(bytes);
+                        return () -> {
+                            final long waitNanos = System.nanoTime() - start;
+                            inner.close();
+                            getCacheService().getBlobCacheMetrics().recordCacheWait(waitNanos);
+                        };
+                    }
+
+                    @Override
+                    public SharedBlobCacheService.CacheMissHandler copy() {
+                        return createCacheMissHandler();
+                    }
+                };
             }
         };
     }

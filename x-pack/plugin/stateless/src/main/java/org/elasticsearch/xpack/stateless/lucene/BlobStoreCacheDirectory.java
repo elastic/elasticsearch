@@ -356,10 +356,14 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
             // blob length (with padding added).
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
-            // todo: time-source
-            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
+            createCacheMissHandler(),
             timestampMillis
         );
+    }
+
+    protected SharedBlobCacheService.CacheMissHandler createCacheMissHandler() {
+        // todo: time-source
+        return new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime);
     }
 
     /**

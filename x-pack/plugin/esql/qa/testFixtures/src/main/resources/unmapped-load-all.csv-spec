@@ -20,6 +20,26 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+// A fully-mapped index has no unmapped source fields, so LOAD_ALL adds no columns. The data node skips the _source read entirely
+// (SkipUnmappedFieldsExtraction nullifies the synthetic column in the local physical plan), and the coordinator drops that null column.
+fromFullyMappedIndexHasNoUnmappedColumns
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM sample_data
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+;
+
 keepStarIsIdempotent
 required_capability: optional_fields_load_all_v2
 

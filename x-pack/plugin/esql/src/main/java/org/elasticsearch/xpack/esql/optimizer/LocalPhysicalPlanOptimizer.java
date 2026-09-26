@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSou
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SkipUnmappedFieldsExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -110,6 +111,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
+            new SkipUnmappedFieldsExtraction(),
             new SpatialDocValuesExtraction(),
             new SpatialShapeDocValuesExtraction(),
             // Runs after PushTopNIntoExternalSource (which lives in the pushdown batch above) so we

@@ -27,7 +27,11 @@ import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -539,6 +544,62 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
+    }
+
+    @Override
+    public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
+        // Safe to skip only when every shard is provably free of unmapped source fields for this pattern.
+        for (SearchExecutionContext context : contexts) {
+            if (isNoop(pattern, context.getMappingLookup()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns {@code true} when, on the shard described by {@code mappingLookup}, {@code pattern} can never match any
+     * {@code _source} field — so the {@code _unmapped_fields} column would be null in every row and the {@code _source}
+     * read may be skipped entirely.
+     *
+     * <p>For top-level scalar fields (no dot in the full path) it applies {@link UnmappedFieldsPattern#matches}; for
+     * top-level object and nested fields it applies the looser {@link UnmappedFieldsPattern#objectSubfieldsCouldMatch}.
+     * That check is conservative: an object field whose every descendant is excluded still causes the method to return
+     * {@code false}, falling back to the full {@code _source} read. That is safe — the optimisation matters most for
+     * flat, fully-mapped indices where no object fields appear.
+     *
+     * <p>The mapping-based check is only valid when the root {@code dynamic} setting guarantees the mapping covers every
+     * {@code _source} field; under {@code dynamic:false} or {@code dynamic:flattened} the method returns {@code false},
+     * because {@code _source} may then contain fields absent from the mapping.
+     */
+    static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
+        if (pattern.isNone()) {
+            return true;
+        }
+        ObjectMapper.Dynamic rootDynamic = ObjectMapper.Dynamic.getRootDynamic(mappingLookup);
+        if (rootDynamic == ObjectMapper.Dynamic.FALSE || rootDynamic == ObjectMapper.Dynamic.FLATTENED) {
+            return false;
+        }
+        // Top-level scalar fields. MetadataFieldMapper instances (_id, _source, etc.) live outside the user _source
+        // document, so they must not be considered here. Dotted paths (e.g. "parent.child") are not top-level _source
+        // keys — they are covered by the object-mapper pass below.
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof MetadataFieldMapper) {
+                continue;
+            }
+            String fullPath = mapper.fullPath();
+            if (fullPath.indexOf('.') < 0 && pattern.matches(fullPath)) {
+                return false;
+            }
+        }
+        // Top-level object and nested fields.
+        for (ObjectMapper objectMapper : mappingLookup.objectMappers().values()) {
+            String fullPath = objectMapper.fullPath();
+            if (fullPath.indexOf('.') < 0 && pattern.objectSubfieldsCouldMatch(fullPath)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

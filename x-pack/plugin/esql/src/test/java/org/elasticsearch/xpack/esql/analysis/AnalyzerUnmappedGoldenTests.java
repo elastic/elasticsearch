@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
@@ -71,6 +72,20 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             FROM employees
             | KEEP emp_no*
             """).run();
+    }
+
+    /**
+     * A fully-mapped data node can never surface an unmapped source field, so {@code SkipUnmappedFieldsExtraction} pulls
+     * {@code $$unmapped_fields} out of the {@code FieldExtractExec} and replaces it with a null {@code EvalExec} in the local
+     * physical plan: the {@code _source} read is skipped, while the (all-null) column stays in place for the coordinator to drop.
+     * The {@code local_physical_optimization} golden makes that rewrite visible. See
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SkipUnmappedFieldsExtraction}.
+     */
+    public void testLoadAllFullyMappedSkipsSourceRead() throws Exception {
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM employees
+            | KEEP emp_no, first_name*
+            """).searchStats(new TestConfigurableSearchStats().canSkipUnmappedFieldsExtraction(true)).run();
     }
 
     public void testKeepRepeated() throws Exception {

@@ -680,3 +680,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/160285
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/160368

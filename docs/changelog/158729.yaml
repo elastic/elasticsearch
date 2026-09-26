@@ -1,0 +1,6 @@
+pr: 158729
+summary: Fix Grok#match using char length as byte range
+area: Ingest Node
+type: bug
+issues:
+ - 158721

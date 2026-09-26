@@ -33,7 +33,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandlerTests extends EST
     private static final String INFERENCE_ID = "vertexAiInference";
 
     private final GoogleVertexAiUnifiedChatCompletionResponseHandler responseHandler =
-        new GoogleVertexAiUnifiedChatCompletionResponseHandler("chat_completion");
+        new GoogleVertexAiUnifiedChatCompletionResponseHandler("chat_completion", false);
 
     public void testFailValidationWithAllErrorFields() throws IOException {
         var responseJson = """

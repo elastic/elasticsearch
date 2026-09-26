@@ -35,9 +35,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -258,7 +256,10 @@ public final class GlobExpander {
      * The {@code _file.*} filters are kept — they are exact and can hide nothing. If that is empty too the pattern
      * genuinely matches nothing and the caller's "matched no files" error stands. A full re-list can exceed
      * {@code max_discovered_files} and throw, exactly as the unfiltered query would; that is deliberate, because
-     * telling a narrowing miss from a genuinely empty dataset needs the whole listing.
+     * telling a narrowing miss from a genuinely empty dataset needs the whole listing. A multi-value hint does not
+     * rewrite the glob, so this method does not retry it. The flat listing lists once more, without the value
+     * filter, when that filter keeps nothing. Hints stay on the query, so the row filter still yields zero rows
+     * from that anchor.
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
@@ -544,12 +545,16 @@ public final class GlobExpander {
 
         boolean recursive = matcher.needsRecursion();
 
-        // A glob leading with the recursive wildcard names no partition key the textual rewrite could act on, so
-        // the walk narrows the enumeration itself. Every declined or failed shape falls through to the flat listing
-        // below; see PartitionPruningWalk for the fail-closed rules and the trust boundary.
+        // A globstar, or a leading Hive key=*, names a partition level the textual rewrite cannot always narrow
+        // (a multi-value hint leaves key=*). The walk narrows the enumeration itself. Every declined or failed
+        // shape falls through to the flat listing below; see PartitionPruningWalk for the fail-closed rules and
+        // the trust boundary. There is no brace retry: a guessed spelling drops percent-encoded folders.
         // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
         // requests; the flat path under a bound costs one page and is what the bound was asked for.
-        if (listingBound == Integer.MAX_VALUE && globstarLeads(glob) && walkableStrategy(partitionConfig)) {
+        // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
+        // would prune again and undo the rejection.
+        boolean suppressValueFilter = false;
+        if (listingBound == Integer.MAX_VALUE && walkableGlob(glob) && walkableStrategy(partitionConfig)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             if (partitionHints.isEmpty() == false) {
                 PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
@@ -561,8 +566,11 @@ public final class GlobExpander {
                     maxDiscoveredFiles
                 );
                 // An all-pruned walk mirrors the rewrite-to-empty fallback: re-list flat so the resolver keeps a
-                // schema-inference anchor; the row filter still yields zero matching rows.
-                if (walk != null && walk.matched().isEmpty() == false) {
+                // schema-inference anchor; the row filter still yields zero matching rows. The value filter must
+                // not empty that anchor.
+                if (walk != null && walk.matched().isEmpty()) {
+                    suppressValueFilter = true;
+                } else if (walk != null) {
                     List<StorageEntry> walked = walk.matched();
                     if (fileHints.isEmpty() == false) {
                         List<StorageEntry> filtered = new ArrayList<>();
@@ -597,18 +605,32 @@ public final class GlobExpander {
                             return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                         }
                         logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                        suppressValueFilter = true;
                     } else {
                         logger.debug(
                             "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
                             pattern,
                             walk.prunedColumns()
                         );
+                        suppressValueFilter = true;
                     }
                 }
             }
         }
 
+        // Value-filter before the discovery cap. A brace used to hide non-matching folders from this loop; without
+        // it, counting them would trip max_discovered_files on files the query will not read. When the filter keeps
+        // nothing, list once more without it: an empty listing is "matched no files", and the row filter still
+        // yields zero rows from the anchor. A truncated page is not re-listed; a match may sit past the bound.
+        // Files the value filter drops are held aside. The walk's proven-column and type checks do not run when the
+        // walk withdraws, so a kept subset can hide a stray (the column is file data) or narrow a type. Those files
+        // go back. A closed range is then applied again, the same post-filter main already had.
+        PartitionValueFilter valueFilter = suppressValueFilter
+            ? PartitionValueFilter.NONE
+            : PartitionValueFilter.forGlob(glob, hints, partitionConfig);
+
         List<StorageEntry> matched = new ArrayList<>();
+        List<StorageEntry> valueExcluded = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
         // One log line per listing, however many objects it drops. The counts are the useful part: how many of the
@@ -623,59 +645,84 @@ public final class GlobExpander {
 
         // Set below, once the drain has stopped: true when it stopped at listingBound rather than exhausting.
         boolean truncated = false;
-        try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
-            // The bound is tested before hasNext(), not inside the loop: on S3 hasNext() fetches the next page as
-            // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
-            // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
-            // establishing that more keys exist - a dataset of exactly listingBound keys is marked truncated when it is
-            // not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
-            // request.
-            while (listed < listingBound && iterator.hasNext()) {
-                StorageEntry entry = iterator.next();
-                listed++;
-                checkListedObjectsLimit(listed, maxListedObjects);
-                String entryPath = entry.path().toString();
-                String relativePath;
-                if (entryPath.startsWith(prefixStr)) {
-                    relativePath = entryPath.substring(prefixStr.length());
-                } else {
-                    // Defensive fallback: provider returned a path that does not begin with the listing prefix.
-                    // objectName() yields only the last component, so the exclusion check below will miss a hidden
-                    // intermediate directory (e.g. _delta_log/file.json → sees "file.json", not "_delta_log").
-                    // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
-                    relativePath = entry.path().objectName();
-                }
-                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
-                    // Directory placeholder key (e.g. the S3 console "folder" object). These are not files, so they
-                    // are skipped as listing normalization rather than left to exclusion policy — a dataset should
-                    // not have to configure away an artefact of how a console represents a folder.
-                    //
-                    // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
-                    // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by
-                    // the endsWith check, and a `*` glob matches the empty string, so without this the marker
-                    // reaches the reader and fails the query naming an object the user never referenced.
-                    continue;
-                }
-                if (matcher.matches(relativePath)) {
-                    String excludedBy = nameFilter.excludedBy(relativePath);
-                    if (excludedBy == null) {
-                        globKeptCount++;
-                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+        boolean relistUnfiltered = false;
+        do {
+            if (relistUnfiltered) {
+                valueFilter = PartitionValueFilter.NONE;
+                matched.clear();
+                fileHintAnchor = null;
+                excludedCount = 0;
+                globKeptCount = 0;
+                excludedExample = null;
+                excludedExampleEntry = null;
+                listed = 0;
+                valueExcluded.clear();
+                relistUnfiltered = false;
+            }
+            try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
+                // The bound is tested before hasNext(), not inside the loop: on S3 hasNext() fetches the next page as
+                // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
+                // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
+                // establishing that more keys exist - a dataset of exactly listingBound keys is marked truncated when it
+                // is not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
+                // request.
+                while (listed < listingBound && iterator.hasNext()) {
+                    StorageEntry entry = iterator.next();
+                    listed++;
+                    checkListedObjectsLimit(listed, maxListedObjects);
+                    String entryPath = entry.path().toString();
+                    String relativePath;
+                    if (entryPath.startsWith(prefixStr)) {
+                        relativePath = entryPath.substring(prefixStr.length());
                     } else {
-                        // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
-                        // can name a concrete file and the entry responsible; "some files were excluded" on its own
-                        // leaves nothing to act on.
-                        excludedCount++;
-                        if (excludedExample == null) {
-                            excludedExample = relativePath;
-                            excludedExampleEntry = excludedBy;
+                        // Defensive fallback: provider returned a path that does not begin with the listing prefix.
+                        // objectName() yields only the last component, so the exclusion check below will miss a hidden
+                        // intermediate directory (e.g. _delta_log/file.json → sees "file.json", not "_delta_log").
+                        // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
+                        relativePath = entry.path().objectName();
+                    }
+                    if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                        // Directory placeholder key (e.g. the S3 console "folder" object). These are not files, so they
+                        // are skipped as listing normalization rather than left to exclusion policy — a dataset should
+                        // not have to configure away an artefact of how a console represents a folder.
+                        //
+                        // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
+                        // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by
+                        // the endsWith check, and a `*` glob matches the empty string, so without this the marker
+                        // reaches the reader and fails the query naming an object the user never referenced.
+                        continue;
+                    }
+                    if (matcher.matches(relativePath)) {
+                        String excludedBy = nameFilter.excludedBy(relativePath);
+                        if (excludedBy == null) {
+                            globKeptCount++;
+                            if (valueFilter.excludes(entry)) {
+                                valueExcluded.add(entry);
+                                continue;
+                            }
+                            fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                        } else {
+                            // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
+                            // can name a concrete file and the entry responsible; "some files were excluded" on its own
+                            // leaves nothing to act on.
+                            excludedCount++;
+                            if (excludedExample == null) {
+                                excludedExample = relativePath;
+                                excludedExampleEntry = excludedBy;
+                            }
                         }
                     }
                 }
             }
-        }
-
-        truncated = listed >= listingBound;
+            truncated = listed >= listingBound;
+            // globKeptCount counts files the glob kept before the value filter. All of them excluded, and the
+            // page was exhausted: the second pass is the schema anchor. Hints stay on the query.
+            relistUnfiltered = matched.isEmpty()
+                && fileHintAnchor == null
+                && globKeptCount > 0
+                && truncated == false
+                && valueFilter != PartitionValueFilter.NONE;
+        } while (relistUnfiltered);
 
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
@@ -684,6 +731,22 @@ public final class GlobExpander {
         if (excludedCount > 0) {
             exclusionNotice = exclusionNotice(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry);
             logger.debug("{}", exclusionNotice);
+        }
+
+        // Only once the drain has stopped, and only when it kept something: an empty keep already re-listed.
+        // A data-column hint never binds a folder, so it is not something the kept files have to detect.
+        if (valueExcluded.isEmpty() == false && matched.isEmpty() == false) {
+            List<String> prunedColumns = observedPrunedColumns(matched, valueExcluded, partitionConfig, hints);
+            if (prunedColumns.isEmpty() == false && valueFilterTrusted(matched, valueExcluded, partitionConfig, prunedColumns) == false) {
+                logger.debug(
+                    "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
+                    pattern,
+                    prunedColumns
+                );
+                for (StorageEntry excluded : valueExcluded) {
+                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                }
+            }
         }
 
         if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
@@ -799,10 +862,29 @@ public final class GlobExpander {
     }
 
     /**
+     * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
+     * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
+     * A deeper unhinted {@code key=*} ({@code year=*}/{@code city=*} when only {@code city} is filtered) is not
+     * this: the walk still probes the first level and withdraws rather than listing every parent.
+     */
+    private static boolean walkableGlob(String glob) {
+        if (globstarLeads(glob)) {
+            return true;
+        }
+        int slash = glob.indexOf('/');
+        String first = slash < 0 ? glob : glob.substring(0, slash);
+        if (PartitionValueMatcher.folderKey(first) == null) {
+            return false;
+        }
+        int eq = first.indexOf('=');
+        return "*".equals(first.substring(eq + 1));
+    }
+
+    /**
      * Whether the resolved strategy licenses matching {@code key=value} folders during the listing walk: {@code HIVE}
      * always; {@code AUTO} only without a usable template (then it is Hive-or-nothing — with one, detection could
      * resolve to template columns the walk knows nothing about). {@code TEMPLATE} binds whole segments and
-     * {@code NONE} has no partition columns; neither may prune.
+     * {@code NONE} has no partition columns; neither may walk. TEMPLATE still value-filters the flat listing.
      */
     private static boolean walkableStrategy(PartitionConfig config) {
         return switch (config.strategy()) {
@@ -857,17 +939,73 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
-     * <p>
-     * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
-     * nothing else narrows it. Partition pruning does narrow it — {@link PartitionPruningWalk} descends only the
-     * directories a hint admits — and the flat listing applies no partition pruning at all, since the hints it
-     * consults ({@link #fileMetadataHints}) are the complement of these. So a bounded listing and an unbounded one
-     * over the same hinted glob enumerate different files, not a prefix and its whole, and would disagree about
-     * which file is first. Callers that must preserve the anchor use this to decline the bound.
+     * Hint columns that actually occur as a partition folder in the files this listing saw. A data-column hint
+     * ({@code status == "ok"}) never does, and demanding it would reject every real partition prune.
      */
-    public static boolean hasPartitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
-        return partitionPruningHints(hints).isEmpty() == false;
+    private static List<String> observedPrunedColumns(
+        List<StorageEntry> filtered,
+        List<StorageEntry> excluded,
+        PartitionConfig config,
+        @Nullable List<PartitionFilterHint> hints
+    ) {
+        List<String> columns = new ArrayList<>();
+        for (PartitionFilterHint hint : partitionPruningHints(hints)) {
+            String column = hint.columnName();
+            if (columns.contains(column)) {
+                continue;
+            }
+            if (columnObserved(filtered, column, config) || columnObserved(excluded, column, config)) {
+                columns.add(column);
+            }
+        }
+        return columns;
+    }
+
+    private static boolean columnObserved(List<StorageEntry> files, String column, PartitionConfig config) {
+        String template = config.pathTemplate();
+        for (StorageEntry file : files) {
+            if (hivePartitionValue(file.path(), column) != null) {
+                return true;
+            }
+            if (template != null && templatePartitionValue(file.path(), column, template) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a flat value prune may stand. The walk applies {@link #walkPruningProven} and
+     * {@link #walkTypesConsistent} only to a walk that finished; a withdraw (unhinted parent, no
+     * {@code listChildren}) never does. The filtered files have to detect every pruned column, and their types
+     * have to match the files the filter dropped — a stray makes the column file data, and a dropped
+     * {@code month=abc} is what keeps {@code month} a keyword. A failed check puts the files back;
+     * {@link #withoutFoldersOutsideClosedRange} then drops closed-range folders again, dotted segment included.
+     */
+    private static boolean valueFilterTrusted(
+        List<StorageEntry> filtered,
+        List<StorageEntry> excluded,
+        PartitionConfig config,
+        List<String> prunedColumns
+    ) {
+        PartitionMetadata filteredMeta = detectPartitions(filtered, config, ignored -> {});
+        if (filteredMeta == null || filteredMeta.partitionColumns().keySet().containsAll(prunedColumns) == false) {
+            return false;
+        }
+        List<StorageEntry> all = new ArrayList<>(filtered.size() + excluded.size());
+        all.addAll(filtered);
+        all.addAll(excluded);
+        PartitionMetadata fullMeta = detectPartitions(all, config, ignored -> {});
+        if (fullMeta == null) {
+            return false;
+        }
+        for (Map.Entry<String, DataType> column : filteredMeta.partitionColumns().entrySet()) {
+            DataType fullType = fullMeta.partitionColumns().get(column.getKey());
+            if (fullType != null && fullType != column.getValue()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1092,9 +1230,11 @@ public final class GlobExpander {
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
-                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
-                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
-                walkShapeEligible(effectivePattern, partitionConfig)
+                // spellings such as 2.5 and narrow the detected type). A multi-value hint does not rewrite either.
+                // Both change which files the listing keeps, so they join the identity: the walk's hints on a
+                // walkable pattern, every partition hint under TEMPLATE (the walk is off, the flat filter is not),
+                // and closed ranges on any other pattern the flat post-filter still consults.
+                walkShapeEligible(effectivePattern, partitionConfig) || templateValueFilter(partitionConfig)
                     ? encodedHints(partitionPruningHints(hints))
                     : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
                 exclusionConfig,
@@ -1152,7 +1292,7 @@ public final class GlobExpander {
         for (String segment : segments) {
             try {
                 StoragePath storagePath = StoragePath.of(segment);
-                if (storagePath.isPattern() && globstarLeads(storagePath.globPart())) {
+                if (storagePath.isPattern() && walkableGlob(storagePath.globPart())) {
                     return true;
                 }
             } catch (IllegalArgumentException e) {
@@ -1492,19 +1632,16 @@ public final class GlobExpander {
                         continue;
                     }
                     List<Object> values = hint.values();
-                    if (hint.isSingleValue()) {
-                        String value = String.valueOf(values.get(0));
-                        if (globExpressible(value) == false) {
-                            continue;
-                        }
-                        raw[rawIdx] = value;
-                    } else {
-                        Set<String> spellings = partitionValueSpellings(values);
-                        if (braceExpressible(spellings) == false) {
-                            continue;
-                        }
-                        raw[rawIdx] = brace(spellings);
+                    if (hint.isSingleValue() == false) {
+                        // Multi-value IN leaves the * slot. A brace of guessed spellings misses percent-encoded
+                        // folders while one guessed hit keeps the listing non-empty, so the empty fallback never runs.
+                        continue;
                     }
+                    String value = String.valueOf(values.get(0));
+                    if (globExpressible(value) == false) {
+                        continue;
+                    }
+                    raw[rawIdx] = value;
                     changed = true;
                 }
             }
@@ -1695,6 +1832,63 @@ public final class GlobExpander {
         return kept;
     }
 
+    /** TEMPLATE with at least one placeholder: the flat listing value-filters, the walk does not run. */
+    private static boolean templateValueFilter(PartitionConfig config) {
+        return PartitionConfig.Strategy.TEMPLATE == config.strategy()
+            && config.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(config.pathTemplate()).isEmpty() == false;
+    }
+
+    /**
+     * Hive or template hints applied inside the flat {@code listObjects} loop, before the discovery cap. Empty when
+     * this glob's strategy cannot value-filter. A missing segment and an undecidable comparison keep the file; the
+     * Hive NULL partition is never an exclusion.
+     */
+    private record PartitionValueFilter(boolean hive, @Nullable String template, Map<String, List<PartitionFilterHint>> byColumn) {
+        static final PartitionValueFilter NONE = new PartitionValueFilter(false, null, Map.of());
+
+        static PartitionValueFilter forGlob(String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig config) {
+            boolean hive = walkableGlob(glob) && walkableStrategy(config);
+            boolean template = hive == false && templateValueFilter(config);
+            if (hive == false && template == false) {
+                return NONE;
+            }
+            List<PartitionFilterHint> pruning = partitionPruningHints(hints);
+            if (pruning.isEmpty()) {
+                return NONE;
+            }
+            Map<String, List<PartitionFilterHint>> grouped = Maps.newHashMapWithExpectedSize(pruning.size());
+            for (PartitionFilterHint hint : pruning) {
+                grouped.computeIfAbsent(hint.columnName(), k -> new ArrayList<>()).add(hint);
+            }
+            return new PartitionValueFilter(hive, hive ? null : config.pathTemplate(), grouped);
+        }
+
+        boolean excludes(StorageEntry entry) {
+            if (byColumn.isEmpty()) {
+                return false;
+            }
+            for (Map.Entry<String, List<PartitionFilterHint>> column : byColumn.entrySet()) {
+                FoundValue found = hive
+                    ? hivePartitionValue(entry.path(), column.getKey())
+                    : templatePartitionValue(entry.path(), column.getKey(), template);
+                if (found == null) {
+                    continue;
+                }
+                String raw = found.value();
+                // Hive folderValue already turns the NULL partition into null, which keepsIsolated keeps.
+                // A template segment can still be the literal sentinel.
+                if (hive == false && raw != null && HivePartitionDetector.HIVE_DEFAULT_PARTITION.equals(raw)) {
+                    continue;
+                }
+                if (PartitionValueMatcher.keepsIsolated(raw, column.getValue()) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     // null when this file has no partition value for the column. The Hive default partition is a found null.
     private record FoundValue(@Nullable String value) {}
 
@@ -1739,102 +1933,9 @@ public final class GlobExpander {
             return globExpressible(value) ? key + "=" + value : segment;
         }
 
-        // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling. If a value
-        // holds a brace delimiter the glob dialect cannot express, leave the wildcard so the full set is listed.
-        Set<String> spellings = partitionValueSpellings(values);
-        if (braceExpressible(spellings) == false) {
-            return segment;
-        }
-        return key + "=" + brace(spellings);
-    }
-
-    private static final char[] HEX = "0123456789ABCDEF".toCharArray();
-
-    /**
-     * The ASCII characters Hive/Spark percent-escape in a partition folder name ({@code FileUtils.escapePathName} /
-     * {@code ExternalCatalogUtils.escapePathName}): the C0 control range, {@code DEL}, and a fixed punctuation set.
-     * Space, {@code ,} and {@code }} are deliberately NOT escaped by those writers (so {@link #braceExpressible}
-     * still vetoes comma/brace values to a full-glob listing). Non-ASCII passes through literally, matching the writer.
-     */
-    private static final BitSet HIVE_ESCAPE = new BitSet(128);
-    static {
-        for (int c = 0; c < 0x20; c++) {
-            HIVE_ESCAPE.set(c);
-        }
-        HIVE_ESCAPE.set(0x7F);
-        for (char c : new char[] { '"', '#', '%', '\'', '*', '/', ':', '=', '?', '\\', '{', '[', ']', '^' }) {
-            HIVE_ESCAPE.set(c);
-        }
-    }
-
-    /**
-     * The on-disk spellings an {@code IN}-list of partition value can take, so the glob rewrite (which matches folder
-     * names literally) lists every folder the row filter would keep instead of silently dropping some. For each value:
-     * the value itself; its two-digit zero-padded form when a single digit (Hive convention for
-     * {@code month}/{@code day}/{@code hour}, {@code 6 → 06}); and the Hive/Spark percent-escaped form of each
-     * ({@code ns:click → ns%3Aclick}, the everyday shape for string partitions holding {@code :} or {@code /}, e.g.
-     * timestamps). Every spelling only <b>widens</b> the brace, so the listing is always a superset and the row filter
-     * narrows — a wrong spelling can never drop rows, only add a folder that is then filtered out.
-     *
-     * <p>A single {@code EQUALS} value stays a concrete segment (it prefix-narrows the listing; a spelling miss lists
-     * empty and hits the un-rewritten fallback). Remaining gaps — integer-vs-decimal spelling ({@code 6} vs
-     * {@code 6.0}, a typing mismatch better fixed by matching folders by typed value), boolean case, padding wider
-     * than two digits, and mixed-width padding within one column — either hit the empty-listing fallback or are the
-     * value-aware follow-up; they cannot be solved cleanly by widening spellings (e.g. blindly emitting {@code 6.0}
-     * for every integer would list nonsense {@code year=2024.0}).
-     */
-    private static Set<String> partitionValueSpellings(List<Object> values) {
-        Set<String> spellings = new LinkedHashSet<>();
-        for (Object value : values) {
-            for (String variant : valueVariants(String.valueOf(value))) {
-                spellings.add(variant);
-                String escaped = hiveEscape(variant);
-                if (escaped.equals(variant) == false) {
-                    spellings.add(escaped);
-                }
-            }
-        }
-        return spellings;
-    }
-
-    /** A value's unescaped on-disk forms before writer escaping: itself and its 2-zero-padded single-digit form. */
-    private static List<String> valueVariants(String raw) {
-        if (raw.length() == 1 && raw.charAt(0) >= '0' && raw.charAt(0) <= '9') {
-            return List.of(raw, "0" + raw);
-        }
-        return List.of(raw);
-    }
-
-    /** Percent-escapes {@code value} the way Hive/Spark write partition folder names (see {@link #HIVE_ESCAPE}). */
-    private static String hiveEscape(String value) {
-        StringBuilder sb = null;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c < 128 && HIVE_ESCAPE.get(c)) {
-                if (sb == null) {
-                    sb = new StringBuilder(value.length() + 6).append(value, 0, i);
-                }
-                sb.append('%').append(HEX[(c >> 4) & 0xF]).append(HEX[c & 0xF]);
-            } else if (sb != null) {
-                sb.append(c);
-            }
-        }
-        return sb == null ? value : sb.toString();
-    }
-
-    /**
-     * Whether a set of spellings can be spliced into a glob as brace alternatives. A value containing {@code ,} or
-     * {@code }} would be mis-split by the brace parser (into separate alternatives, or a truncated brace), turning
-     * one value into several and dropping the folder that literally contains the delimiter — so when any spelling
-     * holds one, the caller must skip the rewrite and list the full glob (a superset) rather than a wrong subset.
-     */
-    private static boolean braceExpressible(Set<String> spellings) {
-        for (String spelling : spellings) {
-            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0 || globExpressible(spelling) == false) {
-                return false;
-            }
-        }
-        return true;
+        // Multi-value IN leaves key=*. The walk (or the flat value filter, when the walk withdraws) matches the
+        // decoded folder value, so percent-encoded and zero-padded spellings stay without a guessed brace.
+        return segment;
     }
 
     /**
@@ -1852,20 +1953,6 @@ public final class GlobExpander {
      */
     private static boolean globExpressible(String value) {
         return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
-    }
-
-    /** Joins glob-escaped spellings into a brace alternation {@code {a,b,c}}. */
-    private static String brace(Set<String> spellings) {
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (String spelling : spellings) {
-            if (first == false) {
-                sb.append(',');
-            }
-            sb.append(spelling);
-            first = false;
-        }
-        return sb.append('}').toString();
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {

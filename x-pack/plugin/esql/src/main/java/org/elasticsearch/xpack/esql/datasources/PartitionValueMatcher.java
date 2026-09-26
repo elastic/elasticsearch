@@ -64,6 +64,19 @@ public final class PartitionValueMatcher {
         return keep;
     }
 
+    /**
+     * Whether one decoded folder value survives {@code hints} when typed alone. {@code null} (the Hive NULL
+     * partition) and an undecidable comparison are kept. Sibling folders are not consulted: the flat listing
+     * decides per file, so a discovery cap counts only files that remain. Level-wide typing stays with
+     * {@link #matchesFolders}, which the walk can afford because it already buffered the directory.
+     */
+    public static boolean keepsIsolated(@Nullable String raw, List<PartitionFilterHint> hints) {
+        if (raw == null || hints.isEmpty()) {
+            return true;
+        }
+        return matchesFolders(List.of(raw), hints)[0];
+    }
+
     /** Whether {@code hint} definitively excludes this typed value; unknown is not exclusion. */
     private static boolean excludes(Object typed, PartitionFilterHint hint) {
         Boolean matches = matches(typed, hint);

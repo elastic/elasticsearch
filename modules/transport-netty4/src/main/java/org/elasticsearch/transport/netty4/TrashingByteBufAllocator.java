@@ -36,7 +36,7 @@ class TrashingByteBufAllocator extends NettyAllocator.NoDirectBuffers {
     }
 
     static void trashBuffer(ByteBuf buf) {
-        for (var nioBuf : buf.nioBuffers(0, buf.writerIndex())) {
+        for (var nioBuf : buf.nioBuffers(0, buf.capacity())) {
             if (nioBuf.hasArray()) {
                 var from = nioBuf.arrayOffset() + nioBuf.position();
                 var to = from + nioBuf.remaining();

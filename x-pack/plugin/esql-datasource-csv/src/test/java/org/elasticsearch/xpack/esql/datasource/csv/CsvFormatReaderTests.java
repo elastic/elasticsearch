@@ -243,6 +243,30 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A headerless CSV whose sampled rows are narrower than its later rows: the inferred schema must
+     * name only as many columns as the widest <em>sampled</em> row. A later wider row is outside the
+     * sample window and must not contribute additional column names — otherwise the schema would vary
+     * with row order, making inference non-deterministic and undoing the {@code schema_sample_size}
+     * cost bound.
+     * <p>
+     * This pins the existing inference behaviour that the {@link #testHeaderlessEmptyProjectionSkipsWiderRowsWhenSchemaIsUnderSampled}
+     * test depends on (wider rows exceed the inferred schema width and are rejected). It also
+     * documents a constraint the sampled-out declared-column fix must respect: appending a declared
+     * column to the per-file schema (widening the row-width limit from 2 to 3) is the only mechanism
+     * that lets a 3-column row be accepted after the fix — the inferrer itself still names only 2.
+     */
+    public void testWideLaterRowContributesNoColumn() throws IOException {
+        // sample_size=2: rows 1 and 2 are sampled (2 columns each). Row 3 has 3 columns but is beyond
+        // the sample window, so the inferred schema must still have exactly 2 columns.
+        StorageObject object = createStorageObject("1,Alice\n2,Bob\n3,Charlie,extra\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "schema_sample_size", 2)
+        );
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean

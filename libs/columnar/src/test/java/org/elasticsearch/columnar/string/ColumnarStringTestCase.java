@@ -327,7 +327,20 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 }
             }
         }
-        return new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots), minLength, maxLength);
+        boolean oneSlotADocument = true;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                oneSlotADocument &= slots.length == 1;
+            }
+        }
+        return new StringColumnValues.Totals(
+            numDocsWithField(docSlots),
+            numValues(docSlots),
+            numNullSlots(docSlots),
+            minLength,
+            maxLength,
+            oneSlotADocument
+        );
     }
 
     /** The total number of null slots across every document. */

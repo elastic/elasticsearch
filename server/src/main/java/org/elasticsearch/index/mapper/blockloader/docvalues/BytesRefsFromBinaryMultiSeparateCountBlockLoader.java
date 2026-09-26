@@ -142,9 +142,8 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
          * a lookup per value or a remapping. Where it does not, the page still comes back a page at a time, and a run
          * of equal values is copied once.
          *
-         * <p>The column declines a page covering a document it has no value for, since a page has no way to say which
-         * one; the payload path below then reads them, as it does for a segment that arrives as an overlay rather than
-         * as a column.
+         * <p>A document the column has no value for arrives holding none, which the block reads as a null. The payload
+         * path below reads a segment that arrives as an overlay rather than as a column.
          *
          * <p>A document may repeat within a page, which a lookup or a top-n asks for. The iterator a page resolves its
          * ranks through is only required not to be moved backwards, so asking it twice for the same document is a

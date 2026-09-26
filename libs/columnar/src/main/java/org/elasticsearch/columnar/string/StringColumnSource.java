@@ -73,4 +73,10 @@ public interface StringColumnSource {
      * through rather than assemble it. The returned {@link BytesRef} is only valid until the next call.
      */
     BytesRef slotAt(int slot) throws IOException;
+
+    /**
+     * How many non-null values the document holds; when exactly one, its length in bytes is left in
+     * {@code length[0]}. Unlike {@link #nonNullValues} no value is decoded.
+     */
+    int nonNullLength(int[] length) throws IOException;
 }

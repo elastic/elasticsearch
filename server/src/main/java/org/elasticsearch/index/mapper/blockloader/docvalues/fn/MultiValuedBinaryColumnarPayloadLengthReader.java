@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -35,6 +36,10 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     private final TrackingBinaryDocValues values;
     private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
     private final BytesRef scratch = new BytesRef();
+    private final int[] lengthScratch = new int[1];
+    private int[] wanted = new int[0];
+    private int[] counts = new int[0];
+    private int[] lengths = new int[0];
 
     MultiValuedBinaryColumnarPayloadLengthReader(Warnings warnings, TrackingBinaryDocValues values) {
         super(null);
@@ -44,6 +49,14 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
 
     abstract int length(BytesRef bytesRef);
 
+    /**
+     * Whether the length wanted is the length in bytes, which the column knows without reading the value.
+     * A length counted any other way, such as code points, needs the bytes.
+     */
+    boolean countsBytes() {
+        return false;
+    }
+
     public abstract String toString();
 
     @Override
@@ -52,6 +65,31 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
         int count = docs.count() - offset;
         if (count == 1) {
             return blockForSingleDoc(factory, docs.get(offset));
+        }
+        if (countsBytes() && values.docValues() instanceof StringColumnSource columnar) {
+            // The column resolves the page's documents at once and answers each length beside the values.
+            if (wanted.length < count) {
+                wanted = new int[ArrayUtil.oversize(count, Integer.BYTES)];
+                counts = new int[wanted.length];
+                lengths = new int[wanted.length];
+            }
+            for (int i = 0; i < count; i++) {
+                wanted[i] = docs.get(offset + i);
+            }
+            columnar.reader().readByteLengths(wanted, 0, count, counts, lengths);
+            try (BlockLoader.IntBuilder builder = factory.ints(count)) {
+                for (int i = 0; i < count; i++) {
+                    if (counts[i] == 1) {
+                        builder.appendInt(lengths[i]);
+                    } else {
+                        if (counts[i] > 1) {
+                            registerSingleValueWarning(warnings);
+                        }
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
         }
 
         try (BlockLoader.IntBuilder builder = factory.ints(count)) {
@@ -94,6 +132,17 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
         }
         // Asked of the column where there is one, which knows how many slots the document has and which are null
         // without decoding anything. A segment arriving as an overlay rather than as a column has its payload read.
+        if (countsBytes() && values.docValues() instanceof StringColumnSource columnar) {
+            // The column keeps byte lengths apart from the values.
+            final int nonNull = columnar.nonNullLength(lengthScratch);
+            if (nonNull == 1) {
+                return lengthScratch[0];
+            }
+            if (nonNull > 1) {
+                registerSingleValueWarning(warnings);
+            }
+            return null;
+        }
         final int nonNull = values.docValues() instanceof StringColumnSource columnar
             ? columnar.nonNullValues(scratch)
             : reader.nonNullCount(values.docValues().binaryValue(), scratch);

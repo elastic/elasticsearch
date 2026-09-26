@@ -54,10 +54,14 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * What a column is counted for: the documents holding at least one slot, the slots they hold between
-     * them, how many of those are null, and the shortest and longest value in bytes, both {@code -1} when no
-     * slot holds one.
+     * them, how many of those are null, the shortest and longest value in bytes, both {@code -1} when no
+     * slot holds one, and whether every document holds exactly one slot.
+     *
+     * <p>{@code oneSlotADocument} is what says a rank is its own value address, so it decides whether the
+     * column keeps an addressing table. It cannot be read off the other counts: a document holding none and
+     * another holding two leave as many slots as documents while putting the two out of step.
      */
-    public record Totals(int numDocsWithField, long numValues, long numNullSlots, int minLength, int maxLength) {
+    public record Totals(int numDocsWithField, long numValues, long numNullSlots, int minLength, int maxLength, boolean oneSlotADocument) {
 
         /**
          * The length every slot's value has, or {@code -1} unless there is one: a column holding a null, or

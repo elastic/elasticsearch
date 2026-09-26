@@ -784,6 +784,8 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
 
+    {{es}} automatically polls these certificate files and reloads the trust configuration when changes are detected. Files are polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
+
 `truststore.algorithm`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Algorithm for the truststore. Defaults to `SunX509`.
 
@@ -804,6 +806,8 @@ If `truststore.path` is set, this setting is required.
 
 `truststore.path`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path of a truststore to use. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `certificate_authorities`.
+
+    {{es}} automatically polls this truststore file and reloads the trust configuration when changes are detected. The file is polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
 
 `files.role_mapping`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the [location](docs-content://deploy-manage/security.md) of the [YAML role mapping configuration file](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md). Defaults to `ES_PATH_CONF/role_mapping.yml`.

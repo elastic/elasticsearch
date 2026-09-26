@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -49,6 +50,12 @@ public class AllocationDeciders {
 
     public AllocationDeciders(Collection<? extends AllocationDecider> deciders) {
         this.deciders = deciders.toArray(AllocationDecider[]::new);
+    }
+
+    // TODO - Can have a prioritised list?
+    /** The deciders are returned in registration order. */
+    public List<AllocationDecider> getAllocationDeciders() {
+        return Arrays.asList(deciders);
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {

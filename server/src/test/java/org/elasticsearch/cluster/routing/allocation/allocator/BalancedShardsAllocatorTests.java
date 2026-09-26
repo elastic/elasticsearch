@@ -67,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -1082,6 +1083,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             ) {
                 return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
             }
+
+            @Override
+            public Comparator<ShardRouting> shardMoveOrder(RoutingNode node, RoutingAllocation allocation) {
+                return (left, right) -> 0;
+            }
         }).mutable();
 
         final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
@@ -1272,6 +1278,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 RoutingAllocation allocation
             ) {
                 return canAllocate(shardRouting, node, allocation);
+            }
+
+            @Override
+            public Comparator<ShardRouting> shardMoveOrder(RoutingNode node, RoutingAllocation allocation) {
+                return (left, right) -> 0;
             }
         };
 
@@ -1885,6 +1896,16 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 originalNodes.put(shardRouting.shardId(), shardRouting.currentNodeId());
             }
             return shardRouting.currentNodeId().equals(originalNodes.get(shardRouting.shardId())) ? Decision.NOT_PREFERRED : Decision.YES;
+        }
+
+        @Override
+        public Comparator<ShardRouting> shardMoveOrder(RoutingNode node, RoutingAllocation allocation) {
+            for (ShardRouting shard : node) {
+                if (shard.started() && shard.getIndexName().contains("not-preferred")) {
+                    return new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), node);
+                }
+            }
+            return null;
         }
     }
 

@@ -106,7 +106,7 @@ public class UpdateHelper {
                 if (getResult.isExists()) {
                     String routing = calculateRouting(getResult, request.doc(), request.routing());
                     return new Result(
-                        buildDocValuesUpdateRequest(request, getResult, routing, updates),
+                        buildDocValuesUpdateRequest(request, getResult, routing, routingFromSlice(indexShard, request), updates),
                         DocWriteResponse.Result.UPDATED,
                         null,
                         null
@@ -254,9 +254,18 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action, in the event of a
      * noop).
      */
-    protected Result prepare(IndexShard indexShard, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
-        final boolean routingFromSlice = request.isRoutingFromSlice()
+    /**
+     * Whether the request's routing is derived from a slice (explicitly, or implicitly on a slice-enabled index with routing). A
+     * slice-enabled index requires slice-derived routing on writes ({@link org.elasticsearch.index.SliceIndexing}), so this must be carried
+     * onto every realized write, including the in-place doc-values update request.
+     */
+    private static boolean routingFromSlice(IndexShard indexShard, UpdateRequest request) {
+        return request.isRoutingFromSlice()
             || (indexShard.indexSettings() != null && indexShard.indexSettings().isSliceEnabled() && request.routing() != null);
+    }
+
+    protected Result prepare(IndexShard indexShard, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+        final boolean routingFromSlice = routingFromSlice(indexShard, request);
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
             return prepareUpsert(indexShard.shardId(), request, getResult, nowInMillis, routingFromSlice);
@@ -419,7 +428,7 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            DocValuesUpdateRequest docValuesUpdate = tryBuildDocValuesUpdate(indexShard, request, getResult, routing);
+            DocValuesUpdateRequest docValuesUpdate = tryBuildDocValuesUpdate(indexShard, request, getResult, routing, routingFromSlice);
             if (docValuesUpdate != null) {
                 return new Result(docValuesUpdate, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
@@ -446,7 +455,8 @@ public class UpdateHelper {
         IndexShard indexShard,
         UpdateRequest request,
         GetResult getResult,
-        String routing
+        String routing,
+        boolean routingFromSlice
     ) {
         List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(
             request,
@@ -455,7 +465,7 @@ public class UpdateHelper {
         if (updates == null) {
             return null;
         }
-        return buildDocValuesUpdateRequest(request, getResult, routing, updates);
+        return buildDocValuesUpdateRequest(request, getResult, routing, routingFromSlice, updates);
     }
 
     /**
@@ -521,6 +531,7 @@ public class UpdateHelper {
         UpdateRequest request,
         GetResult getResult,
         String routing,
+        boolean routingFromSlice,
         List<Translog.DocValuesUpdate.FieldUpdate> updates
     ) {
         DocValuesUpdateRequest docValuesUpdateRequest = new DocValuesUpdateRequest(request.index(), request.id(), updates).routing(routing)
@@ -528,9 +539,10 @@ public class UpdateHelper {
             .setIfSeqNo(getResult.getSeqNo())
             .setIfPrimaryTerm(getResult.getPrimaryTerm());
         // Carry over the write parameters, exactly as the reindex path does for its IndexRequest, so e.g. the refresh policy of the
-        // single-document update API is honoured.
+        // single-document update API is honoured and slice-enabled indices accept the realized write.
         docValuesUpdateRequest.waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout());
         docValuesUpdateRequest.setRefreshPolicy(request.getRefreshPolicy());
+        docValuesUpdateRequest.setRoutingFromSlice(routingFromSlice);
         return docValuesUpdateRequest;
     }
 

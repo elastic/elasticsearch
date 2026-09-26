@@ -67,6 +67,7 @@ public class DocValuesUpdateRequest extends ReplicatedWriteRequest<DocValuesUpda
         documentVersion = in.readZLong();
         operationSeqNo = in.readZLong();
         operationPrimaryTerm = in.readVLong();
+        routingFromSlice = in.readBoolean();
         updates = in.readCollectionAsList(Translog.DocValuesUpdate.FieldUpdate::readFrom);
     }
 
@@ -249,6 +250,7 @@ public class DocValuesUpdateRequest extends ReplicatedWriteRequest<DocValuesUpda
         out.writeZLong(documentVersion);
         out.writeZLong(operationSeqNo);
         out.writeVLong(operationPrimaryTerm);
+        out.writeBoolean(routingFromSlice);
         out.writeCollection(updates);
     }
 

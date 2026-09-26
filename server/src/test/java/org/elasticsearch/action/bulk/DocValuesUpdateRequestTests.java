@@ -39,6 +39,7 @@ public class DocValuesUpdateRequestTests extends ESTestCase {
             .operationSeqNo(randomNonNegativeLong(), randomNonNegativeLong())
             .setIfSeqNo(randomNonNegativeLong())
             .setIfPrimaryTerm(randomNonNegativeLong());
+        request.setRoutingFromSlice(randomBoolean());
 
         ShardId shardId = new ShardId("my-index", "uuid", 0);
 
@@ -81,6 +82,7 @@ public class DocValuesUpdateRequestTests extends ESTestCase {
         assertThat(roundTripped.operationPrimaryTerm(), equalTo(request.operationPrimaryTerm()));
         assertThat(roundTripped.ifSeqNo(), equalTo(request.ifSeqNo()));
         assertThat(roundTripped.ifPrimaryTerm(), equalTo(request.ifPrimaryTerm()));
+        assertThat(roundTripped.isRoutingFromSlice(), equalTo(request.isRoutingFromSlice()));
         assertThat(roundTripped.updates(), equalTo(request.updates()));
         assertThat(roundTripped.opType(), equalTo(DocWriteRequest.OpType.INDEX));
     }

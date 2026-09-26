@@ -426,6 +426,32 @@ public class PromqlParserTests extends ESTestCase {
         });
     }
 
+    /**
+     * Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds; a range or
+     * offset written as a number (or arithmetic over one) is a duration again, at millisecond precision.
+     */
+    public void testDurationLiteralIsSeconds() {
+        assertThat(as(parse("PROMQL index=test step=5m 1h30m").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(5400.0));
+        assertThat(as(parse("PROMQL index=test step=5m 1ms").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(0.001));
+        assertThat(as(parse("PROMQL index=test step=5m 2m + 30s").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(150.0));
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[300]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(5))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[5m * 2]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(10))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[1.5]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1500))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo offset 90").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofSeconds(90))
+        );
+    }
+
     public void testCaseInsensitivityKeywords() {
         var promql = parse("PROMQL index=test step=5m avg(foo) BY (pod)");
         assertThat(as(promql.promqlPlan(), UnresolvedPromqlFunction.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));

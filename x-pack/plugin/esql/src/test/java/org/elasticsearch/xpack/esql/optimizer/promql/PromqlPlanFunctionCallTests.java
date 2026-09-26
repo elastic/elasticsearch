@@ -65,6 +65,14 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
     }
 
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is {@code 5400}, {@code 1ms} is {@code 0.001}. */
+    public void testDurationLiteralIsSeconds() {
+        assertConstantResult("1h30m", equalTo(5400.0));
+        assertConstantResult("2m + 30s", equalTo(150.0));
+        assertConstantResult("1ms", equalTo(0.001));
+        assertConstantResult("vector(1h) / 60", equalTo(60.0));
+    }
+
     /**
      * PromQL {@code quantile} and {@code quantile_over_time} take the quantile φ in the range [0, 1], whereas the
      * ES|QL {@link Percentile} aggregation they translate into expects a percentile in the range [0, 100]. The

@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -115,10 +116,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected AbstractLogicalPlanOptimizerTests(VersionMode versionMode) {
         this.versionMode = versionMode;
         minimumVersion = versionMode.version.get();
-        logicalOptimizerCtx = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
+        logicalOptimizerCtx = logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
         logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
+            logicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
         );
     }
 

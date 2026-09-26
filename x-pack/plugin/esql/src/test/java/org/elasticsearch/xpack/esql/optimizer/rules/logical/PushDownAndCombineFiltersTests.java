@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
@@ -102,7 +103,7 @@ import static org.mockito.Mockito.mock;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizerTests {
 
-    private final LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(null, FoldContext.small(), minimumVersion);
+    private final LogicalOptimizerContext optimizerContext = logicalOptimizerContext(null, FoldContext.small(), minimumVersion);
 
     public PushDownAndCombineFiltersTests(VersionMode versionMode) {
         super(versionMode);

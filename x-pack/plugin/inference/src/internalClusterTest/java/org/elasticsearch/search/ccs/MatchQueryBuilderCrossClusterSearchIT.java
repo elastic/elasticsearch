@@ -7,11 +7,16 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.Before;
 
@@ -22,8 +27,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.equalTo;
+
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String TEXT_FIELD = "text-field";
+    private static final String MISSING_INDEX_NAME = "missing-index";
     private static final Set<String> allFieldTypes = Set.of("text", "semantic_text", "semantic");
     private static final Set<String> semanticFieldTypes = Set.of("semantic_text", "semantic");
     // We don't use SPARSE_EMBEDDING for semantic_text since it becomes tricky to assert the order of results when
@@ -63,6 +72,57 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
     public void testBlankQueryHandlingWithCcsMinimizeRoundTripsFalse() throws Exception {
         blankQueryHandlingTestCase(false);
+    }
+
+    public void testMissingRemoteIndexWithCcsMinimizeRoundTripsTrue() throws Exception {
+        missingRemoteIndexTestCase(true);
+    }
+
+    public void testMissingRemoteIndexWithCcsMinimizeRoundTripsFalse() throws Exception {
+        missingRemoteIndexTestCase(false);
+    }
+
+    public void testMissingRemoteIndexWithScroll() throws Exception {
+        final SearchSourceBuilder source = new SearchSourceBuilder().query(
+            boostLocalIndex(new MatchQueryBuilder(TEXT_FIELD, getFieldValue(TEXT_FIELD)))
+        ).size(1);
+        // scroll forces ccs_minimize_roundtrips to false, which is how this reached us from the field
+        final SearchRequest searchRequest = new SearchRequest(LOCAL_INDEX_NAME, fullyQualifiedIndexName(REMOTE_CLUSTER, MISSING_INDEX_NAME))
+            .source(source)
+            .scroll(TimeValue.timeValueMinutes(1));
+
+        final SetOnce<String> scrollId = new SetOnce<>();
+        try {
+            assertResponse(client().search(searchRequest), response -> {
+                scrollId.set(response.getScrollId());
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo(getDocId(TEXT_FIELD)));
+                assertThat(response.getClusters().getCluster(REMOTE_CLUSTER).getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+            });
+        } finally {
+            if (scrollId.get() != null) {
+                client().prepareClearScroll().addScrollId(scrollId.get()).get();
+            }
+        }
+    }
+
+    private void missingRemoteIndexTestCase(boolean ccsMinimizeRoundTrips) throws Exception {
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+        // The remote runs with skip_unavailable: true, so an index it does not have must be skipped rather than fail the search. The
+        // coordinator gathers remote inference fields when ccs_minimize_roundtrips is false, and that lookup used to fail on the missing
+        // index before the search could skip the cluster.
+        assertSearchResponse(
+            new MatchQueryBuilder(TEXT_FIELD, getFieldValue(TEXT_FIELD)),
+            List.of(LOCAL_INDEX_NAME, fullyQualifiedIndexName(REMOTE_CLUSTER, MISSING_INDEX_NAME)),
+            List.of(new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD))),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IndexNotFoundException.class, "no such index [" + MISSING_INDEX_NAME + "]"))
+            ),
+            searchRequestModifier
+        );
     }
 
     private void blankQueryHandlingTestCase(boolean ccsMinimizeRoundTrips) throws Exception {

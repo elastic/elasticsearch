@@ -552,4 +552,15 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("clamp(tx, 60, 40)");
         assertBinopRangeValues("clamp(tx, 20, 25)", 20, 25, 20);
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
+    public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+    }
 }

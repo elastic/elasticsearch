@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.any;
 
@@ -116,6 +117,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ).type()
         );
+        assertNull(writeLoadDecider.shardMoveOrder(testHarness.exceedingThresholdRoutingNode, testHarness.routingAllocation));
     }
 
     /**
@@ -854,6 +856,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         moveDecision = writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation);
         assertEquals(Decision.Type.YES, moveDecision.type());
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
+        assertNull(writeLoadDecider.shardMoveOrder(routingNode, routingAllocation));
 
         // retry test, but turn off setting with a 0 value
         var writeLoadDeciderProportionDisabled = createWriteLoadConstraintDecider(createSettings(null, null, null, 0, null));
@@ -866,6 +869,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(
             Decision.Type.NOT_PREFERRED,
             writeLoadDeciderProportionDisabled.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
+        );
+        assertThat(
+            writeLoadDeciderProportionDisabled.shardMoveOrder(routingNode, routingAllocation),
+            instanceOf(WriteLoadConstraintDecider.PrioritiseByShardWriteLoadComparator.class)
         );
 
         // retry test, with proportions under the threshold
@@ -897,6 +904,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(
             Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
+        );
+        assertThat(
+            writeLoadDecider.shardMoveOrder(routingNode, routingAllocation),
+            instanceOf(WriteLoadConstraintDecider.PrioritiseByShardWriteLoadComparator.class)
         );
     }
 

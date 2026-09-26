@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -597,7 +597,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
     /**
      * Determine which shard was moved and check that it's the "best" according to
-     * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator}
+     * {@link PrioritiseByShardWriteLoadComparator}
      */
     private void assertThatTheBestShardWasMoved(
         TestHarness harness,
@@ -610,11 +610,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 || desiredNodeIds.contains(harness.thirdDiscoveryNode.getId());
         }).findFirst().map(Map.Entry::getKey).orElseThrow(() -> new AssertionError("No shard was moved to a non-hot-spotting node"));
 
-        final BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator comparator =
-            new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
-                desiredBalanceResponse.getClusterInfo(),
-                originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
-            );
+        final PrioritiseByShardWriteLoadComparator comparator = new PrioritiseByShardWriteLoadComparator(
+            desiredBalanceResponse.getClusterInfo(),
+            originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
+        );
 
         final List<ShardRouting> bestShardsToMove = StreamSupport.stream(
             originalClusterState.getRoutingNodes().node(harness.firstDataNodeId).spliterator(),
@@ -915,8 +914,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         String assignedShardNodeId
     ) {
         // Randomly distribute shards' peak write-loads so that we can check later that shard movements are prioritized correctly
-        final double writeLoadThreshold = maximumShardWriteLoad
-            * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
+        final double writeLoadThreshold = maximumShardWriteLoad * PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
         final List<Double> shardRecentWriteLoads = new ArrayList<>();
         // Need at least one with the maximum write-load
         shardRecentWriteLoads.add((double) maximumShardWriteLoad);

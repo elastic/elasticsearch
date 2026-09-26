@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,9 +22,14 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Comparator;
+import java.util.Map;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -282,6 +288,40 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     }
 
     /**
+     * Returns the write-load move order for a hotspotting node, or {@code null} when this decider does not want shards moved off it.
+     */
+    @Override
+    @Nullable
+    public Comparator<ShardRouting> shardMoveOrder(RoutingNode node, RoutingAllocation allocation) {
+        // If this decider is not fully enabled then we have nothing to return
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
+            return null;
+        }
+        var nodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools().get(node.nodeId());
+        // Without thread-pool stats we cannot tell whether this node is hot.
+        if (nodeUsageStats == null) {
+            return null;
+        }
+        // A node that is within both hotspot thresholds does not need a shard moved off it.
+        if (nodeIsHotspotting(
+            nodeUsageStats,
+            writeLoadConstraintSettings.getQueueLatencyThreshold(),
+            writeLoadConstraintSettings.getHotspotUtilizationThreshold()
+        ) == false) {
+            return null;
+        }
+        // One shard already accounts for too much of the write load. Moving it would hotspot the destination instead,
+        // and moving anything else would not relieve this node. A threshold of 0 disables this check.
+        double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
+        if (maxShardWriteLoadThreshold != 0.0 && allocation.maxShardWriteLoadProportionForNode(node) >= maxShardWriteLoadThreshold) {
+            return null;
+        }
+        // Prefer shards near half of this node's maximum write load.
+        // Shards with negligible write loads will remain on this node since canRemain will return YES
+        return new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), node);
+    }
+
+    /**
      * Get the write-load for the specified shard
      *
      * @param allocation The RoutingAllocation instance
@@ -302,6 +342,92 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             (float) shardWriteLoad,
             nodeWriteThreadPoolStats.totalThreadPoolThreads()
         );
+    }
+
+    /**
+     * Sorts shards by desirability to move, in the sort order:
+     * <ol>
+     *     <li>Shards with write-load in the range <i>{@link #threshold}</i> &rarr; {@link #maxWriteLoadOnNode} (exclusive)</li>
+     *     <li>Shards with write-load in the range <i>{@link #threshold}</i> &rarr; 0</li>
+     *     <li>Shards with write-load == {@link #maxWriteLoadOnNode}</li>
+     *     <li>Shards with missing write-load</li>
+     * </ol>
+     */
+    public static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
+
+        /**
+         * This is the threshold over which we consider shards to have a "high" write load represented
+         * as a ratio of the maximum write-load present on the node.
+         * <p>
+         * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
+         */
+        public static final double THRESHOLD_RATIO = 0.5;
+        private static final double MISSING_WRITE_LOAD = -1;
+        private final Map<ShardId, Double> shardWriteLoads;
+        private final double maxWriteLoadOnNode;
+        private final double threshold;
+        private final String nodeId;
+
+        public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
+            shardWriteLoads = clusterInfo.getShardWriteLoads();
+            double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
+            for (ShardRouting shardRouting : routingNode) {
+                maxWriteLoadOnNode = Math.max(maxWriteLoadOnNode, shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD));
+            }
+            this.maxWriteLoadOnNode = maxWriteLoadOnNode;
+            threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
+            nodeId = routingNode.nodeId();
+        }
+
+        @Override
+        public int compare(ShardRouting lhs, ShardRouting rhs) {
+            assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
+                : this.getClass().getSimpleName()
+                    + " is node-specific. comparator="
+                    + nodeId
+                    + ", lhs="
+                    + lhs.currentNodeId()
+                    + ", rhs="
+                    + rhs.currentNodeId();
+
+            // If we have no shard write-load data, shortcut
+            if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
+                return 0;
+            }
+
+            final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
+            final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
+
+            // prefer any known write-load over any unknown write-load
+            final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
+            final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+            if (rhsIsMissing && lhsIsMissing) {
+                return 0;
+            }
+            if (rhsIsMissing ^ lhsIsMissing) {
+                return lhsIsMissing ? 1 : -1;
+            }
+
+            if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
+                final var lhsOverThreshold = lhsWriteLoad >= threshold;
+                final var rhsOverThreshold = rhsWriteLoad >= threshold;
+                if (lhsOverThreshold && rhsOverThreshold) {
+                    // Both values between threshold and maximum, prefer lowest
+                    return Double.compare(lhsWriteLoad, rhsWriteLoad);
+                } else if (lhsOverThreshold) {
+                    // lhs between threshold and maximum, rhs below threshold, prefer lhs
+                    return -1;
+                } else if (rhsOverThreshold) {
+                    // lhs below threshold, rhs between threshold and maximum, prefer rhs
+                    return 1;
+                }
+                // Both values below the threshold, prefer highest
+                return Double.compare(rhsWriteLoad, lhsWriteLoad);
+            }
+
+            // prefer the non-max write load if there is one
+            return Double.compare(lhsWriteLoad, rhsWriteLoad);
+        }
     }
 
 }

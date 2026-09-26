@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -289,6 +290,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, RoutingFieldMapper.PARSER);
         builtInMetadataMappers.put(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.PARSER);
         builtInMetadataMappers.put(TimeSeriesRoutingHashFieldMapper.NAME, TimeSeriesRoutingHashFieldMapper.PARSER);
+        builtInMetadataMappers.put(SliceKeyFieldMapper.NAME, SliceKeyFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexModeFieldMapper.NAME, IndexModeFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);

@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.knn.IndexVectorReader;
 import org.elasticsearch.test.knn.KnnIndexTester;
 import org.elasticsearch.test.knn.KnnIndexer;
@@ -37,16 +38,19 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 public final class PartitionDataGenerator extends DataGenerator {
 
     private final PartitionConfiguration partitionConfiguration;
+    private final boolean sliced;
 
     PartitionDataGenerator(
         IOSupplier<IndexVectorReader> docs,
         int numDocs,
         IOSupplier<IndexVectorReader> queries,
         int numQueries,
-        PartitionConfiguration partitionConfiguration
+        PartitionConfiguration partitionConfiguration,
+        boolean sliced
     ) {
         super(docs, numDocs, queries, numQueries);
         this.partitionConfiguration = partitionConfiguration;
+        this.sliced = sliced;
     }
 
     /**
@@ -70,7 +74,8 @@ public final class PartitionDataGenerator extends DataGenerator {
         logger.info("IndexingSetup: generated data with {} partitions", getNumPartitions());
         KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(
             partitionConfiguration.assignmentInfo().docPartitionIds(),
-            partitionConfiguration.assignmentInfo().docOrdinals()
+            partitionConfiguration.assignmentInfo().docOrdinals(),
+            sliced
         );
         return new KnnIndexTester.IndexingSetup(docs(), documentFactory, totalDocs);
     }
@@ -117,6 +122,11 @@ public final class PartitionDataGenerator extends DataGenerator {
 
     @Override
     public Sort getIndexSort() {
-        return new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
+        final String sortField = sliced ? SliceIndexing.SLICE_KEY_FIELD_NAME : KnnIndexer.PARTITION_ID_FIELD;
+        final SortField partitionSort = new SortField(sortField, SortField.Type.STRING, false);
+        if (sliced) {
+            partitionSort.setMissingValue(SortField.STRING_LAST);
+        }
+        return new Sort(partitionSort);
     }
 }

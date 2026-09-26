@@ -17,6 +17,7 @@ import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -1020,7 +1021,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         } else {
             assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
         }
-        assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[s1]"));
     }
 
     public void testBBQIVFUsesSlicedQueryForAllSliceRouting() {
@@ -1045,7 +1046,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         } else {
             assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
         }
-        assertThat(query.toString("ignored"), containsString("_routing=[]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[]"));
     }
 
     public void testBBQIVFFallsBackWhenSliceRoutingMissingAndSliceDisabled() {
@@ -1137,7 +1138,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         } else {
             assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
         }
-        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[s1,s2]"));
     }
 
     public void testBBQIVFDeduplicatesMultiSliceRoutingForKnn() {
@@ -1156,7 +1157,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomBoolean(),
             "s1,s1,s2"
         );
-        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[s1,s2]"));
     }
 
     private static DenseVectorFieldType createBBQIVFFloatFieldType() {

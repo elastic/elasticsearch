@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -59,6 +60,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 public class PlanAnonymizerTests extends ESTestCase {
 
     private static final String INDEX = "customer-orders-2026";
@@ -77,6 +81,58 @@ public class PlanAnonymizerTests extends ESTestCase {
             assertFalse("'" + secret + "' leaked into physical plan:\n" + out.physical(), out.physical().contains(secret));
             assertFalse("'" + secret + "' leaked into schema:\n" + out.schema(), out.schema().contains(secret));
         }
+    }
+
+    /**
+     * A closed value domain — enum constant, boolean — cannot carry user data, and is what failure
+     * triage actually needs, so it survives anonymization verbatim. An in-query {@code SET} value is
+     * still an unresolved keyword literal at this point, so this also pins the literal unwrapping.
+     */
+    public void testClosedDomainSettingValuesRenderVerbatim() {
+        var settings = List.of(
+            new QuerySettings.SuppliedSetting("unmapped_fields", Literal.keyword(Source.EMPTY, "LOAD_ALL"), false),
+            new QuerySettings.SuppliedSetting("column_metadata", Boolean.TRUE, true)
+        );
+
+        String out = PlanAnonymizer.forSubmission(randomUUID()).anonymizeSettings(settings);
+
+        assertThat(out, containsString("unmapped_fields=LOAD_ALL (query)"));
+        assertThat(out, containsString("column_metadata=true (request body)"));
+    }
+
+    /**
+     * A free-form value is user-supplied text — a routing pattern names real projects, a zone id
+     * narrows down a location — so it must be tokenized rather than emitted.
+     */
+    public void testFreeformSettingValuesAreAnonymized() {
+        String routing = "acme-prod-*";
+        String zone = "Europe/Madrid";
+        var settings = List.of(
+            new QuerySettings.SuppliedSetting("project_routing", routing, true),
+            new QuerySettings.SuppliedSetting("time_zone", Literal.keyword(Source.EMPTY, zone), false)
+        );
+
+        String out = PlanAnonymizer.forSubmission(randomUUID()).anonymizeSettings(settings);
+
+        assertFalse("routing pattern leaked:\n" + out, out.contains(routing));
+        assertFalse("time zone leaked:\n" + out, out.contains(zone));
+        // The name is a declared setting name, not user data, so it stays readable.
+        assertThat(out, containsString("project_routing="));
+        assertThat(out, containsString("time_zone="));
+    }
+
+    /** An unknown name means the catalog and the parser disagree; the value must not be assumed safe. */
+    public void testUnknownSettingValueIsAnonymized() {
+        String secret = "tenant-42-internal";
+        var settings = List.of(new QuerySettings.SuppliedSetting("not_a_declared_setting", secret, true));
+
+        String out = PlanAnonymizer.forSubmission(randomUUID()).anonymizeSettings(settings);
+
+        assertFalse("unknown setting value leaked:\n" + out, out.contains(secret));
+    }
+
+    public void testNoSuppliedSettingsRendersEmpty() {
+        assertThat(PlanAnonymizer.forSubmission(randomUUID()).anonymizeSettings(List.of()), equalTo(""));
     }
 
     public void testFieldTypesPreservedInSchema() {

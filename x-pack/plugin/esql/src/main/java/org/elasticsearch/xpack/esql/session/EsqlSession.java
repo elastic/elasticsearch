@@ -302,30 +302,40 @@ public class EsqlSession {
     private record ExplainSubPlan(String logicalPlan, String physicalPlan) {}
 
     /**
-     * Snapshot of the planning stages this session has completed so far. Read once by the failure-
-     * path anonymized log to surface whichever stages succeeded before the failure. The pipeline is
-     * sequential per session — each stage's listener callback fires after the previous completes, so
-     * writes never overlap. A single volatile reference (vs four separate volatile fields) gives the
-     * failure listener an atomic, all-or-nothing view of the snapshot.
+     * Snapshot of the planning stages this session has completed so far, plus the settings the user
+     * supplied. Read once by the failure-path anonymized log to surface whichever stages succeeded
+     * before the failure. The pipeline is sequential per session — each stage's listener callback fires
+     * after the previous completes, so writes never overlap. A single volatile reference (vs one
+     * volatile field per component) gives the failure listener an atomic, all-or-nothing view.
      */
-    private record PlanSnapshot(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+    private record PlanSnapshot(
+        LogicalPlan parsed,
+        LogicalPlan analyzed,
+        LogicalPlan optimized,
+        PhysicalPlan physical,
+        List<QuerySettings.SuppliedSetting> settings
+    ) {
 
-        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null);
+        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null, List.of());
 
         PlanSnapshot withParsed(LogicalPlan p) {
-            return new PlanSnapshot(p, analyzed, optimized, physical);
+            return new PlanSnapshot(p, analyzed, optimized, physical, settings);
         }
 
         PlanSnapshot withAnalyzed(LogicalPlan a) {
-            return new PlanSnapshot(parsed, a, optimized, physical);
+            return new PlanSnapshot(parsed, a, optimized, physical, settings);
         }
 
         PlanSnapshot withOptimized(LogicalPlan o) {
-            return new PlanSnapshot(parsed, analyzed, o, physical);
+            return new PlanSnapshot(parsed, analyzed, o, physical, settings);
         }
 
         PlanSnapshot withPhysical(PhysicalPlan p) {
-            return new PlanSnapshot(parsed, analyzed, optimized, p);
+            return new PlanSnapshot(parsed, analyzed, optimized, p, settings);
+        }
+
+        PlanSnapshot withSettings(List<QuerySettings.SuppliedSetting> s) {
+            return new PlanSnapshot(parsed, analyzed, optimized, physical, s);
         }
     }
 
@@ -423,6 +433,14 @@ public class EsqlSession {
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings()
         );
+        // Capture what the user supplied on either surface. Request-body settings appear nowhere else in
+        // the logs — queryDescription() is the query string, which only carries in-query SET — so without
+        // this a body-supplied setting is unrecoverable after the fact.
+        List<QuerySettings.SuppliedSetting> suppliedSettings = QuerySettings.supplied(request.requestSettings(), statement.settings());
+        planSnapshot = planSnapshot.withSettings(suppliedSettings);
+        if (suppliedSettings.isEmpty() == false && LOGGER.isDebugEnabled()) {
+            LOGGER.debug("ESQL query settings:\n{}", describeSuppliedSettings(suppliedSettings));
+        }
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
         // before view and IN subquery resolution and pre-analysis, which would otherwise silently
@@ -1095,12 +1113,16 @@ public class EsqlSession {
             return;
         }
         try {
-            var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
-                .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
+            // One anonymizer for the whole record so the settings section and the plans share the
+            // per-submission token maps: a value that appears in both renders as the same token.
+            var anonymizer = PlanAnonymizer.forSubmission(clusterUuid);
+            var anonymized = anonymizer.anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
             LOGGER.error(
                 """
                     ES|QL query failed in session [{}]
                     failure:
+                    {}
+                    settings:
                     {}
                     parsed:
                     {}
@@ -1114,6 +1136,7 @@ public class EsqlSession {
                     {}""".stripIndent(),
                 sessionId,
                 err.getMessage(),
+                anonymizer.anonymizeSettings(snap.settings()),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),
@@ -1512,6 +1535,24 @@ public class EsqlSession {
         // (e.g., snapshot-only settings are not registered in non-snapshot builds); incSetting() silently
         // ignores settings that don't have a registered counter.
         suppliedSettingNames(request, statement).forEach(metrics::incSetting);
+    }
+
+    /**
+     * Renders supplied settings for the DEBUG log, one per line, verbatim — this log serves a local
+     * operator who can already read the query itself, so unlike the anonymized failure log it does not
+     * tokenize values.
+     */
+    private static String describeSuppliedSettings(List<QuerySettings.SuppliedSetting> supplied) {
+        StringBuilder sb = new StringBuilder();
+        for (QuerySettings.SuppliedSetting setting : supplied) {
+            sb.append("  ")
+                .append(setting.name())
+                .append('=')
+                .append(setting.value())
+                .append(setting.fromRequestBody() ? " (request body)" : " (query)")
+                .append('\n');
+        }
+        return sb.toString();
     }
 
     /**

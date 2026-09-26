@@ -37,7 +37,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     private static final int MIN_SUBQUERIES = 2;
 
-    // the upper limit is defined in {@code MergePlan.MAX_BRANCHES}
+    // Stress width. Stays under the default esql.query.max_branch_count of 20.
     private static final int MAX_SUBQUERIES = 8;
 
     private static final int MAX_SUBQUERIES_SERVERLESS = 5;

@@ -34,14 +34,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting, against the scenario reported on a 9.5.2
- * cluster in elastic/elasticsearch#158472: enough registered datasets make every {@code FROM *} fail, because a
- * wildcard sweeps them all in and each becomes its own plan branch.
- *
- * <p>Eight datasets plus one matching index is nine branches, one past the per-{@code FROM} cap, so the wildcard fails
- * outright when it may discover datasets. With the setting at its default the same wildcard means index-likes only and
- * the query returns the index rows. Run against a tree without the setting, {@link #testWildcardDoesNotMatchDatasetsByDefault}
- * fails with that branch-limit error.
+ * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting. With the setting off, a wildcard
+ * means index-likes only and the query returns the index rows. With the setting on, a wildcard that names a dataset
+ * reaches that dataset.
  *
  * <p>This is the layer that can register a data source, so it sits beside {@link DataSourceCrudRestIT} rather than in
  * the {@code x-pack:plugin:esql} unit suites.
@@ -49,7 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
 
-    /** One past {@code MergePlan.MAX_BRANCHES} once the matching index contributes its own branch. */
+    /** Stays under the default {@code esql.query.max_branch_count} once the matching index contributes its own branch. */
     private static final int DATASET_COUNT = 8;
     private static final String INDEX = "logs-000001";
     private static final String DATA_SOURCE = "lake";

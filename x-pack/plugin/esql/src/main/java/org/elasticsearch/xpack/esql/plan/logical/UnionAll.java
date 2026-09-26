@@ -194,8 +194,9 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
      * <p>
      * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
      * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
-     * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
-     * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
+     * the total is what a single request commits the coordinator to. Per-node width uses the same cap via
+     * {@link MergePlan#checkMaxBranchCount}. Subqueries nest, so without a query-wide limit the leaf total grows as
+     * a power of the nesting depth.
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to

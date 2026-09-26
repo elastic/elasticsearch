@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.time.Instant;
@@ -184,14 +186,15 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testUnionBranchLimit() {
-        // A union chain is translated into a single UnionAll, which supports up to MergePlan.MAX_BRANCHES (8) branches.
-        String maxOperands = String.join(" or ", Collections.nCopies(8, "network.bytes_in"));
-        assertTrue(tsdb.query("PROMQL index=test step=5m " + maxOperands).resolved());
+        // A union chain becomes one UnionAll, capped by the cluster max_branch_count when no pragma is set.
+        int maxOperands = EsqlFlags.ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+        String atLimit = String.join(" or ", Collections.nCopies(maxOperands, "network.bytes_in"));
+        assertTrue(tsdb.query("PROMQL index=test step=5m " + atLimit).resolved());
 
-        String tooManyOperands = String.join(" or ", Collections.nCopies(9, "network.bytes_in"));
+        String tooManyOperands = String.join(" or ", Collections.nCopies(maxOperands + 1, "network.bytes_in"));
         tsdb.error(
             "PROMQL index=test step=5m " + tooManyOperands,
-            containsString("PromQL set operator [or] supports up to [8] operands, got [9]")
+            containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]")
         );
     }
 

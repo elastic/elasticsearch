@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -49,6 +51,7 @@ public class AnalyzerContext {
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
+    private final EsqlFlags flags;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -66,7 +69,8 @@ public class AnalyzerContext {
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
-        boolean preserveViewBoundaries
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -84,6 +88,7 @@ public class AnalyzerContext {
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
+        this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -119,7 +124,8 @@ public class AnalyzerContext {
             unmappedResolution,
             null,
             IpLocationResolution.SERVICE_UNAVAILABLE,
-            false
+            false,
+            EsqlFlags.DEFAULTS
         );
     }
 
@@ -237,6 +243,23 @@ public class AnalyzerContext {
         return preserveViewBoundaries;
     }
 
+    /** Cluster flags for this request. Tests that omit them get {@link EsqlFlags#DEFAULTS}. */
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    /** Resolved {@code max_branch_count}: a set query pragma overrides {@link EsqlFlags#maxBranchCount()}. */
+    public int maxBranchCount() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCount(flags.maxBranchCount());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCount()}. */
+    public String maxBranchCountLimitSource() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
+    }
+
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -247,7 +270,8 @@ public class AnalyzerContext {
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
-        boolean preserveViewBoundaries
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this(
             configuration,
@@ -265,7 +289,8 @@ public class AnalyzerContext {
             unmappedResolution,
             timestampBounds,
             ipLocationResolution,
-            preserveViewBoundaries
+            preserveViewBoundaries,
+            flags
         );
     }
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -1048,14 +1048,48 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWithTooManySubqueries() {
-        var query = """
-            FROM test
-            | FORK (WHERE true) (WHERE true) (WHERE true) (WHERE true) (WHERE true)
-                   (WHERE true) (WHERE true) (WHERE true) (WHERE true)
-            """;
-        var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork supports up to 8 branches"));
+        int limit = EsqlFlags.ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+        StringBuilder query = new StringBuilder("FROM test | FORK");
+        for (int i = 0; i < limit + 1; i++) {
+            query.append(" (WHERE true)");
+        }
+        var e = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query.toString())));
+        assertTrue(
+            e.getMessage()
+                .contains(
+                    "FORK resolved to "
+                        + (limit + 1)
+                        + " branches, exceeding the limit of "
+                        + limit
+                        + " set by the ["
+                        + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()
+                        + "] cluster setting"
+                )
+        );
+    }
 
+    public void testPragmaOverridesClusterBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 2));
+        try {
+            String three = "FROM test | FORK (WHERE true) (WHERE true) (WHERE true)";
+            var e = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(three)));
+            assertTrue(
+                e.getMessage()
+                    .contains(
+                        "FORK resolved to 3 branches, exceeding the limit of 2 set by the ["
+                            + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()
+                            + "] cluster setting"
+                    )
+            );
+
+            var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+            try (var resp = run(syncEsqlQueryRequest(three).pragmas(pragmas))) {
+                assertNotNull(resp.columns());
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
     }
 
     /**

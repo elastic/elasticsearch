@@ -17,16 +17,23 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.Dictionary;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
+import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.Stack;
+import java.util.StringJoiner;
+import java.util.Vector;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -56,6 +63,12 @@ public final class AllocationEstimators {
 
     /** One {@code LinkedHashMap.Entry}: a {@code HashMap.Node} plus the before and after references. */
     private static final long LINKED_HASH_MAP_ENTRY_BYTES = 56;
+
+    /** An {@code ArrayList} without its backing array. Matches the charge on {@code new ArrayList()}, which makes none. */
+    static final long ARRAY_LIST_SHELL_BYTES = 40;
+
+    /** Default {@code ArrayList} capacity. A list built by {@code add} never holds less. */
+    private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
 
     /**
      * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
@@ -106,6 +119,182 @@ public final class AllocationEstimators {
     /** Locale-aware overload of {@link #recaseBytes(String)} for {@code toLowerCase(Locale)}/{@code toUpperCase(Locale)}. */
     public static long recaseBytes(String receiver, Locale locale) {
         return newStringBytes(receiver.length());
+    }
+
+    // ---- The rest of java.lang: members that build a String, and Iterable augmentations that build a collection.
+
+    /** Allowance for the text a replacement function adds in a {@code replaceAll}. */
+    private static final long REPLACEMENT_CHARACTERS = 256;
+
+    /** A {@code StackTraceElement}: seven references, an int and a byte. */
+    private static final long STACK_TRACE_ELEMENT_BYTES = 80;
+
+    /** A {@code Character.getName} result, under 90 chars. */
+    private static final long CHARACTER_NAME_BYTES = 256;
+
+    /** One {@code groupBy} element at worst starts a group: a linked entry, a list, and the list's first array. */
+    private static final long GROUP_BY_ELEMENT_BYTES = LINKED_HASH_MAP_ENTRY_BYTES + ARRAY_LIST_SHELL_BYTES + AllocSizes.arrayBytes(
+        ARRAY_LIST_DEFAULT_CAPACITY,
+        AllocSizes.REFERENCE_SIZE
+    );
+
+    /** The array {@code Character.UnicodeScript.values()} clones on every call. */
+    private static final long UNICODE_SCRIPT_VALUES_BYTES = AllocSizes.arrayBytes(
+        Character.UnicodeScript.values().length,
+        AllocSizes.REFERENCE_SIZE
+    );
+
+    /** The String made of {@code value}, counted without rendering it. A String is returned as is, so it costs nothing. */
+    private static long renderedStringBytes(Object value) {
+        return value instanceof String ? 0 : newStringBytes(AllocSizes.renderedChars(value));
+    }
+
+    /** {@code Object.toString()}. A String returns itself and costs nothing. */
+    public static long toStringBytes(Object receiver) {
+        return renderedStringBytes(receiver);
+    }
+
+    /** {@code CharSequence.toString()}: builders copy their contents. */
+    public static long toStringBytes(CharSequence receiver) {
+        return renderedStringBytes(receiver);
+    }
+
+    /** {@code String.valueOf(value)}. A String is returned as is. */
+    public static long stringValueOfBytes(Object value) {
+        return renderedStringBytes(value);
+    }
+
+    /** {@code CharSequence.subSequence(start, end)}: a copy of the range. */
+    public static long subSequenceBytes(CharSequence receiver, int start, int end) {
+        return newStringBytes((long) end - start);
+    }
+
+    /** {@code String.copyValueOf(data)}. */
+    public static long copyValueOfBytes(char[] data) {
+        return newStringBytes(data == null ? 0 : data.length);
+    }
+
+    /** {@code String.copyValueOf(data, offset, count)}. */
+    public static long copyValueOfBytes(char[] data, int offset, int count) {
+        return newStringBytes(count);
+    }
+
+    /** {@code String.encodeBase64()}: the UTF-8 bytes, the encoded bytes, and the result. */
+    public static long encodeBase64Bytes(String receiver) {
+        long chars = receiver.length();
+        long utf8 = AllocSizes.arrayBytes(AllocSizes.mulSat(chars, 3), 1);
+        long encoded = AllocSizes.arrayBytes(AllocSizes.mulSat(chars, 4), 1);
+        return AllocSizes.addSat(AllocSizes.addSat(utf8, encoded), newStringBytes(AllocSizes.mulSat(chars, 4)));
+    }
+
+    /** {@code String.decodeBase64()}: the input bytes, the decoded bytes, and the result. */
+    public static long decodeBase64Bytes(String receiver) {
+        long chars = receiver.length();
+        return AllocSizes.addSat(AllocSizes.mulSat(AllocSizes.arrayBytes(chars, 1), 2), newStringBytes(chars));
+    }
+
+    /** {@code pieces} Strings holding {@code chars} in total, in a list and then an array. */
+    private static long splitPiecesBytes(long pieces, long chars) {
+        long strings = AllocSizes.addSat(AllocSizes.mulSat(pieces, AllocSizes.STRING_CONCAT_RESULT_OVERHEAD), AllocSizes.mulSat(2, chars));
+        long list = AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(pieces, AllocSizes.REFERENCE_SIZE));
+        long array = AllocSizes.arrayBytes(pieces, AllocSizes.REFERENCE_SIZE);
+        return AllocSizes.addSat(AllocSizes.addSat(strings, list), array);
+    }
+
+    /** {@code String.splitOnToken(token)}: at worst a piece per char, plus one. */
+    public static long splitOnTokenBytes(String receiver, String token) {
+        long chars = receiver.length();
+        return splitPiecesBytes(chars + 1, chars);
+    }
+
+    /** {@code String.splitOnToken(token, limit)}: a limit under one means no limit. */
+    public static long splitOnTokenBytes(String receiver, String token, int limit) {
+        long chars = receiver.length();
+        long pieces = limit < 1 ? chars + 1 : Math.min(limit, chars + 1);
+        return splitPiecesBytes(pieces, chars);
+    }
+
+    /** {@code String.replace(target, replacement)}: a bound with every possible match replaced. */
+    public static long replaceBytes(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
+        long chars = receiver.length();
+        long targetLength = target == null ? 0 : target.length();
+        long replacementLength = replacement == null ? 0 : replacement.length();
+        long matches = targetLength == 0 ? chars + 1 : chars / targetLength;
+        return newStringBytes(AllocSizes.addSat(chars, AllocSizes.mulSat(matches, replacementLength)));
+    }
+
+    /** A regex replace: the matcher, a builder of the receiver plus 16, and the result with its allowance. */
+    private static long regexReplaceBytes(CharSequence receiver) {
+        long chars = receiver.length();
+        long builder = AllocSizes.addSat(stringBuilderShellBytes(), AllocSizes.arrayBytes(chars + 16, 2));
+        long result = newStringBytes(AllocSizes.addSat(chars, REPLACEMENT_CHARACTERS));
+        return AllocSizes.addSat(AllocSizes.addSat(AllocSizes.MATCHER_BYTES, builder), result);
+    }
+
+    /** {@code CharSequence.replaceAll(pattern, function)}. */
+    public static long replaceAllBytes(
+        PainlessScript script,
+        CharSequence receiver,
+        int limitFactor,
+        Pattern pattern,
+        Function<?, ?> function
+    ) {
+        return regexReplaceBytes(receiver);
+    }
+
+    /** {@code CharSequence.replaceFirst(pattern, function)}. */
+    public static long replaceFirstBytes(CharSequence receiver, int limitFactor, Pattern pattern, Function<?, ?> function) {
+        return regexReplaceBytes(receiver);
+    }
+
+    /** Size of {@code iterable} without consuming it: a collection's size, otherwise a fixed guess. */
+    private static long iterableCount(Iterable<?> iterable) {
+        return iterable instanceof Collection<?> collection ? collection.size() : UNKNOWN_ELEMENT_COUNT;
+    }
+
+    /** {@code Iterable.asCollection()}: a collection is returned as is, anything else is copied. */
+    public static long asCollectionBytes(Iterable<?> receiver) {
+        return receiver instanceof Collection ? 0 : listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT);
+    }
+
+    /** {@code Iterable.asList()}: a list is returned as is, anything else is copied. */
+    public static long asListBytes(Iterable<?> receiver) {
+        return receiver instanceof List ? 0 : listBuiltByAddBytes(iterableCount(receiver));
+    }
+
+    /** {@code Iterable.findResults(function)}: a list with room for every element. */
+    public static long findResultsBytes(PainlessScript script, Iterable<?> receiver, Function<?, ?> function) {
+        return listBuiltByAddBytes(iterableCount(receiver));
+    }
+
+    /** {@code Iterable.groupBy(function)}: a map plus, at worst, a group per element. */
+    public static long groupByBytes(PainlessScript script, Iterable<?> receiver, Function<?, ?> function) {
+        return AllocSizes.addSat(hashMapShellBytes(), AllocSizes.mulSat(iterableCount(receiver), GROUP_BY_ELEMENT_BYTES));
+    }
+
+    /** {@code Iterable.join(separator)}: same as {@code String.join}. */
+    public static long iterableJoinBytes(Iterable<?> receiver, String separator) {
+        return joinBytes(separator == null ? "" : separator, receiver);
+    }
+
+    /** {@code Character.getName(codePoint)}. */
+    public static long characterNameBytes(int codePoint) {
+        return CHARACTER_NAME_BYTES;
+    }
+
+    /** {@code UnicodeBlock.forName(name)} and {@code UnicodeScript.forName(name)}: the name is upper-cased first. */
+    public static long forNameBytes(String name) {
+        return newStringBytes(name == null ? 0 : name.length());
+    }
+
+    /** {@code Character.UnicodeScript.values()}. */
+    public static long unicodeScriptValuesBytes() {
+        return UNICODE_SCRIPT_VALUES_BYTES;
+    }
+
+    /** {@code new StackTraceElement(declaringClass, methodName, fileName, lineNumber)}. */
+    public static long stackTraceElementBytes(String declaringClass, String methodName, String fileName, int lineNumber) {
+        return STACK_TRACE_ELEMENT_BYTES;
     }
 
     /**
@@ -161,8 +350,6 @@ public final class AllocationEstimators {
     private static final long IDENTITY_HASH_MAP_MAX_CAPACITY_FACTOR = 3;
     /** A {@code List.subList} view: two list references plus offset, size and modCount. */
     private static final long SUB_LIST_VIEW_BYTES = 40;
-    /** Default {@code ArrayList} capacity. A list built by repeated {@code add} never holds less than this. */
-    private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
 
     /**
      * {@code new BitSet(nbits)}: the object plus a {@code long[]} big enough for {@code nbits} bits. A negative count is
@@ -784,9 +971,279 @@ public final class AllocationEstimators {
         return 24;
     }
 
+    // ---- Members that grow an existing collection or builder. A collection add costs a fixed amount per element. A
+    // ---- builder is charged its new array only when it must grow. A latin1 builder switching to UTF16 is not charged.
+
     /**
-     * Heap cost of an {@code ArrayList} instance excluding its backing array; matches the {@code @allocates} value on
-     * the no-arg {@code new ArrayList()}, whose backing array is lazily created.
+     * One element added to a list or deque. An {@code ArrayList} slot is 8 bytes and the arrays it grows out of add about
+     * twice that over time, so about 24. A {@code LinkedList} node is a header plus three references, 40. The larger wins.
      */
-    static final long ARRAY_LIST_SHELL_BYTES = 40;
+    private static final long LIST_ADD_BYTES = 40;
+
+    /**
+     * One entry put into a map or set. A {@code LinkedHashMap.Entry} is 56 bytes. The table doubles at three quarters full,
+     * so the tables it grows out of add about 21 bytes per entry over time. 77, rounded up.
+     */
+    private static final long MAP_PUT_BYTES = 80;
+
+    /** A {@code StringJoiner} with no elements: prefix, delimiter, suffix, element array and empty value, plus two ints. */
+    private static final long STRING_JOINER_SHELL_BYTES = AllocSizes.pad8(
+        AllocSizes.OBJECT_HEADER + 5L * AllocSizes.REFERENCE_SIZE + 2L * Integer.BYTES
+    );
+
+    /** One slot in a {@code StringJoiner}'s element array, which doubles when full: the slot plus as much again in copies. */
+    private static final long STRING_JOINER_SLOT_BYTES = 2L * AllocSizes.REFERENCE_SIZE;
+
+    /** One add to {@code receiver}. A set is a map underneath. */
+    private static long addBytes(Collection<?> receiver) {
+        return receiver instanceof Set ? MAP_PUT_BYTES : LIST_ADD_BYTES;
+    }
+
+    /** {@code Collection.add(element)}. */
+    public static long collectionAddBytes(Collection<?> receiver, Object element) {
+        return addBytes(receiver);
+    }
+
+    /** {@code Collection.addAll(source)}: one add per source element. */
+    public static long collectionAddAllBytes(Collection<?> receiver, Collection<?> source) {
+        return AllocSizes.mulSat(addBytes(receiver), source == null ? 0 : source.size());
+    }
+
+    /** {@code Collections.addAll(target, elements...)}. */
+    public static long collectionsAddAllBytes(Collection<?> target, Object[] elements) {
+        return AllocSizes.mulSat(addBytes(target), elements == null ? 0 : elements.length);
+    }
+
+    /** {@code List.add(index, element)}. */
+    public static long listAddBytes(List<?> receiver, int index, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code List.addAll(index, source)}. */
+    public static long listAddAllBytes(List<?> receiver, int index, Collection<?> source) {
+        return AllocSizes.mulSat(LIST_ADD_BYTES, source == null ? 0 : source.size());
+    }
+
+    /** {@code ListIterator.add(element)}. */
+    public static long listIteratorAddBytes(ListIterator<?> receiver, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Queue.offer(element)}. */
+    public static long queueOfferBytes(Queue<?> receiver, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Deque.addFirst}, {@code addLast}, {@code offerFirst}, {@code offerLast} and {@code push}. */
+    public static long dequeAddBytes(Deque<?> receiver, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Stack.push(element)}. */
+    public static long stackPushBytes(Stack<?> receiver, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Vector.addElement(element)}. */
+    public static long vectorAddBytes(Vector<?> receiver, Object element) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Vector.insertElementAt(element, index)}. */
+    public static long vectorInsertBytes(Vector<?> receiver, Object element, int index) {
+        return LIST_ADD_BYTES;
+    }
+
+    /** {@code Map.put(key, value)} and {@code putIfAbsent(key, value)}. */
+    public static long mapPutBytes(Map<?, ?> receiver, Object key, Object value) {
+        return MAP_PUT_BYTES;
+    }
+
+    /** {@code Map.putAll(source)}: one put per source entry. */
+    public static long mapPutAllBytes(Map<?, ?> receiver, Map<?, ?> source) {
+        return AllocSizes.mulSat(MAP_PUT_BYTES, source == null ? 0 : source.size());
+    }
+
+    /** {@code Map.compute(key, function)}: may insert. */
+    public static long mapComputeBytes(Map<?, ?> receiver, Object key, BiFunction<?, ?, ?> function) {
+        return MAP_PUT_BYTES;
+    }
+
+    /** {@code Map.computeIfAbsent(key, function)}: may insert. */
+    public static long mapComputeBytes(Map<?, ?> receiver, Object key, Function<?, ?> function) {
+        return MAP_PUT_BYTES;
+    }
+
+    /** {@code Map.merge(key, value, function)}: may insert. */
+    public static long mapMergeBytes(Map<?, ?> receiver, Object key, Object value, BiFunction<?, ?, ?> function) {
+        return MAP_PUT_BYTES;
+    }
+
+    /** {@code Dictionary.put(key, value)}. */
+    public static long dictionaryPutBytes(Dictionary<?, ?> receiver, Object key, Object value) {
+        return MAP_PUT_BYTES;
+    }
+
+    /** {@code new StringJoiner(delimiter)}: the joiner plus its copy of the delimiter. */
+    public static long stringJoinerBytes(CharSequence delimiter) {
+        return AllocSizes.addSat(STRING_JOINER_SHELL_BYTES, newStringBytes(delimiter == null ? 0 : delimiter.length()));
+    }
+
+    /** {@code new StringJoiner(delimiter, prefix, suffix)}: the joiner plus copies of all three. */
+    public static long stringJoinerBytes(CharSequence delimiter, CharSequence prefix, CharSequence suffix) {
+        long chars = (delimiter == null ? 0L : delimiter.length()) + (prefix == null ? 0L : prefix.length()) + (suffix == null
+            ? 0L
+            : suffix.length());
+        return AllocSizes.addSat(STRING_JOINER_SHELL_BYTES, newStringBytes(chars));
+    }
+
+    /** {@code StringJoiner.add(element)}: a String copy plus a slot. */
+    public static long stringJoinerAddBytes(StringJoiner receiver, CharSequence element) {
+        return AllocSizes.addSat(newStringBytes(element == null ? 4 : element.length()), STRING_JOINER_SLOT_BYTES);
+    }
+
+    /** {@code StringJoiner.merge(other)}: the other joiner as one String, plus a slot. */
+    public static long stringJoinerMergeBytes(StringJoiner receiver, StringJoiner other) {
+        return AllocSizes.addSat(newStringBytes(other == null ? 0 : other.length()), STRING_JOINER_SLOT_BYTES);
+    }
+
+    /** {@code StringJoiner.setEmptyValue(value)}: a String copy of the value. */
+    public static long stringJoinerSetEmptyValueBytes(StringJoiner receiver, CharSequence value) {
+        return newStringBytes(value == null ? 0 : value.length());
+    }
+
+    /** Words a {@code BitSet} needs to hold {@code bits} bits. */
+    private static long bitSetWords(long bits) {
+        return Math.max(0L, bits + 63) / 64;
+    }
+
+    /** The new word array when a {@code BitSet} must grow to hold {@code bits} bits, else zero. The JDK doubles or fits. */
+    private static long bitSetGrowthBytes(BitSet receiver, long bits) {
+        long words = receiver.size() / 64L;
+        long needed = bitSetWords(bits);
+        if (needed <= words) {
+            return 0;
+        }
+        return AllocSizes.arrayBytes(Math.max(2 * words, needed), Long.BYTES);
+    }
+
+    /** {@code BitSet.set(index)} and {@code flip(index)}. */
+    public static long bitSetGrowBytes(BitSet receiver, int index) {
+        return bitSetGrowthBytes(receiver, index + 1L);
+    }
+
+    /** {@code BitSet.set(from, to)} and {@code flip(from, to)}. */
+    public static long bitSetGrowBytes(BitSet receiver, int from, int to) {
+        return bitSetGrowthBytes(receiver, to);
+    }
+
+    /** {@code BitSet.set(from, to, value)}. */
+    public static long bitSetGrowBytes(BitSet receiver, int from, int to, boolean value) {
+        return bitSetGrowthBytes(receiver, to);
+    }
+
+    /** {@code BitSet.or(set)} and {@code xor(set)}: grows to the other set. */
+    public static long bitSetGrowBytes(BitSet receiver, BitSet set) {
+        return bitSetGrowthBytes(receiver, set == null ? 0 : set.length());
+    }
+
+    /** The new array when a builder must grow to take {@code added} more chars, else zero. The JDK doubles plus two, or fits. */
+    private static long builderGrowthBytes(int length, int capacity, long added) {
+        long needed = AllocSizes.addSat(length, Math.max(0L, added));
+        if (needed <= capacity) {
+            return 0;
+        }
+        return AllocSizes.arrayBytes(Math.max(needed, 2L * capacity + 2), 2);
+    }
+
+    /** The String a builder makes of {@code value} when it is not text, given its {@code chars}. */
+    private static long valueStringBytes(Object value, long chars) {
+        return value == null || value instanceof CharSequence ? 0 : newStringBytes(chars);
+    }
+
+    /** {@code value} appended or inserted: its String when one is made, plus the builder's growth if it does not fit. */
+    private static long builderTakesBytes(int length, int capacity, Object value) {
+        long chars = AllocSizes.renderedChars(value);
+        return AllocSizes.addSat(valueStringBytes(value, chars), builderGrowthBytes(length, capacity, chars));
+    }
+
+    /** {@code StringBuilder.append(value)}. */
+    public static long appendBytes(StringBuilder receiver, Object value) {
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
+    }
+
+    /** {@code StringBuffer.append(value)}. */
+    public static long appendBytes(StringBuffer receiver, Object value) {
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
+    }
+
+    /** {@code StringBuilder.append(sequence, start, end)}. */
+    public static long appendBytes(StringBuilder receiver, CharSequence sequence, int start, int end) {
+        return builderGrowthBytes(receiver.length(), receiver.capacity(), (long) end - start);
+    }
+
+    /** {@code StringBuffer.append(sequence, start, end)}. */
+    public static long appendBytes(StringBuffer receiver, CharSequence sequence, int start, int end) {
+        return builderGrowthBytes(receiver.length(), receiver.capacity(), (long) end - start);
+    }
+
+    /** {@code Appendable.append(sequence, start, end)}: a builder grows as usual; any other sink pays the chars. */
+    public static long appendableAppendBytes(Appendable receiver, CharSequence sequence, int start, int end) {
+        if (receiver instanceof StringBuilder builder) {
+            return appendBytes(builder, sequence, start, end);
+        } else if (receiver instanceof StringBuffer buffer) {
+            return appendBytes(buffer, sequence, start, end);
+        }
+        return AllocSizes.arrayBytes(Math.max(0L, (long) end - start), 2);
+    }
+
+    /** {@code StringBuilder.appendCodePoint(codePoint)}: at most two chars. */
+    public static long appendCodePointBytes(StringBuilder receiver, int codePoint) {
+        return builderGrowthBytes(receiver.length(), receiver.capacity(), 2);
+    }
+
+    /** {@code StringBuffer.appendCodePoint(codePoint)}: at most two chars. */
+    public static long appendCodePointBytes(StringBuffer receiver, int codePoint) {
+        return builderGrowthBytes(receiver.length(), receiver.capacity(), 2);
+    }
+
+    /** {@code StringBuilder.insert(offset, value)}. */
+    public static long insertBytes(StringBuilder receiver, int offset, Object value) {
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
+    }
+
+    /** {@code StringBuffer.insert(offset, value)}. */
+    public static long insertBytes(StringBuffer receiver, int offset, Object value) {
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
+    }
+
+    /** Chars {@code replace(start, end, text)} adds: the text minus the range it replaces. */
+    private static long replacedChars(int length, int start, int end, String text) {
+        long removed = Math.max(0L, Math.min(end, length) - (long) start);
+        return (text == null ? 0L : text.length()) - removed;
+    }
+
+    /** {@code StringBuilder.replace(start, end, text)}. */
+    public static long replaceBytes(StringBuilder receiver, int start, int end, String text) {
+        int length = receiver.length();
+        return builderGrowthBytes(length, receiver.capacity(), replacedChars(length, start, end, text));
+    }
+
+    /** {@code StringBuffer.replace(start, end, text)}. */
+    public static long replaceBytes(StringBuffer receiver, int start, int end, String text) {
+        int length = receiver.length();
+        return builderGrowthBytes(length, receiver.capacity(), replacedChars(length, start, end, text));
+    }
+
+    /** {@code StringBuilder.setLength(newLength)}. */
+    public static long setLengthBytes(StringBuilder receiver, int newLength) {
+        int length = receiver.length();
+        return builderGrowthBytes(length, receiver.capacity(), (long) newLength - length);
+    }
+
+    /** {@code StringBuffer.setLength(newLength)}. */
+    public static long setLengthBytes(StringBuffer receiver, int newLength) {
+        int length = receiver.length();
+        return builderGrowthBytes(length, receiver.capacity(), (long) newLength - length);
+    }
 }

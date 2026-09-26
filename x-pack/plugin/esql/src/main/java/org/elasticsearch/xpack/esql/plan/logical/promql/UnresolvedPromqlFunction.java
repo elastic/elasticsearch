@@ -61,6 +61,11 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
         this.groupingKeys = groupingKeys != null ? groupingKeys : List.of();
     }
 
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        throw new IllegalStateException("unresolved PromQL function [" + functionName + "] reached translation");
+    }
+
     public String functionName() {
         return functionName;
     }

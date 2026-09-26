@@ -17,11 +17,18 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -150,9 +157,55 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return Objects.hash(super.hashCode(), grouping, groupings);
     }
 
+    /**
+     * {@code by (keys)} keeps exactly the keys, whatever the enclosing node requires. {@code without (dropped)} keeps every
+     * other label but the metric name, so the child must deliver a packing that excludes the dropped ones and
+     * {@code __name__} - unless it has concrete keys, which then simply lose them. No clause collapses every series into
+     * one.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // The keys are the node's output, not its groupings: a grouping that resolved to a metric field or to nothing is
+        // not a label and the command projection never references it.
+        List<String> keys = PromqlLabels.labelNames(output());
+        // `without` also drops the metric name - Prometheus never carries `__name__` past an aggregation - so `without ()`
+        // drops exactly it. NOTE: without excluding `__name__` the aggregation result would be split across metrics.
+        List<String> dropped = new ArrayList<>(PromqlLabels.labelNames(groupings));
+        if (dropped.contains(LabelMatcher.NAME) == false) {
+            dropped.add(LabelMatcher.NAME);
+        }
+        TranslationConstraint required = translation.required();
+
+        // IN: by (k) -> k; without (d) -> any + required - d, `__name__` always in d; none -> nothing
+        TranslationConstraint below = switch (grouping) {
+            case BY -> of(keys);
+            case WITHOUT -> sub(union(any(), required), of(dropped));
+            case NONE -> of();
+        };
+        TranslationResult child = translation.translate(child(), below);
+        if (child.kind().constant) {
+            return child;
+        }
+
+        // OUT: by (k) -> k, null where the child lacks one; without (d) -> child's labels - d; none -> nothing
+        TranslationConstraint by = switch (grouping) {
+            case BY -> of(keys);
+            case WITHOUT -> sub(child.shape(), of(dropped));
+            case NONE -> of();
+        };
+        Expression function = buildEsqlFunction(child.value(), translation.promqlContext(child));
+        return translation.aggregate(child, by, function, grouping == Grouping.WITHOUT);
+    }
+
     @Override
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_AGGREGATION;
+    }
+
+    @Override
+    public boolean dropsMetricName() {
+        // Aggregations group series away: the result carries only grouping labels, never the metric name.
+        return true;
     }
 
     @Override

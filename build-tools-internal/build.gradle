@@ -68,6 +68,10 @@ gradlePlugin {
       id = 'elasticsearch.dra-artifacts'
       implementationClass = 'org.elasticsearch.gradle.internal.dra.DraResolvePlugin'
     }
+    flakinessResolve {
+      id = 'elasticsearch.internal-flakiness-resolve'
+      implementationClass = 'org.elasticsearch.gradle.internal.flakiness.FlakinessResolvePlugin'
+    }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
       implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'

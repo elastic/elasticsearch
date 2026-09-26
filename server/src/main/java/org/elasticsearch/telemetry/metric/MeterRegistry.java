@@ -10,8 +10,8 @@
 package org.elasticsearch.telemetry.metric;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -63,7 +63,13 @@ public interface MeterRegistry {
         String unit,
         Supplier<DoubleWithAttributes> observer
     ) {
-        return registerDoublesAsyncGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+        return registerDoubleAsyncGauge(name, description, unit, measurement -> {
+            DoubleWithAttributes observed = observer.get();
+            assert observed != null : "must not pass null values to async instruments: metric " + name;
+            if (observed != null) {
+                measurement.record(observed.value(), observed.attributes());
+            }
+        });
     }
 
     /**
@@ -75,12 +81,39 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleAsyncGauge registerDoublesAsyncGauge(
+    default DoubleAsyncGauge registerDoublesAsyncGauge(
         String name,
         String description,
         String unit,
         Supplier<Collection<DoubleWithAttributes>> observer
-    );
+    ) {
+        return registerDoubleAsyncGauge(name, description, unit, measurement -> {
+            Collection<DoubleWithAttributes> allObserved = observer.get();
+            assert allObserved != null : "must not pass null values to async instruments: metric " + name;
+            if (allObserved == null) {
+                return;
+            }
+            for (DoubleWithAttributes observed : allObserved) {
+                assert observed != null : "must not pass null values to async instruments: metric " + name;
+                if (observed != null) {
+                    measurement.record(observed.value(), observed.attributes());
+                }
+            }
+        });
+    }
+
+    /**
+     * Registers and returns a {@link DoubleAsyncGauge}. The returned gauge object is {@link AutoCloseable} and must be closed when the
+     * resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the gauge.
+     * @param description The description of the gauge.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link DoubleAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    DoubleAsyncGauge registerDoubleAsyncGauge(String name, String description, String unit, Consumer<DoubleAsyncMeasurement> callback);
 
     /**
      * Register a {@link DoubleHistogram}.  The returned object may be reused.
@@ -120,7 +153,13 @@ public interface MeterRegistry {
      * @param observer a callback to provide a metric value upon observation (metric interval)
      */
     default LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongsAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
+        return registerLongAsyncCounter(name, description, unit, measurement -> {
+            LongWithAttributes observed = observer.get();
+            assert observed != null : "must not pass null values to async instruments: metric " + name;
+            if (observed != null) {
+                measurement.record(observed.value(), observed.attributes());
+            }
+        });
     }
 
     /**
@@ -130,12 +169,39 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric values upon observation (metric interval)
      */
-    LongAsyncCounter registerLongsAsyncCounter(
+    default LongAsyncCounter registerLongsAsyncCounter(
         String name,
         String description,
         String unit,
         Supplier<Collection<LongWithAttributes>> observer
-    );
+    ) {
+        return registerLongAsyncCounter(name, description, unit, measurement -> {
+            Collection<LongWithAttributes> allObserved = observer.get();
+            assert allObserved != null : "must not pass null values to async instruments: metric " + name;
+            if (allObserved == null) {
+                return;
+            }
+            for (LongWithAttributes observed : allObserved) {
+                assert observed != null : "must not pass null values to async instruments: metric " + name;
+                if (observed != null) {
+                    measurement.record(observed.value(), observed.attributes());
+                }
+            }
+        });
+    }
+
+    /**
+     * Registers and returns a {@link LongAsyncCounter}. The returned counter object is {@link AutoCloseable} and must be closed when the
+     * resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the counter.
+     * @param description The description of the counter.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link LongAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback);
 
     /**
      * Register a {@link DoubleAsyncCounter} with an asynchronous callback.  The returned object may be reused.
@@ -150,7 +216,13 @@ public interface MeterRegistry {
         String unit,
         Supplier<DoubleWithAttributes> observer
     ) {
-        return registerDoublesAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
+        return registerDoubleAsyncCounter(name, description, unit, measurement -> {
+            DoubleWithAttributes observed = observer.get();
+            assert observed != null : "must not pass null values to async instruments: metric " + name;
+            if (observed != null) {
+                measurement.record(observed.value(), observed.attributes());
+            }
+        });
     }
 
     /**
@@ -160,12 +232,39 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric values upon observation (metric interval)
      */
-    DoubleAsyncCounter registerDoublesAsyncCounter(
+    default DoubleAsyncCounter registerDoublesAsyncCounter(
         String name,
         String description,
         String unit,
         Supplier<Collection<DoubleWithAttributes>> observer
-    );
+    ) {
+        return registerDoubleAsyncCounter(name, description, unit, measurement -> {
+            Collection<DoubleWithAttributes> allObserved = observer.get();
+            assert allObserved != null : "must not pass null values to async instruments: metric " + name;
+            if (allObserved == null) {
+                return;
+            }
+            for (DoubleWithAttributes observed : allObserved) {
+                assert observed != null : "must not pass null values to async instruments: metric " + name;
+                if (observed != null) {
+                    measurement.record(observed.value(), observed.attributes());
+                }
+            }
+        });
+    }
+
+    /**
+     * Registers and returns a {@link DoubleAsyncCounter}. The returned counter object is {@link AutoCloseable} and must be closed when the
+     * resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the counter.
+     * @param description The description of the counter.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link DoubleAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    DoubleAsyncCounter registerDoubleAsyncCounter(String name, String description, String unit, Consumer<DoubleAsyncMeasurement> callback);
 
     /**
      * Register a {@link LongUpDownCounter}.  The returned object may be reused.
@@ -195,7 +294,13 @@ public interface MeterRegistry {
      * @return the registered meter.
      */
     default LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongsAsyncGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+        return registerLongAsyncGauge(name, description, unit, measurement -> {
+            LongWithAttributes observed = observer.get();
+            assert observed != null : "must not pass null values to async instruments: metric " + name;
+            if (observed != null) {
+                measurement.record(observed.value(), observed.attributes());
+            }
+        });
     }
 
     /**
@@ -207,7 +312,39 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongAsyncGauge registerLongsAsyncGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer);
+    default LongAsyncGauge registerLongsAsyncGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        return registerLongAsyncGauge(name, description, unit, measurement -> {
+            Collection<LongWithAttributes> allObserved = observer.get();
+            assert allObserved != null : "must not pass null values to async instruments: metric " + name;
+            if (allObserved == null) {
+                return;
+            }
+            for (LongWithAttributes observed : allObserved) {
+                assert observed != null : "must not pass null values to async instruments: metric " + name;
+                if (observed != null) {
+                    measurement.record(observed.value(), observed.attributes());
+                }
+            }
+        });
+    }
+
+    /**
+     * Registers and returns a {@link LongAsyncGauge}. The returned gauge object is {@link AutoCloseable} and must be closed when the
+     * resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the gauge.
+     * @param description The description of the gauge.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link LongAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback);
 
     /**
      * Register a {@link LongHistogram}.  The returned object may be reused.
@@ -249,11 +386,11 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleAsyncGauge registerDoublesAsyncGauge(
+        public DoubleAsyncGauge registerDoubleAsyncGauge(
             String name,
             String description,
             String unit,
-            Supplier<Collection<DoubleWithAttributes>> observer
+            Consumer<DoubleAsyncMeasurement> callback
         ) {
             return DoubleAsyncGauge.NOOP;
         }
@@ -274,21 +411,21 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongAsyncCounter registerLongsAsyncCounter(
+        public LongAsyncCounter registerLongAsyncCounter(
             String name,
             String description,
             String unit,
-            Supplier<Collection<LongWithAttributes>> observer
+            Consumer<LongAsyncMeasurement> callback
         ) {
             return LongAsyncCounter.NOOP;
         }
 
         @Override
-        public DoubleAsyncCounter registerDoublesAsyncCounter(
+        public DoubleAsyncCounter registerDoubleAsyncCounter(
             String name,
             String description,
             String unit,
-            Supplier<Collection<DoubleWithAttributes>> observer
+            Consumer<DoubleAsyncMeasurement> callback
         ) {
             return DoubleAsyncCounter.NOOP;
         }
@@ -304,11 +441,11 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongAsyncGauge registerLongsAsyncGauge(
+        public LongAsyncGauge registerLongAsyncGauge(
             String name,
             String description,
             String unit,
-            Supplier<Collection<LongWithAttributes>> observer
+            Consumer<LongAsyncMeasurement> callback
         ) {
             return LongAsyncGauge.NOOP;
         }

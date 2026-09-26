@@ -23,8 +23,10 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
@@ -182,6 +184,147 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
+        }
+    }
+
+    /**
+     * A remote reduction failure must complete callbacks held by a coordinator reduction that has not run yet.
+     */
+    public void testRemoteReductionFailureWithPendingMerge() {
+        assertPendingMergeCompletes(true);
+    }
+
+    /**
+     * Checks that the same queued reduction completes normally without a remote failure.
+     */
+    public void testPendingMergeWithoutRemoteFailure() {
+        assertPendingMergeCompletes(false);
+    }
+
+    /**
+     * A callback failure after the merge worker has selected its next task must cancel that task and complete its callback.
+     */
+    public void testMergeCallbackFailureCancelsCurrentMerge() {
+        assertMergeCallbackFailureCancelsCurrentMerge(false);
+    }
+
+    /**
+     * The next merge must retain its buffer until it starts so cancellation after a callback failure can release the buffered aggregations.
+     */
+    public void testMergeCallbackFailureReleasesCurrentMergeBuffer() {
+        assertMergeCallbackFailureCancelsCurrentMerge(true);
+    }
+
+    private void assertMergeCallbackFailureCancelsCurrentMerge(boolean withAggregations) {
+        var taskQueue = new DeterministicTaskQueue();
+        var request = new SearchRequest("index");
+        request.setBatchedReduceSize(2);
+        if (withAggregations) {
+            request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
+        }
+        var completedShards = new AtomicInteger();
+        var callbackFailure = new RuntimeException("simulated callback failure");
+        var mergeFailure = new AtomicReference<Exception>();
+        var results = new ArrayList<QuerySearchResult>();
+        try (
+            var consumer = new QueryPhaseResultConsumer(
+                request,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                mergeFailure::set
+            )
+        ) {
+            for (int i = 0; i < 4; i++) {
+                var target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                var result = new QuerySearchResult(new ShardSearchContextId("", i), target, null);
+                results.add(result);
+                try {
+                    result.setShardIndex(i);
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    if (withAggregations) {
+                        result.aggregations(InternalAggregations.EMPTY);
+                    }
+                    final int shardIndex = i;
+                    consumer.consumeResult(result, () -> {
+                        completedShards.incrementAndGet();
+                        if (shardIndex == 2) {
+                            throw callbackFailure;
+                        }
+                    });
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            assertEquals(2, completedShards.get());
+            taskQueue.runAllRunnableTasks();
+            assertFalse(taskQueue.hasRunnableTasks());
+            assertEquals("the selected merge task's callback must be completed", 4, completedShards.get());
+            assertSame(callbackFailure, mergeFailure.get());
+            assertSame(callbackFailure, expectThrows(RuntimeException.class, consumer::reduce));
+            if (withAggregations) {
+                assertNull("the selected merge task's buffer must be released", results.get(2).aggregations());
+            }
+        }
+    }
+
+    private void assertPendingMergeCompletes(boolean failRemoteReduction) {
+        var taskQueue = new DeterministicTaskQueue();
+        var request = new SearchRequest("index");
+        request.setBatchedReduceSize(2);
+        var completedShards = new AtomicInteger();
+        var remoteFailure = new EsRejectedExecutionException("remote partial reduction rejected");
+        try (
+            var consumer = new QueryPhaseResultConsumer(
+                request,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                e -> {
+                    throw new AssertionError("unexpected local reduction failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                    assertEquals(2, completedShards.get());
+                    assertTrue(taskQueue.hasRunnableTasks());
+                    if (failRemoteReduction) {
+                        // Mirror SearchQueryThenFetchAsyncAction.handleResponse when a batched response carries a reduction failure.
+                        // The deterministic executor keeps the coordinator's local merge pending until that response arrives.
+                        consumer.setFailure(remoteFailure);
+                    }
+                }
+                var target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                var result = new QuerySearchResult(new ShardSearchContextId("", i), target, null);
+                try {
+                    result.setShardIndex(i);
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    consumer.consumeResult(result, completedShards::incrementAndGet);
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            taskQueue.runAllRunnableTasks();
+            assertFalse(taskQueue.hasRunnableTasks());
+            assertEquals("all shard callbacks must complete after the reduction executor drains", 4, completedShards.get());
+            if (failRemoteReduction) {
+                assertSame(remoteFailure, expectThrows(EsRejectedExecutionException.class, consumer::reduce));
+            }
         }
     }
 

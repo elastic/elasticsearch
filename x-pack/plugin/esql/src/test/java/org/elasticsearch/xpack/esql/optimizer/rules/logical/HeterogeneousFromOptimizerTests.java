@@ -44,10 +44,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -1253,12 +1255,40 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat("outer combiner for COUNT(*) must be SUM", cAlias.child(), instanceOf(Sum.class));
 
         UnionAll unionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(unionAll, instanceOf(SourceFanInUnionAll.class));
         assertThat(unionAll.children(), hasSize(2));
         for (LogicalPlan branch : unionAll.children()) {
             Aggregate branchAgg = as(branch, Aggregate.class);
             Alias partialAlias = as(branchAgg.aggregates().get(0), Alias.class);
             assertThat("each branch must have a COUNT partial", partialAlias.child(), instanceOf(Count.class));
         }
+    }
+
+    /**
+     * {@code FORK} over a dataset plus an index keeps the source fan-in, and a {@code STATS} branch
+     * pushes its aggregate under that fan-in.
+     */
+    public void testFullPipelineForkOverSourceFanInPushesAggregate() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedHeterogeneousPlan("FROM employees, ext_emps | FORK (WHERE emp_no > 1) (STATS c = COUNT(*))");
+        assertValidPlan(result);
+
+        Failures failures = new Failures();
+        result.forEachDown(Fork.class, fork -> fork.postAnalysisPlanVerification().accept(fork, failures));
+        assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
+
+        List<SourceFanInUnionAll> fanIns = new ArrayList<>();
+        result.forEachDown(SourceFanInUnionAll.class, fanIns::add);
+        assertThat(fanIns, not(empty()));
+        boolean aggregateUnderFanIn = false;
+        for (SourceFanInUnionAll fanIn : fanIns) {
+            for (LogicalPlan branch : fanIn.children()) {
+                if (branch.anyMatch(p -> p instanceof Aggregate)) {
+                    aggregateUnderFanIn = true;
+                }
+            }
+        }
+        assertThat("STATS branch must push the aggregate under the source fan-in", aggregateUnderFanIn, equalTo(true));
     }
 
     /**
@@ -1319,10 +1349,10 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     private LogicalPlan optimizedHeterogeneousPlan(String query) {
         var parsed = TEST_PARSER.parseQuery(query);
         // Replace the single UnresolvedRelation from "FROM employees, ext_emps" with the
-        // UnionAll structure that DatasetRewriter would have produced.
+        // source fan-in DatasetRewriter builds for a mixed FROM.
         var rewritten = parsed.transformUp(
             UnresolvedRelation.class,
-            r -> new UnionAll(
+            r -> new SourceFanInUnionAll(
                 r.source(),
                 List.of(
                     new UnresolvedRelation(

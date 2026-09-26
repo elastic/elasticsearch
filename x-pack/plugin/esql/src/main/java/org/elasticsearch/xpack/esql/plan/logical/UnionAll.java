@@ -102,6 +102,12 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                 failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
             }
 
+            checkOutputTypes(unionAll, failures);
+        }
+    }
+
+    static void checkOutputTypes(LogicalPlan plan, Failures failures) {
+        if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
 
             unionAll.children().forEach(subPlan -> {

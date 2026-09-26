@@ -13,9 +13,11 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -147,7 +149,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * the wrapper. The collapse is a {@link ViewCompaction} semantic, not a {@link UnionAll} one.)
      */
     private static LogicalPlan stripViewShadowRelations(LogicalPlan plan, boolean preserveViewBoundaries) {
-        return plan.transformDown(ViewUnionAll.class, vua -> {
+        plan = plan.transformDown(ViewUnionAll.class, vua -> {
             LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
             if (pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
                 // Collapse the single-survivor wrapper unless a request filter still needs this
@@ -166,6 +168,15 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     // with "view-shadow lookup [...] not yet resolved". Terminates because each step removes a node.
                     return stripViewShadowRelations(prunedVua.children().getFirst(), preserveViewBoundaries);
                 }
+            }
+            return pruned;
+        });
+        // A source fan-in can carry a view-name shadow beside its producers. Drop an unresolved one
+        // and collapse a fan-in that has a single producer left.
+        return plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
+            LogicalPlan pruned = fanIn.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
+            if (pruned instanceof SourceFanInUnionAll prunedFanIn && prunedFanIn.children().size() == 1) {
+                return prunedFanIn.children().getFirst();
             }
             return pruned;
         });
@@ -197,7 +208,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         });
 
         plan = plan.transformDown(UnionAll.class, unionAll -> {
-            if (unionAll instanceof ViewUnionAll) {
+            if (unionAll instanceof ViewUnionAll || unionAll instanceof SourceFanInUnionAll) {
                 return unionAll;
             }
             boolean hasViewChildren = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll);
@@ -299,7 +310,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof MergePlan) {
+            // A source fan-in is one FROM: lifting it would split its producers into separate view
+            // branches. PromoteSourceFanIn lifts it later if this union is not promoted into a fan-in.
+            // A FORK read on its own stays a command, so a FORK after it is still reported as a second
+            // FORK. Beside other sources a nested FORK cannot run, so its branches are lifted.
+            boolean keepNested = inner instanceof SourceFanInUnionAll || (inner instanceof Fork && vua.namedSubqueries().size() == 1);
+            if (inner instanceof MergePlan && keepNested == false) {
                 mergeEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 String assignedKey = makeUniqueKey(flat, key);

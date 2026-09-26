@@ -295,6 +295,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ViewCompactionPostIndexResolution(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
+                new PromoteSourceFanIn(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),
@@ -659,7 +660,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
      * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * {@code UnionAll} branches here; {@link PromoteSourceFanIn} later folds it into a sibling index read of the
+     * same mode (see {@code SourceFanInUnionAll#withIndexReadsCollapsed}). A single-survivor
      * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
      * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
      */

@@ -1,0 +1,47 @@
+// FORK over a FROM that names more than one dataset. Both datasets point at {{employees_no_mv}}, so each
+// selected employee appears once per dataset. A single dataset is covered by forkTwoBranches in
+// external-basic.csv-spec.
+
+forkOverTwoDatasets
+required_capability: dataset_in_from_command
+required_capability: external_command
+required_capability: fork_v9
+required_capability: fork_over_datasets
+dataset: fork_a: "{{employees_no_mv}}"
+dataset: fork_b: "{{employees_no_mv}}"
+
+FROM fork_a, fork_b
+| FORK (WHERE emp_no == 10001)
+       (WHERE emp_no == 10002)
+| KEEP emp_no, _fork
+| SORT _fork, emp_no
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10001          | fork1
+10002          | fork2
+10002          | fork2
+;
+
+// The first branch sums emp_no 10001 and 10002 from both datasets (40006). The second keeps only 10001
+// from both datasets (20002).
+forkStatsOverTwoDatasets
+required_capability: dataset_in_from_command
+required_capability: external_command
+required_capability: fork_v9
+required_capability: fork_over_datasets
+dataset: fork_stats_a: "{{employees_no_mv}}"
+dataset: fork_stats_b: "{{employees_no_mv}}"
+
+FROM fork_stats_a, fork_stats_b
+| FORK (STATS s = SUM(emp_no) WHERE emp_no <= 10002)
+       (WHERE emp_no == 10001 | STATS s = SUM(emp_no))
+| KEEP s, _fork
+| SORT _fork
+;
+
+s:long | _fork:keyword
+40006  | fork1
+20002  | fork2
+;

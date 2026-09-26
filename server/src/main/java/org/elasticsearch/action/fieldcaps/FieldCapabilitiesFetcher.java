@@ -212,10 +212,13 @@ class FieldCapabilitiesFetcher {
                 NamedAnalyzer analyzer = TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName())
                     ? context.getMappingLookup().indexAnalyzer(ft.name(), unused -> null)
                     : null;
-                // A name bound under index.analysis is index-local, even when it collides with a built-in such as
-                // english: the coordinator resolves analyzers by name and would build a different one.
-                boolean indexLocalAnalyzer = analyzer != null && configuredAnalyzerNames.contains(analyzer.name());
-                NamedAnalyzer reported = indexLocalAnalyzer ? null : analyzer;
+                // The coordinator rebuilds analyzers by name, which fails for a name bound under index.analysis, even one
+                // like english, and for an analyzer a mapper hard-codes under a registered name, as pattern_text does.
+                // Compare the wrapped analyzers since a mapping position_increment_gap re-wraps the bound one.
+                NamedAnalyzer bound = analyzer == null ? null : context.getIndexAnalyzers().get(analyzer.name());
+                boolean boundByIndex = bound != null && bound.analyzer() == analyzer.analyzer();
+                boolean indexLocalAnalyzer = boundByIndex && configuredAnalyzerNames.contains(analyzer.name());
+                NamedAnalyzer reported = boundByIndex && indexLocalAnalyzer == false ? analyzer : null;
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

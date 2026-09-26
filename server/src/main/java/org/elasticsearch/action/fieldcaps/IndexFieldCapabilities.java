@@ -29,7 +29,8 @@ import java.util.Map;
  * @param isAggregatable Whether this field can be aggregated on.
  * @param isInference    Whether this field is an inference field.
  * @param meta           Metadata about the field.
- * @param indexAnalyzer  index analyzer name for a text field, or {@code null} when unknown or from an older node
+ * @param indexAnalyzer  index analyzer name for a text field, set only when any node can rebuild it by name;
+ *                       {@code null} otherwise, as for analyzers a mapper hard-codes or fields from older nodes
  * @param indexAnalyzerPositionIncrementGap mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
  *                       the default otherwise, so a missing name does not affect equality
  * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under

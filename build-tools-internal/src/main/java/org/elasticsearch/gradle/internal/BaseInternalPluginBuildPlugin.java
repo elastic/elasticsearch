@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -44,6 +45,8 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         // TODO remove once we removed default dependencies from PluginBuildPlugin
         project.getConfigurations().getByName("compileOnly").getDependencies().clear();
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
+        project.getDependencies().add("compileOnly", project.getDependencies().project(Map.of("path", ":server")));
+        project.getDependencies().add("testImplementation", project.getDependencies().project(Map.of("path", ":test:framework")));
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into

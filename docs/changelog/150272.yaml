@@ -1,4 +1,4 @@
-area: Data Management
+area: Data streams
 issues: [150259]
 pr: 150272
 summary: Configure failure store indices with auto-expand replicas

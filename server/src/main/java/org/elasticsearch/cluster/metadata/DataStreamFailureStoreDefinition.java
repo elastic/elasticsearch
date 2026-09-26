@@ -206,24 +206,16 @@ public class DataStreamFailureStoreDefinition {
 
     /**
      * Modifies an existing index's settings so that it can be added to a data stream's failure store.
+     *
      * @param nodeSettings settings from the cluster service which capture the node's current settings
-     * @param builder to capture failure store specific index settings
-     * @return the original settings builder, with any failure store specific settings applied
+     * @param builder      to capture failure store specific index settings
      */
-    public static Settings.Builder applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
+    public static void applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
         // Optionally set a custom refresh interval for the failure store index.
         TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
         if (refreshInterval != null) {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
         }
-
-        if (builder.keys().contains(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == false
-            && builder.keys().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) == false) {
-
-            builder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
-        }
-
-        return builder;
     }
 
     /**

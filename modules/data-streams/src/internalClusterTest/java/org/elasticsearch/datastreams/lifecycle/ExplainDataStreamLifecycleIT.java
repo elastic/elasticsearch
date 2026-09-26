@@ -436,16 +436,17 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         String secondGenerationIndex = backingIndices.get(1).getName();
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
         // let's ensure that the failure store is initialised
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationFailureIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationFailureIndex = failureIndices.getFirst().getName();
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
             .prepareGetSettings(TEST_REQUEST_TIMEOUT, firstGenerationFailureIndex)
             .get();
 
-        assertThat(settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
-        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationFailureIndex = failureIndices.get(0).getName();
+        assertThat(
+            settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS),
+            equalTo("0-1")
+        );
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)

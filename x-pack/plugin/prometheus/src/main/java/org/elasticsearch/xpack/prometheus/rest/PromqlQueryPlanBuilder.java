@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.time.Duration;
@@ -41,7 +43,15 @@ class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
 
-    record PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {}
+    /**
+     * The statement to run and the Prometheus result type of its response. A string literal query has no statement: its
+     * response is the literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}.
+     */
+    record PromqlStatementResult(EsqlStatement esqlStatement, String resultType, String stringValue) {
+        PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {
+            this(esqlStatement, resultType, null);
+        }
+    }
 
     /**
      * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} with an {@link Eval} node
@@ -117,6 +127,14 @@ class PromqlQueryPlanBuilder {
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 0, 0);
+        // A string literal is a result of its own type: an instant query returns it as is, a range query rejects it
+        // (Prometheus: "invalid expression type "string" for range query"); no statement runs for it.
+        if (promqlPlan instanceof LiteralSelector literal && DataType.isString(literal.literal().dataType())) {
+            if (mode == QueryMode.RANGE) {
+                throw new IllegalArgumentException("invalid expression type \"string\" for range query, must be Scalar or instant Vector");
+            }
+            return new PromqlStatementResult(null, "string", BytesRefs.toString(literal.literal().value()));
+        }
 
         PromqlCommand promqlCommand = new PromqlCommand(
             Source.EMPTY,

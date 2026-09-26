@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * End-to-end tests for {@code @allocates} pre-checks: the annotated call's operands are replayed through the estimator
@@ -37,6 +38,42 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.allocation-estimator"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
+    }
+
+    // ---- Iterable augmentations ----
+
+    public void testAsListCopiesOnlyWhenTheReceiverIsNotAList() {
+        assertEquals(0L, AllocationEstimators.asListBytes(List.of()));
+        assertEquals(40L, allocatedBytes("List l = new ArrayList(); l.asList(); return \"x\";"));
+        assertEquals(
+            AllocationEstimators.hashSetShellBytes() + AllocationEstimators.asListBytes(java.util.Set.of()),
+            allocatedBytes("Set s = new HashSet(); s.asList(); return \"x\";")
+        );
+        assertEquals(0L, AllocationEstimators.asCollectionBytes(java.util.Set.of()));
+    }
+
+    public void testFindResultsAndGroupByChargedFromTheCollectionSize() {
+        long lambda = AllocSizes.captureSize(1);
+        assertEquals(
+            40L + lambda + AllocationEstimators.findResultsBytes(null, List.of(), null),
+            allocatedBytes("List l = new ArrayList(); l.findResults(x -> x); return \"x\";")
+        );
+        assertEquals(
+            40L + lambda + AllocationEstimators.groupByBytes(null, List.of(), null),
+            allocatedBytes("List l = new ArrayList(); l.groupBy(x -> x); return \"x\";")
+        );
+        assertThat(
+            AllocationEstimators.groupByBytes(null, List.of("a", "b"), null),
+            greaterThan(AllocationEstimators.groupByBytes(null, List.of("a"), null))
+        );
+    }
+
+    public void testIterableJoinMatchesStringJoin() {
+        assertEquals(AllocationEstimators.joinBytes(",", List.of()), AllocationEstimators.iterableJoinBytes(List.of(), ","));
+        assertEquals(
+            40L + AllocationEstimators.iterableJoinBytes(List.of(), ","),
+            allocatedBytes("List l = new ArrayList(); l.join(','); return \"x\";")
+        );
     }
 
     public void testSubstringChargedFromArguments() {
@@ -150,6 +187,106 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, resource));
         PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
+    }
+
+    // ---- java.time: flat values, composite chains, and text-sized formatter members. ----
+
+    public void testFlatTimeValueCharged() {
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("Instant.ofEpochMilli(0); return 'x';"));
+    }
+
+    public void testFlatTimeValueChargedPerCall() {
+        // One flat value per call.
+        assertEquals(
+            2 * TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes("Instant i = Instant.ofEpochMilli(0); i.plusSeconds(1); return 'x';")
+        );
+    }
+
+    public void testFlatTimeValueTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0); return 'x';");
+    }
+
+    public void testAtZoneChargesTheWholeChain() {
+        // The Instant plus the whole zoned chain: ZonedDateTime, LocalDateTime, LocalDate and LocalTime.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';")
+        );
+    }
+
+    public void testAtOffsetChargesTheOffsetChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.OFFSET_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atOffset(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeArithmeticChargesTheChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + 2 * TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).plusDays(1); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeChainTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';");
+    }
+
+    public void testZonedDateTimeParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(
+            TimeAllocationEstimators.parseZonedDateTimeBytes(text),
+            allocatedBytes("ZonedDateTime.parse('" + text + "'); return 'x';")
+        );
+    }
+
+    public void testInstantParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(TimeAllocationEstimators.parseFlatValueBytes(text), allocatedBytes("Instant.parse('" + text + "'); return 'x';"));
+    }
+
+    public void testOfPatternChargeGrowsWithThePattern() {
+        long shortPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy'); return 'x';");
+        long longPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm:ss.SSS'); return 'x';");
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy"), shortPattern);
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy-MM-dd HH:mm:ss.SSS"), longPattern);
+        assertTrue("a longer pattern must cost more", longPattern > shortPattern);
+    }
+
+    public void testFormatChargedAsABoundedString() {
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatBytes(null, null)
+            + TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES;
+        assertEquals(
+            expected,
+            allocatedBytes(
+                "DateTimeFormatter f = DateTimeFormatter.ofPattern('yyyy');"
+                    + "f.format(Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC'))); return 'x';"
+            )
+        );
+    }
+
+    public void testFormatterParseChargedFromText() {
+        String text = "2020";
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatterParseBytes(null, text);
+        assertEquals(expected, allocatedBytes("DateTimeFormatter.ofPattern('yyyy').parse('" + text + "'); return 'x';"));
+    }
+
+    public void testDeclinedTimeMembersChargeNothing() {
+        // Fields and getters that return an existing object are not annotated, so they cost nothing.
+        assertEquals(0L, allocatedBytes("ZoneOffset z = ZoneOffset.UTC; Instant e = Instant.EPOCH; return 'x';"));
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).toLocalDate(); return 'x';")
+        );
+    }
+
+    public void testTimeEstimatorChargedThroughDefDispatch() {
+        // A def call must charge the same as a typed call.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneId.of('UTC')); return 'x';")
+        );
     }
 
     public void testEstimatorInNonAllowlistedClassCharged() {

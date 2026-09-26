@@ -35,6 +35,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':x-pack:plugin:diskbbq')
   testImplementation project(':modules:reindex')
@@ -514,7 +515,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
     'io.netty.incubator.codec.quic.QuicSslContext',
     'io.netty.incubator.codec.quic.QuicSslContextBuilder',
-    'io.netty.incubator.codec.quic.QuicSslEngine',
     'io.netty.incubator.codec.quic.QuicStreamChannel',
     'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
     'io.netty.incubator.codec.quic.QuicTokenHandler',

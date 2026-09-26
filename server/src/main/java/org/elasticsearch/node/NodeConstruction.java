@@ -222,6 +222,7 @@ import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -826,7 +827,10 @@ class NodeConstruction {
             xContentRegistry,
             recoverySettings,
             telemetryProvider,
-            snapshotMetrics
+            snapshotMetrics,
+            // Most deployments do not track what snapshots occupy; those that do register an observer rather than paying to read it back
+            // from the repository afterwards.
+            pluginsService.loadSingletonServiceProvider(ShardSnapshotFilesObserver.class, () -> ShardSnapshotFilesObserver.NOOP)
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();

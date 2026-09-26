@@ -148,6 +148,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
@@ -652,7 +653,8 @@ public class SnapshotResiliencyTestHelper {
                     threadPool,
                     client,
                     List.of(),
-                    SnapshotMetrics.NOOP
+                    SnapshotMetrics.NOOP,
+                    ShardSnapshotFilesObserver.NOOP
                 );
                 snapshotsService = new SnapshotsService(
                     settings,

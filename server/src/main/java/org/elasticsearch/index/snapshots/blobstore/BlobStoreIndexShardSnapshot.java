@@ -102,6 +102,23 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         /**
+         * Whether a data blob was written for this file. Some small files — {@code segments_N} and {@code .si} — instead have their
+         * contents carried inline in the shard snapshot metadata that references them, under the virtual data blob prefix; see
+         * {@link StoreFileMetadata#hashEqualsContents()}.
+         * <p>
+         * Those bytes are not free. They occupy space in the metadata blobs, and once per snapshot referencing the file rather than once
+         * overall, since it is the data blobs that are deduplicated and not the metadata. They are simply not in the data blobs.
+         * <p>
+         * So callers measuring what a shard's data blobs occupy must exclude these; callers measuring the logical size of a restored shard
+         * must include them.
+         *
+         * @return true if a data blob was written for this file
+         */
+        public boolean isStoredAsBlob() {
+            return metadata.hashEqualsContents() == false;
+        }
+
+        /**
          * Returns part name if file is stored as multiple parts
          *
          * @param part part number

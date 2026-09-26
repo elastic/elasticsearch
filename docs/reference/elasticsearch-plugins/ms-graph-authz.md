@@ -25,13 +25,19 @@ The plugin must be installed on every node in the cluster, and each node must be
 restarted after installation.
 
 You can download this plugin
-for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md)
+for [offline install](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md#elasticsearch-plugin-ids)
 from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip).
 To verify the `.zip` file, use
 the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.sha512)
 or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.asc).
 
-For all other deployment types, refer to [plugin management](/reference/elasticsearch-plugins/plugin-management.md).
+<!--
+TEMPORARY LINK. The "Plugins and configuration files" hub does not exist on docs-content
+main yet, so a docs-content:// crosslink fails the build. This points at the PR preview
+instead. When https://github.com/elastic/docs-content/pull/7959 merges, restore:
+[Plugins and configuration files](docs-content://deploy-manage/plugins-and-configuration-files.md)
+-->
+For all other deployment types, refer to [Plugins and configuration files](https://docs-v3-preview.elastic.dev/elastic/docs-content/pull/7959/deploy-manage/plugins-and-configuration-files).
 
 ## Removal [ms-graph-authz-remove]
 

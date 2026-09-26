@@ -21,7 +21,3 @@
 ```
 present_over_time(http_requests_total[5m])
 ```
-
-**Differences from Prometheus**
-
-Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has at least one sample and `false` (PromQL `0`) otherwise. Prometheus returns `1` only for series that have samples and omits the rest; it never emits `0`.

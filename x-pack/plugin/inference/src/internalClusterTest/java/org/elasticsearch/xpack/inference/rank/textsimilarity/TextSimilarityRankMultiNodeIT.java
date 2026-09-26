@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 
@@ -24,7 +25,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 
-public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
+public class TextSimilarityRankMultiNodeIT extends AbstractRerankerIT {
 
     private static final String inferenceId = "inference-id";
     private static final String inferenceText = "inference-text";

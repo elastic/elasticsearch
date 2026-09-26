@@ -1127,6 +1127,38 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         return planMetricNameIndex(promql).output().stream().map(Attribute::name).toList();
     }
 
+    /**
+     * A non-constant scalar operand is a table of one value per step: the vector operand joins it on the step alone
+     * (a broadcast), never on labels, and the result keeps the vector operand's identity without the metric name.
+     */
+    public void testScalarOperandJoinsOnTheStepAlone() {
+        for (String promql : List.of(
+            "scalar(sum(requests)) * errors",
+            "errors / scalar(sum(requests))",
+            "scalar(requests{cluster=\"a\"}) * errors"
+        )) {
+            LogicalPlan plan = planMetricNameIndex(promql);
+            assertThat(promql, plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "_timeseries")));
+            List<InnerJoin> joins = plan.collect(InnerJoin.class);
+            assertThat(promql, joins, hasSize(1));
+            assertThat(promql, joins.getFirst().leftFields(), hasSize(1));
+            assertThat(promql, joins.getFirst().leftFields().getFirst().name(), equalTo("step"));
+        }
+        LogicalPlan closed = planMetricNameIndex("sum by (cluster) (requests) * scalar(max(errors))");
+        assertThat(closed.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+        assertThat(closed.collect(InnerJoin.class), hasSize(1));
+        // a scalar table against a literal or time() is a scalar expression over its own rows: no join
+        for (String promql : List.of(
+            "scalar(requests{cluster=\"a\"}) * 2",
+            "scalar(sum(requests)) > bool 50",
+            "time() - scalar(max(requests))"
+        )) {
+            LogicalPlan scalar = planMetricNameIndex(promql);
+            assertThat(promql, scalar.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+            assertThat(promql, scalar.collect(InnerJoin.class), hasSize(0));
+        }
+    }
+
     /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */
     private LogicalPlan planMetricNameIndex(String promql) {
         var index = new EsIndex(

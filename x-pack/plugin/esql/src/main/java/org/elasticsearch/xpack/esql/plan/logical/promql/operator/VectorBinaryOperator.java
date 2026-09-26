@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -289,6 +291,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // IN: required, on both operands; a name-dropping operator: - `__name__`, two vectors pair on any + required - `__name__`
         boolean vectors = getType(left()) != SCALAR && getType(right()) != SCALAR;
         TranslationConstraint below = dropMetricName ? sub(vectors ? union(required, any()) : required, of(name)) : required;
+        boolean scalarTableAgainstVector = (isScalarTable(left()) && getType(right()) != SCALAR)
+            || (isScalarTable(right()) && getType(left()) != SCALAR);
+        if (scalarTableAgainstVector) {
+            return translateBroadcast(translation, below);
+        }
         TranslationResult left = translation.translate(left(), below);
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
         if (this instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
@@ -344,6 +351,46 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /** A raw (not yet collapsed) instant-vector operand, as opposed to a scalar or an aggregated table. */
     private static boolean isVectorBeforeInitialAgg(LogicalPlan operand, TranslationResult translated) {
         return getType(operand) != SCALAR && translated.kind() == Kind.BEFORE_INITIAL_AGGREGATE;
+    }
+
+    /**
+     * A scalar operand computed from the data ({@code scalar(sum(m))}, {@code scalar(m{..}) + 1}): a table of one value per
+     * step, as opposed to a literal or {@code time()}, which are expressions over any row.
+     */
+    private static boolean isScalarTable(LogicalPlan operand) {
+        return getType(operand) == SCALAR && operand.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    /**
+     * A computed scalar applies to every element of the vector operand (Prometheus: "the operator is applied to the value
+     * of every data sample in the vector"). The scalar table has one row per step and no labels, so the two operands join
+     * on the step alone, every vector row matching the step's one scalar; the result carries the vector operand's labels
+     * without the metric name.
+     */
+    private TranslationResult translateBroadcast(TranslationContext translation, TranslationConstraint below) {
+        boolean scalarLeft = isScalarTable(left());
+        LogicalPlan vectorNode = scalarLeft ? right() : left();
+        LogicalPlan scalarNode = scalarLeft ? left() : right();
+        // IN: the vector operand under the operator's own requirement; the scalar operand exposes no labels
+        TranslationResult vector = translation.translateOperand(vectorNode, below);
+        TranslationResult scalar = reidentify(translation.cmd(), translation.translateOperand(scalarNode, of()));
+
+        Source source = translation.cmd().source();
+        LogicalPlan scalarPlan = new Project(source, scalar.plan(), List.of(scalar.step(), scalar.valueColumn()));
+        LogicalPlan join = new InnerJoin(
+            source,
+            vector.plan(),
+            scalarPlan,
+            List.of(vector.step()),
+            List.of(scalar.step()),
+            List.of(scalar.valueColumn()),
+            false
+        );
+        Expression leftValue = scalarLeft ? scalar.value() : vector.value();
+        Expression rightValue = scalarLeft ? vector.value() : scalar.value();
+        // OUT: the vector operand's labels, - `__name__` for a name-dropping operator
+        Map<TranslationColumn, Attribute> labels = dropMetricName ? vector.drop(List.of(LabelMatcher.NAME)).labels() : vector.labels();
+        return bindResult(translation, leftValue, rightValue, vector.step(), join, new Output(labels, List.of()));
     }
 
     /**

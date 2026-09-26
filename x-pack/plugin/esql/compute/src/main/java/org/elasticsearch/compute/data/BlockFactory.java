@@ -635,6 +635,11 @@ public class BlockFactory {
         return new TDigestBlockBuilder(estimatedSize, this);
     }
 
+    /** Constructs immutable named dimension values using existing breaker-accounted block storage. */
+    public PackDimBuilder newPackDimBlockBuilder(int estimatedSize) {
+        return new PackDimBuilder(this, estimatedSize);
+    }
+
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
         return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
     }

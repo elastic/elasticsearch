@@ -149,6 +149,7 @@ public class Verifier {
 
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
+        checkPackedDimensionsSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
@@ -205,6 +206,19 @@ public class Verifier {
                 )
             )
         );
+    }
+
+    /** Reject internal sparse records before sending a plan to a node that cannot decode their block type. */
+    private static void checkPackedDimensionsSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(DataType.DataTypesTransportVersions.ESQL_PACK_DIM)) return;
+        plan.forEachDown(p -> p.forEachExpression(expression -> {
+            if (expression.dataType() == DataType.PACK_DIM) failures.add(
+                fail(
+                    expression,
+                    "Sparse attributes are not supported on every participating node; rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            );
+        }));
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

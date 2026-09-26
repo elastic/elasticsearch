@@ -125,7 +125,7 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 case BYTES_REF, EXPONENTIAL_HISTOGRAM -> 0; // Updated per value below
                 case AGGREGATE_METRIC_DOUBLE -> 3 * Double.BYTES + Integer.BYTES;
                 case TDIGEST -> 0; // TDIGEST has no well-defined single-value byte size
-                case COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
+                case COMPOSITE, PACK_DIM, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
             };
             for (int p = 0; p < positionCount; p++) {
                 if (elementType == ElementType.NULL) {

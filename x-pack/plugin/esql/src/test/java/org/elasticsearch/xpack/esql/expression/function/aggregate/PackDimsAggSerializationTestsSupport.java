@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class PackDimsAggSerializationTests extends AbstractExpressionSerializationTests<PackDimsAgg> {
+public class PackDimsAggSerializationTestsSupport extends AbstractExpressionSerializationTests<PackDimsAgg> {
     @Override
     protected PackDimsAgg createTestInstance() {
         int n = between(1, 3);

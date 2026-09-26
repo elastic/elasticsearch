@@ -792,6 +792,9 @@ public interface BlockLoader {
         Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
 
         TDigestBuilder tdigestBlockBuilder(int count);
+
+        /** Builds named dimension values without materializing a keyword metadata column. */
+        PackDimBuilder packDimBlockBuilder(int count);
     }
 
     /**
@@ -972,6 +975,15 @@ public interface BlockLoader {
         DoubleBuilder zeroThresholds();
 
         BytesRefBuilder encodedHistograms();
+    }
+
+    /**
+     * Producer boundary for named packed dimensions. Names are literal, unique and sorted by unsigned UTF-8 bytes.
+     * Values are canonical encoded leaves supplied by the dimension codec; a Java null is not a deletion sentinel.
+     * The builder copies the supplied arrays and bytes, preserving present null/empty values in their encoding.
+     */
+    interface PackDimBuilder extends Builder {
+        PackDimBuilder append(BytesRef[] names, BytesRef[] values);
     }
 
     interface TDigestBuilder extends Builder {

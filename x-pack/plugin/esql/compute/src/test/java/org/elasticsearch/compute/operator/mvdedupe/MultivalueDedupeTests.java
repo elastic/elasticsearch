@@ -75,6 +75,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.UNKNOWN,
                 ElementType.DOC,
                 ElementType.COMPOSITE,
+                ElementType.PACK_DIM,
                 ElementType.FLOAT,
                 ElementType.AGGREGATE_METRIC_DOUBLE,
                 ElementType.EXPONENTIAL_HISTOGRAM,

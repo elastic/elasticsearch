@@ -991,7 +991,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == ElementType.PACK_DIM || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1105,7 +1105,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN
+                || e == COMPOSITE
+                || e == ElementType.PACK_DIM
+                || e == AGGREGATE_METRIC_DOUBLE
+                || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1561,6 +1566,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
                     || t == COMPOSITE
+                    || t == ElementType.PACK_DIM
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
@@ -2463,6 +2469,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
                     || t == COMPOSITE
+                    || t == ElementType.PACK_DIM
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST,
@@ -2593,6 +2600,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
                     || t == COMPOSITE
+                    || t == ElementType.PACK_DIM
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST,
@@ -2797,6 +2805,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
                     || t == ElementType.COMPOSITE
+                    || t == ElementType.PACK_DIM
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM
                     || t == ElementType.TDIGEST

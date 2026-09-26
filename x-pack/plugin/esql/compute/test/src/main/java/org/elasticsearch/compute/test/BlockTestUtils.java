@@ -109,7 +109,7 @@ public class BlockTestUtils {
             case EXPONENTIAL_HISTOGRAM -> randomExponentialHistogram();
             case TDIGEST -> randomTDigest();
             case NULL -> null;
-            case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
+            case COMPOSITE, PACK_DIM -> throw new IllegalArgumentException("can't make random untyped values for structured blocks");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

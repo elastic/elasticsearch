@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -154,6 +155,65 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         }
         """;
 
+    public void testPackedDimensionsReadWithoutWholeRecordString() throws IOException {
+        for (Settings settings : List.of(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS)) {
+            for (XContentType type : List.of(XContentType.JSON, XContentType.CBOR)) {
+                BytesReference source = bytes(type, b -> {
+                    writeTimestampAndDimensions(b, "host-1", "prod", "eu");
+                    b.field("cpu", 12.5);
+                    b.field("message", "must not become a label");
+                });
+                assertEquals(
+                    Map.of(new BytesRef("env"), new BytesRef("\"prod\""), new BytesRef("host"), new BytesRef("\"host-1\"")),
+                    readMetadataValue(settings, MAPPING, sourceToParse(source, type), Set.of("region"), true, true)
+                );
+            }
+        }
+    }
+
+    public void testPackedNullEmptyAndAbsentRemainDistinct() throws IOException {
+        BytesReference source = bytes(XContentType.JSON, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.field("host", "host-1");
+            b.nullField("env");
+            b.field("region", "");
+        });
+        assertEquals(
+            Map.of(
+                new BytesRef("host"),
+                new BytesRef("\"host-1\""),
+                new BytesRef("env"),
+                new BytesRef("null"),
+                new BytesRef("region"),
+                new BytesRef("\"\"")
+            ),
+            readMetadataValue(TSDB_STORED_SETTINGS, MAPPING, sourceToParse(source, XContentType.JSON), Set.of(), true, false)
+        );
+        BytesReference absent = bytes(XContentType.JSON, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.field("host", "host-1");
+        });
+        assertEquals(
+            Map.of(new BytesRef("host"), new BytesRef("\"host-1\"")),
+            readMetadataValue(TSDB_STORED_SETTINGS, MAPPING, sourceToParse(absent, XContentType.JSON), Set.of(), true, false)
+        );
+    }
+
+    public void testPackedEmptyRecordRequiresNoSource() throws IOException {
+        Set<String> excluded = Set.of("host", "env", "region");
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, excluded, true)
+        );
+        assertEquals(StoredFieldsSpec.NO_REQUIREMENTS, loader.rowStrideStoredFieldSpec());
+        BytesReference source = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "eu"));
+        assertEquals(
+            Map.of(),
+            readMetadataValue(TSDB_SYNTHETIC_SETTINGS, MAPPING, sourceToParse(source, XContentType.JSON), excluded, true, false)
+        );
+    }
+
     private static Settings tsdbSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
@@ -194,6 +254,17 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         );
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
         assertThat(sourcePaths(loader), equalTo(Set.of("env")));
+    }
+
+    public void testAllDimensionsExcluded() throws IOException {
+        Set<String> excluded = Set.of("host", "env", "region");
+        for (Settings settings : List.of(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS)) {
+            BlockLoader loader = createBlockLoader(settings, MAPPING, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, excluded));
+            assertEquals(StoredFieldsSpec.NO_REQUIREMENTS, loader.rowStrideStoredFieldSpec());
+            BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "eu"));
+            // An empty include list means "all source" to a source filter, not an empty metadata object.
+            assertEquals("{}", readTimeSeriesValue(settings, MAPPING, sourceToParse(json, XContentType.JSON), excluded).utf8ToString());
+        }
     }
 
     public void testExcludedDimensionsWithMetrics() throws IOException {
@@ -430,22 +501,60 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
         throws IOException {
+        return (BytesRef) readMetadataValue(settings, mapping, sourceToParse, withoutFields, false, false);
+    }
+
+    private Object readMetadataValue(
+        Settings settings,
+        String mapping,
+        SourceToParse sourceToParse,
+        Set<String> withoutFields,
+        boolean packed,
+        boolean unfilteredSource
+    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
             .fieldType()
-            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)));
+            .blockLoader(
+                new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields, packed))
+            );
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
 
-        AtomicReference<BytesRef> result = new AtomicReference<>();
+        AtomicReference<Object> result = new AtomicReference<>();
         withTsdbLuceneIndex(mapperService, writer -> {
             ParsedDocument parsed = mapperService.documentMapper().parse(sourceToParse);
             writer.addDocument(parsed.rootDoc());
         }, (reader, ctx) -> {
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            var columnReaderFactory = loader.columnAtATimeReader(ctx);
+            if (columnReaderFactory != null) {
+                try (var columnReader = columnReaderFactory.apply(breaker)) {
+                    var docs = new BlockLoader.Docs() {
+                        @Override
+                        public int count() {
+                            return 1;
+                        }
+
+                        @Override
+                        public int get(int i) {
+                            return 0;
+                        }
+
+                        @Override
+                        public boolean mayContainDuplicates() {
+                            return false;
+                        }
+                    };
+                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), docs, 0, false);
+                    assertEquals(1, block.size());
+                    result.set(block.get(0));
+                }
+                return;
+            }
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
-                SourceFilter filter = loaderSpec.requiresSource()
+                SourceFilter filter = loaderSpec.requiresSource() && unfilteredSource == false
                     ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;
                 SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
@@ -462,7 +571,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
                 rowReader.read(0, storedFields, builder);
                 TestBlock block = (TestBlock) builder.build();
                 assertThat(block.size(), equalTo(1));
-                result.set((BytesRef) block.get(0));
+                result.set(block.get(0));
             }
         });
         return result.get();

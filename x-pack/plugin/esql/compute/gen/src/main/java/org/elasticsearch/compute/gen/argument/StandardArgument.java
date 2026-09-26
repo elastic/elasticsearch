@@ -28,6 +28,7 @@ import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_RANGE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.PACK_DIM_BLOCK;
 import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
@@ -135,6 +136,7 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             || type.equals(BYTES_REF_BLOCK)
             || type.equals(EXPONENTIAL_HISTOGRAM_BLOCK)
             || type.equals(TDIGEST_BLOCK)
+            || type.equals(PACK_DIM_BLOCK)
             || type.equals(LONG_RANGE_BLOCK)
             || type.equals(DOUBLE_RANGE_BLOCK);
     }

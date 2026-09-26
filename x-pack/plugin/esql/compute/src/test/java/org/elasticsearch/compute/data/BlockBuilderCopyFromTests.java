@@ -31,6 +31,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
+                || e == ElementType.PACK_DIM
                 || e == ElementType.EXPONENTIAL_HISTOGRAM
                 || e == ElementType.TDIGEST) {
                 continue;

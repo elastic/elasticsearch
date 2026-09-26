@@ -22,6 +22,7 @@ public class CompositeBlockTests extends ComputeTestCase {
     static List<ElementType> supportedSubElementTypes = Arrays.stream(ElementType.values())
         .filter(
             e -> e != ElementType.COMPOSITE
+                && e != ElementType.PACK_DIM
                 && e != ElementType.UNKNOWN
                 && e != ElementType.DOC
                 && e != ElementType.AGGREGATE_METRIC_DOUBLE

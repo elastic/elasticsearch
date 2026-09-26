@@ -175,7 +175,8 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false && isNullSourceLiteral(field) == false) {
+            // PACK_DIM is an internal value, not a public scalar, but its expressions have a dedicated block evaluator.
+            if (DataType.isRepresentable(dataType) == false && dataType != DataType.PACK_DIM && isNullSourceLiteral(field) == false) {
                 failures.add(
                     fail(
                         field,

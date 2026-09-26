@@ -56,6 +56,7 @@ public class Types {
     public static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlock");
     public static final ClassName EXPONENTIAL_HISTOGRAM_SCRATCH = ClassName.get(DATA_PACKAGE, "ExponentialHistogramScratch");
     public static final ClassName TDIGEST_BLOCK = ClassName.get(DATA_PACKAGE, "TDigestBlock");
+    public static final ClassName PACK_DIM_BLOCK = ClassName.get(DATA_PACKAGE, "PackDimBlock");
     public static final ClassName LONG_RANGE_BLOCK = ClassName.get(DATA_PACKAGE, "LongRangeBlock");
     public static final ClassName DOUBLE_RANGE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleRangeBlock");
 
@@ -67,6 +68,7 @@ public class Types {
     static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
     static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = EXPONENTIAL_HISTOGRAM_BLOCK.nestedClass("Builder");
     static final ClassName TDIGEST_BLOCK_BUILDER = TDIGEST_BLOCK.nestedClass("Builder");
+    static final ClassName PACK_DIM_BLOCK_BUILDER = PACK_DIM_BLOCK.nestedClass("Builder");
     static final ClassName LONG_RANGE_BLOCK_BUILDER = LONG_RANGE_BLOCK.nestedClass("Builder");
     static final ClassName DOUBLE_RANGE_BLOCK_BUILDER = DOUBLE_RANGE_BLOCK.nestedClass("Builder");
 
@@ -200,6 +202,7 @@ public class Types {
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
     public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
     public static final ClassName TDIGEST = ClassName.get("org.elasticsearch.compute.data", "TDigestHolder");
+    public static final ClassName PACK_DIM = ClassName.get(DATA_PACKAGE, "PackDimValue");
     public static final ClassName LONG_RANGE = ClassName.get(DATA_PACKAGE, "LongRangeBlockBuilder", "LongRange");
     public static final ClassName DOUBLE_RANGE = ClassName.get(DATA_PACKAGE, "DoubleRangeBlockBuilder", "DoubleRange");
 
@@ -228,6 +231,7 @@ public class Types {
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
         TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH),
         TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST),
+        TypeDef.of(PACK_DIM, "PACK_DIM", "PackDimBlock", null, PACK_DIM),
         TypeDef.of(LONG_RANGE, "LONG_RANGE", "LongRangeBlock", null, LONG_RANGE),
         TypeDef.of(DOUBLE_RANGE, "DOUBLE_RANGE", "DoubleRangeBlock", null, DOUBLE_RANGE)
     )
@@ -313,6 +317,9 @@ public class Types {
         if (resultType.equals(TDIGEST_BLOCK)) {
             return TDIGEST_BLOCK_BUILDER;
         }
+        if (resultType.equals(PACK_DIM_BLOCK)) {
+            return PACK_DIM_BLOCK_BUILDER;
+        }
         if (resultType.equals(LONG_RANGE_BLOCK)) {
             return LONG_RANGE_BLOCK_BUILDER;
         }
@@ -366,6 +373,9 @@ public class Types {
         }
         if (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
             return TDIGEST;
+        }
+        if (t.equals(PACK_DIM_BLOCK) || t.equals(PACK_DIM_BLOCK_BUILDER)) {
+            return PACK_DIM;
         }
         if (t.equals(LONG_RANGE_BLOCK) || t.equals(LONG_RANGE_BLOCK_BUILDER)) {
             return LONG_RANGE;

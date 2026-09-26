@@ -285,4 +285,9 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
         return factory.newTDigestBlockBuilder(count);
     }
+
+    @Override
+    public BlockLoader.PackDimBuilder packDimBlockBuilder(int count) {
+        return factory.newPackDimBlockBuilder(count);
+    }
 }

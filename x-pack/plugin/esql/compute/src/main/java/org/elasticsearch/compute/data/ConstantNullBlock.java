@@ -32,7 +32,8 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
         ExponentialHistogramBlock,
         LongRangeBlock,
         DoubleRangeBlock,
-        TDigestBlock {
+        TDigestBlock,
+        PackDimBlock {
 
     public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -347,6 +348,12 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
 
     @Override
     public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public PackDimValue getPackDim(int valueIndex, PackDimValue scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

@@ -244,7 +244,9 @@ public final class BlockUtils {
             case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) val);
-            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+            case DOC, COMPOSITE, PACK_DIM, NULL, UNKNOWN -> throw new UnsupportedOperationException(
+                "unsupported element type [" + type + "]"
+            );
         }
     }
 
@@ -326,7 +328,7 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
-            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
+            case COMPOSITE, PACK_DIM -> throw new IllegalArgumentException("can't read untyped values from structured blocks");
             case AGGREGATE_METRIC_DOUBLE -> {
                 AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
                 yield new AggregateMetricDoubleLiteral(

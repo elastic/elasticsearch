@@ -235,6 +235,9 @@ public class Methods {
         if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
             return "appendTDigest";
         }
+        if (t.equals(Types.PACK_DIM) || t.equals(Types.PACK_DIM_BLOCK)) {
+            return "appendPackDim";
+        }
         if (t.equals(Types.LONG_RANGE) || t.equals(Types.LONG_RANGE_BLOCK)) {
             return "appendLongRange";
         }
@@ -303,6 +306,9 @@ public class Methods {
         if (t.equals(TDIGEST_BLOCK_BUILDER)) {
             return "newTDigestBlockBuilder";
         }
+        if (t.equals(Types.PACK_DIM_BLOCK_BUILDER)) {
+            return "newPackDimBlockBuilder";
+        }
         if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
             return "newExponentialHistogramBlockBuilder";
         }
@@ -343,6 +349,9 @@ public class Methods {
         }
         if (elementType.equals(Types.TDIGEST)) {
             return "getTDigestHolder";
+        }
+        if (elementType.equals(Types.PACK_DIM)) {
+            return "getPackDim";
         }
         if (elementType.equals(Types.LONG_RANGE)) {
             return "getLongRange";

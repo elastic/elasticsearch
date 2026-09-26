@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.attributes.ToStringFromPackDimEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PACK_DIM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -115,6 +117,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
         Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
+        Map.entry(PACK_DIM, (source, fieldEval) -> new ToStringFromPackDimEvaluator.Factory(fieldEval)),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),

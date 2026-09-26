@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
@@ -21,6 +22,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.PackDimBlock;
+import org.elasticsearch.compute.data.PackDimValue;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 
@@ -116,6 +119,22 @@ public class GroupKeyEncoder implements Accountable, Releasable {
                 for (int v = 0; v < valueCount; v++) {
                     row.appendLengthPrefixed(b.get(firstValueIndex + v, cursorScratch));
                 }
+            }
+            case PACK_DIM -> {
+                var packed = (PackDimBlock) block;
+                var record = packed.getPackDim(firstValueIndex, new PackDimValue());
+                row.appendVInt(record.size());
+                BytesRef scratch = new BytesRef();
+                for (int field = 0; field < record.size(); field++) {
+                    record.nameAt(field, scratch);
+                    row.appendVInt(scratch.length);
+                    row.append(scratch);
+                    record.valueAt(field, scratch);
+                    row.appendVInt(scratch.length);
+                    row.append(scratch);
+                }
+                // TODO: prepare distinct packed keys per page for this row-oriented encoder. Aggregation and lookup
+                // already use PackDimBlockHash, which interns each live record once and groups compact IDs.
             }
             case NULL -> {
                 // already handled by isNull above; nothing extra to write

@@ -30,6 +30,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
         for (ElementType elementType : ElementType.values()) {
             if (elementType == ElementType.UNKNOWN
                 || elementType == ElementType.COMPOSITE
+                || elementType == ElementType.PACK_DIM
                 || elementType == ElementType.NULL
                 || elementType == ElementType.DOC
                 || elementType == ElementType.BYTES_REF
@@ -121,8 +122,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE,
-                UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, BYTES_REF, DOC, COMPOSITE, PACK_DIM, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                DOUBLE_RANGE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
             case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
@@ -133,8 +134,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNKNOWN ->
-                throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, PACK_DIM, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE,
+                UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.FixedBuilder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

@@ -181,6 +181,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case NULL -> (block, offset) -> null;
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
+            case PACK_DIM -> throw new IllegalArgumentException("can't use packed dimensions as an indexed lookup key");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
             case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't read values from [exponential histogram] block");
             case TDIGEST -> throw new IllegalArgumentException("can't read values from [tdigest] block");

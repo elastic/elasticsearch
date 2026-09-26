@@ -206,8 +206,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                 dim.name(),
                 new FunctionEsField(
                     new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
-                    DataType.KEYWORD,
-                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
+                    dim.dataType(),
+                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields, dim.dataType() == DataType.PACK_DIM)
                 ),
                 dim.nullable(),
                 null,

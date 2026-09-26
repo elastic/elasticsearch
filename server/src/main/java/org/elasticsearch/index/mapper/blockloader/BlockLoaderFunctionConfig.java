@@ -33,7 +33,20 @@ public interface BlockLoaderFunctionConfig {
      * Configuration for loading time-series metadata fields from {@code _source}.
      * Controls which field types to include (dimensions, metrics, or both) and which dimensions to exclude.
      */
-    record TimeSeriesMetadata(boolean loadMetricFields, Set<String> skipFieldNames) implements BlockLoaderFunctionConfig {
+    record TimeSeriesMetadata(boolean loadMetricFields, Set<String> skipFieldNames, boolean packedDimensions)
+        implements
+            BlockLoaderFunctionConfig {
+        public TimeSeriesMetadata(boolean loadMetricFields, Set<String> skipFieldNames) {
+            this(loadMetricFields, skipFieldNames, false);
+        }
+
+        public TimeSeriesMetadata {
+            skipFieldNames = Set.copyOf(skipFieldNames);
+            if (packedDimensions && loadMetricFields) {
+                throw new IllegalArgumentException("packed dimensions cannot include metrics");
+            }
+        }
+
         @Override
         public Function function() {
             return Function.TIME_SERIES_METADATA;

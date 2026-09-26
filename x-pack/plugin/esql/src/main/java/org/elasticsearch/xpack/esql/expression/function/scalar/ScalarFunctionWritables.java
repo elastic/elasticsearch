@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
+import org.elasticsearch.xpack.esql.expression.function.scalar.attributes.PackDimSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -84,6 +85,7 @@ public class ScalarFunctionWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(And.ENTRY);
+        entries.add(PackDimSupport.ENTRY);
         entries.add(Atan2.ENTRY);
         entries.add(BitLength.ENTRY);
         entries.add(Case.ENTRY);

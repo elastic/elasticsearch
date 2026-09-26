@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.PackDimBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
@@ -56,6 +57,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
+            case PACK_DIM -> new ValueExtractorForPackDim((PackDimBlock) block);
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             case LONG_RANGE -> new ValueExtractorForLongRange(encoder, (LongRangeBlock) block);
             case DOUBLE_RANGE -> new ValueExtractorForDoubleRange(encoder, (DoubleRangeBlock) block);

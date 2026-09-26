@@ -36,6 +36,31 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
         }
     }
 
+    public void testPackedKeysAreFramedAndIndependentOfDictionaryOrder() {
+        var factory = blockFactory();
+        try (var firstBuilder = factory.newPackDimBlockBuilder(4); var secondBuilder = factory.newPackDimBlockBuilder(1)) {
+            firstBuilder.appendNull();
+            firstBuilder.append(new BytesRef[0], new BytesRef[0]);
+            firstBuilder.append(new BytesRef[] { new BytesRef("a") }, new BytesRef[] { new BytesRef("bc") });
+            firstBuilder.append(new BytesRef[] { new BytesRef("ab") }, new BytesRef[] { new BytesRef("c") });
+            secondBuilder.append(new BytesRef[] { new BytesRef("a") }, new BytesRef[] { new BytesRef("bc") });
+            try (
+                var first = firstBuilder.build();
+                var second = secondBuilder.build();
+                var encoder = encoder(new int[] { 0 }, List.of(ElementType.PACK_DIM))
+            ) {
+                Page page = new Page(first);
+                BytesRef absent = copy(encoder.encode(page, 0));
+                BytesRef empty = copy(encoder.encode(page, 1));
+                BytesRef value = copy(encoder.encode(page, 2));
+                assertNotEquals(absent, empty);
+                assertNotEquals(empty, value);
+                assertNotEquals(value, copy(encoder.encode(page, 3)));
+                assertEquals(value, copy(encoder.encode(new Page(second), 0)));
+            }
+        }
+    }
+
     public void testDifferentIntValuesDifferentKeys() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newIntArrayVector(new int[] { 1, 2 }, 2).asBlock());

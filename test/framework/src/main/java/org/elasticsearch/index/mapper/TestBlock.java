@@ -610,6 +610,26 @@ public class TestBlock implements BlockLoader.Block {
                 // TODO: implement when needed
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public BlockLoader.PackDimBuilder packDimBlockBuilder(int count) {
+                class PackedBuilder extends TestBlock.Builder implements BlockLoader.PackDimBuilder {
+                    private PackedBuilder() {
+                        super(count);
+                    }
+
+                    @Override
+                    public PackedBuilder append(BytesRef[] names, BytesRef[] values) {
+                        var record = new java.util.LinkedHashMap<BytesRef, BytesRef>();
+                        for (int i = 0; i < names.length; i++) {
+                            record.put(BytesRef.deepCopyOf(names[i]), BytesRef.deepCopyOf(values[i]));
+                        }
+                        add(record);
+                        return this;
+                    }
+                }
+                return new PackedBuilder();
+            }
         };
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DimensionValuesPackDimGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -32,6 +33,7 @@ import static java.util.Collections.emptyList;
  */
 public class DimensionValues extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.PACK_DIM, DimensionValuesPackDimGroupingAggregatorFunction.FunctionSupplier::new),
         Map.entry(DataType.KEYWORD, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
         Map.entry(DataType.TEXT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
         Map.entry(DataType.IP, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
@@ -80,6 +82,7 @@ public class DimensionValues extends UnaryAggregateFunction implements ToAggrega
 
     @Override
     protected TypeResolution resolveType() {
+        if (field().dataType() == DataType.PACK_DIM) return TypeResolution.TYPE_RESOLVED;
         return new Values(source(), field(), filter(), window()).resolveType();
     }
 

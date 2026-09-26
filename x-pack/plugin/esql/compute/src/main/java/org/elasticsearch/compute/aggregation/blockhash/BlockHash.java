@@ -198,6 +198,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *                                 test them.
      */
     public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
+        if (groups.stream().anyMatch(g -> g.elementType() == ElementType.PACK_DIM)) {
+            return new PackDimBlockHash(groups, blockFactory, emitBatchSize, false);
+        }
         if (groups.size() == 1) {
             GroupSpec group = groups.get(0);
             if (group.topNDef() != null) {
@@ -264,6 +267,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * Temporary method to build a {@link PackedValuesBlockHash}.
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
+        if (groups.stream().anyMatch(g -> g.elementType() == ElementType.PACK_DIM)) {
+            return new PackDimBlockHash(groups, blockFactory, emitBatchSize, true);
+        }
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 

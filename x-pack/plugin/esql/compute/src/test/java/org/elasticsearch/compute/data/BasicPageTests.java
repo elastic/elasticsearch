@@ -163,7 +163,7 @@ public class BasicPageTests extends SerializationTestCase {
                 }
 
                 ElementType newBlockType = randomValueOtherThanMany(
-                    x -> x == ElementType.DOC || x == ElementType.COMPOSITE || x == ElementType.UNKNOWN,
+                    x -> x == ElementType.DOC || x == ElementType.COMPOSITE || x == ElementType.PACK_DIM || x == ElementType.UNKNOWN,
                     () -> randomFrom(ElementType.values())
                 );
 

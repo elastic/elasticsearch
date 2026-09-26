@@ -113,6 +113,7 @@ public final class AggregateMapper {
             case TDIGEST -> DataType.TDIGEST;
             case LONG_RANGE -> DataType.DATE_RANGE;
             case DOUBLE_RANGE -> DataType.DOUBLE_RANGE;
+            case PACK_DIM -> DataType.PACK_DIM;
             // Dense vectors are internally represented as float blocks
             case FLOAT -> DataType.DENSE_VECTOR;
             case NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(

@@ -48,7 +48,7 @@ public class ExtractorTests extends ESTestCase {
                 case UNKNOWN -> {
                     supportsNull = false;
                 }
-                case COMPOSITE -> {
+                case COMPOSITE, PACK_DIM -> {
                     // TODO: add later
                     supportsNull = false;
                 }

@@ -358,6 +358,8 @@ public enum DataType implements Writeable {
     VERSION(builder().esType("version").estimatedSize(15).docValues().supportedOnAllNodes()),
     OBJECT(builder().esType("object").estimatedSize(1024).supportedOnAllNodes()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024).supportedOnAllNodes()),
+    /** Sparse execution attributes with runtime field names; not an indexed object mapping. */
+    PACK_DIM(builder().typeName("pack_dim").estimatedSize(1024).underConstruction(DataTypesTransportVersions.ESQL_PACK_DIM)),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES).supportedOnAllNodes()),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES).supportedOnAllNodes()),
     // WKB for points is typically 21 bytes.
@@ -748,7 +750,7 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT;
+        return t != OBJECT && t != PACK_DIM;
     }
 
     public static boolean isNull(DataType t) {
@@ -829,6 +831,7 @@ public enum DataType implements Writeable {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
+            && t != PACK_DIM
             && t.isCounter() == false;
     }
 
@@ -870,6 +873,7 @@ public enum DataType implements Writeable {
 
     public static boolean isSortable(DataType t) {
         return false == (t == SOURCE
+            || t == PACK_DIM
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE
@@ -1219,6 +1223,7 @@ public enum DataType implements Writeable {
     }
 
     public static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_PACK_DIM = TransportVersion.fromName("esql_pack_dim_buf");
 
         /**
          * The first transport version after the PR that introduced geotile/geohash/geohex, resp.

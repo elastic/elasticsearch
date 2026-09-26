@@ -80,7 +80,9 @@ public enum ElementType {
 
     LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom),
 
-    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom);
+    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom),
+
+    PACK_DIM(15, "PackDim", BlockFactory::newPackDimBlockBuilder, OrdinalPackDimBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

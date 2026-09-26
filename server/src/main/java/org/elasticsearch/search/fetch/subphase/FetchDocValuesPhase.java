@@ -70,19 +70,29 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hit) throws IOException {
+                long totalBytes = 0L;
                 for (DocValueField f : fields) {
                     DocumentField hitField = hit.hit().field(f.field);
+                    // Use 0 baseline for new fields so the object/name/list overhead is included in
+                    // the charge. Use the current estimate for pre-existing fields (e.g. populated by
+                    // StoredFieldsPhase) so we charge only the delta and avoid double-counting.
+                    final long beforeBytes;
                     if (hitField == null) {
                         hitField = new DocumentField(f.field, new ArrayList<>(2));
                         // even if we request a doc values of a meta-field (e.g. _routing),
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(hitField);
+                        beforeBytes = 0L;
+                    } else {
+                        beforeBytes = hitField.ramBytesUsedEstimate();
                     }
                     List<Object> ignoredValues = new ArrayList<>();
                     hitField.getValues().addAll(f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues));
                     // Doc value fetches should not return any ignored values
                     assert ignoredValues.isEmpty();
+                    totalBytes += hitField.ramBytesUsedEstimate() - beforeBytes;
                 }
+                context.chargeDocumentFieldBytes(totalBytes);
             }
         };
     }

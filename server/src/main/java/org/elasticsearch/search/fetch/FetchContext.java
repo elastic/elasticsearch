@@ -42,7 +42,7 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
-    private LongConsumer scriptFieldsByteChecker = bytes -> {};
+    private LongConsumer documentFieldsByteChecker = bytes -> {};
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -287,18 +287,19 @@ public class FetchContext {
         }
     }
 
-    public void setScriptFieldsByteChecker(LongConsumer scriptFieldsByteChecker) {
-        this.scriptFieldsByteChecker = scriptFieldsByteChecker;
+    public void setDocumentFieldsByteChecker(LongConsumer documentFieldsByteChecker) {
+        this.documentFieldsByteChecker = documentFieldsByteChecker;
     }
 
     /**
-     * Charges {@code bytes} for a scripted {@link org.elasticsearch.common.document.DocumentField}
-     * against the configured checker.
+     * Charges {@code bytes} for a fetched {@link org.elasticsearch.common.document.DocumentField}
+     * (script fields, doc-value fields, stored fields, or fields API fields) against the
+     * configured checker.
      */
-    public void chargeScriptFieldsBytes(long bytes) {
+    public void chargeDocumentFieldBytes(long bytes) {
         if (bytes <= 0L) {
             return;
         }
-        scriptFieldsByteChecker.accept(bytes);
+        documentFieldsByteChecker.accept(bytes);
     }
 }

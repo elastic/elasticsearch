@@ -44,8 +44,11 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class FetchFieldsPhaseTests extends ESTestCase {
@@ -114,6 +117,8 @@ public class FetchFieldsPhaseTests extends ESTestCase {
                 }
             }
         }
+
+        verify(fetchContext, atLeastOnce()).chargeDocumentFieldBytes(anyLong());
 
         reader.close();
         dir.close();

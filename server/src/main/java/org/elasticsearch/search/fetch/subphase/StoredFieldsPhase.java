@@ -93,11 +93,15 @@ public class StoredFieldsPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) {
                 Map<String, List<Object>> loadedFields = hitContext.loadedFields();
+                long totalBytes = 0L;
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
-                        hitContext.hit().setDocumentField(new DocumentField(storedField.name, storedField.process(loadedFields)));
+                        DocumentField field = new DocumentField(storedField.name, storedField.process(loadedFields));
+                        hitContext.hit().setDocumentField(field);
+                        totalBytes += field.ramBytesUsedEstimate();
                     }
                 }
+                fetchContext.chargeDocumentFieldBytes(totalBytes);
             }
 
             @Override

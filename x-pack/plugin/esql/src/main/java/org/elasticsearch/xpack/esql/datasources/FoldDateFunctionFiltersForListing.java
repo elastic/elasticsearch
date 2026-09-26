@@ -18,9 +18,15 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Listing-only copy of {@link Filter} conjuncts with all-literal {@code date_extract} /
- * {@code date_trunc} calls folded to {@link Literal}s so {@link PartitionFilterHintExtractor}
+ * {@code date_trunc} / {@code year} / {@code month} / {@code day} / {@code hour} calls
+ * folded to {@link Literal}s so {@link PartitionFilterHintExtractor}
  * can see attribute-vs-literal comparisons. Does not mutate the session plan; the analyzer
  * still folds the original unresolved tree later.
+ * <p>
+ * A range such as {@code year > YEAR("2024-01-01")} folds to the same {@code GREATER_THAN}
+ * hint as {@code year > 2024}. That does not rewrite the listing glob
+ * ({@code canRewriteGlob} is {@code EQUALS}/{@code IN} only); range filtering is
+ * split-discovery.
  */
 public final class FoldDateFunctionFiltersForListing {
 

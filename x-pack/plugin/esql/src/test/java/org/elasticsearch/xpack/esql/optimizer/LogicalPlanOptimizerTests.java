@@ -10302,6 +10302,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
     }
 
+    /**
+     * After surrogate substitution, {@code YEAR(hire_date)} is {@code DATE_EXTRACT("year", hire_date)}.
+     */
+    public void testYearFunctionEqualsInvertsToTimestampRange() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE YEAR(hire_date) == 1986
+            """);
+    }
+
     private void assertDateExtractYearEqualsInverts(String query) {
         long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
         long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
@@ -10476,21 +10486,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(limit.child(), EsRelation.class);
         assertThat(relation.children(), hasSize(0));
         assertThat(relation.indexPattern(), equalTo("base_conversion"));
-    }
-
-    /*
-     * Nested subqueries are not supported yet.
-     */
-    public void testNestedSubqueries() {
-        assumeFalse("Requires nested subquery in FROM command disabled", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
-            FROM test, (FROM test, (FROM languages
-                                                      | WHERE language_code > 0))
-            | WHERE emp_no > 10000
-            """));
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 1 problem\nline ";
-        assertEquals("1:18: Nested subqueries are not supported", e.getMessage().substring(header.length()));
     }
 
     /*

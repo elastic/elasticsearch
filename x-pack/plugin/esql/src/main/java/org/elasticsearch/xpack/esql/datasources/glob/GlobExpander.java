@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
-import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
@@ -510,7 +510,7 @@ public final class GlobExpander {
         // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
         // the only symptom was silently choosing the wrong strategy.
         GlobMatcher matcher = new GlobMatcher(glob);
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
 
         // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
         List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
@@ -1917,7 +1917,7 @@ public final class GlobExpander {
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
         if (fileHints.isEmpty()) {
             return entries;
         }
@@ -1947,125 +1947,96 @@ public final class GlobExpander {
 
     private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint) {
         return switch (hint.columnName()) {
-            case FileMetadataColumns.MODIFIED -> evaluateTimestamp(entry.lastModified(), hint);
-            case FileMetadataColumns.SIZE -> evaluateLong(entry.length(), hint);
-            case FileMetadataColumns.PATH -> evaluateString(entry.path().toString(), hint);
-            case FileMetadataColumns.NAME -> evaluateString(entry.path().objectName(), hint);
+            case FileMetadataColumns.MODIFIED -> matchesModified(entry.lastModified(), hint);
+            case FileMetadataColumns.SIZE -> kept(PartitionValueMatcher.matches(entry.length(), hint));
+            case FileMetadataColumns.PATH -> kept(PartitionValueMatcher.matches(entry.path().toString(), hint));
+            case FileMetadataColumns.NAME -> kept(PartitionValueMatcher.matches(entry.path().objectName(), hint));
             case FileMetadataColumns.DIRECTORY -> {
                 StoragePath parent = entry.path().parentDirectory();
-                yield parent != null ? evaluateString(parent.toString(), hint) : true;
+                yield parent == null || kept(PartitionValueMatcher.matches(parent.toString(), hint));
             }
             case FileMetadataColumns.RECORD_REF -> true;
             default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
         };
     }
 
-    private static boolean evaluateTimestamp(Instant actual, PartitionFilterHint hint) {
-        // StorageEntry normalises a missing lastModified to Instant.EPOCH, so treat both
-        // null and EPOCH as "unknown" and let the file pass through rather than
-        // accidentally pruning every file whose mtime the store could not provide.
-        if (actual == null || actual.equals(Instant.EPOCH)) {
-            return true; // Unknown timestamp — don't filter (conservative)
-        }
-        if (hint.values().isEmpty()) {
-            return true;
-        }
-        long actualMillis = actual.toEpochMilli();
-
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                long millis = toEpochMillis(v);
-                if (millis != Long.MIN_VALUE && actualMillis == millis) {
-                    return true;
+    /**
+     * Parse each {@code _file.modified} hint once. A literal that is not a full instant is undecidable, and one such
+     * literal makes the whole hint undecidable, so that hint is dropped and every file is kept for it. Hints that
+     * parse are replaced with their epoch-millis values and reused for every file.
+     */
+    private static List<PartitionFilterHint> resolveModifiedHints(List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> resolved = null;
+        for (int i = 0; i < hints.size(); i++) {
+            PartitionFilterHint hint = hints.get(i);
+            if (FileMetadataColumns.MODIFIED.equals(hint.columnName()) == false) {
+                if (resolved != null) {
+                    resolved.add(hint);
                 }
+                continue;
             }
-            return false;
+            if (resolved == null) {
+                resolved = new ArrayList<>(hints.size());
+                resolved.addAll(hints.subList(0, i));
+            }
+            PartitionFilterHint parsed = parsedModifiedHint(hint);
+            if (parsed != null) {
+                resolved.add(parsed);
+            }
         }
-
-        long hintMillis = toEpochMillis(hint.values().get(0));
-        if (hintMillis == Long.MIN_VALUE) {
-            return true; // Unparseable — don't filter
-        }
-        return evaluateComparison(Long.compare(actualMillis, hintMillis), hint.operator());
+        return resolved == null ? hints : resolved;
     }
 
-    private static long toEpochMillis(Object value) {
+    /**
+     * The hint with each literal read as epoch millis, or {@code null} when a literal cannot be read that way.
+     * An empty value list decides nothing.
+     */
+    @Nullable
+    private static PartitionFilterHint parsedModifiedHint(PartitionFilterHint hint) {
+        if (hint.values().isEmpty()) {
+            return null;
+        }
+        List<Object> millis = new ArrayList<>(hint.values().size());
+        for (Object value : hint.values()) {
+            Long parsed = epochMillis(value);
+            if (parsed == null) {
+                return null;
+            }
+            millis.add(parsed);
+        }
+        return new PartitionFilterHint(hint.columnName(), hint.operator(), millis);
+    }
+
+    /**
+     * A missing modification time is not a value the filter can exclude: {@link StorageEntry} normalises one the store
+     * could not provide to {@link Instant#EPOCH}, so both null and the epoch keep the file. {@code hint} values are
+     * epoch millis.
+     */
+    private static boolean matchesModified(Instant actual, PartitionFilterHint hint) {
+        if (actual == null || actual.equals(Instant.EPOCH)) {
+            return true;
+        }
+        return kept(PartitionValueMatcher.matches(actual.toEpochMilli(), hint));
+    }
+
+    /** Epoch millis of a {@code Long} or a full-instant {@code String}, or {@code null} when the literal cannot be read. */
+    @Nullable
+    private static Long epochMillis(Object value) {
         if (value instanceof Long l) {
             return l;
-        } else if (value instanceof String s) {
+        }
+        if (value instanceof String s) {
             try {
                 return Instant.parse(s).toEpochMilli();
-            } catch (Exception e) {
-                return Long.MIN_VALUE;
+            } catch (DateTimeParseException e) {
+                return null;
             }
         }
-        return Long.MIN_VALUE;
+        return null;
     }
 
-    private static boolean evaluateLong(long actual, PartitionFilterHint hint) {
-        if (hint.values().isEmpty()) {
-            return true;
-        }
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                long inVal;
-                if (v instanceof Number n) {
-                    inVal = n.longValue();
-                } else {
-                    try {
-                        inVal = Long.parseLong(v.toString());
-                    } catch (NumberFormatException e) {
-                        continue;
-                    }
-                }
-                if (actual == inVal) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        long hintLong;
-        Object hintValue = hint.values().get(0);
-        if (hintValue instanceof Number n) {
-            hintLong = n.longValue();
-        } else if (hintValue instanceof String s) {
-            try {
-                hintLong = Long.parseLong(s);
-            } catch (NumberFormatException e) {
-                return true;
-            }
-        } else {
-            return true;
-        }
-        return evaluateComparison(Long.compare(actual, hintLong), hint.operator());
-    }
-
-    private static boolean evaluateString(String actual, PartitionFilterHint hint) {
-        if (actual == null || hint.values().isEmpty()) {
-            return true;
-        }
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                if (actual.equals(v.toString())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        String hintStr = hint.values().get(0).toString();
-        return evaluateComparison(actual.compareTo(hintStr), hint.operator());
-    }
-
-    private static boolean evaluateComparison(int cmp, PartitionFilterHintExtractor.Operator operator) {
-        return switch (operator) {
-            case EQUALS -> cmp == 0;
-            case NOT_EQUALS -> cmp != 0;
-            case GREATER_THAN -> cmp > 0;
-            case GREATER_THAN_OR_EQUAL -> cmp >= 0;
-            case LESS_THAN -> cmp < 0;
-            case LESS_THAN_OR_EQUAL -> cmp <= 0;
-            case IN -> false; // Handled separately in caller
-        };
+    /** {@code null} from the matcher means the hint cannot be decided, so the file is kept. */
+    private static boolean kept(@Nullable Boolean matches) {
+        return matches == null || matches;
     }
 }

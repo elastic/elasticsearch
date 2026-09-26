@@ -27,4 +27,8 @@ public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new PersianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

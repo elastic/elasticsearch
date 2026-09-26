@@ -22,10 +22,13 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean onlyOnSamePosition;
     private final boolean correctPositionIncrement;
 
+    private final Object sharingKey;
+
     UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.onlyOnSamePosition = settings.getAsBoolean(ONLY_ON_SAME_POSITION, false);
         this.correctPositionIncrement = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX);
+        this.sharingKey = new Key(onlyOnSamePosition, correctPositionIncrement);
     }
 
     @Override
@@ -35,4 +38,11 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         return new UniqueTokenFilter(tokenStream, onlyOnSamePosition);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(boolean onlyOnSamePosition, boolean correctPositionIncrement) {}
 }

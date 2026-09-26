@@ -135,7 +135,7 @@ public final class StringColumnWriter {
                         outputs
                     ),
                     surveyed,
-                    numValues,
+                    numValues - numNullSlots,
                     chunkCodec,
                     sizes,
                     outputs
@@ -234,7 +234,7 @@ public final class StringColumnWriter {
                 valuesWorthNaming
             ),
             surveyed,
-            numValues,
+            numValues - numNullSlots,
             chunkCodec,
             sizes,
             outputs
@@ -254,7 +254,7 @@ public final class StringColumnWriter {
     private static StringColumnMetadata withSummary(
         StringColumnMetadata metadata,
         Vocabulary.Terms vocabulary,
-        long numValues,
+        long namedValues,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
         ColumnOutputs outputs
@@ -280,7 +280,9 @@ public final class StringColumnWriter {
         for (int ordinal = 0; ordinal < size; ordinal++) {
             data.writeVLong(vocabulary.summaryCountOf(ordinal));
         }
-        return metadata.withSummary(new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, numValues));
+        return metadata.withSummary(
+            new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, namedValues)
+        );
     }
 
     /**

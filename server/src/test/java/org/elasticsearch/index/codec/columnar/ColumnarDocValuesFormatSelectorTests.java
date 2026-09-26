@@ -80,6 +80,35 @@ public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
         assertFalse(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(IndexMode.COLUMNAR, randomEligibleVersion(), true)));
     }
 
+    /**
+     * Indices created at or after {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF} default to
+     * {@code index.columnar_codec.enabled=true}, so they select the ColumNAR codec without an explicit opt-in.
+     */
+    public void testDefaultEnabledForIndicesAtOrAfterVersionGate() {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        assertTrue(
+            ColumnarDocValuesFormatSelector.useColumnarCodec(
+                indexSettingsWithDefaultCodecEnabled(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF)
+            )
+        );
+    }
+
+    /**
+     * Indices created before {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF} default to
+     * {@code index.columnar_codec.enabled=false} to preserve BWC with segments written before the codec
+     * was the default. The codec is still functional for those indices via an explicit opt-in.
+     */
+    public void testDefaultDisabledForIndicesBeforeVersionGate() {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        // COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG < COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF, so this version
+        // satisfies the codec's minimum-version gate but predates the default-enabled gate.
+        assertFalse(
+            ColumnarDocValuesFormatSelector.useColumnarCodec(
+                indexSettingsWithDefaultCodecEnabled(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG)
+            )
+        );
+    }
+
     private static boolean columnarFeatureFlagEnabled() {
         return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
     }
@@ -100,6 +129,25 @@ public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
             builder.put("index.routing_path", "dimension");
         }
         builder.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), columnarEnabled);
+        final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
+        return new IndexSettings(metadata, Settings.EMPTY);
+    }
+
+    /**
+     * Builds index settings without explicitly setting {@link IndexSettings#COLUMNAR_CODEC_ENABLED_SETTING},
+     * so tests can exercise the version-gated default value.
+     */
+    private static IndexSettings indexSettingsWithDefaultCodecEnabled(final IndexMode mode, final IndexVersion version) {
+        final Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        if (mode != IndexMode.STANDARD) {
+            builder.put("index.mode", mode.getName());
+        }
+        if (mode == IndexMode.TIME_SERIES) {
+            builder.put("index.routing_path", "dimension");
+        }
         final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
         return new IndexSettings(metadata, Settings.EMPTY);
     }

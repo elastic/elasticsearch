@@ -1,0 +1,5 @@
+pr: 157063
+summary: Fix `_field_caps` types filter to exclude object and nested types when not requested
+area: Search
+type: bug
+issues: []

@@ -475,3 +475,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStaticMappingChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/160381
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  method: testTracingCrossCluster
+  issue: https://github.com/elastic/elasticsearch/issues/160408

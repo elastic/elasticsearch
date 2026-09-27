@@ -87,7 +87,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * expansion (datasets plus indices from one {@code FROM}) is the same thing before promotion,
      * so it is also excluded.
      */
-    public static boolean isQueryBranchingFork(LogicalPlan plan) {
+    private static boolean isBranchingMerge(LogicalPlan plan) {
         if (plan instanceof SourceFanInUnionAll) {
             return false;
         }
@@ -105,7 +105,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         Fork fork = (Fork) plan;
 
         forEachMergePlanSkippingSubqueries(fork, other -> {
-            if (other == fork || isQueryBranchingFork(other) == false) {
+            if (other == fork || isBranchingMerge(other) == false) {
                 return;
             }
 

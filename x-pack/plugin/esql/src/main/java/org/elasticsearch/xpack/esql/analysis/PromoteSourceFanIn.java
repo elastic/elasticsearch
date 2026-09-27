@@ -34,8 +34,8 @@ import java.util.Set;
  * sibling index reads merged (see {@link SourceFanInUnionAll#withIndexReadsCollapsed}).
  * <p>
  * A view union that stays a {@link ViewUnionAll} has any fan-in branch lifted into separate
- * branches, the same shape {@code ViewCompaction} builds for a user-written union inside a view,
- * so a fan-in is never left nested under a view union it was not promoted into.
+ * branches, the same shape {@code ViewCompaction} builds for a user-written union inside a view.
+ * When lifting would exceed {@link MergePlan#MAX_BRANCHES}, the view union keeps its nested fan-in.
  */
 public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 

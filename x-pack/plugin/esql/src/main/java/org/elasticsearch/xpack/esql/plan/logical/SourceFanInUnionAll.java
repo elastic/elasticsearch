@@ -32,11 +32,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * One resolved {@code FROM} expanded to its producers: datasets, indices, and matched
@@ -81,37 +79,6 @@ public final class SourceFanInUnionAll extends UnionAll {
     @Override
     public SourceFanInUnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new SourceFanInUnionAll(source(), subPlans, output);
-    }
-
-    @Override
-    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
-        List<LogicalPlan> kept = new ArrayList<>(children().size());
-        for (LogicalPlan child : children()) {
-            if (isEmpty.test(child) == false) {
-                kept.add(child);
-            }
-        }
-        if (kept.size() == children().size()) {
-            return this;
-        }
-        return new SourceFanInUnionAll(source(), kept, output());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(SourceFanInUnionAll.class, children());
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SourceFanInUnionAll other = (SourceFanInUnionAll) o;
-        return Objects.equals(children(), other.children());
     }
 
     @Override

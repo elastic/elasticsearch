@@ -53,10 +53,10 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     }
 
     /**
-     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
-     * (rather than letting the base implementation produce whatever {@link #replaceChildren}
-     * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
-     * (callers that want to collapse to the lone child do so explicitly).
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a node of this class,
+     * built through {@link #replaceSubPlans} (rather than letting the base implementation produce whatever
+     * {@link #replaceChildren} would). Mirrors the base behaviour otherwise: single-survivor wrappers are
+     * preserved (callers that want to collapse to the lone child do so explicitly).
      */
     @Override
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
@@ -69,12 +69,12 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
         if (kept.size() == children().size()) {
             return this;
         }
-        return new UnionAll(source(), kept, output());
+        return replaceSubPlans(kept);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(UnionAll.class, children());
+        return Objects.hash(getClass(), children());
     }
 
     @Override

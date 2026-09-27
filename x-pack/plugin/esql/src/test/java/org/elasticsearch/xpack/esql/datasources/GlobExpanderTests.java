@@ -690,6 +690,34 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year=2024/*.parquet", rewritten);
     }
 
+    /**
+     * A non-integral number is not spliced: {@code 1.5} is one spelling of a value that may be {@code 1.50} on disk,
+     * and {@code 6.0} would miss {@code 6.00}. An empty value still splices. A value holding {@code *} does not.
+     */
+    public void testRewriteGlobDecimalEmptyAndMetacharacterValues() {
+        assertEquals(
+            "s3://bucket/price=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/price=*/*.parquet",
+                List.of(hint("price", PartitionFilterHintExtractor.Operator.EQUALS, 1.5))
+            )
+        );
+        assertEquals(
+            "s3://bucket/k=/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/k=*/*.parquet",
+                List.of(hint("k", PartitionFilterHintExtractor.Operator.EQUALS, ""))
+            )
+        );
+        assertEquals(
+            "s3://bucket/tag=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/tag=*/*.parquet",
+                List.of(hint("tag", PartitionFilterHintExtractor.Operator.EQUALS, "a*b"))
+            )
+        );
+    }
+
     public void testRewriteGlobWithInHint() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2023, 2024));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
@@ -903,8 +931,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * One list of the same prefix. Folders whose numeric value is outside the span are dropped; a dotted hive segment
-     * ({@code rating=2.5}) is not a partition value, so it stays. Dropping it would type the column integer.
+     * One list of the same prefix. Folders whose numeric value is outside the span are dropped.
+     * {@code rating=2.5} is inside {@code [1, 3]} and stays; {@code rating=4} drops. The column types as double.
      */
     public void testClosedRangeKeepsDecimalHiveFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -936,7 +964,63 @@ public class GlobExpanderTests extends ESTestCase {
             paths(result)
         );
         assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
-        assertNull("a dotted segment is not a hive partition, so detection bails for the batch", result.partitionMetadata());
+        assertNotNull(result.partitionMetadata());
+        assertEquals(DataType.DOUBLE, result.partitionMetadata().partitionColumns().get("rating"));
+    }
+
+    /**
+     * The object name is {@code month=01} / {@code month=15}. A closed range must not treat that name as a partition
+     * folder: {@code month=15} is outside {@code [1, 10]} and would be dropped if the filename were scanned.
+     */
+    public void testClosedRangeKeepsExtensionlessObjectName() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/month=01", 100), entry("s3://bucket/data/month=15", 100)))
+        );
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+            hint("month", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 10)
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/month=01", "s3://bucket/data/month=15"), paths(result));
+    }
+
+    /**
+     * {@code IN (1.25, 6.0)} must not rewrite to spellings that miss {@code price=6.00}. Both folders stay.
+     * {@code 6.00} is a keyword (the trailing zero is significant), so the typed filter does not drop it.
+     */
+    public void testInListKeepsAlternateDecimalSpellings() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/price=1.25/a.parquet", 100), entry("s3://bucket/data/price=6.00/b.parquet", 100))
+            )
+        );
+        var hints = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.25, 6.0));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/price=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/price=1.25/a.parquet", "s3://bucket/data/price=6.00/b.parquet"), paths(result));
+    }
+
+    /** A faithful double {@code IN} still drops a folder the numbers exclude. */
+    public void testInListDropsDoubleOutsideTheList() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/price=1.5/a.parquet", 100),
+                    entry("s3://bucket/data/price=2.5/b.parquet", 100),
+                    entry("s3://bucket/data/price=9.0/c.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.5, 2.5));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/price=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/price=1.5/a.parquet", "s3://bucket/data/price=2.5/b.parquet"), paths(result));
     }
 
     /** Zero-padded spellings parse as the same integer. A span past 31 values still filters; there is no brace cap. */
@@ -1181,6 +1265,26 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF),
             GlobExpander.listingCacheDiscriminator(pattern, closed, HIVE_OFF)
         );
+    }
+
+    /**
+     * A non-integral equality leaves {@code price=*} in place and drops folders afterwards. That narrowed listing
+     * must not be cached under the unfiltered key, or {@code price >= 0.0} reuses a list that already dropped
+     * {@code price=1e5}.
+     */
+    public void testListingCacheDiscriminatorReflectsNonIntegralEquality() {
+        String pattern = "s3://bucket/price=*/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        var equals = List.of(hint("price", PartitionFilterHintExtractor.Operator.EQUALS, 1.5));
+        var inList = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.25, 6.0));
+        var range = List.of(hint("price", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 0.0));
+
+        assertNotEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, equals, HIVE_ON));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, equals, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(pattern, inList, HIVE_ON)
+        );
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, range, HIVE_ON));
     }
 
     public void testRewriteGlobMultipleHints() {
@@ -3129,11 +3233,8 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(List.of("s3://bucket/data/hour=007/a.parquet"), paths(result));
     }
 
-    /**
-     * A dotted segment ({@code price=6.0}) is not a partition folder — the detector skips dotted segments, so
-     * {@code price} is a data column and the walk must not prune; the full listing stands.
-     */
-    public void testGlobstarDottedFolderIsNotPartitionShapedAndDoesNotPrune() throws IOException {
+    /** A dotted folder value is a partition. {@code price == 6} keeps {@code price=6.0} and drops {@code price=7.5}. */
+    public void testGlobstarEqualsHintPrunesDottedPriceFolder() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(entry("s3://bucket/data/price=6.0/a.parquet", 100), entry("s3://bucket/data/price=7.5/b.parquet", 100))
         );
@@ -3141,7 +3242,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(2, result.fileCount());
+        assertEquals(List.of("s3://bucket/data/price=6.0/a.parquet"), paths(result));
     }
 
     /** Boolean folder case ({@code flag=True}, a standard writer's spelling) matches a boolean hint by typed value. */

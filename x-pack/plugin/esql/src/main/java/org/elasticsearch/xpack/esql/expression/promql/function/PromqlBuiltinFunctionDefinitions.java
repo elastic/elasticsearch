@@ -230,12 +230,14 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .differenceFromPrometheus(
             "Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. "
-                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Ties are broken by "
-                + "series identity rather than by Prometheus `labels.Compare`. Range queries emit a warning that "
-                + "the ordering is discarded, where Prometheus discards it silently. Digit runs that are "
-                + "numerically equal but differ in leading zeros, and empty label values, get a stable order "
-                + "rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits are still "
-                + "compared numerically, where Prometheus falls back to text comparison."
+                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Supported in this "
+                + "version only as the outermost function of the query; Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. Ties are broken by series identity rather than by "
+                + "Prometheus `labels.Compare`. On a range query the ordering is discarded either way, but "
+                + "Prometheus returns the series ordered by their labels, where {{es}} returns them in input "
+                + "order. Digit runs that are numerically equal but differ in leading zeros, and empty label "
+                + "values, get a stable order rather than Prometheus's unstable natsort. Digit runs longer than "
+                + "about 20 digits are still compared numerically, where Prometheus falls back to text comparison."
         )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
         .name("sort_by_label");
@@ -255,12 +257,14 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .differenceFromPrometheus(
             "Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. "
-                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Ties are broken by "
-                + "series identity rather than by Prometheus `labels.Compare`. Range queries emit a warning that "
-                + "the ordering is discarded, where Prometheus discards it silently. Digit runs that are "
-                + "numerically equal but differ in leading zeros, and empty label values, get a stable order "
-                + "rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits are still "
-                + "compared numerically, where Prometheus falls back to text comparison."
+                + "Elasticsearch has no PromQL feature flag and marks them preview instead. Supported in this "
+                + "version only as the outermost function of the query; Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. Ties are broken by series identity rather than by "
+                + "Prometheus `labels.Compare`. On a range query the ordering is discarded either way, but "
+                + "Prometheus returns the series ordered by their labels, where {{es}} returns them in input "
+                + "order. Digit runs that are numerically equal but differ in leading zeros, and empty label "
+                + "values, get a stable order rather than Prometheus's unstable natsort. Digit runs longer than "
+                + "about 20 digits are still compared numerically, where Prometheus falls back to text comparison."
         )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
         .name("sort_by_label_desc");

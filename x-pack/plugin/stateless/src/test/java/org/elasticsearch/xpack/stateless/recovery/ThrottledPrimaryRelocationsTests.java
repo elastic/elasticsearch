@@ -60,7 +60,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE);
 
         final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shard = mockShard(shardId);
@@ -97,7 +97,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -145,7 +145,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -206,7 +206,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -258,7 +258,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(listeners);
-        throttle.updateOutgoingThrottleSettings(3, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(3, Double.MAX_VALUE);
 
         for (int i = 0; i < 3; i++) {
             final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -288,7 +288,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         for (int i = 0; i < 3; i++) {
             final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -304,7 +304,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat(throttle.queuedRelocationCount(), equalTo(2));
 
         // Raising the limit forks the drain onto the executor; state is unchanged until it runs.
-        throttle.updateOutgoingThrottleSettings(3, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(3, Double.MAX_VALUE);
 
         assertThat(throttle.activeRelocationCount(), equalTo(1));
         assertThat(throttle.queuedRelocationCount(), equalTo(2));
@@ -334,7 +334,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(listeners);
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -403,7 +403,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(listeners);
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -445,7 +445,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(1, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(1, Double.MAX_VALUE);
 
         final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
@@ -489,7 +489,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE);
         taskQueue.runAllRunnableTasks();
 
         throttle.close();
@@ -544,7 +544,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             heapBytes
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, 1.5);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, 1.5);
 
         taskQueue.runAllRunnableTasks();
 
@@ -579,7 +579,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ZERO
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(2, 1.0);
+        throttle.applyOutgoingThrottleSettings(2, 1.0);
 
         taskQueue.runAllRunnableTasks();
 
@@ -614,7 +614,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofGb(2)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(3, randomDoubleBetween(2.0, Double.MAX_VALUE, true));
+        throttle.applyOutgoingThrottleSettings(3, randomDoubleBetween(2.0, Double.MAX_VALUE, true));
 
         taskQueue.runAllRunnableTasks();
 
@@ -650,7 +650,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
 
         // 2 GB heap, ratio 0.5 -> effective = min(3, ceil(2 * 0.5)) = min(3, 1) = 1
-        throttle.updateOutgoingThrottleSettings(3, 0.5);
+        throttle.applyOutgoingThrottleSettings(3, 0.5);
 
         taskQueue.runAllRunnableTasks();
 
@@ -668,34 +668,37 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat("heap-based limit should limit number of relocations to 1", started.get(), equalTo(1));
 
         // Increasing ratio to 4.0 -> ceil(2 * 4.0) = 8, but static limit of 3 should still cap it
-        throttle.updateOutgoingThrottleSettings(3, 4.0);
+        throttle.applyOutgoingThrottleSettings(3, 4.0);
         taskQueue.runAllRunnableTasks();
         assertThat("static limit should limit number of relocations to 3", started.get(), equalTo(3));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
     }
 
-    /// Verifies that raising the static max while lowering the per-heap ratio in one settings update does not
-    /// briefly allow the higher static limit (which would happen if the two settings had separate update consumers).
     public void testOutgoingThrottleSettingsAreUpdatedAtomically() {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap: before effective = min(2, ceil(2 * 100)) = 2
         // after batch update: effective = min(100, ceil(2 * 0.5)) = 1
         final var started = new AtomicInteger();
-        final var clusterService = mockClusterService(
-            Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
-                .put(
-                    StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-                        .getKey(),
-                    100.0
-                )
-                .build()
-        );
+        final var clusterService = mockClusterService();
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
+                    .put(
+                        StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                            .getKey(),
+                        100.0
+                    )
+                    .build()
+            );
         final var throttle = new ThrottledPrimaryRelocations(
             clusterService,
             taskQueue::scheduleNow,
-            (parentClient, request, shard, listener) -> started.incrementAndGet(),
+            (parentClient, request, shard, listener) -> {
+                started.incrementAndGet();
+                taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
+            },
             ByteSizeValue.ofGb(2)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
@@ -713,7 +716,6 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(2));
 
-        // Hold slots open (runners never complete) and batch-update both settings.
         // If the static max were applied alone first, effective would jump to 100 and all 10 would start.
         clusterService.getClusterSettings()
             .applySettings(
@@ -727,11 +729,10 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                     .build()
             );
         taskQueue.runAllRunnableTasks();
-        assertThat(
-            "grouped update must apply both settings before draining the queue; the higher static alone would have started all 10",
-            started.get(),
-            equalTo(2)
-        );
+        assertThat(started.get(), equalTo(2));
+
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(10));
     }
 
     public void testIncreasingHeapBasedLimitDrainsQueue() {
@@ -750,7 +751,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofGb(2)
         );
         throttle.registerRecoverySchedulingListeners(listeners);
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, 0.5);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, 0.5);
 
         taskQueue.runAllRunnableTasks();
 
@@ -768,7 +769,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat("heap-based limit: ceil(2GB * 0.5) should only allow 1 slot", started.get(), equalTo(1));
 
         // Increase ratio so effective limit becomes ceil(2 * 2.0) = 4
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, 2.0);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, 2.0);
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
@@ -791,7 +792,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             ByteSizeValue.ofGb(1)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
-        throttle.updateOutgoingThrottleSettings(Integer.MAX_VALUE, 1.5);
+        throttle.applyOutgoingThrottleSettings(Integer.MAX_VALUE, 1.5);
 
         taskQueue.runAllRunnableTasks();
 
@@ -832,15 +833,11 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
     }
 
     private static ClusterService mockClusterService() {
-        return mockClusterService(Settings.EMPTY);
-    }
-
-    private static ClusterService mockClusterService(Settings settings) {
         final var clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(randomIdentifier()));
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
-                settings,
+                Settings.EMPTY,
                 Set.of(
                     PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                     StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING

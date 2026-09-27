@@ -783,7 +783,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(2));
 
-        // Drain
+        // drain
         while (startedListeners.isEmpty() == false) {
             final var listener = startedListeners.removeFirst();
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);

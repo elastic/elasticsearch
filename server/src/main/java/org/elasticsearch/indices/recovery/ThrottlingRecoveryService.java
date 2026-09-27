@@ -181,13 +181,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         );
         // TODO: remove this branch once the settings are registered. Until then, fall back to the disabled defaults.
         if (incomingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
-            updateIncomingThrottleSettings(
+            applyIncomingThrottleSettings(
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING),
                 clusterSettings.get(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING)
             );
             clusterSettings.addSettingsUpdateConsumer(
-                settings -> updateIncomingThrottleSettings(
+                settings -> applyIncomingThrottleSettings(
                     INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings),
                     INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings),
                     INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(settings)
@@ -195,7 +195,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 incomingThrottleSettings
             );
         } else {
-            updateIncomingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE, RatioValue.ONE_HUNDRED_PERCENT);
+            applyIncomingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE, RatioValue.ONE_HUNDRED_PERCENT);
         }
     }
 
@@ -548,9 +548,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         fillSlots();
     }
 
-    private void updateIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
+    private void applyIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
         synchronized (this) {
-            recoveriesThrottle.updateIncomingThrottleSettings(maxConcurrent, perHeapGb, relocationProportion);
+            recoveriesThrottle.applyIncomingThrottleSettings(maxConcurrent, perHeapGb, relocationProportion);
         }
         if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
@@ -638,7 +638,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             this.maxHeap = maxHeap;
         }
 
-        void updateIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
+        /// Updates the effective max concurrent recoveries and relocations limits based on the latest values of incoming
+        /// throttle settings.
+        private void applyIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
             effectiveMaxConcurrentRecoveries = computeEffectiveMaxConcurrentRecoveries(maxConcurrent, perHeapGb);
             effectiveMaxConcurrentRelocationRecoveries = (int) Math.ceil(
                 effectiveMaxConcurrentRecoveries * relocationProportion.getAsRatio()

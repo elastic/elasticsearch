@@ -695,9 +695,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
                     clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
                 );
-                // These settings jointly determine the effective outgoing relocation limit. Watch them as a group.
+                // These settings jointly determine the effective outgoing relocation limit. Watch them as a group so that a
+                // single cluster-settings update that changes more than one is applied atomically before startRelocationsUpToLimit runs.
                 clusterSettings.addSettingsUpdateConsumer(
-                    settings -> updateOutgoingThrottleSettings(
+                    settings -> applyOutgoingThrottleSettings(
                         PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
                         INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
                     ),
@@ -789,7 +790,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
-        void updateOutgoingThrottleSettings(int newMax, double newHeapRatio) {
+        void applyOutgoingThrottleSettings(int newMax, double newHeapRatio) {
             final boolean maxIncreased;
             synchronized (this) {
                 final int oldMax = effectiveMaxConcurrentOutgoingRelocations;

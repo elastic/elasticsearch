@@ -78,6 +78,29 @@ public class SkipUnmappedFieldsExtractionTests extends ESTestCase {
         assertThat(eval.child(), sameInstance(leaf));
     }
 
+    public void testDropsFieldExtractWhenOnlyUnmappedFieldRemains() {
+        // Net-zero projection on a fully-mapped shard: every mapped column has been dropped, so the only thing left to
+        // extract is the skippable UnmappedFieldsAttribute. Removing it would leave an empty FieldExtractExec, which
+        // becomes an illegal ValuesSourceReaderOperator with no fields; the rule must drop the extraction entirely and
+        // keep only the null-producing eval.
+        UnmappedFieldsAttribute unmapped = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+        EsQueryExec leaf = esQueryExec();
+        FieldExtractExec extract = new FieldExtractExec(Source.EMPTY, leaf, List.of(unmapped), MappedFieldType.FieldExtractPreference.NONE);
+
+        PhysicalPlan result = applyRule(extract, searchStats(true));
+
+        assertThat(result, instanceOf(EvalExec.class));
+        EvalExec eval = (EvalExec) result;
+        assertThat(eval.fields(), contains(instanceOf(Alias.class)));
+        Alias nullified = eval.fields().getFirst();
+        assertThat(nullified.name(), is(unmapped.name()));
+        assertThat(nullified.id(), is(unmapped.id()));
+        assertThat(nullified.child(), instanceOf(Literal.class));
+        assertThat(((Literal) nullified.child()).value(), nullValue());
+        // No FieldExtractExec remains; the eval sits directly on the source, which still supplies the rows.
+        assertThat(eval.child(), sameInstance(leaf));
+    }
+
     public void testLeavesPlanUntouchedWhenNotSkippable() {
         FieldAttribute mapped = fieldAttribute("mapped", DataType.LONG);
         UnmappedFieldsAttribute unmapped = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);

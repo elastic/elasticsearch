@@ -59,6 +59,14 @@ public class SkipUnmappedFieldsExtraction extends PhysicalOptimizerRules.Paramet
             return fieldExtractExec;
         }
         EvalExec eval = new EvalExec(fieldExtractExec.source(), fieldExtractExec.child(), nullifiedColumns);
+        if (remaining.isEmpty()) {
+            // Every extracted attribute was a skippable unmapped-fields column. Keeping the FieldExtractExec with no
+            // attributes would create a ValuesSourceReaderOperator with empty fields, which is illegal (see
+            // ValuesSourceReaderOperator). The child already supplies the rows, so drop the extraction entirely and keep
+            // only the null-producing eval. This is what makes a net-zero projection (e.g. dropping every mapped column
+            // under SET unmapped_fields="load_all") succeed on a fully-mapped shard.
+            return eval;
+        }
         return fieldExtractExec.withAttributesToExtract(remaining).replaceChild(eval);
     }
 }

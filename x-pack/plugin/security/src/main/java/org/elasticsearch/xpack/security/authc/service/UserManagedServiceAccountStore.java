@@ -371,12 +371,14 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists.
+     * Creates the account, or replaces it wholesale if it already exists. A {@code null} description leaves the
+     * account without one.
      */
     void putAccount(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
@@ -388,12 +390,12 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles);
+        final ValidationException validationException = validatePutRequest(accountId, roles, description);
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        try (XContentBuilder builder = newAccountDocument(accountId, sortedDistinct(roles), enabled)) {
+        try (XContentBuilder builder = newAccountDocument(accountId, sortedDistinct(roles), enabled, description)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(docIdForPrincipal(accountId.asPrincipal()))
                 .setSource(builder)
@@ -496,7 +498,11 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     @Nullable
-    private static ValidationException validatePutRequest(ServiceAccountId accountId, @Nullable List<String> roles) {
+    private static ValidationException validatePutRequest(
+        ServiceAccountId accountId,
+        @Nullable List<String> roles,
+        @Nullable String description
+    ) {
         final ValidationException validationException = new ValidationException();
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateNamespace(accountId.namespace()));
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateServiceName(accountId.serviceName()));
@@ -506,6 +512,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
             addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(description));
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }
 
@@ -523,15 +530,27 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         return roles.stream().distinct().sorted().toList();
     }
 
-    private XContentBuilder newAccountDocument(ServiceAccountId accountId, List<String> roles, boolean enabled) throws IOException {
-        return XContentFactory.jsonBuilder()
+    /**
+     * The description is left out of the document rather than written as {@code null}, so that an account without one
+     * looks the same as one written before the field existed.
+     */
+    private XContentBuilder newAccountDocument(
+        ServiceAccountId accountId,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description
+    ) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .field("doc_type", SERVICE_ACCOUNT_DOC_TYPE)
             .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
-            .field("enabled", enabled)
-            .endObject();
+            .field("enabled", enabled);
+        if (description != null) {
+            builder.field("description", description);
+        }
+        return builder.endObject();
     }
 
     /**
@@ -559,8 +578,19 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (roles == null) {
             return null;
         }
+        // Absent in documents written before the field existed, and for accounts written without one since.
+        final Object descriptionValue = source.get("description");
+        if (descriptionValue != null && descriptionValue instanceof String == false) {
+            logger.warn("service account document [{}] has an invalid [description] field", expectedPrincipal);
+            return null;
+        }
         if (source.get("enabled") instanceof Boolean enabled) {
-            return new UserManagedServiceAccount(ServiceAccountId.fromPrincipal(expectedPrincipal), roles, enabled);
+            return new UserManagedServiceAccount(
+                ServiceAccountId.fromPrincipal(expectedPrincipal),
+                roles,
+                enabled,
+                (String) descriptionValue
+            );
         }
         logger.warn("service account document [{}] has an invalid [enabled] field", expectedPrincipal);
         return null;

@@ -533,3 +533,36 @@ result:double | step:datetime            | zone:keyword
 10.0          | 2024-05-10T01:00:00.000Z | eu
 20.0          | 2024-05-10T01:00:00.000Z | us
 ;
+
+instant_sort_by_label_tie_break_missing_label_as_empty
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+// "pod" is absent from the closed header, so the remaining identity (zone) is the tie-break. podC has no zone, and an
+// absent label compares as "" there too, so it sorts first just like it does when the label is a requested sort key.
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label(sum by (zone) (last_over_time(metrics.requests[5m])), "pod"));
+
+result:double | step:datetime            | zone:keyword
+2.0           | 2024-05-10T01:00:00.000Z | null
+10.0          | 2024-05-10T01:00:00.000Z | eu
+20.0          | 2024-05-10T01:00:00.000Z | us
+;
+
+instant_sort_by_label_desc_tie_break_missing_label_as_empty
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+// Descending reverses the tie-break, so the series without a zone sorts last.
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label_desc(sum by (zone) (last_over_time(metrics.requests[5m])), "pod"));
+
+result:double | step:datetime            | zone:keyword
+20.0          | 2024-05-10T01:00:00.000Z | us
+10.0          | 2024-05-10T01:00:00.000Z | eu
+2.0           | 2024-05-10T01:00:00.000Z | null
+;

@@ -141,6 +141,10 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
     public ResultOrdering resultOrdering(List<Attribute> commandOutput, Configuration configuration) {
         boolean desc = definition().name().equals("sort_by_label_desc");
         Order.OrderDirection direction = desc ? Order.OrderDirection.DESC : Order.OrderDirection.ASC;
+        // An absent label compares as the empty string, which precedes every other value. A column is null exactly
+        // where its label is absent, so ordering nulls first ascending - and last descending - encodes that for the
+        // identity columns ordered directly. The requested keys coalesce to "" instead and are never null.
+        Order.NullsPosition nulls = desc ? Order.NullsPosition.LAST : Order.NullsPosition.FIRST;
         List<Alias> syntheticKeys = new ArrayList<>();
         List<Order> orders = new ArrayList<>();
         Set<String> usedLabels = new HashSet<>();
@@ -156,18 +160,18 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
             usedLabels.add(labelName);
             Alias key = naturalSortKey(inOutput, configuration);
             syntheticKeys.add(key);
-            orders.add(new Order(source(), key.toAttribute(), direction, Order.NullsPosition.LAST));
+            orders.add(new Order(source(), key.toAttribute(), direction, nulls));
         }
         Attribute timeseries = findIdentityAttribute(commandOutput, MetadataAttribute.TIMESERIES);
         if (timeseries != null) {
-            orders.add(new Order(source(), timeseries, direction, Order.NullsPosition.LAST));
+            orders.add(new Order(source(), timeseries, direction, nulls));
         } else {
             for (int i = 2; i < commandOutput.size(); i++) {
                 Attribute attr = commandOutput.get(i);
                 if (usedLabels.contains(PromqlLabels.labelName(attr))) {
                     continue;
                 }
-                orders.add(new Order(source(), attr, direction, Order.NullsPosition.LAST));
+                orders.add(new Order(source(), attr, direction, nulls));
             }
         }
         return new ResultOrdering(List.copyOf(syntheticKeys), List.copyOf(orders));

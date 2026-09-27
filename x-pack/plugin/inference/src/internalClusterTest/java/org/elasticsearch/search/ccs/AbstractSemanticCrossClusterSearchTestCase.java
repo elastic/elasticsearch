@@ -204,13 +204,17 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertSearchResponse(queryBuilder, indices, expectedSearchResults, expectedRemoteFailure, searchRequestModifier, null);
     }
 
+    /**
+     * @param responseConsumer runs before the assertions below, so a caller capturing state from the response (a scroll ID, say) still
+     *                         gets it when one of them fails. The response is released once this method returns, so do not retain it.
+     */
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
         @Nullable List<String> indices,
         List<SearchResult> expectedSearchResults,
         @Nullable ClusterFailure expectedRemoteFailure,
         @Nullable Consumer<SearchRequest> searchRequestModifier,
-        @Nullable Consumer<SearchResponse> responseAssertions
+        @Nullable Consumer<SearchResponse> responseConsumer
     ) throws Exception {
         QueryBuilder boostedQueryBuilder = boostLocalIndex(queryBuilder);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(boostedQueryBuilder).size(expectedSearchResults.size());
@@ -223,8 +227,8 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         }
 
         assertResponse(client().search(searchRequest), response -> {
-            if (responseAssertions != null) {
-                responseAssertions.accept(response);
+            if (responseConsumer != null) {
+                responseConsumer.accept(response);
             }
 
             SearchHit[] hits = response.getHits().getHits();

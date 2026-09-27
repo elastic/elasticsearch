@@ -911,10 +911,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Drops all pre-charge markers.
+     * Drops all pre-charge markers and shared automata. An override of {@link #releaseQueryConstructionMemory()} must call
+     * this, or it keeps automata alive that the breaker no longer accounts for.
      */
-    protected final void clearPreChargedQueries() {
+    protected final void clearQueryConstructionState() {
         preChargedQueries.clear();
+        sharedAutomata.clear();
     }
 
     /**
@@ -922,8 +924,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        clearPreChargedQueries();
-        sharedAutomata.clear();
+        clearQueryConstructionState();
         if (circuitBreaker == null) {
             return;
         }

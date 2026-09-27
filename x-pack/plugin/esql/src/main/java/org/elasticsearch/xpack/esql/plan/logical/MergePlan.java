@@ -54,11 +54,11 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     public static void checkMaxBranchCount(LogicalPlan plan, int maxBranches, String limitSource, Failures failures) {
         plan.forEachDown(node -> {
             if (node instanceof MergePlan merge && merge.children().size() > maxBranches) {
-                String kind = merge instanceof Fork ? "FORK" : merge.getClass().getSimpleName();
+                String kind = merge instanceof Fork ? "FORK" : "query";
                 failures.add(
                     Failure.fail(
                         merge,
-                        "{} resolved to {} branches, exceeding the limit of {} set by the {}",
+                        "{} resolved to {} branches in total, exceeding the limit of {} set by the {}",
                         kind,
                         merge.children().size(),
                         maxBranches,

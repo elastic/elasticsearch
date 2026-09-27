@@ -190,6 +190,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.ReadonlyActionIT
   method: testReadOnlyInTheHotPhase
   issue: https://github.com/elastic/elasticsearch/issues/160406
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test50CreateKeystoreManually
+  issue: https://github.com/elastic/elasticsearch/issues/160411
 
 # Examples:
 #

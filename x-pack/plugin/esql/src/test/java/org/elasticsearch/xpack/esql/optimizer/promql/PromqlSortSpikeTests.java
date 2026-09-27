@@ -38,6 +38,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  */
 public class PromqlSortSpikeTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlSortSpikeTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testSortInstantQueryOptimizesToTopNAboveCollapse() {
         assumeTrue("Requires PROMQL_SORT capability", EsqlCapabilities.Cap.PROMQL_SORT.isEnabled());
         LogicalPlan optimized = planPromql(

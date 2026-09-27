@@ -81,6 +81,26 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         assertThat(ex.getMessage(), containsString("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH));
     }
 
+    public void testTooDeeplyNestedCollectionBuiltDirectly() {
+        // the WKT parser is not the only way to build a collection, so the bound has to be enforced by the collection itself
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> makeDeeplyNestedGeometryCollection(WellKnownText.MAX_NESTED_DEPTH + 1)
+        );
+        assertThat(ex.getMessage(), containsString("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH));
+
+        GeometryCollection<?> deepest = makeDeeplyNestedGeometryCollection(WellKnownText.MAX_NESTED_DEPTH);
+        assertEquals(WellKnownText.MAX_NESTED_DEPTH, countNestedGeometryCollections(deepest));
+    }
+
+    private GeometryCollection<Geometry> makeDeeplyNestedGeometryCollection(int depth) {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(new Point(20.0, 10.0)));
+        for (int i = 1; i < depth; i++) {
+            collection = new GeometryCollection<>(Collections.singletonList(collection));
+        }
+        return collection;
+    }
+
     private String makeDeeplyNestedGeometryCollectionWKT(int depth) {
         return "GEOMETRYCOLLECTION (".repeat(depth) + "POINT (20.0 10.0)" + ")".repeat(depth);
     }

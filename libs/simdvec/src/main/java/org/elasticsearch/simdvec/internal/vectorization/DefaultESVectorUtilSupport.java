@@ -20,6 +20,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -770,24 +771,21 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        multiplyAccumulate(a, k, 1, b, c, m, k, n);
-        return c;
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, m, k, n);
     }
 
     /**
-     * Accumulates {@code C += A @ B}, where element (i, l) of the left operand is
-     * {@code a[i * aRowStride + l * aInnerStride]}. The strides let {@code A @ B} and
-     * {@code A^T @ B} share this method; the transposed form only swaps them.
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
      *
-     * @param aRowStride   distance in {@code a} between consecutive rows of the left operand
-     * @param aInnerStride distance in {@code a} between consecutive steps
-     * @param cRows        rows of C, and of the left operand
-     * @param inner        inner dimension of the multiplication
-     * @param n            columns of C, and of B
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         // unroll 4x, so 4 values are accumulated into each c cell at once
         final int innerLimit = inner - inner % 4;
         for (int i = 0; i < cRows; i++) {
@@ -795,7 +793,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             int cBase = i * n;
             int l = 0;
             for (; l < innerLimit; l += 4) {
-                int aOffset = aBase + l * aInnerStride;
+                int aOffset = aBase + l;
                 int b0 = l * n;
                 int b1 = b0 + n;
                 int b2 = b0 + n * 2;
@@ -803,15 +801,15 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 for (int j = 0; j < n; j++) {
                     float acc = c[cBase + j];
                     acc = fma(a[aOffset], b[b0 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride], b[b1 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride * 2], b[b2 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride * 3], b[b3 + j], acc);
+                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
                     c[cBase + j] = acc;
                 }
             }
             // tail
             for (; l < inner; l++) {
-                linearCombination(a[aBase + l * aInnerStride], b, l * n, c, cBase, n);
+                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
             }
         }
     }

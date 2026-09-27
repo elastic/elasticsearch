@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159694
+summary: Add auto-calibration information to _stats
+type: enhancement

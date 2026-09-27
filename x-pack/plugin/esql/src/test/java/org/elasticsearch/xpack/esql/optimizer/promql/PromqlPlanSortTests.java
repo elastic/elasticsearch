@@ -19,6 +19,10 @@ import java.util.List;
 
 public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlPlanSortTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void assumeSortEnabled() {
         assumeTrue("Requires PROMQL_SORT capability", EsqlCapabilities.Cap.PROMQL_SORT.isEnabled());

@@ -114,9 +114,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -909,7 +909,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -942,7 +942,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1483,16 +1483,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
 
-    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "found latest CC in [{}]: {}",
-                blobContainer.path().buildAsString(),
-                latestBcc.lastCompoundCommit().toLongDescription()
-            );
-        }
-    }
-
     /**
      * Abstract class for commit and files upload tasks.
      *
@@ -1835,19 +1825,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             translogDeleteSchedulePermit.release();
-            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+            if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

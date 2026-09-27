@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -73,6 +74,12 @@ public class PlanExecutor {
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
     private final AnalysisRegistry analysisRegistry;
+    @Nullable
+    private final IntSupplier maxDiscoveredFiles;
+    @Nullable
+    private final IntSupplier maxGlobExpansion;
+    @Nullable
+    private final IntSupplier maxListedObjects;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -88,6 +95,42 @@ public class PlanExecutor {
         ExternalSourceCacheService cacheService,
         AnalysisRegistry analysisRegistry
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            null,
+            null,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -101,6 +144,9 @@ public class PlanExecutor {
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
         this.analysisRegistry = analysisRegistry;
+        this.maxDiscoveredFiles = maxDiscoveredFiles;
+        this.maxGlobExpansion = maxGlobExpansion;
+        this.maxListedObjects = maxListedObjects;
     }
 
     /**
@@ -126,6 +172,32 @@ public class PlanExecutor {
         int externalSourceConcurrency,
         @Nullable ThreadContext threadContext
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            null,
+            null,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -133,7 +205,10 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            threadContext
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
         );
     }
 
@@ -186,7 +261,10 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            services.transportService().getThreadPool().getThreadContext()
+            services.transportService().getThreadPool().getThreadContext(),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
         );
         final var session = new EsqlSession(
             sessionId,

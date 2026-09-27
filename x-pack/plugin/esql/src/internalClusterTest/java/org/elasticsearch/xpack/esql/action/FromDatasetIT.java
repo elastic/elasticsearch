@@ -199,7 +199,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "filtered_idx_view",
         "fork_idx_view",
         "idx_view",
-        "stats_ds_view"
+        "stats_ds_view",
+        "drop_view",
+        "rename_view",
+        "load_view",
+        "scope_view",
+        "single_ds_view"
     );
 
     @After
@@ -5203,6 +5208,31 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
         assertThat(fromView, equalTo(inline));
         assertThat(fromView, hasSize(4));
+    }
+
+    /**
+     * A view over one dataset resolves to a pipeline over the bare dataset rather than over a fan-in. Beside another
+     * source it is still one {@code FROM}, so {@code FORK} accepts it the same as a view over several datasets.
+     */
+    public void testForkOverSingleDatasetViewBesideDatasetMatchesInline() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("single_view_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("single_view_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        String forkTail = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
+        for (String body : List.of("FROM single_view_a | WHERE emp_no > 1", "FROM single_view_a | EVAL x = 1")) {
+            assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("single_ds_view", body)));
+            List<List<Object>> fromView;
+            try (var response = run(syncEsqlQueryRequest("FROM single_ds_view, single_view_b" + forkTail), TIMEOUT)) {
+                fromView = getValuesList(response);
+            }
+            List<List<Object>> inline;
+            try (var response = run(syncEsqlQueryRequest("FROM single_view_a, single_view_b" + forkTail), TIMEOUT)) {
+                inline = getValuesList(response);
+            }
+            assertThat(body, fromView, equalTo(inline));
+            assertThat(body, fromView, hasSize(4));
+            assertAcked(client().execute(DeleteViewAction.INSTANCE, deleteViewRequest("single_ds_view")));
+        }
     }
 
     public void testForkOverDatasetViewWithRenameMatchesInline() throws Exception {

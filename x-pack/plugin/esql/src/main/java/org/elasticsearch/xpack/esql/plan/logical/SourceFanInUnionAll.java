@@ -125,11 +125,12 @@ public final class SourceFanInUnionAll extends UnionAll {
 
     /**
      * A bare producer ({@link ExternalRelation}, {@link EsRelation}, a nested fan-in, or a {@link Project} over one
-     * of those) or a unary pipeline whose leaf is a fan-in.
+     * of those) or a unary pipeline whose leaf is a fan-in or a single dataset.
      */
     private static boolean isPromotable(LogicalPlan plan) {
         LogicalPlan current = plan;
-        // A Project may wrap a bare relation. Any other unary is promotable only over a fan-in.
+        // A Project may wrap a bare index read. Any other unary is promotable only over a fan-in or a dataset: a
+        // FROM that names one dataset resolves to the bare ExternalRelation rather than a single-child fan-in.
         boolean sawNonProjectUnary = false;
         while (isSourcePipelineUnary(current)) {
             if (current instanceof Project == false) {
@@ -137,13 +138,13 @@ public final class SourceFanInUnionAll extends UnionAll {
             }
             current = ((UnaryPlan) current).child();
         }
-        if (current instanceof SourceFanInUnionAll) {
+        if (current instanceof SourceFanInUnionAll || current instanceof ExternalRelation) {
             return true;
         }
         if (sawNonProjectUnary) {
             return false;
         }
-        return current instanceof ExternalRelation || current instanceof EsRelation;
+        return current instanceof EsRelation;
     }
 
     /**

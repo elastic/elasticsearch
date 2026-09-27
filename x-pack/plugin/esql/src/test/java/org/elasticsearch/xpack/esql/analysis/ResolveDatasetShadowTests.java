@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -223,9 +224,10 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
      * Mixed shadow outcomes in one plan: a linked project holds an index named after the view but none
      * named after the dataset, so the view name resolves to both a local view and a linked index while
      * the dataset name resolves only to the dataset. The matched view shadow must be folded into an
-     * {@code EsRelation} and kept as a second {@link ViewUnionAll} branch, while the empty dataset shadow
-     * is stripped and its union collapses. Guards against the no-match predicate over-stripping: a fix
-     * that treated every shadow as unmatched would silently drop the linked index's rows.
+     * {@code EsRelation} and kept as a second branch, while the empty dataset shadow is stripped and its
+     * union collapses. The view body is a pipeline over one dataset, so the view union is promoted to a
+     * {@link SourceFanInUnionAll}. Guards against the no-match predicate over-stripping: a fix that
+     * treated every shadow as unmatched would silently drop the linked index's rows.
      */
     public void testPipelineViewOverDatasetWithMatchedViewShadowAndEmptyDatasetShadow() {
         DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
@@ -243,13 +245,10 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
         LogicalPlan plan = analyzer.analyze(viewUnion);
 
-        var survivingViewUnion = onlyNode(plan, ViewUnionAll.class);
-        assertEquals(
-            "expected the matched view shadow to survive as a second branch, got: " + plan,
-            2,
-            survivingViewUnion.children().size()
-        );
-        assertEquals("the dataset union should have collapsed, got: " + plan, 0, plainUnionCount(plan));
+        var survivingFanIn = onlyNode(plan, SourceFanInUnionAll.class);
+        assertEquals("expected the matched view shadow to survive as a second branch, got: " + plan, 2, survivingFanIn.children().size());
+        assertEquals("the view union should have been promoted, got: " + plan, 0, countNodes(plan, ViewUnionAll.class));
+        assertEquals("the dataset union should have collapsed, got: " + plan, 1, countNodes(plan, UnionAll.class));
         assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
         assertEquals("expected exactly one EsRelation for the matched view shadow, got: " + plan, 1, countNodes(plan, EsRelation.class));
         assertTrue("expected the view body's Eval to survive, got: " + plan, containsNode(plan, Eval.class));

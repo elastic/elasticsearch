@@ -116,6 +116,28 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(promoted.children().get(1), instanceOf(EsRelation.class));
     }
 
+    /**
+     * A {@code FROM} naming one dataset resolves to the bare {@link ExternalRelation}, not a single-child fan-in, so a
+     * unary pipeline over it promotes the same as one over a multi-dataset fan-in. A unary over a bare index read does not.
+     */
+    public void testPromoteKeepsUnaryOverSingleDatasetBesideOtherSource() {
+        Filter filtered = new Filter(Source.EMPTY, external("ds1"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(filtered, external("ds2")));
+        assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
+        assertThat(promoted.children().get(0), instanceOf(Filter.class));
+        assertThat(((Filter) promoted.children().get(0)).child(), instanceOf(ExternalRelation.class));
+
+        Limit limited = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER), external("ds1"));
+        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("idx"))), instanceOf(SourceFanInUnionAll.class));
+        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("idx")), true), instanceOf(ViewUnionAll.class));
+
+        Fork fork = new Fork(Source.EMPTY, List.of(viewOf(filtered, external("ds2")), index("other")), List.of());
+        assertThat(verifyAnalysis(fork), not(containsString("FORK after subquery")));
+
+        Filter filteredIndex = new Filter(Source.EMPTY, index("idx"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        assertThat(PromoteSourceFanIn.promote(viewOf(filteredIndex, external("ds2"))), instanceOf(ViewUnionAll.class));
+    }
+
     public void testPromoteRejectsEightProducersPlusNamesake() {
         List<LogicalPlan> producers = new ArrayList<>();
         for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {

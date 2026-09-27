@@ -20,6 +20,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -148,10 +149,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that a keyword value exceeding {@code ignore_above} does not crash the columnar path
-     * and causes the field name to appear in the {@code _ignored} column.
+     * Verifies that {@code ignore_above} is a no-op in strictly columnar index modes. Values exceeding the limit
+     * must be present in the binary doc-values column and must NOT appear in {@code _ignored}.
      */
-    public void testIgnoreAboveOnKeywordDoesNotFail() throws IOException {
+    public void testIgnoreAboveIsNoOpOnKeywordInColumnar() throws IOException {
         final String mapping = """
             {
               "dynamic": "strict",
@@ -163,10 +164,9 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
         try {
             final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            // "toolong" is 7 chars, exceeds ignore_above=5.
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "toolong")), XContentType.JSON)) {
                 EngineBatch result = mapBatch(shard, items, batch);
-                assertNotNull("expected columnar path to succeed with ignore_above exceeded", result);
+                assertNotNull("expected columnar path to succeed", result);
 
                 final MappedColumns mc = result.columns();
                 mc.fillPrimaryTerm(1L);
@@ -178,15 +178,16 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 final List<IndexableField> fields = cursor.fields();
 
                 // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef fRef = new BytesRef("f");
+                final BytesRef expected = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+                    ? new BytesRef("\u0001\u0008toolong")
+                    : new BytesRef("toolong");
                 assertTrue(
-                    "_ignored should contain field name f",
-                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()) && fRef.equals(fld.binaryValue()))
+                    "f binary DV should contain the value when ignore_above is a no-op",
+                    fields.stream().anyMatch(fld -> "f".equals(fld.name()) && expected.equals(fld.binaryValue()))
                 );
-                // The ignored value should not land in the binary doc-values column.
                 assertFalse(
-                    "f binary DV should be absent when value exceeds ignore_above",
-                    fields.stream().anyMatch(fld -> "f".equals(fld.name()) && fld.binaryValue() != null)
+                    "_ignored should be absent when ignore_above is a no-op",
+                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
                 );
             }
         } finally {
@@ -542,15 +543,16 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertTrue("parent field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
                 assertTrue("sub-field f.raw should be present", fields.stream().anyMatch(f -> "f.raw".equals(f.name())));
 
-                // "abcdefgh" trips the sub-field's ignore_above but not the parent's, so only f.raw lands in _ignored.
                 cursor.advance();
                 fields = cursor.fields();
                 assertTrue("parent field f should still be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
-                // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef rawRef = new BytesRef("f.raw");
                 assertTrue(
-                    "f.raw should be recorded in _ignored",
-                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()) && rawRef.equals(f.binaryValue()))
+                    "f.raw should be present even for over-limit values (ignore_above is a no-op in columnar mode)",
+                    fields.stream().anyMatch(f -> "f.raw".equals(f.name()))
+                );
+                assertFalse(
+                    "_ignored must not be populated in columnar mode (ignore_above is a no-op)",
+                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()))
                 );
             }
         } finally {

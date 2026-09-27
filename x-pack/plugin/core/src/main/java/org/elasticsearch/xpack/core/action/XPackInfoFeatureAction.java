@@ -50,6 +50,7 @@ public class XPackInfoFeatureAction {
     public static final ActionType<XPackInfoFeatureResponse> LOGSDB = xpackInfoFeatureAction(XPackField.LOGSDB);
     public static final ActionType<XPackInfoFeatureResponse> LOGSDB_COLUMNAR = xpackInfoFeatureAction(XPackField.LOGSDB_COLUMNAR);
     public static final ActionType<XPackInfoFeatureResponse> GPU_VECTOR_INDEXING = xpackInfoFeatureAction(XPackField.GPU_VECTOR_INDEXING);
+    public static final ActionType<XPackInfoFeatureResponse> COLUMNAR = xpackInfoFeatureAction(XPackField.COLUMNAR);
 
     public static final List<ActionType<XPackInfoFeatureResponse>> ALL = List.of(
         SECURITY,
@@ -79,7 +80,8 @@ public class XPackInfoFeatureAction {
         UNIVERSAL_PROFILING,
         LOGSDB,
         LOGSDB_COLUMNAR,
-        GPU_VECTOR_INDEXING
+        GPU_VECTOR_INDEXING,
+        COLUMNAR
     );
 
     public static ActionType<XPackInfoFeatureResponse> xpackInfoFeatureAction(String suffix) {

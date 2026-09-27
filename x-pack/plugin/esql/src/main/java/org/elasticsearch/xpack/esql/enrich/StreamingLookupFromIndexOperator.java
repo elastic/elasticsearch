@@ -243,6 +243,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 ActionListener.wrap(v -> handleBatchExchangeSuccess(), this::handleBatchExchangeFailure),
                 lookupService.getSettings(),
                 setupCallback,
+                profile,
                 profile
                     ? (workerKey, planString) -> planToWorkers.computeIfAbsent(planString, k -> ConcurrentHashMap.newKeySet())
                         .add(workerKey)

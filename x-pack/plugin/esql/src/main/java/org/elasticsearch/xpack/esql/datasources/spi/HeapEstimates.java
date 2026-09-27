@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 
 /**
@@ -25,5 +26,14 @@ public final class HeapEstimates {
      */
     public static long stringBytes(@Nullable String s) {
         return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
+    }
+
+    /**
+     * About 40 bytes for the {@link BytesRef} object and its backing array headers, plus the live byte length.
+     * Keyword extrema harvested from text are stored as {@code BytesRef}s; under-counting them lets the schema cache
+     * retain unbounded text against a fixed byte budget.
+     */
+    public static long bytesRefBytes(@Nullable BytesRef bytes) {
+        return 40 + (bytes != null ? bytes.length : 0L);
     }
 }

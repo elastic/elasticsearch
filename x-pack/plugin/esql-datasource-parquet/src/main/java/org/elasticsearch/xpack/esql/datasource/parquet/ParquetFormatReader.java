@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -1566,6 +1567,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         // physical min/max and null_count disagree with what a scan produces, so min/max are dropped and
         // the null count is treated as unknown — MIN/MAX/COUNT then fall back to a scan for that column.
         Set<String> poisonedTemporalStats = new HashSet<>();
+        // Columns for which at least one row group holds values but records no min/max bound. The
+        // file-level fold cannot determine the true extrema from the remaining row groups alone, so the
+        // min and max are unservable. The null count, however, is tracked independently and stays valid
+        // wherever every row group recorded it — COUNT is unaffected by this poison.
+        Set<String> poisonedBounds = new HashSet<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
@@ -1618,6 +1624,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     });
                 }
                 if (stats == null || stats.isEmpty()) {
+                    // No statistics recorded for this row group: the null count is unknown (handled
+                    // above) and so is whether the row group holds any non-null values. Without the
+                    // null count we cannot confirm all rows are null, so the bounds are unservable.
+                    poisonedBounds.add(colName);
                     continue;
                 }
                 if (stats.hasNonNullValue()) {
@@ -1635,6 +1645,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                             if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
                             return a;
                         });
+                    }
+                } else {
+                    // Null count is set but no min/max recorded (e.g. a writer that omits bounds for
+                    // large values while keeping the null_count). A non-repeated leaf whose null_count
+                    // covers every row in this row group holds no candidates — bounds from other row
+                    // groups remain valid. In every other case this row group may hold an extreme not
+                    // captured by other groups, so the bounds are unservable.
+                    boolean allRowsNull = isRepeatedLeaf(desc) == false
+                        && stats.isNumNullsSet()
+                        && stats.getNumNulls() == rowGroup.getRowCount();
+                    if (allRowsNull == false) {
+                        poisonedBounds.add(colName);
                     }
                 }
             }
@@ -1663,6 +1685,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 // A poisoned temporal column has an out-of-range timestamp[us] stat: the scan nulls those
                 // values out, so both the physical min/max and the physical null count are unusable.
                 final boolean poisoned = poisonedTemporalStats.contains(name);
+                // At least one row group holds values but records no min/max for this column. The
+                // file-level bounds cannot be trusted — the missing row group may hold a smaller or
+                // larger value. Suppress min and max only; the null count remains valid wherever every
+                // row group recorded it, so COUNT is unaffected.
+                final boolean boundsUnknown = poisonedBounds.contains(name);
                 // The null count is only known when every covering row group recorded it and the leaf is
                 // not multivalue. A missing statistic or a repeated (LIST) leaf ({@code unknownNullCounts})
                 // leaves the total unknown, so report {@link OptionalLong#empty()} and let COUNT(col) fall
@@ -1671,8 +1698,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false && poisoned == false
                     ? OptionalLong.of(nc[0])
                     : OptionalLong.empty();
-                final Object minVal = mn != null && poisoned == false ? mn[0] : null;
-                final Object maxVal = mx != null && poisoned == false ? mx[0] : null;
+                final Object minVal = mn != null && poisoned == false && boundsUnknown == false ? mn[0] : null;
+                final Object maxVal = mx != null && poisoned == false && boundsUnknown == false ? mx[0] : null;
                 final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
@@ -2363,7 +2390,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                object.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -2407,7 +2435,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
-            storageObject.path().toString(),
+            ExternalFailures.redactHttpUrl(storageObject.path().toString()),
             reader,
             projectedAttributes,
             columnInfos,
@@ -2555,7 +2583,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                storageObject.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,
@@ -3452,31 +3481,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
                 if (skipWarnings == null) {
                     skipWarnings = new SkipWarnings(
-                        "Parquet file ["
-                            + fileLocation
-                            + "] has columns whose on-disk type is incompatible with planner type; "
-                            + "they are returned as null",
+                        "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                         warningSink
                     );
                 }
                 skipWarnings.add(
-                    "Column ["
+                    "column ["
                         + attr.name()
-                        + "] in file ["
-                        + fileLocation
-                        + "] has type ["
-                        + actualInFile
-                        + "] incompatible with planner type ["
-                        + attr.dataType()
-                        + "]; returning nulls for this column"
+                        + "]: ["
+                        + actualInFile.typeName()
+                        + "] in the file, ["
+                        + attr.dataType().typeName()
+                        + "] in the query"
                 );
                 logger.warn(
-                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
-                        + "returning nulls for this column",
+                    "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                     attr.name(),
                     fileLocation,
-                    actualInFile,
-                    attr.dataType()
+                    actualInFile.typeName(),
+                    attr.dataType().typeName()
                 );
                 columnInfos[i] = null;
             }
@@ -3583,11 +3606,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }
@@ -3947,7 +3968,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // drops share this one counter for the iterator.
             int droppedRows = rowDropHelper != null ? rowDropHelper.failedCount() : 0;
             try {
-                listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+                listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
             } catch (RuntimeException e) {
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
@@ -4274,14 +4295,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     try {
                         values[i] = DeclaredTypeCoercions.parseDatetimeMillis(cr.getBinary().toStringUsingUTF8(), info.dateFormatter());
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(
-                            columnName,
-                            DataType.KEYWORD,
-                            DataType.DATETIME,
-                            e,
-                            coercionWarnings(),
-                            skipRow
-                        );
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, coercionWarnings());
                         if (skipRow) failedPositionSink.accept(i);
                         isNull.set(i);
                         noNulls = false;

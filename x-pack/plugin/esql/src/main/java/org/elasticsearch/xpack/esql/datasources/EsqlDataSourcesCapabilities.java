@@ -40,6 +40,12 @@ public final class EsqlDataSourcesCapabilities {
     public static final String DATA_SOURCE_LOCAL_TYPE = "data_source_local_type";
 
     /**
+     * The data-source warning texts were rewritten (the {@code region} deprecation among them). Guards YAML tests that
+     * assert those texts, so a mixed cluster with an older node does not assert its older texts.
+     */
+    public static final String EXTERNAL_DATASET_MESSAGES = "external_dataset_messages";
+
+    /**
      * Registration rejects a column declared {@code text}. Gates the yaml pin on that rejection, because the suite
      * also runs mixed-cluster, where a node without this capability accepts the declaration and answers 200.
      */

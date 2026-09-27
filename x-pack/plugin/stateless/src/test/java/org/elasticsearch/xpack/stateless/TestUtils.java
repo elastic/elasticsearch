@@ -129,7 +129,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? BlobCacheMetrics.NOOP : new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER),
+            new BlobCacheMetrics(meterRegistry == null ? MeterRegistry.NOOP : meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

@@ -47,6 +47,23 @@ public class PromqlCompositionRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** A metric with the same name does not make a missing label present, including in grouping and matchers. */
+    public void testAbsentLabelsDoNotResolveToMetrics() throws Exception {
+        ingestCompositionData();
+        List<List<Point>> empty = List.of(List.of(), List.of(), List.of());
+        var sums = List.of(List.of(new Point(Map.of(), 52)), List.of(new Point(Map.of(), 57)), List.of(new Point(Map.of(), 82)));
+        for (String label : List.of("tx", "unmapped_label")) {
+            for (String matcher : List.of("=~\"app_.*\"", "=\"app\"", "!=\"\"", "=~\".+\"", "!~\".*\"")) {
+                assertAllSteps("sum(tx{" + label + matcher + "}) by (" + label + ")", empty);
+            }
+            for (String matcher : List.of("=\"\"", "!=\"app\"", "=~\".*\"", "!~\"app_.*\"")) {
+                assertAllSteps("sum(tx{" + label + matcher + "}) by (" + label + ")", sums);
+            }
+            assertAllSteps("sum({__name__=\"tx\"," + label + "!=\"app\"})", sums);
+            assertAllSteps("sum({" + label + "!=\"app\",__name__=\"tx\"})", sums);
+        }
+    }
+
     private record Point(Map<String, String> labels, double value) {}
 
     private void ingestCompositionData() throws IOException {

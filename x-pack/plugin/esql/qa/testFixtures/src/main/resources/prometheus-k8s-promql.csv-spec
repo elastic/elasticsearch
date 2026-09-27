@@ -1367,6 +1367,32 @@ PROMQL index=prometheus-k8s step=1h result=(sum(network.cost{unmapped.label!=""}
 result:double | step:datetime
 ;
 
+// A metric passthrough field does not supply a same-named label for either a matcher or a grouping.
+metric_named_absent_label_equals_empty
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_label_namespace
+PROMQL index=prometheus-k8s step=1h result=(sum by (network.cost) (network.cost{network.cost=""}));
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+metric_named_absent_label_not_equals_empty
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_label_namespace
+PROMQL index=prometheus-k8s step=1h result=(sum(network.cost{network.cost!=""}));
+
+result:double | step:datetime
+;
+
 scalar_single_element
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

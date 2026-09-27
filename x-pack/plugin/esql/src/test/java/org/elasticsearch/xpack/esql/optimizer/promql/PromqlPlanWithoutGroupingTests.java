@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonRemove;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -373,6 +376,24 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
     }
 
+    /** A late exclusion must resolve the same alias as a direct source projection. */
+    public void testWithoutOverTopKResolvesOtelAlias() {
+        var plan = planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (topk(1, metrics.system.cpu.time)))");
+        boolean sourceProjection = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .anyMatch(record -> record.excludedFields().contains("cpu"));
+        var edits = new ArrayList<JsonRemove>();
+        plan.forEachExpressionDown(JsonRemove.class, edits::add);
+        assertTrue(
+            "the stored attributes.cpu dimension must be excluded by the source loader or the late record projection: "
+                + edits.stream().map(JsonRemove::fields).toList(),
+            sourceProjection || edits.stream().anyMatch(edit -> edit.fields().contains("attributes.cpu"))
+        );
+    }
+
     /**
      * Regression test for OTel resource-attributes passthrough alias exclusion. The plan-level fix does not
      * strip {@code resource.attributes.} prefix, so {@code excludedFields()} contains {@code "host.name"} (the
@@ -421,5 +442,33 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * {@code topk} ranks whole series, so it asks the scan for the full identity; the enclosing {@code without} needs the
+     * identity minus {@code pod}. Until records expose resolved keys, an unchanged source record is projected by the
+     * alias-aware loader. The full record must remain a grouping key below the ranking, so distinct series stay distinct.
+     */
+    public void testWithoutOverTopKProjectsTheCurrentRecord() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (topk(1, network.bytes_in)))");
+        var relation = plan.collect(EsRelation.class).getFirst();
+        List<TimeSeriesMetadataAttribute> packings = relation.output()
+            .stream()
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(plan.toString(), packings, hasSize(2));
+        assertThat(packings.get(0).excludedFields(), empty());
+        assertThat(packings.get(0).name(), equalTo("_timeseries"));
+        assertThat(packings.get(1).excludedFields(), equalTo(Set.of("pod")));
+        TopNBy ranking = plan.collect(TopNBy.class).getFirst();
+        // The full record may be pruned from the ranking's output, but it must still distinguish its input series.
+        var dimensions = packedDims(ranking.collect(TimeSeriesAggregate.class).getFirst().aggregates());
+        assertTrue(dimensions.stream().anyMatch(e -> e instanceof Attribute a && a.name().equals("_timeseries")));
+        assertTrue(ranking.output().stream().anyMatch(a -> a.name().equals(packings.get(1).name())));
+        var prematureEdits = new ArrayList<JsonRemove>();
+        ranking.forEachExpressionDown(JsonRemove.class, prematureEdits::add);
+        assertTrue(prematureEdits.isEmpty());
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "_timeseries")));
     }
 }

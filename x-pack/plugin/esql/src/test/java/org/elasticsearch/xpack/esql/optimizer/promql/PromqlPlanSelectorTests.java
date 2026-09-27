@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -293,6 +294,31 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertTrue(anyFilterContains(plan, Equals.class));
     }
 
+    public void testRemoteWriteMetricNameFilterIsPushedToSource() {
+        var plan = planPromqlMetricNamespace("host{host=\"a\"}", true, true);
+        assertTrue(hasSelectorEquality(plan, "labels.host", "a"));
+        assertTrue(hasSelectorEquality(plan, "labels.__name__", "host"));
+        assertTrue(anyFilterContains(plan, IsNull.class));
+    }
+
+    public void testMetricNameFilterRequiresTheRemoteWriteMetricPath() {
+        var plan = planPromqlMetricNamespace("host{host=\"a\"}", false, true);
+        assertTrue(hasSelectorEquality(plan, "labels.host", "a"));
+        assertFalse(hasSelectorEquality(plan, "labels.__name__", "host"));
+    }
+
+    public void testMetricNameFilterRequiresTheRemoteWriteNameField() {
+        var plan = planPromqlMetricNamespace("host{host=\"a\"}", true, false);
+        assertTrue(hasSelectorEquality(plan, "labels.host", "a"));
+        assertFalse(hasSelectorEquality(plan, "labels.__name__", "host"));
+    }
+
+    public void testFullMetricPathDoesNotUseTheBareMetricNameFilter() {
+        var plan = planPromqlMetricNamespace("metrics.host{host=\"a\"}", true, true);
+        assertTrue(hasSelectorEquality(plan, "labels.host", "a"));
+        assertFalse(hasSelectorEquality(plan, "labels.__name__", "metrics.host"));
+    }
+
     public void testBinaryOpConflictingSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))");
         var lots = collectInnerLastOverTimes(plan);
@@ -345,6 +371,33 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             Map.of(),
             Map.of()
         );
+        var analyzed = analyzerWithEnrichPolicies().addIndex(index).unmappedResolution(UnmappedResolution.NULLIFY).query(query);
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    private LogicalPlan planPromqlMetricNamespace(String selector, boolean includeMetricNamespace, boolean includeNameLabel) {
+        EsField metric = new EsField("host", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
+        EsField label = new EsField("host", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION);
+        Map<String, EsField> labelFields = includeNameLabel
+            ? Map.of(
+                "host",
+                label,
+                "__name__",
+                new EsField("__name__", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION)
+            )
+            : Map.of("host", label);
+        Map<String, EsField> mapping = new HashMap<>();
+        mapping.put("@timestamp", new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("host", metric);
+        mapping.put("labels", new EsField("labels", DataType.OBJECT, labelFields, false, EsField.TimeSeriesFieldType.NONE));
+        if (includeMetricNamespace) {
+            mapping.put(
+                "metrics",
+                new EsField("metrics", DataType.OBJECT, Map.of("host", metric), false, EsField.TimeSeriesFieldType.NONE)
+            );
+        }
+        var index = new EsIndex("remote", mapping, Map.of("remote", new IndexProperties(IndexMode.TIME_SERIES, 0)), Map.of(), Map.of());
+        String query = "PROMQL index=remote step=1m result=(sum(" + selector + "))";
         var analyzed = analyzerWithEnrichPolicies().addIndex(index).unmappedResolution(UnmappedResolution.NULLIFY).query(query);
         return logicalOptimizer.optimize(analyzed);
     }
@@ -421,6 +474,23 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     private static boolean anyFilterContains(LogicalPlan plan, Class<? extends Expression> type) {
         return collectSelectorFilters(plan).stream().anyMatch(f -> f.condition().anyMatch(type::isInstance));
+    }
+
+    private static boolean hasSelectorEquality(LogicalPlan plan, String fieldName, String value) {
+        return collectSelectorFilters(plan).stream()
+            .flatMap(filter -> filter.condition().collect(Equals.class).stream())
+            .anyMatch(equals -> {
+                if (equals.left() instanceof FieldAttribute == false) {
+                    return false;
+                }
+                FieldAttribute field = (FieldAttribute) equals.left();
+                if (field.fieldName().string().equals(fieldName) == false) {
+                    return false;
+                }
+                return equals.right() instanceof Literal literal
+                    && literal.value() instanceof BytesRef bytes
+                    && bytes.utf8ToString().equals(value);
+            });
     }
 
     private static <T extends Expression> T collectInnermostSelectorFilter(LogicalPlan plan, Class<T> type) {

@@ -2650,6 +2650,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * PromQL label references distinguish labels from mapped metrics, even when a metric has the same name.
+         * Matchers and grouping treat a missing label as absent rather than reading the metric's sample values.
+         */
+        FIX_PROMQL_LABEL_NAMESPACE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
          * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
          */

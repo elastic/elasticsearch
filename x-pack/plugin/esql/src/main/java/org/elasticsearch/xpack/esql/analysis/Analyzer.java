@@ -1057,15 +1057,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
             List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
-
-            // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
-            // are stored, regardless of any relabeling applied downstream.
+            // Metric and label names occupy separate PromQL namespaces. A metrics passthrough may own the bare ES field
+            // name (e.g. host -> metrics.host), but a label reference must still bind to labels.host, never that metric.
+            List<Attribute> storedLabels = childrenOutput.stream()
+                .filter(attribute -> (attribute instanceof FieldAttribute field && field.isMetric()) == false)
+                .toList();
             Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
-
-            if (relabels.isEmpty()) {
-                return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
-                    .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
-            }
 
             // A label_replace/label_join derives a destination label that overwrites (shadows) any stored label of the same
             // name (a dimension or __name__). Shadowing is positional: a reference sees a derived destination only when the
@@ -1077,17 +1074,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
             // this is local to this command.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
-                if (node instanceof Selector) {
-                    return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+                if (node instanceof Selector selector) {
+                    // Compare the occurrence, not its name: host{host="a"} reads a metric and a label with the same name.
+                    // Both must resolve against storage even if an enclosing relabel derives another host label.
+                    return node.transformExpressionsOnly(
+                        UnresolvedAttribute.class,
+                        ua -> ua == selector.series() ? storedScope.apply(ua) : resolveSelectorLabel(ua, storedLabels)
+                    );
                 }
-                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDestinations(node));
-                return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
+                List<Attribute> scope = relabels.isEmpty() ? storedLabels : shadowedResolutionScope(storedLabels, activeDestinations(node));
+                return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveLabel(ua, scope));
             });
 
             // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
             List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
+        }
+
+        /** Resolve a selector matcher in the label namespace; a label absent from the mapping has PromQL value {@code ""}. */
+        private Expression resolveSelectorLabel(UnresolvedAttribute ua, List<Attribute> scope) {
+            if (ua.customMessage()) {
+                return ua;
+            }
+            Attribute label = PromqlLabels.find(scope, ua.name());
+            return label == null ? Literal.keyword(ua.source(), "") : handleSpecialFields(ua, label);
+        }
+
+        /** Use the same label naming as translation, including the namespaced field when its bare alias belongs to a metric. */
+        private Expression resolveLabel(UnresolvedAttribute ua, List<Attribute> scope) {
+            if (ua.customMessage()) {
+                return ua;
+            }
+            Attribute label = PromqlLabels.find(scope, ua.name());
+            return label == null ? ResolveRefs.maybeResolveAttribute(ua, scope, log) : handleSpecialFields(ua, label);
         }
 
         /**

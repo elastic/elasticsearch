@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -103,6 +107,11 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
         }
         Expression matcherPredicate = labelMatchers.predicate(source(), labels, translation.configuration());
 
+        Expression metricNamePredicate = remoteWriteMetricNamePredicate(input.output());
+        if (metricNamePredicate != null) {
+            matcherPredicate = matcherPredicate == null ? metricNamePredicate : new And(source(), matcherPredicate, metricNamePredicate);
+        }
+
         // Dimension fields define series identity; non-metric, non-packed fields are available as labels too. Non-dimension
         // keyword fields (e.g. k8s.pod.name in a TSDB index that lacks it as a dimension) must still be bindable as keys.
         List<Attribute> labelFields = input.output()
@@ -149,6 +158,50 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     /** The per-series sample: the series itself for a range vector; an instant vector overrides with its latest value. */
     protected Expression sample(Expression time) {
         return series;
+    }
+
+    /**
+     * Remote write stores one metric per document: the sample is in {@code metrics.<name>} and {@code labels.__name__}
+     * identifies which metric that document represents. Reading only the sample field is insufficient for range functions
+     * such as {@code count_over_time}: sibling-metric documents have a null sample but would still create zero-valued series.
+     * Documents from layouts without a metric-name label remain eligible so mixed remote-write/OTel data keeps working.
+     */
+    private Expression remoteWriteMetricNamePredicate(List<Attribute> fields) {
+        List<LabelMatcher> nameMatchers = labelMatchers.matchers()
+            .stream()
+            .filter(matcher -> LabelMatcher.NAME.equals(matcher.name()))
+            .toList();
+        if (nameMatchers.size() != 1 || series instanceof FieldAttribute == false) {
+            return null;
+        }
+        FieldAttribute metric = (FieldAttribute) series;
+        if (metric.isMetric() == false) {
+            return null;
+        }
+        LabelMatcher matcher = nameMatchers.getFirst();
+        if (matcher.matcher() != LabelMatcher.Matcher.EQ || matcher.values().size() != 1) {
+            return null;
+        }
+        String metricName = matcher.getFirstValue();
+        boolean remoteWriteMetric = fields.stream()
+            .anyMatch(
+                attribute -> attribute instanceof FieldAttribute field
+                    && field.isMetric()
+                    && field.fieldName().string().equals("metrics." + metricName)
+            );
+        if (remoteWriteMetric == false) {
+            return null;
+        }
+        FieldAttribute nameField = fields.stream()
+            .filter(FieldAttribute.class::isInstance)
+            .map(FieldAttribute.class::cast)
+            .filter(field -> field.isDimension() && field.fieldName().string().equals("labels." + LabelMatcher.NAME))
+            .findFirst()
+            .orElse(null);
+        if (nameField == null) {
+            return null;
+        }
+        return new Or(source(), new IsNull(source(), nameField), new Equals(source(), nameField, Literal.keyword(source(), metricName)));
     }
 
     @Override

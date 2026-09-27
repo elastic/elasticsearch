@@ -43,14 +43,18 @@ public interface StorageObject {
     /**
      * Identifies the storage configuration (endpoint, credential identity) this object was obtained
      * from. Two objects with the same identity, path, and length may share a footer cache entry;
-     * objects with different identities must not. Defaults to {@link StorageIdentity#GLOBAL}, which
-     * is correct for providers with a single global configuration (local files, GCS with one service
-     * account). Override when a provider can be instantiated with different credential configurations
-     * in the same JVM — notably S3, where endpoint and credential identity differ per data source.
+     * objects with different identities must not.
+     * <p>
+     * Return {@link StorageIdentity#GLOBAL} for providers with a single global configuration
+     * (local files, GCS with one service account). Return a credential-specific identity when a
+     * provider can be instantiated with different credential configurations in the same JVM —
+     * notably S3, where endpoint and credential identity differ per data source.
+     * <p>
+     * <b>Decorator implementations must explicitly override this and return
+     * {@code delegate.storageIdentity()}</b>. Subclasses of {@link AbstractDelegatingStorageObject}
+     * get a compile error if they forget — the method is intentionally left abstract there.
      */
-    default StorageIdentity storageIdentity() {
-        return StorageIdentity.GLOBAL;
-    }
+    StorageIdentity storageIdentity();
 
     // === SYNC API (required) ===
 

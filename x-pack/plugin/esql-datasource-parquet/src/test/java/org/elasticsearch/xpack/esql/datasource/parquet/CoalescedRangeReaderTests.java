@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.Byte
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -1032,7 +1033,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         return resultRef.get();
     }
 
-    private static class CountingStorage implements StorageObject {
+    private static class CountingStorage extends AbstractTestStorageObject {
         private final byte[] data;
         final AtomicInteger asyncGets = new AtomicInteger();
         final AtomicInteger syncGets = new AtomicInteger();

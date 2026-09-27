@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -9492,7 +9493,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * Test double for {@code RangeStorageObject}: {@code length()} is the split span while footer
      * cache keys use the underlying file size.
      */
-    private static final class SplitSpanStorageObject implements StorageObject {
+    private static final class SplitSpanStorageObject extends AbstractTestStorageObject {
         private final StorageObject file;
         private final long span;
 

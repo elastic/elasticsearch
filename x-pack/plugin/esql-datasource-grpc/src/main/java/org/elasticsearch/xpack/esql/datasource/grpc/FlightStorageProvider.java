@@ -15,6 +15,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -185,6 +186,11 @@ public final class FlightStorageProvider implements StorageProvider {
         @Override
         public StoragePath path() {
             return path;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.GLOBAL;
         }
     }
 }

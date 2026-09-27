@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -1900,6 +1901,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://csv-direct-block-parity-tests");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.GLOBAL;
         }
     }
 }

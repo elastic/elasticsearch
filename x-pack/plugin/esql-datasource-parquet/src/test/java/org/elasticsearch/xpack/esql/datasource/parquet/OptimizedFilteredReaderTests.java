@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -920,7 +921,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
-    private static final class CountingAsyncStorageObject implements StorageObject {
+    private static final class CountingAsyncStorageObject extends AbstractTestStorageObject {
         private static final long LARGE_ROW_GROUP_BYTES = 8_000_000L;
 
         private final byte[] data;

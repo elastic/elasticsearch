@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -1676,6 +1677,11 @@ public final class StreamingParallelParsingCoordinator {
         @Override
         public org.elasticsearch.xpack.esql.datasources.spi.StoragePath path() {
             return StoragePath.of("stream://decompressed");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.GLOBAL;
         }
     }
 }

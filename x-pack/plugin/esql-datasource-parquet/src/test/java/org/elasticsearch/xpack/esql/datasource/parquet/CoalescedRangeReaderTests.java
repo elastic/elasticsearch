@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.Merg
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -843,7 +844,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         cache.put(key, data);
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
-            cache.put(new FooterByteCache.Key("", "memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+            cache.put(new FooterByteCache.Key(StorageIdentity.GLOBAL, "memory://other-" + i + ".parquet", 256), sequentialBytes(256));
         }
         assertNull(cache.get(key));
 

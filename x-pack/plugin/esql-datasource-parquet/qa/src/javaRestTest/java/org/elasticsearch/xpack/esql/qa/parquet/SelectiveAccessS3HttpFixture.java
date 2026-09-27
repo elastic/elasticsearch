@@ -21,9 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
@@ -34,7 +31,7 @@ import static fixture.aws.AwsFixtureUtils.sendError;
  * list-only key. When {@code listOnlyKey} is non-null, the list-only key is allowed to list the
  * bucket but receives 403 AccessDenied on any object read. When {@code listOnlyKey} is null the
  * fixture behaves as a plain seeding fixture: all requests authenticated with the reader key are
- * accepted and object reads are tracked.
+ * accepted.
  *
  * <p>This fixture is used by {@link FooterCacheScopeIT} to:
  * <ul>
@@ -53,9 +50,6 @@ public class SelectiveAccessS3HttpFixture extends S3HttpFixture {
     private final BiPredicate<String, String> readerPredicate;
     @Nullable
     private final BiPredicate<String, String> listOnlyPredicate;
-
-    /** Access keys that signed object-read requests since the last call to {@link #getAndClearObjectReadKeys}. */
-    private final CopyOnWriteArrayList<String> objectReadKeys = new CopyOnWriteArrayList<>();
 
     private S3HttpHandler handler;
 
@@ -93,14 +87,9 @@ public class SelectiveAccessS3HttpFixture extends S3HttpFixture {
                     return;
                 }
 
-                String signingKey = isReader ? readerKey : listOnlyKey;
-
-                if (isObjectRead(exchange)) {
-                    objectReadKeys.add(signingKey);
-                    if (isListOnly) {
-                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Access denied reading object (key is list-only)");
-                        return;
-                    }
+                if (isObjectRead(exchange) && isListOnly) {
+                    sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Access denied reading object (key is list-only)");
+                    return;
                 }
 
                 handler.handle(exchange);
@@ -119,15 +108,6 @@ public class SelectiveAccessS3HttpFixture extends S3HttpFixture {
             throw new IllegalStateException("fixture not started; call seedBlob from @BeforeClass");
         }
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
-    }
-
-    /**
-     * Returns and clears the list of access keys that signed object-read requests since the last call.
-     */
-    public List<String> getAndClearObjectReadKeys() {
-        List<String> snapshot = new ArrayList<>(objectReadKeys);
-        objectReadKeys.clear();
-        return snapshot;
     }
 
     /**

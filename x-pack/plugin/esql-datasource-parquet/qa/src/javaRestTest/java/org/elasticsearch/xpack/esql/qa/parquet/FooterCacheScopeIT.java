@@ -159,6 +159,9 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         putDataset("list_only_rows1", "list_only_ds1", resource);
 
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM list_only_rows1 | SORT id | LIMIT 100"));
+        // 400 is the expected status when ES|QL surfaces an S3 access-denied error.
+        // If this assertion fires with a 200, the cache bypass bug has re-appeared:
+        // the list-only credential was served the cached footer instead of hitting the store.
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
@@ -382,7 +385,7 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         Request req = new Request("POST", "/_query");
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         req.setJsonEntity(Strings.format("""
-            {"query":"%s"}""", query.replace("\"", "\\\"")));
+            {"query":"%s"}""", query.replace("\\", "\\\\").replace("\"", "\\\"")));
         Response r = client().performRequest(req);
         return entityAsMap(r);
     }

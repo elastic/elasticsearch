@@ -663,12 +663,12 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
-    public void testStorageIdentityAnonymousAndManagedIdentityShareIdentityPerEndpoint() {
-        // Both anonymous and managed_identity carry no per-datasource credential; sharing an identity
-        // per endpoint is correct since they resolve to the same effective access at the node level.
+    public void testStorageIdentityAnonymousAndManagedIdentityHaveDifferentIdentities() {
+        // anonymous has no credentials; managed_identity uses the node's IAM role. They can have
+        // different access levels at the same endpoint and must not share footer cache entries.
         S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
         S3Configuration managed = S3Configuration.fromFields(null, null, "http://ep", "eu-west-1", "managed_identity");
-        assertEquals(S3CredentialIdentity.of(anon), S3CredentialIdentity.of(managed));
+        assertNotEquals(S3CredentialIdentity.of(anon), S3CredentialIdentity.of(managed));
     }
 
     public void testStorageIdentityFederatedDiffersFromAnonymousAtSameEndpoint() {

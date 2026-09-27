@@ -143,18 +143,14 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
-        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
-        if (topDocsList.isEmpty()) {
-            return null;
-        }
+        final List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
         final int numShards = topDocsList.size();
         // empty results contribute no docs and may not agree on the concrete type, so they must not pick the merge strategy
-        final List<TopDocs> nonEmpty = topDocsList.stream().filter(td -> td.scoreDocs.length > 0).toList();
-        if (nonEmpty.isEmpty()) {
-            return topDocsList.getFirst();
+        final List<TopDocs> nonEmptyDocs = topDocsList.stream().filter(td -> td.scoreDocs.length > 0).toList();
+        if (nonEmptyDocs.isEmpty()) {
+            return null;
         }
-        topDocsList = nonEmpty;
-        final TopDocs topDocs = topDocsList.getFirst();
+        final TopDocs topDocs = nonEmptyDocs.getFirst();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         }
@@ -162,14 +158,14 @@ public final class SearchPhaseController {
         try {
             if (topDocs instanceof TopFieldGroups firstTopDocs) {
                 final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
-                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                TopFieldGroups[] shardTopDocs = nonEmptyDocs.toArray(new TopFieldGroups[0]);
                 mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
             } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                TopFieldDocs[] shardTopDocs = nonEmptyDocs.toArray(new TopFieldDocs[0]);
                 final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
                 mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
             } else {
-                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                final TopDocs[] shardTopDocs = nonEmptyDocs.toArray(new TopDocs[0]);
                 mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
             }
         } catch (IllegalArgumentException e) {

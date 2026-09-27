@@ -1581,6 +1581,19 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
+    public void testMergeTopDocsWithOnlyEmptyResults() {
+        // an older node's timed out shard next to shards that matched nothing: the empty results disagree on the type
+        SortField[] sortFields = new SortField[] { new SortField("timestamp", SortField.Type.LONG, true) };
+        List<TopDocs> results = new ArrayList<>();
+        results.add(Lucene.EMPTY_TOP_DOCS);
+        int numEmptyFieldDocs = randomIntBetween(1, 5);
+        for (int i = 0; i < numEmptyFieldDocs; i++) {
+            results.add(new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Lucene.EMPTY_SCORE_DOCS, sortFields));
+        }
+        Collections.shuffle(results, random());
+        assertNull(SearchPhaseController.mergeTopDocs(results, 10, randomIntBetween(0, 10)));
+    }
+
     public void testMergeOmitsCompletionOptionsWithoutFetchResults() {
         boolean includeRegularHit = randomBoolean();
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(2);

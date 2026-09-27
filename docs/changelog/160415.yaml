@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+  - 160265
+pr: 160415
+summary: Avoid duplicate failure-store exceptions in bulk error responses
+type: bug

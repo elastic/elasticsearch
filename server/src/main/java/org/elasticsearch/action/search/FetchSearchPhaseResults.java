@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
@@ -22,6 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * so the charge is only given back when this collection is released at the end of the search.
  */
 final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchResult> {
+
+    // Holds the charge off the default path until the fetch paths this does not reach yet are accounted for.
+    static final FeatureFlag ACCOUNTING_FEATURE_FLAG = new FeatureFlag("coordinator_fetch_accounting");
 
     private static final long RELEASED = -1L;
 
@@ -43,6 +47,9 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
      */
     void reserve(FetchSearchResult result) {
+        if (ACCOUNTING_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
         long bytes = 0L;
         for (SearchHit hit : result.hits().getHits()) {
             bytes += hit.ramBytesUsed();

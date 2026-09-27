@@ -200,6 +200,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFetchedHitsAreChargedToTheRequestBreakerForTheWholePhase() throws Exception {
+        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
         CircuitBreaker breaker = requestBreaker("1gb");
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
@@ -253,6 +254,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testShardWhoseHitsTheCoordinatorCannotHoldFailsOnlyThatShard() throws Exception {
+        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
         // Room for the first shard's small hit but not for the second shard's large one.
         CircuitBreaker breaker = requestBreaker("2kb");
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
@@ -304,6 +306,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testChargeIsGivenBackWhenThePhaseFails() throws Exception {
+        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
         CircuitBreaker breaker = requestBreaker("1gb");
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());

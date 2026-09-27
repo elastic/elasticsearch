@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FetchSearchPhaseResultsTests extends ESTestCase {
+
+    @BeforeClass
+    public static void checkAccountingFeatureFlag() {
+        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
+    }
 
     public void testChargeIsHeldUntilTheResultsAreReleased() {
         CircuitBreaker breaker = requestBreaker("1gb");

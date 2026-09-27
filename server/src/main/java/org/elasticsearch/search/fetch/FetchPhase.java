@@ -203,7 +203,7 @@ public final class FetchPhase {
                 ProfileResult profileResult = profiler.finish();
                 context.fetchResult().shardResult(hitsAndBytes.hits, profileResult);
 
-                // Avoids looking up a breaker when nothing was charged.
+                // Some contexts have no breaker; nothing to record when nothing was charged.
                 if (writer == null && hitsAndBytes.searchHitsBytesSize > 0L) {
                     context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize, context.circuitBreaker());
                 }

@@ -174,23 +174,29 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         // These settings jointly determine the effective recovery slot limits. Watch them as a group so a
         // single cluster-settings update that changes more than one is applied atomically before fillSlots runs.
-        updateIncomingThrottleSettings(
-            clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
-            clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING),
-            clusterSettings.get(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING)
+        final List<Setting<?>> incomingThrottleSettings = List.of(
+            INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+            INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
         );
-        clusterSettings.addSettingsUpdateConsumer(
-            settings -> updateIncomingThrottleSettings(
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings),
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings),
-                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(settings)
-            ),
-            List.of(
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
-            )
-        );
+        // TODO: remove this branch once the settings are registered. Until then, fall back to the disabled defaults.
+        if (incomingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
+            updateIncomingThrottleSettings(
+                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
+                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING),
+                clusterSettings.get(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING)
+            );
+            clusterSettings.addSettingsUpdateConsumer(
+                settings -> updateIncomingThrottleSettings(
+                    INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings),
+                    INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings),
+                    INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(settings)
+                ),
+                incomingThrottleSettings
+            );
+        } else {
+            updateIncomingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE, RatioValue.ONE_HUNDRED_PERCENT);
+        }
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.

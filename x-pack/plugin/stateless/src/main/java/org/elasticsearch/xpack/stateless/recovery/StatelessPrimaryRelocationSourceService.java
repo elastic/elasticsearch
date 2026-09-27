@@ -685,21 +685,27 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.maxHeap = maxHeap;
 
             final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-            this.effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(
-                clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
-                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
+            final List<Setting<?>> outgoingThrottleSettings = List.of(
+                PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
             );
-            // These settings jointly determine the effective outgoing relocation limit. Watch them as a group.
-            clusterSettings.addSettingsUpdateConsumer(
-                settings -> updateOutgoingThrottleSettings(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
-                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
-                ),
-                List.of(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-                )
-            );
+            // TODO: remove this branch once the settings are registered. Until then, fall back to the disabled defaults.
+            if (outgoingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
+                this.effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(
+                    clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
+                    clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
+                );
+                // These settings jointly determine the effective outgoing relocation limit. Watch them as a group.
+                clusterSettings.addSettingsUpdateConsumer(
+                    settings -> updateOutgoingThrottleSettings(
+                        PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
+                        INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
+                    ),
+                    outgoingThrottleSettings
+                );
+            } else {
+                this.effectiveMaxConcurrentOutgoingRelocations = Integer.MAX_VALUE;
+            }
         }
 
         @Override

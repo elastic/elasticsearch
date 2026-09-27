@@ -138,7 +138,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         Objects.requireNonNull(circuitBreaker, "no breaker to return the charged bytes to");
         assert searchHitsSizeBytes == 0L : "overwriting an outstanding charge of [" + searchHitsSizeBytes + "] bytes";
         // Without assertions, give back what is outstanding rather than losing track of it.
-        releaseCircuitBreakerBytes();
+        giveBackCircuitBreakerBytes();
         this.searchHitsSizeBytes = bytes;
         this.searchHitsSizeBytesBreaker = circuitBreaker;
     }
@@ -152,6 +152,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
      * catches results dropped before the release.
      */
     public void releaseCircuitBreakerBytes() {
+        assert hasReferences() : "explicit release must hold a reference";
+        giveBackCircuitBreakerBytes();
+    }
+
+    private void giveBackCircuitBreakerBytes() {
         if (searchHitsSizeBytes > 0L) {
             searchHitsSizeBytesBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
@@ -197,7 +202,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits = null;
         }
         releaseLastChunkBytes();
-        releaseCircuitBreakerBytes();
+        giveBackCircuitBreakerBytes();
     }
 
     @Override

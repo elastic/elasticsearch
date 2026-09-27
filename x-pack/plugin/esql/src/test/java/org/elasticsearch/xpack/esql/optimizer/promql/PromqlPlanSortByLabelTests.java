@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -159,6 +161,23 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assertTrue(eval.fields().getFirst().child() instanceof NaturalSortKey);
         assertEquals(1, orderBy.order().size());
         assertTrue(orderBy.order().getFirst().child().semanticEquals(eval.fields().getFirst().toAttribute()));
+    }
+
+    /**
+     * The injected {@code OrderBy} must still fuse into the {@code TopN} above the collapse, and neither the
+     * materialized sort label nor the synthetic sort key may survive into the result.
+     */
+    public void testInstantQueryFusesToTopNWithoutLeakingSortColumns() {
+        LogicalPlan optimized = planPromql(
+            "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" value=(sort_by_label(network.bytes_in, \"pod\")) | TS_COLLAPSE"
+        );
+
+        List<TopN> topNsAboveCollapse = optimized.collect(TopN.class)
+            .stream()
+            .filter(topN -> topN.collect(TimeSeriesCollapse.class).isEmpty() == false)
+            .toList();
+        assertEquals("expected a TopN above TimeSeriesCollapse", 1, topNsAboveCollapse.size());
+        assertEquals(List.of("value", PromqlCommand.STEP, MetadataAttribute.TIMESERIES), outputColumns(optimized));
     }
 
     private static List<String> outputColumns(LogicalPlan plan) {

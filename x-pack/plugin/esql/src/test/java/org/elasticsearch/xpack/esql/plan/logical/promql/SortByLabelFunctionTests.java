@@ -88,6 +88,13 @@ public class SortByLabelFunctionTests extends AbstractNodeTestCase<SortByLabelFu
                 () -> (SortByLabelFunction) instance.transformPropertiesOnly(
                     Object.class,
                     p -> Objects.equals(p, instance.definition()) ? otherDefinition(instance.definition()) : p
+                ),
+                () -> new SortByLabelFunction(
+                    instance.source(),
+                    instance.child(),
+                    instance.definition(),
+                    instance.parameters(),
+                    randomValueOtherThan(instance.sortLabels(), () -> randomSortLabels(instance.source()))
                 )
             )
         );

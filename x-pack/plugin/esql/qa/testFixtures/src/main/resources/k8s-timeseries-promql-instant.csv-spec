@@ -398,30 +398,22 @@ bytes:double | step:datetime
 NaN          | 2024-05-10T00:03:00.000Z
 ;
 
-instant_sort_by_label_closed_header_skips_extra_label
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod"))
-| SORT cluster;
-
-bytes:double | step:datetime            | cluster:keyword
-612.0        | 2024-05-10T00:03:00.000Z | prod
-749.0        | 2024-05-10T00:03:00.000Z | qa
-382.5        | 2024-05-10T00:03:00.000Z | staging
-;
-
 instant_sort_by_label_open_header_keeps_schema
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
-// "pod" is materialized internally to sort by, then projected away, so it is not a column of the result.
+// "pod" is materialized internally to sort by, then projected away, so it is not a column of the result: the header
+// below fails if it leaks. _timeseries is dropped because its packed value is not stable enough to assert.
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
-| STATS c = COUNT();
+| DROP _timeseries | SORT bytes;
 
-c:long
-6
+bytes:double | step:datetime
+178.0        | 2024-05-10T00:03:00.000Z
+369.0        | 2024-05-10T00:03:00.000Z
+585.0        | 2024-05-10T00:03:00.000Z
+587.0        | 2024-05-10T00:03:00.000Z
+855.0        | 2024-05-10T00:03:00.000Z
+913.0        | 2024-05-10T00:03:00.000Z
 ;
 
 instant_sort_by_label_open_header_same_series_count
@@ -434,6 +426,21 @@ PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(last_over_time(network.b
 
 c:long
 6
+;
+
+instant_sort_by_label_unmapped_label
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_unmapped_fields_filter_nulls
+// A label that exists in no index resolves to null, so it is no usable sort key and the remaining identity orders
+// the result. Prometheus reads an unmapped label as "" on every series, which ties for the same reason.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "unmapped.label"));
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
 ;
 
 instant_sort_by_label_closed_header_by_cluster

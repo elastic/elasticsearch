@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
@@ -527,7 +528,7 @@ public class SearchContextStats implements SearchStats {
     public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
         // Safe to skip only when every shard is provably free of unmapped source fields for this pattern.
         for (SearchExecutionContext context : contexts) {
-            if (isNoop(pattern, context.getMappingLookup()) == false) {
+            if (isNoop(pattern, context.getMappingLookup(), context.getIndexSettings()) == false) {
                 return false;
             }
         }
@@ -548,10 +549,20 @@ public class SearchContextStats implements SearchStats {
      * <p>The mapping-based check is only valid when the root {@code dynamic} setting guarantees the mapping covers every
      * {@code _source} field; under {@code dynamic:false} or {@code dynamic:flattened} the method returns {@code false},
      * because {@code _source} may then contain fields absent from the mapping.
+     *
+     * <p>It also returns {@code false} when the shard enables either {@code index.mapping.total_fields.ignore_dynamic_beyond_limit}
+     * or {@code index.mapping.field_name_length.ignore_dynamic_beyond_limit}. With those settings a document whose dynamic
+     * fields exceed the field-count or field-name-length budget has the over-limit fields retained in {@code _source} (and
+     * therefore surfaced by {@code _unmapped_fields} / {@code LOAD_ALL}) rather than added to the mapping. The mapping then no
+     * longer proves that {@code _source} is fully covered, even under {@code dynamic:true}, so skipping the read could drop
+     * those fields.
      */
-    static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
+    static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup, IndexSettings indexSettings) {
         if (pattern.isNone()) {
             return true;
+        }
+        if (indexSettings.isIgnoreDynamicFieldsBeyondLimit() || indexSettings.isIgnoreDynamicFieldNamesBeyondLimit()) {
+            return false;
         }
         ObjectMapper.Dynamic rootDynamic = ObjectMapper.Dynamic.getRootDynamic(mappingLookup);
         if (rootDynamic == ObjectMapper.Dynamic.FALSE || rootDynamic == ObjectMapper.Dynamic.FLATTENED) {

@@ -1224,12 +1224,58 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * With {@code index.mapping.total_fields.ignore_dynamic_beyond_limit} enabled, dynamic fields beyond the field-count
+     * budget are retained in {@code _source} (surfaced by {@code LOAD_ALL}) rather than added to the mapping, so a
+     * fully-mapped {@code dynamic:true} shard can no longer prove {@code _source} is fully covered and the read must not be
+     * skipped.
+     */
+    public void testCannotSkipWhenIgnoreDynamicFieldsBeyondLimit() throws IOException {
+        final List<Closeable> toClose = new ArrayList<>();
+        try {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                .build();
+            SearchStats stats = SearchContextStats.from(List.of(contextForMapping(toClose, settings, """
+                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""")));
+            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
+            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    /**
+     * The field-name-length equivalent, {@code index.mapping.field_name_length.ignore_dynamic_beyond_limit}, has the same
+     * effect: over-long dynamic field names are kept in {@code _source} without being mapped, so skipping is unsafe.
+     */
+    public void testCannotSkipWhenIgnoreDynamicFieldNamesBeyondLimit() throws IOException {
+        final List<Closeable> toClose = new ArrayList<>();
+        try {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING.getKey(), true)
+                .build();
+            SearchStats stats = SearchContextStats.from(List.of(contextForMapping(toClose, settings, """
+                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""")));
+            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
+            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
     private SearchStats statsForMapping(List<Closeable> toClose, String mappingJson) throws IOException {
         return SearchContextStats.from(List.of(contextForMapping(toClose, mappingJson)));
     }
 
     private SearchExecutionContext contextForMapping(List<Closeable> toClose, String mappingJson) throws IOException {
-        MapperService mapperService = createMapperService(mappingJson);
+        return contextForMapping(toClose, Settings.EMPTY, mappingJson);
+    }
+
+    private SearchExecutionContext contextForMapping(List<Closeable> toClose, Settings settings, String mappingJson) throws IOException {
+        MapperService mapperService = settings == Settings.EMPTY
+            ? createMapperService(mappingJson)
+            : createMapperService(settings, mappingJson);
         Directory dir = newDirectory();
         IndexReader reader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {

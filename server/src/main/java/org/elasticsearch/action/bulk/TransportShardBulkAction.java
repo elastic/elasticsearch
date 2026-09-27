@@ -208,11 +208,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             force(request)
         );
         final var mappingLookup = primary.mapperService().mappingLookup();
+        // Only realize updates as in-place doc-values updates when every node understands the operation; otherwise fall back to
+        // read-modify-reindex so a mixed-version cluster never sends an operation an older node cannot deserialize or apply.
+        final boolean inPlaceDocValuesUpdatesSupported = clusterService.state()
+            .getMinTransportVersion()
+            .supports(DocValuesUpdateRequest.DOC_VALUES_UPDATE);
         // Pre-resolution prefetches stored fields; skip it when source is rebuilt from doc values instead
         final PreResolvedUpdates preResolvedUpdates = preResolveBulkUpdates
             && mappingLookup.isSourceSynthetic() == false
             && mappingLookup.isSourceColumnarStored() == false
-                ? PreResolvedUpdates.resolve(request, primary, updateHelper, threadPool::absoluteTimeInMillis, UPDATE_FETCH_SOURCE_CONTEXT)
+                ? PreResolvedUpdates.resolve(
+                    request,
+                    primary,
+                    updateHelper,
+                    threadPool::absoluteTimeInMillis,
+                    UPDATE_FETCH_SOURCE_CONTEXT,
+                    inPlaceDocValuesUpdatesSupported
+                )
                 : PreResolvedUpdates.EMPTY;
         var listener = ActionListener.releaseBefore(
             preResolvedUpdates,
@@ -222,7 +234,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             request,
             primary,
             pressureExpansionTracker,
-            preResolvedUpdates
+            preResolvedUpdates,
+            inPlaceDocValuesUpdatesSupported
         );
         long startBatchTime = System.nanoTime();
         if (shardBatchIndexer.canUseBatchIndexing(request)) {
@@ -501,7 +514,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getPrimary(),
                         nowInMillisSupplier,
                         UPDATE_FETCH_SOURCE_CONTEXT,
-                        context.getBulkShardRequest().splitShardCountSummary()
+                        context.getBulkShardRequest().splitShardCountSummary(),
+                        context.inPlaceDocValuesUpdatesSupported()
                     );
                 }
                 if (updateResult.getResponseResult() != DocWriteResponse.Result.NOOP) {

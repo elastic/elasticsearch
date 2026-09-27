@@ -61,6 +61,12 @@ class BulkPrimaryExecutionContext {
     private final IndexShard primary;
     private final IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker;
     private final PreResolvedUpdates preResolvedUpdates;
+    // Whether every node in the cluster understands the in-place doc-values update operation (see
+    // DocValuesUpdateRequest#DOC_VALUES_UPDATE),
+    // computed once from the minimum cluster transport version when this context is created. When false, updates take the
+    // read-modify-reindex
+    // path so an older node never receives an operation it cannot apply.
+    private final boolean inPlaceDocValuesUpdatesSupported;
     private Translog.Location locationToSync = null;
     private int currentIndex = -1;
 
@@ -79,21 +85,28 @@ class BulkPrimaryExecutionContext {
         IndexShard primary,
         IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
     ) {
-        this(request, primary, pressureExpansionTracker, PreResolvedUpdates.EMPTY);
+        // Convenience/test entry points assume a homogeneous cluster; the production path passes the real cluster-version check below.
+        this(request, primary, pressureExpansionTracker, PreResolvedUpdates.EMPTY, true);
     }
 
     BulkPrimaryExecutionContext(
         BulkShardRequest request,
         IndexShard primary,
         IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker,
-        PreResolvedUpdates preResolvedUpdates
+        PreResolvedUpdates preResolvedUpdates,
+        boolean inPlaceDocValuesUpdatesSupported
     ) {
         this.request = request;
         this.primary = primary;
         this.pressureExpansionTracker = pressureExpansionTracker;
         this.preResolvedUpdates = preResolvedUpdates;
+        this.inPlaceDocValuesUpdatesSupported = inPlaceDocValuesUpdatesSupported;
         assert preResolvedUpdates == PreResolvedUpdates.EMPTY || assertPreResolvedSlotsMatchUpdateItems(request, preResolvedUpdates);
         advance();
+    }
+
+    boolean inPlaceDocValuesUpdatesSupported() {
+        return inPlaceDocValuesUpdatesSupported;
     }
 
     private int findNextNonAborted(int startIndex) {

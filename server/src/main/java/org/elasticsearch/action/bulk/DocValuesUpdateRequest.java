@@ -10,6 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -39,6 +40,13 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DocValuesUpdateRequest extends ReplicatedWriteRequest<DocValuesUpdateRequest>
     implements
         DocWriteRequest<DocValuesUpdateRequest> {
+
+    /**
+     * The transport version that introduced the in-place doc-values update operation. The primary must only realize an update as a
+     * {@link DocValuesUpdateRequest} when every node supports it (see {@code UpdateHelper}); an older node cannot deserialize the request
+     * or apply the operation, so a mixed-version cluster falls back to the read-modify-reindex path.
+     */
+    public static final TransportVersion DOC_VALUES_UPDATE = TransportVersion.fromName("doc_values_update");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DocValuesUpdateRequest.class);
 

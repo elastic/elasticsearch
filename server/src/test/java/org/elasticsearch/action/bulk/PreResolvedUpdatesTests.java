@@ -144,11 +144,19 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             IndexShard indexShard,
             LongSupplier nowInMillis,
             FetchSourceContext fetchSourceContext,
-            SplitShardCountSummary splitShardCountSummary
+            SplitShardCountSummary splitShardCountSummary,
+            boolean inPlaceDocValuesUpdatesSupported
         ) throws IOException {
             livePrepareCount.incrementAndGet();
             livePreparedIds.add(request.id());
-            return super.prepare(request, indexShard, nowInMillis, fetchSourceContext, splitShardCountSummary);
+            return super.prepare(
+                request,
+                indexShard,
+                nowInMillis,
+                fetchSourceContext,
+                splitShardCountSummary,
+                inPlaceDocValuesUpdatesSupported
+            );
         }
 
         @Override
@@ -157,12 +165,20 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             IndexShard indexShard,
             LongSupplier nowInMillis,
             FetchSourceContext fetchSourceContext,
-            SplitShardCountSummary splitShardCountSummary
+            SplitShardCountSummary splitShardCountSummary,
+            boolean inPlaceDocValuesUpdatesSupported
         ) {
             if (failure != null) {
                 throw failure;
             }
-            PreResolvedUpdate result = super.preResolve(request, indexShard, nowInMillis, fetchSourceContext, splitShardCountSummary);
+            PreResolvedUpdate result = super.preResolve(
+                request,
+                indexShard,
+                nowInMillis,
+                fetchSourceContext,
+                splitShardCountSummary,
+                inPlaceDocValuesUpdatesSupported
+            );
             if (result != null) {
                 preResolved.add(result);
                 // We clear the request reference once we close the PreResolvedUpdate, that's why we need to keep the ids
@@ -479,7 +495,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
                     seqNoDisabledPrimary,
                     updateHelper,
                     threadPool::absoluteTimeInMillis,
-                    FetchSourceContext.FETCH_ALL_SOURCE
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    true
                 )
             );
             assertEquals(0, prefetchCountingDirectory.prefetchCount());
@@ -498,7 +515,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             primary,
             updateHelper,
             threadPool::absoluteTimeInMillis,
-            FetchSourceContext.FETCH_ALL_SOURCE
+            FetchSourceContext.FETCH_ALL_SOURCE,
+            true
         );
         assertNotSame(PreResolvedUpdates.EMPTY, resolved);
         assertThat(prefetchCountingDirectory.prefetchCount(), greaterThan(0));
@@ -549,7 +567,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
                 primary,
                 updateHelper,
                 threadPool::absoluteTimeInMillis,
-                FetchSourceContext.FETCH_ALL_SOURCE
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                true
             )
         ) {
             assertNotSame(PreResolvedUpdates.EMPTY, resolved);
@@ -571,7 +590,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
                 primary,
                 updateHelper,
                 threadPool::absoluteTimeInMillis,
-                FetchSourceContext.FETCH_ALL_SOURCE
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                true
             )
         ) {
             assertNotSame(PreResolvedUpdates.EMPTY, resolved);

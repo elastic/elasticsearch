@@ -21,6 +21,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -274,7 +275,9 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
                     FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
-                    request.getSplitShardCountSummary()
+                    request.getSplitShardCountSummary(),
+                    // Only realize an in-place doc-values update when every node understands the operation (mixed-version safety).
+                    clusterService.state().getMinTransportVersion().supports(DocValuesUpdateRequest.DOC_VALUES_UPDATE)
                 ),
                 indexService.getMetadata(),
                 mappingLookup

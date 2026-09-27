@@ -75,13 +75,19 @@ public class UpdateHelper {
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
+     *
+     * @param inPlaceDocValuesUpdatesSupported whether every node in the cluster understands the in-place doc-values update operation
+     *                                         (see {@link DocValuesUpdateRequest#DOC_VALUES_UPDATE}); computed by the caller from the
+     *                                         minimum cluster transport version. When false the in-place fast path is skipped so a
+     *                                         mixed-version cluster never sends an operation an older node cannot apply.
      */
     public Result prepare(
         UpdateRequest request,
         IndexShard indexShard,
         LongSupplier nowInMillis,
         FetchSourceContext fetchSourceContext,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean inPlaceDocValuesUpdatesSupported
     ) throws IOException {
         if (indexShard.indexSettings().sequenceNumbersDisabled()) {
             throw new UpdateNotSupportedException(indexShard.shardId());
@@ -92,7 +98,11 @@ public class UpdateHelper {
         // merged source), and the document exists; a missing document falls through to the upsert path.
         final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         if (sourceReturnRequested(request) == false && mappingLookup.inferenceFields().isEmpty()) {
-            List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(request, mappingLookup);
+            List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(
+                request,
+                mappingLookup,
+                inPlaceDocValuesUpdatesSupported
+            );
             if (updates != null) {
                 final GetResult getResult = indexShard.getService()
                     .getForUpdate(
@@ -123,7 +133,7 @@ public class UpdateHelper {
                 fetchSourceContext,
                 splitShardCountSummary
             );
-        return prepare(indexShard, request, getResult, nowInMillis);
+        return prepare(indexShard, request, getResult, nowInMillis, inPlaceDocValuesUpdatesSupported);
     }
 
     private static boolean sourceReturnRequested(UpdateRequest request) {
@@ -140,14 +150,15 @@ public class UpdateHelper {
         IndexShard indexShard,
         LongSupplier nowInMillis,
         FetchSourceContext fetchSourceContext,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean inPlaceDocValuesUpdatesSupported
     ) {
         // The in-place doc-values fast path reads no _source, so skip pre-resolution (which prefetches stored fields) and let
         // prepare() take that path directly.
         final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         if (sourceReturnRequested(request) == false
             && mappingLookup.inferenceFields().isEmpty()
-            && buildDocValuesFieldUpdates(request, mappingLookup) != null) {
+            && buildDocValuesFieldUpdates(request, mappingLookup, inPlaceDocValuesUpdatesSupported) != null) {
             return null;
         }
         final Engine.GetResult getResult = indexShard.getService()
@@ -159,7 +170,15 @@ public class UpdateHelper {
             getResult.close();
             return null;
         }
-        return new PreResolvedUpdate(request, indexShard, nowInMillis, fetchSourceContext, getResult, splitShardCountSummary);
+        return new PreResolvedUpdate(
+            request,
+            indexShard,
+            nowInMillis,
+            fetchSourceContext,
+            getResult,
+            splitShardCountSummary,
+            inPlaceDocValuesUpdatesSupported
+        );
     }
 
     /**
@@ -172,6 +191,7 @@ public class UpdateHelper {
         private final LongSupplier nowInMillis;
         private final FetchSourceContext fetchSourceContext;
         private final SplitShardCountSummary splitShardCountSummary;
+        private final boolean inPlaceDocValuesUpdatesSupported;
 
         private UpdateRequest request;
         private Engine.GetResult preResolvedGet;
@@ -182,7 +202,8 @@ public class UpdateHelper {
             LongSupplier nowInMillis,
             FetchSourceContext fetchSourceContext,
             Engine.GetResult preResolvedGet,
-            SplitShardCountSummary splitShardCountSummary
+            SplitShardCountSummary splitShardCountSummary,
+            boolean inPlaceDocValuesUpdatesSupported
         ) {
             this.splitShardCountSummary = splitShardCountSummary;
             assert preResolvedGet != null;
@@ -191,6 +212,7 @@ public class UpdateHelper {
             this.nowInMillis = nowInMillis;
             this.fetchSourceContext = fetchSourceContext;
             this.preResolvedGet = preResolvedGet;
+            this.inPlaceDocValuesUpdatesSupported = inPlaceDocValuesUpdatesSupported;
         }
 
         /** Completes the preparation into an index or delete request or an update response. */
@@ -201,7 +223,7 @@ public class UpdateHelper {
             final GetResult getResult = indexShard.getService()
                 .getForUpdate(this, request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext, splitShardCountSummary);
             assert isReleased() : "expected the pre-resolved get to be consumed";
-            return prepare(indexShard, request, getResult, nowInMillis);
+            return prepare(indexShard, request, getResult, nowInMillis, inPlaceDocValuesUpdatesSupported);
         }
 
         public void prefetch(Map<LeafReader, StoredFields> storedFieldsCache) throws IOException {
@@ -264,7 +286,13 @@ public class UpdateHelper {
             || (indexShard.indexSettings() != null && indexShard.indexSettings().isSliceEnabled() && request.routing() != null);
     }
 
-    protected Result prepare(IndexShard indexShard, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+    protected Result prepare(
+        IndexShard indexShard,
+        UpdateRequest request,
+        final GetResult getResult,
+        LongSupplier nowInMillis,
+        boolean inPlaceDocValuesUpdatesSupported
+    ) {
         final boolean routingFromSlice = routingFromSlice(indexShard, request);
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
@@ -274,7 +302,14 @@ public class UpdateHelper {
             throw new DocumentSourceMissingException(indexShard.shardId(), request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
-            return prepareUpdateIndexRequest(indexShard, request, getResult, request.detectNoop(), routingFromSlice);
+            return prepareUpdateIndexRequest(
+                indexShard,
+                request,
+                getResult,
+                request.detectNoop(),
+                routingFromSlice,
+                inPlaceDocValuesUpdatesSupported
+            );
         } else {
             // The request has a script (or empty script), execute the script and prepare a new index request
             return prepareUpdateScriptRequest(indexShard, request, getResult, nowInMillis, routingFromSlice);
@@ -391,7 +426,8 @@ public class UpdateHelper {
         UpdateRequest request,
         GetResult getResult,
         boolean detectNoop,
-        boolean routingFromSlice
+        boolean routingFromSlice,
+        boolean inPlaceDocValuesUpdatesSupported
     ) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest, request.routing());
@@ -428,7 +464,14 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            DocValuesUpdateRequest docValuesUpdate = tryBuildDocValuesUpdate(indexShard, request, getResult, routing, routingFromSlice);
+            DocValuesUpdateRequest docValuesUpdate = tryBuildDocValuesUpdate(
+                indexShard,
+                request,
+                getResult,
+                routing,
+                routingFromSlice,
+                inPlaceDocValuesUpdatesSupported
+            );
             if (docValuesUpdate != null) {
                 return new Result(docValuesUpdate, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
@@ -456,11 +499,13 @@ public class UpdateHelper {
         UpdateRequest request,
         GetResult getResult,
         String routing,
-        boolean routingFromSlice
+        boolean routingFromSlice,
+        boolean inPlaceDocValuesUpdatesSupported
     ) {
         List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(
             request,
-            indexShard.mapperService().mappingLookup()
+            indexShard.mapperService().mappingLookup(),
+            inPlaceDocValuesUpdatesSupported
         );
         if (updates == null) {
             return null;
@@ -470,13 +515,19 @@ public class UpdateHelper {
 
     /**
      * Encodes the partial document into in-place doc-values field updates, or {@code null} when the fast path does not apply. Derived
-     * purely from the request and mapping, so it can gate the fast path before the document is fetched.
+     * purely from the request and mapping, so it can gate the fast path before the document is fetched. Package-private for testing.
      */
-    private static List<Translog.DocValuesUpdate.FieldUpdate> buildDocValuesFieldUpdates(
+    static List<Translog.DocValuesUpdate.FieldUpdate> buildDocValuesFieldUpdates(
         UpdateRequest request,
-        MappingLookup mappingLookup
+        MappingLookup mappingLookup,
+        boolean inPlaceUpdatesSupported
     ) {
         if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        // Not all nodes understand the in-place doc-values update operation (mixed-version cluster): fall back to read-modify-reindex so an
+        // older node never receives an operation it cannot deserialize or apply.
+        if (inPlaceUpdatesSupported == false) {
             return null;
         }
         Set<String> updatableFields = mappingLookup.updatableFields();

@@ -187,6 +187,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160282
 - class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/160283
+- class: org.elasticsearch.xpack.ilm.actions.ReadonlyActionIT
+  method: testReadOnlyInTheHotPhase
+  issue: https://github.com/elastic/elasticsearch/issues/160406
 
 # Examples:
 #

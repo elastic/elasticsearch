@@ -72,8 +72,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -100,9 +100,9 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_id] surfaced as [_partition._id]",
-                "partition column [_source] surfaced as [_partition._source]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_id] is named [_partition._id]",
+                "partition key [_source] is named [_partition._source]"
             ),
             warnings
         );
@@ -372,8 +372,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(Set.of("_partition._index"), match.partitionColumns().keySet());
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -475,8 +475,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             sink
         );

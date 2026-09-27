@@ -201,7 +201,6 @@ tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
       'org.graalvm.nativeimage.hosted.Feature',
       'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
-      'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
       'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
       'org.graalvm.nativeimage.hosted.RuntimeReflection'
     )

@@ -59,6 +59,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -2118,6 +2119,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) throws IOException {
         // nothing to parse...
         if (source == null) {
@@ -2213,7 +2215,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
-            } catch (StackOverflowError e) {
+            } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
                 throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }

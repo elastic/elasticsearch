@@ -80,9 +80,9 @@ gradlePlugin {
       id = 'elasticsearch.internal-cluster-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin'
     }
-    internalResourceExhaustionTest {
-      id = 'elasticsearch.internal-resource-exhaustion-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.InternalResourceExhaustionTestPlugin'
+    internalHeapPressureTest {
+      id = 'elasticsearch.internal-heap-pressure-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.InternalHeapPressureTestPlugin'
     }
     internalDistributionArchiveCheck {
       id = 'elasticsearch.internal-distribution-archive-check'

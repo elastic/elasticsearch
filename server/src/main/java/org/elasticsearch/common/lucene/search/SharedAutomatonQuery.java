@@ -49,11 +49,15 @@ public final class SharedAutomatonQuery extends MultiTermQuery implements Accoun
     }
 
     /**
-     * Renders {@code description}, qualified by the field unless {@code toString} was already called with it. Matches
-     * how {@link org.elasticsearch.index.query.AutomatonQueryWithDescription} prints.
+     * Renders the term's text wrapped in {@code delimiter}, qualified by the field unless {@code toString} was already
+     * called with it. Matches how {@link org.elasticsearch.index.query.AutomatonQueryWithDescription} prints. The text is
+     * built per call rather than held, since {@link #unsharedRamBytesUsed()} counts only the term.
      */
-    public static Function<String, String> fieldPrefixed(Term term, String description) {
-        return field -> term.field().equals(field) ? description : term.field() + ":" + description;
+    public static Function<String, String> fieldPrefixed(Term term, String delimiter) {
+        return field -> {
+            String description = delimiter + term.text() + delimiter;
+            return term.field().equals(field) ? description : term.field() + ":" + description;
+        };
     }
 
     @Override

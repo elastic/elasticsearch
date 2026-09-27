@@ -229,7 +229,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 // CaseInsensitiveWildcardQuery prints the requested field rather than its own, so keep the two apart.
                 caseInsensitive
                     ? f -> "CaseInsensitiveWildcardQuery{" + f + ":" + term.text() + "}"
-                    : SharedAutomatonQuery.fieldPrefixed(term, term.text()),
+                    : SharedAutomatonQuery.fieldPrefixed(term, ""),
                 method,
                 context
             );
@@ -282,7 +282,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             term,
             new AutomatonKey.Wildcard(term.text(), false),
             () -> AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker()),
-            SharedAutomatonQuery.fieldPrefixed(term, term.text()),
+            SharedAutomatonQuery.fieldPrefixed(term, ""),
             MultiTermQuery.DOC_VALUES_REWRITE,
             context
         );
@@ -300,7 +300,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             term,
             new AutomatonKey.Regexp(term.text(), syntaxFlags, matchFlags, maxDeterminizedStates),
             () -> AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker()),
-            SharedAutomatonQuery.fieldPrefixed(term, "/" + term.text() + "/"),
+            SharedAutomatonQuery.fieldPrefixed(term, "/"),
             MultiTermQuery.DOC_VALUES_REWRITE,
             context
         );
@@ -330,7 +330,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 term,
                 new AutomatonKey.Regexp(term.text(), syntaxFlags, matchFlags, maxDeterminizedStates),
                 () -> AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker),
-                SharedAutomatonQuery.fieldPrefixed(term, "/" + term.text() + "/"),
+                SharedAutomatonQuery.fieldPrefixed(term, "/"),
                 method,
                 context
             );

@@ -34,7 +34,7 @@ public class SharedAutomatonQueryTests extends ESTestCase {
 
     private static SharedAutomatonQuery query(String field, String pattern, SharedAutomaton shared, MultiTermQuery.RewriteMethod rewrite) {
         Term term = new Term(field, pattern);
-        return new SharedAutomatonQuery(term, shared, SharedAutomatonQuery.fieldPrefixed(term, pattern), rewrite);
+        return new SharedAutomatonQuery(term, shared, SharedAutomatonQuery.fieldPrefixed(term, ""), rewrite);
     }
 
     public void testCompileRejectsNonDeterministicAutomaton() {
@@ -75,11 +75,12 @@ public class SharedAutomatonQueryTests extends ESTestCase {
         SharedAutomatonQuery prefixed = new SharedAutomatonQuery(
             term,
             automaton("field", "foo*"),
-            SharedAutomatonQuery.fieldPrefixed(term, "foo*"),
+            SharedAutomatonQuery.fieldPrefixed(term, ""),
             MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
         );
         assertEquals("foo*", prefixed.toString("field"));
         assertEquals("field:foo*", prefixed.toString(""));
+        assertEquals("field:/foo*/", SharedAutomatonQuery.fieldPrefixed(term, "/").apply(""));
 
         // Renderers that ignore the field keep their own shape, as the case-insensitive wildcard does.
         SharedAutomatonQuery custom = new SharedAutomatonQuery(

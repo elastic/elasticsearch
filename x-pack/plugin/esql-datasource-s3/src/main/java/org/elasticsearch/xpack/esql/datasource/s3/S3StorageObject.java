@@ -81,7 +81,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final RetryStrategy asyncRetryStrategy;
-    private final String storageIdentity;
+    private final S3CredentialIdentity storageIdentity;
     private final String bucket;
     private final String key;
     private final StoragePath path;
@@ -115,14 +115,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String key,
         StoragePath path
     ) {
-        this(s3Client, s3AsyncClient, asyncRetryStrategy, "", bucket, key, path);
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, S3CredentialIdentity.NONE, bucket, key, path);
     }
 
     public S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        String storageIdentity,
+        S3CredentialIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path
@@ -173,7 +173,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        String storageIdentity,
+        S3CredentialIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path,
@@ -206,7 +206,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        String storageIdentity,
+        S3CredentialIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path,
@@ -717,7 +717,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public String storageIdentity() {
+    public S3CredentialIdentity storageIdentity() {
         return storageIdentity;
     }
 

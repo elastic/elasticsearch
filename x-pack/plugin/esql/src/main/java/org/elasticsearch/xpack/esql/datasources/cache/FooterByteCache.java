@@ -12,6 +12,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -77,7 +78,7 @@ public class FooterByteCache {
      * so that all range splits of the same file share one cache entry regardless of any timing
      * jitter in {@code StorageObject.lastModified()}.
      */
-    public record Key(String storageIdentity, String path, long fileLength) {
+    public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},

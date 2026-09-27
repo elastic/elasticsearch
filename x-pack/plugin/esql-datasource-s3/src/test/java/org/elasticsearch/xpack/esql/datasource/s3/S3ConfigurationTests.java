@@ -590,34 +590,35 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals(S3Configuration.AddressingStyleMode.VIRTUAL_HOSTED, config.resolveAddressingStyle());
     }
 
-    // --- computeStorageIdentity ---
+    // --- S3CredentialIdentity ---
 
-    public void testStorageIdentityNullConfigIsEmpty() {
-        assertEquals("", S3StorageProvider.computeStorageIdentity(null));
+    public void testStorageIdentityNullConfigIsNone() {
+        assertEquals(S3CredentialIdentity.NONE, S3CredentialIdentity.of(null));
     }
 
     public void testStorageIdentityStaticCredentialsDiffersByAccessKey() {
         S3Configuration a = S3Configuration.fromFields("ak1", "sk", "http://ep", "us-east-1");
         S3Configuration b = S3Configuration.fromFields("ak2", "sk", "http://ep", "us-east-1");
-        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityStaticCredentialsSameKeysSameIdentity() {
         S3Configuration a = S3Configuration.fromFields("ak", "sk", "http://ep", "us-east-1");
         S3Configuration b = S3Configuration.fromFields("ak", "sk2", "http://ep", "us-west-2");
         // secret key and region are not part of the identity
-        assertEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityFederatedDiffersByRoleArn() {
         // Two federated configs at the same endpoint but different role ARNs must NOT share an identity.
-        // This was the bug: without roleArn in the key, both returned "endpoint|" and collided.
         S3Configuration a = S3Configuration.fromFederatedFields("arn:aws:iam::111111:role/A", null, null, null, null, "http://ep", null);
         S3Configuration b = S3Configuration.fromFederatedFields("arn:aws:iam::222222:role/B", null, null, null, null, "http://ep", null);
-        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityFederatedSameRoleArnSameIdentity() {
+        // jwtAudience affects the OIDC token presented to STS but not the resulting IAM role
+        // permissions, so it is not part of the credential identity.
         S3Configuration a = S3Configuration.fromFederatedFields(
             "arn:aws:iam::111:role/R",
             null,
@@ -636,7 +637,7 @@ public class S3ConfigurationTests extends ESTestCase {
             "http://ep",
             "eu-west-1"
         );
-        assertEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityFederatedDiffersByStsEndpoint() {
@@ -659,7 +660,7 @@ public class S3ConfigurationTests extends ESTestCase {
             "http://ep",
             null
         );
-        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityAnonymousAndManagedIdentityShareIdentityPerEndpoint() {
@@ -667,7 +668,7 @@ public class S3ConfigurationTests extends ESTestCase {
         // per endpoint is correct since they resolve to the same effective access at the node level.
         S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
         S3Configuration managed = S3Configuration.fromFields(null, null, "http://ep", "eu-west-1", "managed_identity");
-        assertEquals(S3StorageProvider.computeStorageIdentity(anon), S3StorageProvider.computeStorageIdentity(managed));
+        assertEquals(S3CredentialIdentity.of(anon), S3CredentialIdentity.of(managed));
     }
 
     public void testStorageIdentityFederatedDiffersFromAnonymousAtSameEndpoint() {
@@ -681,17 +682,17 @@ public class S3ConfigurationTests extends ESTestCase {
             null
         );
         S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
-        assertNotEquals(S3StorageProvider.computeStorageIdentity(federated), S3StorageProvider.computeStorageIdentity(anon));
+        assertNotEquals(S3CredentialIdentity.of(federated), S3CredentialIdentity.of(anon));
     }
 
     public void testStorageIdentityDiffersByEndpoint() {
         S3Configuration a = S3Configuration.fromFields("ak", "sk", "http://ep1", "us-east-1");
         S3Configuration b = S3Configuration.fromFields("ak", "sk", "http://ep2", "us-east-1");
-        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityNullEndpointDoesNotThrow() {
         S3Configuration config = S3Configuration.fromFields("ak", "sk", null, "us-east-1");
-        assertNotNull(S3StorageProvider.computeStorageIdentity(config));
+        assertNotNull(S3CredentialIdentity.of(config));
     }
 }

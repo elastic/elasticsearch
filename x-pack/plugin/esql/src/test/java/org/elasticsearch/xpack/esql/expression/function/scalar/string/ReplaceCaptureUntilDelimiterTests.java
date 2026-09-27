@@ -231,6 +231,58 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
         return base;
     }
 
+    /**
+     * A required literal immediately after an optional one, where the two share bytes, so the greedy
+     * pass's consumption of the optional segment can shift the required check to a position where it no
+     * longer matches -- even though skipping the optional segment lets it match. E.g. greedily consuming
+     * "(?:xy)?" from "xyzhost" leaves "zhost", which the required "xyz" can't match, though skipping "xy"
+     * lets "xyz" match directly.
+     */
+    public void testRequiredLiteralAfterOverlappingOptionalPrefix() {
+        forEachTailAnchoring("^(?:xy)?xyz([^/]+)/.*$", regex -> {
+            assertThat(processConstantRegexAndNewStr("xyzhost/tail", regex, "$1"), equalTo("host"));
+            // The optional segment genuinely present: greedy consumption is correct here, no backtrack.
+            assertThat(processConstantRegexAndNewStr("xyxyzhost/tail", regex, "$1"), equalTo("host"));
+            // Neither the optional nor a bare "xyz" present at all -- genuinely no match.
+            assertThat(processConstantRegexAndNewStr("nomatch/tail", regex, "$1"), equalTo("nomatch/tail"));
+        });
+        // Same idiom, but with multiple independent optional segments before the overlapping required one.
+        forEachTailAnchoring("^(?:a)?(?:xy)?xyz([^/]+)/.*$", regex -> {
+            assertThat(processConstantRegexAndNewStr("axyzhost/tail", regex, "$1"), equalTo("host"));
+            assertThat(processConstantRegexAndNewStr("xyzhost/tail", regex, "$1"), equalTo("host"));
+            assertThat(processConstantRegexAndNewStr("axyxyzhost/tail", regex, "$1"), equalTo("host"));
+        });
+    }
+
+    /**
+     * Randomized differential test for the same overlap class as
+     * {@link #testRequiredLiteralAfterOverlappingOptionalPrefix}: random optional-then-required literal
+     * prefixes built so the required literal's bytes can overlap with the optional one, cross-checked
+     * against the real regex engine on random inputs that may or may not include the optional segment.
+     */
+    public void testFastPathAgreesWithRealRegexEngineOnOverlappingRequiredAfterOptionalPrefix() {
+        String[] optionalLiterals = { "xy", "ab", "a", "xx" };
+        String[] requiredLiterals = { "xyz", "abc", "aa", "xxy" };
+        for (String opt : optionalLiterals) {
+            for (String req : requiredLiterals) {
+                String regex = "^(?:" + opt + ")?" + req + "([^/]+)/.*$";
+                Pattern pattern = Pattern.compile(regex);
+                BytesRef newStrRef = new BytesRef("$1");
+                ReplaceCaptureUntilDelimiter.Idiom idiom = ReplaceCaptureUntilDelimiter.extract(pattern, newStrRef);
+                assertNotNull(regex, idiom);
+                for (int i = 0; i < 50; i++) {
+                    boolean includeOptional = randomBoolean();
+                    String host = randomBoolean() ? "" : randomAlphaOfLengthBetween(1, 8);
+                    String prefix = (includeOptional ? opt : "") + req;
+                    String input = randomBoolean() ? prefix + host + "/" + randomTailContent() : prefix + host;
+                    BytesRef inputRef = new BytesRef(input);
+                    BytesRef groundTruth = Replace.safeReplace(inputRef, pattern, newStrRef);
+                    assertThat(regex + " / " + input, ReplaceCaptureUntilDelimiter.process(inputRef, idiom), equalTo(groundTruth));
+                }
+            }
+        }
+    }
+
     public void testBacktracksOptionalPrefix() {
         // Greedily consuming the optional "www." would leave an empty capture ("www./x" -> host starts
         // right at the delimiter), which isn't a valid match; the real regex backtracks to capture

@@ -442,6 +442,7 @@ final class ReplaceCaptureUntilDelimiter {
         Idiom.PrefixPart[] parts = idiom.prefix();
 
         int pos = 0;
+        boolean anyOptionalTaken = false;
         for (int pi = 0; pi < parts.length; pi++) {
             Idiom.PrefixPart part = parts[pi];
             byte[] lit = part.literal();
@@ -457,8 +458,16 @@ final class ReplaceCaptureUntilDelimiter {
             }
             if (present) {
                 pos += litLen;
+                if (part.optional()) {
+                    anyOptionalTaken = true;
+                }
             } else if (part.optional() == false) {
-                return str; // required literal missing: no match, no combination can help.
+                if (anyOptionalTaken) {
+                    // A taken optional segment may have greedily consumed bytes this required literal
+                    // needed; re-check every combination instead of assuming a real mismatch.
+                    return processWithBacktracking(str, idiom, parts, b, off, len);
+                }
+                return str; // no optional segment taken yet, so this position is the only one reachable.
             }
         }
 

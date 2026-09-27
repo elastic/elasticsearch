@@ -124,27 +124,16 @@ public final class SourceFanInUnionAll extends UnionAll {
     }
 
     /**
-     * A bare producer ({@link ExternalRelation}, {@link EsRelation}, a nested fan-in, or a {@link Project} over one
-     * of those) or a unary pipeline whose leaf is a fan-in or a single dataset.
+     * A producer ({@link ExternalRelation}, {@link EsRelation}, or a nested fan-in), bare or under a unary pipeline.
+     * Index and dataset leaves are treated alike, so a view that filters an index promotes the same as one that
+     * filters a dataset. {@link #isSourceExpansion} already keeps index-only view unions out.
      */
     private static boolean isPromotable(LogicalPlan plan) {
         LogicalPlan current = plan;
-        // A Project may wrap a bare index read. Any other unary is promotable only over a fan-in or a dataset: a
-        // FROM that names one dataset resolves to the bare ExternalRelation rather than a single-child fan-in.
-        boolean sawNonProjectUnary = false;
         while (isSourcePipelineUnary(current)) {
-            if (current instanceof Project == false) {
-                sawNonProjectUnary = true;
-            }
             current = ((UnaryPlan) current).child();
         }
-        if (current instanceof SourceFanInUnionAll || current instanceof ExternalRelation) {
-            return true;
-        }
-        if (sawNonProjectUnary) {
-            return false;
-        }
-        return current instanceof EsRelation;
+        return current instanceof SourceFanInUnionAll || current instanceof ExternalRelation || current instanceof EsRelation;
     }
 
     /**

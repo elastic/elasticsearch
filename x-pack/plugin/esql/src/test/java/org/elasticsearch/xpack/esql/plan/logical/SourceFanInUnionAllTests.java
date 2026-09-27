@@ -118,7 +118,8 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
     /**
      * A {@code FROM} naming one dataset resolves to the bare {@link ExternalRelation}, not a single-child fan-in, so a
-     * unary pipeline over it promotes the same as one over a multi-dataset fan-in. A unary over a bare index read does not.
+     * unary pipeline over it promotes the same as one over a multi-dataset fan-in. A unary over a bare index read
+     * promotes too, so the result does not depend on which side of the union carries the {@code WHERE}.
      */
     public void testPromoteKeepsUnaryOverSingleDatasetBesideOtherSource() {
         Filter filtered = new Filter(Source.EMPTY, external("ds1"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
@@ -135,7 +136,13 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(verifyAnalysis(fork), not(containsString("FORK after subquery")));
 
         Filter filteredIndex = new Filter(Source.EMPTY, index("idx"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        assertThat(PromoteSourceFanIn.promote(viewOf(filteredIndex, external("ds2"))), instanceOf(ViewUnionAll.class));
+        assertThat(PromoteSourceFanIn.promote(viewOf(filteredIndex, external("ds2"))), instanceOf(SourceFanInUnionAll.class));
+        Fork forkOverFilteredIndex = new Fork(
+            Source.EMPTY,
+            List.of(viewOf(fanIn(external("a"), external("b")), filteredIndex), index("other")),
+            List.of()
+        );
+        assertThat(verifyAnalysis(forkOverFilteredIndex), not(containsString("FORK after subquery")));
     }
 
     public void testPromoteRejectsEightProducersPlusNamesake() {
@@ -190,8 +197,8 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
     /** A view union that is not promoted must not keep a fan-in nested under it; each producer becomes its own branch. */
     public void testPromoteLiftsFanInBesideNonPromotableBranch() {
-        Filter filteredIndex = new Filter(Source.EMPTY, index("idx"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), filteredIndex));
+        Fork nestedFork = new Fork(Source.EMPTY, List.of(index("c"), index("d")), List.of());
+        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), nestedFork));
 
         assertThat(promoted, instanceOf(ViewUnionAll.class));
         ViewUnionAll view = (ViewUnionAll) promoted;

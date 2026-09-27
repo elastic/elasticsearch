@@ -5442,7 +5442,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    /** A dataset view beside a filtered index view is not one source list; it still runs as separate view branches. */
+    /**
+     * A dataset view beside a filtered index view is one source list, the same as a filtered dataset view beside an index,
+     * so {@code FORK} accepts it.
+     */
     public void testDatasetViewBesideFilteredIndexView() throws Exception {
         assertAcked(
             client().admin().indices().prepareCreate("filtered_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
@@ -5458,6 +5461,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM ds_pair_view, filtered_idx_view | STATS c = COUNT(*)"), TIMEOUT)) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(7L));
+        }
+        String forkQuery = "FROM ds_pair_view, filtered_idx_view"
+            + " | FORK (WHERE emp_no == 1) (WHERE emp_no > 1)"
+            + " | STATS c = COUNT(*) BY _fork"
+            + " | SORT _fork";
+        try (var response = run(syncEsqlQueryRequest(forkQuery), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L, "fork1"), List.of(5L, "fork2"))));
         }
     }
 

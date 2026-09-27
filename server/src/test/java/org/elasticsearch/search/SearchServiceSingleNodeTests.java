@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -80,6 +81,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.plugins.Plugin;
@@ -2553,6 +2555,56 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             l.onResponse(null);
         }));
         future.get();
+    }
+
+    public void testFetchChargeIsReleasedWhenTheSearchFailsAfterCharging() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        CircuitBreaker breaker = getInstanceFromNode(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+
+        // Single-session reader contexts are freed right after the fetch phase charged the breaker and before the result
+        // reaches anyone who would release it, which is the window the deallocate backstop covers.
+        AtomicBoolean armed = new AtomicBoolean(true);
+        service.setOnRemoveContext(readerContext -> {
+            if (armed.compareAndSet(true, false)) {
+                // freeReaderContext never binds its resource when this throws, so close the context here instead.
+                MockSearchService.removeActiveContext(readerContext);
+                readerContext.close();
+                throw new IllegalStateException("injected failure after the fetch charge");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        // Script fields are charged with no size threshold, unlike source, which only counts past a 1mb buffer.
+        searchRequest.source(
+            new SearchSourceBuilder().scriptField(
+                "test_field",
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
+            )
+        );
+
+        long usedBeforeSearch = breaker.getUsed();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+        service.executeQueryPhase(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(resolveIndex("index"), 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1.0f,
+                -1,
+                null
+            ),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
+            future
+        );
+        expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(breaker.getUsed(), equalTo(usedBeforeSearch));
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {

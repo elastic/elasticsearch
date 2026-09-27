@@ -43,6 +43,9 @@ import java.util.Set;
 public final class SortByLabelFunction extends PromqlFunctionCall implements ResultOrderingFunction {
 
     private final List<Attribute> sortLabels;
+    /** Both derive from the fixed child output and {@link #sortLabels}, and {@code output()} is read repeatedly. */
+    private List<Attribute> usableSortLabels;
+    private List<Attribute> output;
 
     public SortByLabelFunction(
         Source source,
@@ -60,11 +63,19 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
     }
 
     /**
-     * Sort labels that can be materialized as extra output columns: resolved, non-null, not a metric field,
-     * not already in the child output, and only when the child header is still open ({@code _timeseries}
-     * is present). Absent labels are skipped; Prometheus treats those as {@code ""} at compare time.
+     * The sort labels exposed as extra output columns so an ordering can bind to them: resolved, non-null, not a
+     * metric field, and not already carried by the child. Only an open child header ({@code _timeseries} still
+     * present) can carry them; on a closed one they are all dropped, because materializing a label the aggregation
+     * merged away would split its series.
      */
     public List<Attribute> usableSortLabels() {
+        if (usableSortLabels == null) {
+            usableSortLabels = computeUsableSortLabels();
+        }
+        return usableSortLabels;
+    }
+
+    private List<Attribute> computeUsableSortLabels() {
         List<Attribute> childOut = child().output();
         boolean open = false;
         Set<String> childKeys = new HashSet<>();
@@ -111,15 +122,19 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
 
     @Override
     public List<Attribute> output() {
-        List<Attribute> childOut = child().output();
-        List<Attribute> extra = usableSortLabels();
-        if (extra.isEmpty()) {
-            return childOut;
+        if (output == null) {
+            List<Attribute> childOut = child().output();
+            List<Attribute> extra = usableSortLabels();
+            if (extra.isEmpty()) {
+                output = childOut;
+            } else {
+                List<Attribute> out = new ArrayList<>(childOut.size() + extra.size());
+                out.addAll(childOut);
+                out.addAll(extra);
+                output = out;
+            }
         }
-        List<Attribute> out = new ArrayList<>(childOut.size() + extra.size());
-        out.addAll(childOut);
-        out.addAll(extra);
-        return out;
+        return output;
     }
 
     @Override

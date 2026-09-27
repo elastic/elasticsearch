@@ -335,7 +335,7 @@ public final class DatasetRewriter {
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
-                    + " branches, exceeding the current limit of "
+                    + " sources, exceeding the current limit of "
                     + SourceFanInUnionAll.MAX_PRODUCERS
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );

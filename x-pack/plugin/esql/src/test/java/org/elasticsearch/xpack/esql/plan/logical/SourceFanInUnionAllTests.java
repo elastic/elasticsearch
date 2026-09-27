@@ -155,6 +155,36 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(verifyAnalysis(tooMany), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
+    /**
+     * {@code FROM va, vb}, where each view is {@code FROM <5 datasets> | WHERE ...}. The query names two sources, but the
+     * two view bodies promote into one fan-in that reads 10 datasets, so the per-FROM producer cap rejects it even
+     * without a {@code FORK}. This is intended: the cap bounds the producers one {@code FROM} reads, however many of
+     * them sit behind views. Before promotion existed, this shape ran as nested unions bounded only by
+     * {@code max_branch_count}.
+     */
+    public void testFilteredDatasetViewsCountTheirProducersTowardPerFromCap() {
+        List<LogicalPlan> branches = new ArrayList<>();
+        for (String view : List.of("va", "vb")) {
+            List<LogicalPlan> datasets = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                datasets.add(external(view + "_ds" + i));
+            }
+            branches.add(new Filter(Source.EMPTY, fanIn(datasets), new Literal(Source.EMPTY, true, DataType.BOOLEAN)));
+        }
+        LinkedHashMap<String, LogicalPlan> named = new LinkedHashMap<>();
+        named.put("va", branches.get(0));
+        named.put("vb", branches.get(1));
+        Source from = new Source(1, 0, "FROM va, vb");
+        LogicalPlan promoted = PromoteSourceFanIn.promote(new ViewUnionAll(from, named, named.keySet(), List.of()));
+
+        assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
+        assertThat(SourceFanInUnionAll.producerCount(promoted), equalTo(10));
+        assertThat(
+            verifyAnalysis(promoted),
+            containsString("[FROM va, vb] resolved to 10 sources, exceeding the current limit of 8 per FROM")
+        );
+    }
+
     public void testViewUnionOfForkBesideNamesakeIsNotPromoted() {
         ViewUnionAll view = viewOf(new Fork(Source.EMPTY, List.of(index("a"), index("b")), List.of()), index("namesake"));
         LogicalPlan promoted = PromoteSourceFanIn.promote(view);

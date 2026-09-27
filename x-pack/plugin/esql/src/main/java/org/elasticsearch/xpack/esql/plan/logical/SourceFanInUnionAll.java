@@ -161,7 +161,8 @@ public final class SourceFanInUnionAll extends UnionAll {
                 failures.add(
                     Failure.fail(
                         fanIn,
-                        "FROM [{}] resolved to {} sources, exceeding the current limit of {} per FROM. "
+                        // The source text already starts with FROM, so it is quoted as is.
+                        "[{}] resolved to {} sources, exceeding the current limit of {} per FROM. "
                             + "Narrow the pattern, exclude some datasets, or split into multiple queries.",
                         fanIn.sourceText(),
                         producers,
@@ -297,8 +298,9 @@ public final class SourceFanInUnionAll extends UnionAll {
         LinkedHashSet<String> patterns = new LinkedHashSet<>();
         for (EsRelation es : relations) {
             for (String part : es.indexPattern().split(",")) {
-                if (part.isEmpty() == false) {
-                    patterns.add(part);
+                String trimmed = part.trim();
+                if (trimmed.isEmpty() == false) {
+                    patterns.add(trimmed);
                 }
             }
         }

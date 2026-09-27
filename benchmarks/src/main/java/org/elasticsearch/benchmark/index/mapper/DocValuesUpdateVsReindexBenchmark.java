@@ -28,7 +28,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
@@ -85,7 +85,7 @@ public class DocValuesUpdateVsReindexBenchmark {
     static {
         // The Elasticsearch disk-BBQ vector format touches Elasticsearch logging during class init, which NPEs unless the logging SPI
         // has been configured. Set it up before anything can trigger that lookup.
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String VECTOR_FIELD = "vector";
@@ -106,6 +106,7 @@ public class DocValuesUpdateVsReindexBenchmark {
     private IndexWriter writer;
     private Codec codec;
     private final Random random = new Random(42);
+    private float[][] vectors;
 
     @Setup(Level.Trial)
     public void setupCodec() {
@@ -133,8 +134,12 @@ public class DocValuesUpdateVsReindexBenchmark {
             .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setUseCompoundFile(false);
         writer = new IndexWriter(directory, config);
+        // Cache each document's vector so the reindex arm can rebuild the same document (only the status field changes), making it a fair
+        // comparison with the doc-values-update arm, which likewise changes only the status field.
+        vectors = new float[numDocs][];
         for (int i = 0; i < numDocs; i++) {
-            writer.addDocument(newDocument(Integer.toString(i)));
+            vectors[i] = randomVector();
+            writer.addDocument(newDocument(Integer.toString(i), "active"));
         }
         writer.commit();
     }
@@ -145,14 +150,15 @@ public class DocValuesUpdateVsReindexBenchmark {
         IOUtils.rm(tempDir);
     }
 
-    private Document newDocument(String id) {
+    private Document newDocument(String id, String status) {
         Document doc = new Document();
         doc.add(new StringField(ID_FIELD, id, Field.Store.NO));
-        doc.add(new KnnFloatVectorField(VECTOR_FIELD, randomVector(), VectorSimilarityFunction.DOT_PRODUCT));
+        // Reuse the document's original vector so a reindex rebuilds the same content, differing only in the status field.
+        doc.add(new KnnFloatVectorField(VECTOR_FIELD, vectors[Integer.parseInt(id)], VectorSimilarityFunction.DOT_PRODUCT));
         // a few analyzed text fields, re-analyzed on every reindex
         doc.add(new TextField("title", "the quick brown fox jumps over the lazy dog " + id, Field.Store.NO));
         doc.add(new TextField("body", "lorem ipsum dolor sit amet consectetur adipiscing elit " + id, Field.Store.NO));
-        doc.add(new BinaryDocValuesField(STATUS_FIELD, new BytesRef("active")));
+        doc.add(new BinaryDocValuesField(STATUS_FIELD, new BytesRef(status)));
         return doc;
     }
 
@@ -174,7 +180,12 @@ public class DocValuesUpdateVsReindexBenchmark {
     public void reindexFullDocument() throws IOException {
         for (int i = 0; i < updateBatch; i++) {
             String id = Integer.toString(random.nextInt(numDocs));
-            writer.softUpdateDocument(new Term(ID_FIELD, id), newDocument(id), new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
+            // Rebuild the same document (same vector), changing only the status, to mirror what docValuesUpdate changes.
+            writer.softUpdateDocument(
+                new Term(ID_FIELD, id),
+                newDocument(id, "updated-" + i),
+                new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1)
+            );
         }
         writer.flush();
     }

@@ -262,6 +262,7 @@ public class QueryPhase {
      * than propagating a raw exception.
      */
     private static void finalizeAsTimedOutResult(SearchContext searchContext) {
+        assert searchContext.scrollContext() == null : "scroll request timed out even though scroll has no timeout check";
         QuerySearchResult queryResult = searchContext.queryResult();
         SearchTimeoutException.handleTimeout(searchContext.request().allowPartialSearchResults(), searchContext.shardTarget(), queryResult);
 

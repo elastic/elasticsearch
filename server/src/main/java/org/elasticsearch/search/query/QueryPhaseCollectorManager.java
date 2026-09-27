@@ -310,7 +310,15 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         final SortAndFormats sortAndFormats = searchContext.sort();
         final TopDocs topDocs;
         final DocValueFormat[] sortValueFormats;
-        if (searchContext.size() > 0 && searchContext.collapse() != null) {
+        if (searchContext.size() == 0) {
+            // mirrors EmptyHits, which only counts hits and so reports no formats even when the request sorts
+            topDocs = emptyTopDocs(sortAndFormats);
+            sortValueFormats = null;
+        } else if (searchContext.collapse() == null) {
+            // mirrors WithHits
+            topDocs = emptyTopDocs(sortAndFormats);
+            sortValueFormats = sortAndFormats == null ? null : sortAndFormats.formats;
+        } else {
             // mirrors forCollapsing, which groups by relevance when the request does not sort
             final Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             topDocs = new TopFieldGroups(
@@ -321,15 +329,14 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 new Object[0]
             );
             sortValueFormats = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-        } else {
-            // mirrors WithHits and EmptyHits; scroll never reaches here, getTimeoutCheck does not arm a timeout for it
-            topDocs = sortAndFormats == null
-                ? Lucene.EMPTY_TOP_DOCS
-                : new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Lucene.EMPTY_SCORE_DOCS, sortAndFormats.sort.getSort());
-            // EmptyHits only ever counts hits, so it reports no formats whether the request sorts or not
-            sortValueFormats = sortAndFormats == null || searchContext.size() == 0 ? null : sortAndFormats.formats;
         }
         return new QueryPhaseResult(new TopDocsAndMaxScore(topDocs, Float.NaN), sortValueFormats, false, null);
+    }
+
+    private static TopDocs emptyTopDocs(@Nullable SortAndFormats sortAndFormats) {
+        return sortAndFormats == null
+            ? Lucene.EMPTY_TOP_DOCS
+            : new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Lucene.EMPTY_SCORE_DOCS, sortAndFormats.sort.getSort());
     }
 
     /**

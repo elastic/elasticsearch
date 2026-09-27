@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -45,14 +46,6 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public abstract class AbstractRerankerIT extends ESIntegTestCase {
-
-    public enum ThrowingRankBuilderType {
-        THROWING_QUERY_PHASE_SHARD_CONTEXT,
-        THROWING_QUERY_PHASE_COORDINATOR_CONTEXT,
-        THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT,
-        THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT;
-    }
-
     protected abstract RankBuilder getRankBuilder(int rankWindowSize, String rankFeatureField);
 
     protected abstract RankBuilder getThrowingRankBuilder(int rankWindowSize, String rankFeatureField, ThrowingRankBuilderType type);

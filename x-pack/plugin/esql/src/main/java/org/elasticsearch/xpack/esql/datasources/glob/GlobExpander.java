@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
-import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
@@ -510,7 +510,7 @@ public final class GlobExpander {
         // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
         // the only symptom was silently choosing the wrong strategy.
         GlobMatcher matcher = new GlobMatcher(glob);
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
 
         // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
         List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
@@ -1092,11 +1092,12 @@ public final class GlobExpander {
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
-                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
-                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
+                // spellings such as 2.5 and narrow the detected type). A non-integral equality does not either:
+                // printing 6.0 would miss price=6.00. Both still change which files the flat listing keeps, so on
+                // a pattern the walk does not already key, those hints join the identity.
                 walkShapeEligible(effectivePattern, partitionConfig)
                     ? encodedHints(partitionPruningHints(hints))
-                    : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
+                    : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder
             );
@@ -1492,6 +1493,11 @@ public final class GlobExpander {
                         continue;
                     }
                     List<Object> values = hint.values();
+                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
+                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
+                    if (containsNonIntegralNumber(values)) {
+                        continue;
+                    }
                     if (hint.isSingleValue()) {
                         String value = String.valueOf(values.get(0));
                         if (globExpressible(value) == false) {
@@ -1582,6 +1588,43 @@ public final class GlobExpander {
         return filterHints;
     }
 
+    /**
+     * {@code EQUALS} and {@code IN} hints whose values include a non-integral number. The glob rewrite leaves
+     * those segments as {@code *}; this is the pass that still drops a folder the number excludes.
+     */
+    private static List<PartitionFilterHint> nonIntegralEqualityHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        List<PartitionFilterHint> equality = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN) && containsNonIntegralNumber(hint.values())) {
+                equality.add(hint);
+            }
+        }
+        return equality;
+    }
+
+    /** A {@link Float} or {@link Double} hint value, whose printed form is not the only on-disk spelling. */
+    private static boolean containsNonIntegralNumber(List<Object> values) {
+        for (Object value : values) {
+            if (value instanceof Float || value instanceof Double) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean rangeOperator(Operator operator) {
         return switch (operator) {
             case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
@@ -1639,12 +1682,27 @@ public final class GlobExpander {
         return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
     }
 
+    /**
+     * Hints the flat listing applies after listObjects, without rewriting the glob. The listing-cache identity
+     * keys the same set on a pattern the walk does not already key: a filtered query must not share an unfiltered
+     * entry.
+     */
+    private static List<PartitionFilterHint> folderPostFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        filterHints.addAll(closedRangeFilterHints(hints, partitionConfig));
+        filterHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
+        return filterHints;
+    }
+
     private static List<StorageEntry> withoutFoldersOutsideClosedRange(
         List<StorageEntry> matched,
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        List<PartitionFilterHint> rangeHints = closedRangeFilterHints(hints, partitionConfig);
+        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig);
         if (rangeHints.isEmpty()) {
             return matched;
         }
@@ -1700,8 +1758,7 @@ public final class GlobExpander {
 
     @Nullable
     private static FoundValue hivePartitionValue(StoragePath path, String column) {
-        String[] segments = path.path().split("/");
-        for (String segment : segments) {
+        for (String segment : HivePartitionDetector.directorySegments(path.path())) {
             String key = PartitionValueMatcher.folderKey(segment);
             if (column.equals(key)) {
                 return new FoundValue(PartitionValueMatcher.folderValue(segment));
@@ -1734,6 +1791,11 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
+        // Same as the template rewrite: a non-integral number is not one folder name. Keep key=* and let the
+        // typed filter decide, so IN (1.25, 6.0) still lists price=6.00.
+        if (containsNonIntegralNumber(values)) {
+            return segment;
+        }
         if (hint.isSingleValue()) {
             String value = String.valueOf(values.get(0));
             return globExpressible(value) ? key + "=" + value : segment;
@@ -1869,7 +1931,7 @@ public final class GlobExpander {
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
         if (fileHints.isEmpty()) {
             return entries;
         }
@@ -1899,125 +1961,96 @@ public final class GlobExpander {
 
     private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint) {
         return switch (hint.columnName()) {
-            case FileMetadataColumns.MODIFIED -> evaluateTimestamp(entry.lastModified(), hint);
-            case FileMetadataColumns.SIZE -> evaluateLong(entry.length(), hint);
-            case FileMetadataColumns.PATH -> evaluateString(entry.path().toString(), hint);
-            case FileMetadataColumns.NAME -> evaluateString(entry.path().objectName(), hint);
+            case FileMetadataColumns.MODIFIED -> matchesModified(entry.lastModified(), hint);
+            case FileMetadataColumns.SIZE -> kept(PartitionValueMatcher.matches(entry.length(), hint));
+            case FileMetadataColumns.PATH -> kept(PartitionValueMatcher.matches(entry.path().toString(), hint));
+            case FileMetadataColumns.NAME -> kept(PartitionValueMatcher.matches(entry.path().objectName(), hint));
             case FileMetadataColumns.DIRECTORY -> {
                 StoragePath parent = entry.path().parentDirectory();
-                yield parent != null ? evaluateString(parent.toString(), hint) : true;
+                yield parent == null || kept(PartitionValueMatcher.matches(parent.toString(), hint));
             }
             case FileMetadataColumns.RECORD_REF -> true;
             default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
         };
     }
 
-    private static boolean evaluateTimestamp(Instant actual, PartitionFilterHint hint) {
-        // StorageEntry normalises a missing lastModified to Instant.EPOCH, so treat both
-        // null and EPOCH as "unknown" and let the file pass through rather than
-        // accidentally pruning every file whose mtime the store could not provide.
-        if (actual == null || actual.equals(Instant.EPOCH)) {
-            return true; // Unknown timestamp — don't filter (conservative)
-        }
-        if (hint.values().isEmpty()) {
-            return true;
-        }
-        long actualMillis = actual.toEpochMilli();
-
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                long millis = toEpochMillis(v);
-                if (millis != Long.MIN_VALUE && actualMillis == millis) {
-                    return true;
+    /**
+     * Parse each {@code _file.modified} hint once. A literal that is not a full instant is undecidable, and one such
+     * literal makes the whole hint undecidable, so that hint is dropped and every file is kept for it. Hints that
+     * parse are replaced with their epoch-millis values and reused for every file.
+     */
+    private static List<PartitionFilterHint> resolveModifiedHints(List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> resolved = null;
+        for (int i = 0; i < hints.size(); i++) {
+            PartitionFilterHint hint = hints.get(i);
+            if (FileMetadataColumns.MODIFIED.equals(hint.columnName()) == false) {
+                if (resolved != null) {
+                    resolved.add(hint);
                 }
+                continue;
             }
-            return false;
+            if (resolved == null) {
+                resolved = new ArrayList<>(hints.size());
+                resolved.addAll(hints.subList(0, i));
+            }
+            PartitionFilterHint parsed = parsedModifiedHint(hint);
+            if (parsed != null) {
+                resolved.add(parsed);
+            }
         }
-
-        long hintMillis = toEpochMillis(hint.values().get(0));
-        if (hintMillis == Long.MIN_VALUE) {
-            return true; // Unparseable — don't filter
-        }
-        return evaluateComparison(Long.compare(actualMillis, hintMillis), hint.operator());
+        return resolved == null ? hints : resolved;
     }
 
-    private static long toEpochMillis(Object value) {
+    /**
+     * The hint with each literal read as epoch millis, or {@code null} when a literal cannot be read that way.
+     * An empty value list decides nothing.
+     */
+    @Nullable
+    private static PartitionFilterHint parsedModifiedHint(PartitionFilterHint hint) {
+        if (hint.values().isEmpty()) {
+            return null;
+        }
+        List<Object> millis = new ArrayList<>(hint.values().size());
+        for (Object value : hint.values()) {
+            Long parsed = epochMillis(value);
+            if (parsed == null) {
+                return null;
+            }
+            millis.add(parsed);
+        }
+        return new PartitionFilterHint(hint.columnName(), hint.operator(), millis);
+    }
+
+    /**
+     * A missing modification time is not a value the filter can exclude: {@link StorageEntry} normalises one the store
+     * could not provide to {@link Instant#EPOCH}, so both null and the epoch keep the file. {@code hint} values are
+     * epoch millis.
+     */
+    private static boolean matchesModified(Instant actual, PartitionFilterHint hint) {
+        if (actual == null || actual.equals(Instant.EPOCH)) {
+            return true;
+        }
+        return kept(PartitionValueMatcher.matches(actual.toEpochMilli(), hint));
+    }
+
+    /** Epoch millis of a {@code Long} or a full-instant {@code String}, or {@code null} when the literal cannot be read. */
+    @Nullable
+    private static Long epochMillis(Object value) {
         if (value instanceof Long l) {
             return l;
-        } else if (value instanceof String s) {
+        }
+        if (value instanceof String s) {
             try {
                 return Instant.parse(s).toEpochMilli();
-            } catch (Exception e) {
-                return Long.MIN_VALUE;
+            } catch (DateTimeParseException e) {
+                return null;
             }
         }
-        return Long.MIN_VALUE;
+        return null;
     }
 
-    private static boolean evaluateLong(long actual, PartitionFilterHint hint) {
-        if (hint.values().isEmpty()) {
-            return true;
-        }
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                long inVal;
-                if (v instanceof Number n) {
-                    inVal = n.longValue();
-                } else {
-                    try {
-                        inVal = Long.parseLong(v.toString());
-                    } catch (NumberFormatException e) {
-                        continue;
-                    }
-                }
-                if (actual == inVal) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        long hintLong;
-        Object hintValue = hint.values().get(0);
-        if (hintValue instanceof Number n) {
-            hintLong = n.longValue();
-        } else if (hintValue instanceof String s) {
-            try {
-                hintLong = Long.parseLong(s);
-            } catch (NumberFormatException e) {
-                return true;
-            }
-        } else {
-            return true;
-        }
-        return evaluateComparison(Long.compare(actual, hintLong), hint.operator());
-    }
-
-    private static boolean evaluateString(String actual, PartitionFilterHint hint) {
-        if (actual == null || hint.values().isEmpty()) {
-            return true;
-        }
-        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
-            for (Object v : hint.values()) {
-                if (actual.equals(v.toString())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        String hintStr = hint.values().get(0).toString();
-        return evaluateComparison(actual.compareTo(hintStr), hint.operator());
-    }
-
-    private static boolean evaluateComparison(int cmp, PartitionFilterHintExtractor.Operator operator) {
-        return switch (operator) {
-            case EQUALS -> cmp == 0;
-            case NOT_EQUALS -> cmp != 0;
-            case GREATER_THAN -> cmp > 0;
-            case GREATER_THAN_OR_EQUAL -> cmp >= 0;
-            case LESS_THAN -> cmp < 0;
-            case LESS_THAN_OR_EQUAL -> cmp <= 0;
-            case IN -> false; // Handled separately in caller
-        };
+    /** {@code null} from the matcher means the hint cannot be decided, so the file is kept. */
+    private static boolean kept(@Nullable Boolean matches) {
+        return matches == null || matches;
     }
 }

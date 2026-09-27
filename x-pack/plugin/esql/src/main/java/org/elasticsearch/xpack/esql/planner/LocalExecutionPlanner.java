@@ -66,6 +66,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
@@ -86,6 +87,7 @@ import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.compute.operator.topn.TopNPreFilterOperator;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -205,10 +207,12 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
@@ -415,6 +419,8 @@ public class LocalExecutionPlanner {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
             return planTopN(topNExec, context);
+        } else if (node instanceof TopNPreFilterExec preFilterExec) {
+            return planTopNPreFilter(preFilterExec, context);
         } else if (node instanceof TopNByExec topNByExec) {
             return planTopNBy(topNByExec, context);
         } else if (node instanceof EvalExec eval) {
@@ -490,7 +496,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof OutputExec outputExec) {
+        else if (node instanceof StreamingOutputExec streamingOutput) {
+            return planStreamingOutput(streamingOutput, context);
+        } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
@@ -928,6 +936,13 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(exec.child(), context);
+        var output = exec.output();
+        Function<Page, Page> alignment = alignPageToAttributes(output, source.layout);
+        return source.withSink(new StreamingPageOperator.Factory(exec.pageStream(), alignment), source.layout);
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
@@ -2526,6 +2541,17 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planTopNPreFilter(TopNPreFilterExec preFilter, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(preFilter.child(), context);
+        ElementType keyType = PlannerUtils.toElementType(preFilter.key().dataType());
+        int channel = getAttributeChannel(preFilter.key(), source.layout, "TOP N PRE-FILTER key must be an attribute");
+        int limit = Math.toIntExact(((Number) Foldables.valueOf(context.foldCtx(), preFilter.limit())).longValue());
+        return source.with(
+            new TopNPreFilterOperator.Factory(keyType, channel, preFilter.asc(), preFilter.nullsFirst(), limit),
+            source.layout
+        );
     }
 
     private PhysicalOperation planSparklineGenerateEmptyBuckets(

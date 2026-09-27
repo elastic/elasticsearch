@@ -2432,6 +2432,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_with_unionall | WHERE emp_no == 10001),
      (FROM employees_all | WHERE emp_no == 10002)
@@ -2450,6 +2451,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: views_deduplication_bugfix
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM employees_extra
 | WHERE emp_no <= 10003
@@ -2523,6 +2525,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: views_deduplication_bugfix
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM view_with_subquery, employees
 | WHERE emp_no <= 10003
@@ -2543,6 +2546,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_with_fork),
      (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
@@ -2566,6 +2570,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093),
      (FROM employees | WHERE emp_no >= 10092 AND emp_no < 10094)
@@ -2588,6 +2593,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no == 10091),
      (FROM (FROM employees | WHERE emp_no == 10092),
@@ -2609,6 +2615,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_with_subquery | WHERE emp_no == 10001),
      (FROM employees_all | WHERE emp_no == 10002)
@@ -2629,6 +2636,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093),
      (FROM employees | WHERE emp_no >= 10092 AND emp_no < 10094)
@@ -2648,6 +2656,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no <= 10005 | STATS c = COUNT(*)),
      (FROM (FROM employees | WHERE emp_no > 10095 | STATS c = COUNT(*)))
@@ -2669,6 +2678,7 @@ required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no <= 10003),
      (FROM employees | WHERE emp_no > 10097)
@@ -2689,6 +2699,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: inline_stats
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no <= 10003),
      (FROM (FROM employees | WHERE emp_no == 10001),
@@ -2714,6 +2725,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: inline_stats
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no <= 10003),
      (FROM employees | WHERE emp_no == 10001)
@@ -2806,6 +2818,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM
   (FROM
@@ -2835,6 +2848,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM
   (FROM
@@ -2863,6 +2877,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no == 10001 OR emp_no == 10003),
      (FROM employees | WHERE emp_no == 10002)
@@ -2887,6 +2902,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: inline_stats
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM
   (FROM
@@ -2917,6 +2933,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data | WHERE event_duration == 1232382),
      (FROM (FROM sample_data | WHERE event_duration == 1756467),
@@ -2943,6 +2960,7 @@ required_capability: nested_subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_conflict_resolution
 required_capability: fork_union_types
 required_capability: to_date_nanos
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data),
      (FROM sample_data_ts_nanos,
@@ -2967,6 +2985,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_conflict_resolution
 required_capability: fork_union_types
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data),
      (FROM sample_data_ts_nanos,
@@ -2990,6 +3009,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no <= 10003),
      (FROM employees | WHERE emp_no == 10001)
@@ -3015,6 +3035,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_fork_unmapped_nullify
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 SET unmapped_fields="nullify"\;
 FROM (FROM employees_all | WHERE emp_no <= 10003),
@@ -3040,6 +3061,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3065,6 +3087,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: inline_stats
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_with_fork),
      (FROM employees_all | WHERE emp_no == 10093)
@@ -3085,6 +3108,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: views_deduplication_bugfix
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM employees_all, view_with_subquery
 | WHERE emp_no <= 10003
@@ -3107,6 +3131,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: views_deduplication_bugfix
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_extra | WHERE emp_no == 10001),
      (FROM employees_all | WHERE emp_no == 10002)
@@ -3151,6 +3176,7 @@ required_capability: subquery_in_from_command_union_types_conflict_resolution
 required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 required_capability: fork_union_types
 required_capability: to_date_nanos
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data),
      (FROM sample_data_ts_nanos, (FROM sample_data))
@@ -3195,6 +3221,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: join_lookup_v12
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM employees_all | WHERE emp_no == 10001),
      (FROM employees | WHERE emp_no == 10003)
@@ -3244,6 +3271,7 @@ required_capability: subquery_in_from_command_union_types_implicit_casting_incon
 required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
 required_capability: fork_union_types
 required_capability: to_date_nanos
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data),
      (FROM sample_data_ts_nanos)
@@ -3311,6 +3339,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_fix_convert_group_key
 required_capability: views_deduplication_bugfix
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM employees_all, view_with_subquery
 | STATS max_salary = MAX(salary) BY gender
@@ -3333,6 +3362,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: subquery_in_from_command_repeated_conversions
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data), (FROM sample_data)
 | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
@@ -3357,6 +3387,7 @@ required_capability: subquery_in_from_command_union_types_conflict_resolution
 required_capability: subquery_in_from_command_fix_convert_group_key
 required_capability: fork_union_types
 required_capability: to_date_nanos
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
 FROM (FROM view_sample_data),
      (FROM sample_data_ts_nanos)

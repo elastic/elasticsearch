@@ -686,3 +686,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/160379
+- class: org.elasticsearch.columnar.substrate.ChunkedBytesTests
+  method: testWritesNothingButItsTwoFiles
+  issue: https://github.com/elastic/elasticsearch/issues/160409
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testErrorRecordingOnRollover
+  issue: https://github.com/elastic/elasticsearch/issues/160410

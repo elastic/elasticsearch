@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -59,6 +60,8 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     private final Grouping grouping;
     private final List<Attribute> groupings;
     private final Attribute timeseriesAttribute;
+    // Renamed labels have their own output identities; keep them stable across output-contract reads.
+    private List<Attribute> output;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -121,6 +124,13 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
      */
     @Override
     public List<Attribute> output() {
+        if (output == null) {
+            output = computeOutput();
+        }
+        return output;
+    }
+
+    private List<Attribute> computeOutput() {
         // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
             if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
@@ -138,6 +148,14 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return groupings.stream()
             .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
             .filter(a -> (a instanceof FieldAttribute fa && fa.isMetric()) == false)
+            .map(a -> {
+                String name = PromqlLabels.labelName(a);
+                // The grouping reads the backing field, but the result exposes the PromQL label name. In particular,
+                // labels.host must be returned as host even when a metric owns the bare passthrough alias.
+                return a.name().equals(name)
+                    ? a
+                    : new ReferenceAttribute(a.source(), a.qualifier(), name, a.dataType(), a.nullable(), null, a.synthetic());
+            })
             .toList();
     }
 

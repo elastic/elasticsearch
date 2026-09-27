@@ -83,6 +83,22 @@ public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
         assertThat(metric, not(hasKey("le")));
     }
 
+    /**
+     * A {@code without} under {@code histogram_quantile} needs the identity minus the excluded label while the quantile
+     * needs it minus {@code le} as well: two packings of one relation. Prometheus keeps {@code job}, drops {@code le} and
+     * the excluded {@code instance}.
+     */
+    public void testHistogramQuantileOverWithoutDropsLeAndTheExcludedLabel() throws Exception {
+        ingestClassicHistogram();
+        ObjectPath response = executeQueryRange("histogram_quantile(0.5, sum without (instance) (rate(" + METRIC + "[1m])))");
+        List<Map<String, Object>> results = response.evaluate("data.result");
+        assertThat("unexpected series: " + results, results, hasSize(1));
+        Map<String, Object> metric = response.evaluate("data.result.0.metric");
+        assertThat(metric, hasKey("job"));
+        assertThat(metric, not(hasKey("le")));
+        assertThat(metric, not(hasKey("instance")));
+    }
+
     public void testHistogramQuantileWithoutDataReturnsEmpty() throws Exception {
         ObjectPath response = executeQueryRangeOnDefaultIndex("histogram_quantile(0.5, rate(" + METRIC + "[1m]))");
         assertThat(response.evaluate("data.result"), empty());

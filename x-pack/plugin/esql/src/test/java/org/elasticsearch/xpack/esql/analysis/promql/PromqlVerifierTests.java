@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -20,10 +21,22 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -31,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.time.Instant;
@@ -38,6 +52,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -476,6 +491,106 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /** A selector's metric and its matchers occupy separate namespaces, even when their names are identical. */
+    public void testLabelMatcherSharingAMetricName() {
+        for (String expression : List.of("host{host=\"a\"}", "metrics.host{host=\"a\"}", "sum_over_time(host{host=\"a\"}[5m])")) {
+            PromqlCommand command = resolvePromqlWithoutTranslation(metricNamedHost(true), "PROMQL index=test step=5m " + expression)
+                .collect(PromqlCommand.class)
+                .getFirst();
+            Selector selector = command.promqlPlan().collect(Selector.class).getFirst();
+            assertTrue(((FieldAttribute) selector.series()).isMetric());
+            FieldAttribute label = (FieldAttribute) selector.labels().getFirst();
+            assertEquals("labels.host", label.fieldName().string());
+            assertFalse(label.isMetric());
+        }
+    }
+
+    /** Both grouping forms must bind to the label rather than the metric that owns its bare alias. */
+    public void testGroupingLabelSharingAMetricName() {
+        for (String grouping : List.of("by", "without")) {
+            PromqlCommand command = resolvePromqlWithoutTranslation(
+                metricNamedHost(true),
+                "PROMQL index=test step=5m sum " + grouping + " (host) (host)"
+            ).collect(PromqlCommand.class).getFirst();
+            AcrossSeriesAggregate aggregate = command.promqlPlan().collect(AcrossSeriesAggregate.class).getFirst();
+            FieldAttribute label = (FieldAttribute) aggregate.groupings().getFirst();
+            assertEquals("labels.host", label.fieldName().string());
+            assertFalse(label.isMetric());
+            assertTrue(((FieldAttribute) command.promqlPlan().collect(Selector.class).getFirst().series()).isMetric());
+        }
+    }
+
+    /** A backing field's namespace must not leak into output labels or prevent subsequent ES|QL references. */
+    public void testGroupedLabelNameDoesNotExposeStorageNamespace() {
+        TestAnalyzer analyzer = metricNamedHost(true);
+        String query = "PROMQL index=test step=5m sum by (host) (host)";
+        LogicalPlan plan = analyzer.query(query);
+        var optimizer = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())
+        );
+        List<String> expected = List.of("sum by (host) (host)", "step", "host");
+        assertEquals(expected, plan.output().stream().map(Attribute::name).toList());
+        assertEquals(expected, optimizer.optimize(plan).output().stream().map(Attribute::name).toList());
+        assertEquals(List.of("host"), analyzer.query(query + " | KEEP host").output().stream().map(Attribute::name).toList());
+    }
+
+    /** A missing label stays missing even when a metric supplies a field with that name. */
+    public void testMetricIsNotAnAbsentLabel() {
+        PromqlCommand command = resolvePromqlWithoutTranslation(metricNamedHost(false), "PROMQL index=test step=5m host{host=\"\"}")
+            .collect(PromqlCommand.class)
+            .getFirst();
+        Selector selector = command.promqlPlan().collect(Selector.class).getFirst();
+        assertTrue(((FieldAttribute) selector.series()).isMetric());
+        assertThat(selector.labels().getFirst(), instanceOf(UnresolvedAttribute.class));
+    }
+
+    /** Source projections must exclude the label, both directly and when carried through a ranking operation. */
+    public void testWithoutUsesTheLabelStoragePath() {
+        for (String vector : List.of("host", "topk(1, host)")) {
+            LogicalPlan plan = metricNamedHost(true).query("PROMQL index=test step=5m sum without (host) (" + vector + ")");
+            List<TimeSeriesMetadataAttribute> projections = plan.collect(EsRelation.class)
+                .stream()
+                .flatMap(relation -> relation.output().stream())
+                .filter(TimeSeriesMetadataAttribute.class::isInstance)
+                .map(TimeSeriesMetadataAttribute.class::cast)
+                .toList();
+            assertTrue(projections.toString(), projections.stream().anyMatch(a -> a.excludedFields().contains("labels.host")));
+        }
+    }
+
+    /** Relabeling shadows the result's label, not the selected metric or its stored label matchers. */
+    public void testRelabelDoesNotShadowMetricOrStoredMatcher() {
+        PromqlCommand command = resolvePromqlWithoutTranslation(
+            metricNamedHost(true),
+            "PROMQL index=test step=5m sum by (host) (label_replace(host{host=\"a\"}, \"host\", \"b\", \"host\", \".*\"))"
+        ).collect(PromqlCommand.class).getFirst();
+        MetadataManipulationFunction relabel = command.promqlPlan().collect(MetadataManipulationFunction.class).getFirst();
+        AcrossSeriesAggregate aggregate = command.promqlPlan().collect(AcrossSeriesAggregate.class).getFirst();
+        assertEquals(relabel.destination().id(), aggregate.groupings().getFirst().id());
+        Selector selector = command.promqlPlan().collect(Selector.class).getFirst();
+        assertTrue(((FieldAttribute) selector.series()).isMetric());
+        assertEquals("labels.host", ((FieldAttribute) selector.labels().getFirst()).fieldName().string());
+    }
+
+    /** Models remote write's field caps: the higher-priority metrics passthrough owns the bare {@code host} alias. */
+    private static TestAnalyzer metricNamedHost(boolean includeLabel) {
+        EsField metric = new EsField("host", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
+        EsField label = new KeywordEsField("host", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION);
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "host",
+            metric,
+            "metrics",
+            new EsField("metrics", DataType.OBJECT, Map.of("host", metric), false, EsField.TimeSeriesFieldType.NONE),
+            "labels",
+            new EsField("labels", DataType.OBJECT, includeLabel ? Map.of("host", label) : Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        return analyzer().addIndex(
+            new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)), Map.of(), Map.of())
+        ).unmappedResolution(UnmappedResolution.NULLIFY);
+    }
+
     public void testLabelJoinTooFewArguments() {
         tsdb.error(
             "PROMQL index=test step=5m sum by (dst) (label_join(network.bytes_in, \"dst\"))",
@@ -708,8 +823,12 @@ public class PromqlVerifierTests extends ESTestCase {
      * references bound - which translation would otherwise erase (it re-links columns by name, masking mis-bindings).
      */
     private LogicalPlan resolvePromqlWithoutTranslation(String query) {
+        return resolvePromqlWithoutTranslation(tsdb, query);
+    }
+
+    private static LogicalPlan resolvePromqlWithoutTranslation(TestAnalyzer analyzer, String query) {
         LogicalPlan parsed = InSubqueryResolver.resolve(EsqlTestUtils.TEST_PARSER.parseQuery(query));
-        return new ResolveOnlyAnalyzer(tsdb.buildContext()).resolve(parsed);
+        return new ResolveOnlyAnalyzer(analyzer.buildContext()).resolve(parsed);
     }
 
     /**

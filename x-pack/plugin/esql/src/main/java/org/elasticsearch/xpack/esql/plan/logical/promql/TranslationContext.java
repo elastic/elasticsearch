@@ -74,6 +74,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
@@ -243,17 +244,18 @@ public final class TranslationContext {
             input.labels().forEach((name, attribute) -> { if (removed.contains(name) == false) bound.put(name, attribute); });
             packed = input.packedLabels();
             if (packed != null && removed.isEmpty() == false) {
+                Set<String> sourceFields = sourceLabelFields(removed);
                 if (packed instanceof TimeSeriesMetadataAttribute stored) {
                     // Push a direct source projection into the existing loader, which also resolves mapping aliases
                     // on each shard. Replace this record instead of adding another exclusion variant. Computed
                     // records use the ordinary JSON expression below and never read the original source again.
                     var excluded = new LinkedHashSet<>(stored.excludedFields());
-                    excluded.addAll(removed);
+                    excluded.addAll(sourceFields);
                     Attribute projected = new TimeSeriesMetadataAttribute(source, excluded);
                     plan = plan.transformExpressionsUp(Attribute.class, a -> a.id().equals(stored.id()) ? projected : a);
                     packed = projected;
                 } else {
-                    var sourceProjection = SourceLabelProjection.excluding(plan, packed, removed);
+                    var sourceProjection = SourceLabelProjection.excluding(plan, packed, sourceFields);
                     if (sourceProjection != null) {
                         plan = sourceProjection.plan();
                         packed = sourceProjection.attribute();
@@ -287,6 +289,20 @@ public final class TranslationContext {
         }
         if (definitions.isEmpty() == false) plan = new Eval(source, plan, definitions);
         return input.with(plan, bound, packed, input.value());
+    }
+
+    /**
+     * Source projections exclude backing fields, not bare label names: a metric can shadow a label's passthrough alias.
+     * Mapping aliases that field caps cannot resolve to their backing path remain for the shard's loader to resolve.
+     * Computed records do not use these paths; their edits continue to address the current labels.
+     */
+    private Set<String> sourceLabelFields(Collection<String> names) {
+        var fields = new LinkedHashSet<String>();
+        for (String name : names) {
+            Attribute attribute = PromqlLabels.find(cmd.child().output(), name);
+            fields.add(attribute instanceof FieldAttribute field && field.isMetric() == false ? field.fieldName().string() : name);
+        }
+        return fields;
     }
 
     /** Projects a matching/grouping record without changing the input's current label bindings. */

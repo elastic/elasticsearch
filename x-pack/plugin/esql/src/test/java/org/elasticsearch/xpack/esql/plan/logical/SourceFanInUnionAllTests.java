@@ -21,9 +21,12 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
@@ -315,6 +318,43 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(disjoint.children(), hasSize(2));
     }
 
+    public void testCompatibleIndexReadsMergeAroundOverlappingRead() {
+        EsRelation first = indexOver("first", "a");
+        EsRelation overlapping = indexOver("overlapping", List.of("a", "b"), List.of(field("emp_no")));
+        EsRelation second = indexOver("second", "b");
+
+        SourceFanInUnionAll collapsed = fanIn(external("ds"), first, overlapping, second).withIndexReadsCollapsed();
+
+        assertThat(collapsed.children(), hasSize(3));
+        assertThat(((EsRelation) collapsed.children().get(1)).indexPattern(), equalTo("first,second"));
+        assertThat(collapsed.children().get(2), equalTo(overlapping));
+    }
+
+    public void testMergedIndexReadMarksFieldsMissingFromSiblingAsPotentiallyUnmapped() {
+        EsField raw = new KeywordEsField("raw", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute keyword = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new KeywordEsField("value", Map.of("raw", raw), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldAttribute number = field("number", DataType.LONG);
+        EsRelation mapped = indexOver("mapped", List.of("mapped"), List.of(keyword, number));
+        EsRelation unmapped = indexOver("unmapped", List.of("unmapped"), Analyzer.NO_FIELDS);
+
+        SourceFanInUnionAll collapsed = fanIn(external("ds"), mapped, unmapped).withIndexReadsCollapsed(true);
+        EsRelation merged = (EsRelation) collapsed.children().get(1);
+        Map<String, FieldAttribute> fields = new LinkedHashMap<>();
+        for (Attribute attribute : merged.output()) {
+            fields.put(attribute.name(), (FieldAttribute) attribute);
+        }
+
+        assertThat(fields.get("value").field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(fields.get("value").field().getProperties().keySet(), equalTo(Set.of("raw")));
+        assertThat(fields.get("value").field().getProperties().get("raw"), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(fields.get("number").field(), instanceOf(PotentiallyUnmappedSingleTypeEsField.class));
+        assertThat(((PotentiallyUnmappedSingleTypeEsField) fields.get("number").field()).mappedIndices(), equalTo(Set.of("mapped")));
+    }
+
     public void testIndexReadsWithDifferentMetadataStaySeparate() {
         FieldAttribute empNo = field("emp_no");
         MetadataAttribute id = new MetadataAttribute(Source.EMPTY, "_id", DataType.KEYWORD, false);
@@ -421,14 +461,22 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     private static EsRelation indexOver(String pattern, String concreteIndex) {
+        return indexOver(pattern, List.of(concreteIndex), List.of(field("emp_no")));
+    }
+
+    private static EsRelation indexOver(String pattern, List<String> concreteIndices, List<Attribute> attributes) {
+        Map<String, IndexProperties> properties = new LinkedHashMap<>();
+        for (String concreteIndex : concreteIndices) {
+            properties.put(concreteIndex, new IndexProperties(IndexMode.STANDARD, 1));
+        }
         return new EsRelation(
             Source.EMPTY,
             pattern,
             IndexMode.STANDARD,
             Map.of("", List.of(pattern)),
-            Map.of("", List.of(concreteIndex)),
-            Map.of(),
-            List.of(field("emp_no"))
+            Map.of("", concreteIndices),
+            properties,
+            attributes
         );
     }
 

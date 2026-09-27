@@ -149,7 +149,7 @@ stack: experimental 9.6+
 
 `FORK` can branch a query whose `FROM` reads datasets, a mix of indices and datasets, or a view whose body is that same source list. Each branch runs against every resolved producer, and the coordinator merges the branch results.
 
-One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. A `FORK` over such a `FROM` also allows at most 20 producers in total, counted as branches times sources, so a query can be rejected before either per-command cap is reached. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds that limit.
+One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. A `FORK` over such a `FROM` allows 20 producers in total by default, counted as branches times sources, so a query can be rejected before either per-command cap is reached. Configure this query-wide limit with the `esql.query.max_branch_count` cluster setting, or override it for one query with `SET max_branch_count=<limit>;`. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds the default limit.
 
 ## Limitations
 

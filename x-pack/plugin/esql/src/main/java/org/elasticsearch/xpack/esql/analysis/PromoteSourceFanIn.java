@@ -41,7 +41,7 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return promote(plan, context.preserveViewBoundaries());
+        return promote(plan, context.preserveViewBoundaries(), context.unmappedResolution().loadsUnmappedFields());
     }
 
     /** {@link #promote(LogicalPlan, boolean)} for a request without a DSL filter. */
@@ -58,8 +58,14 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
      *                               its {@link ViewUnionAll}, because promotion would drop that boundary.
      */
     public static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries) {
+        return promote(plan, preserveViewBoundaries, false);
+    }
+
+    private static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries, boolean loadUnmappedFields) {
         LogicalPlan promoted = plan.transformUp(ViewUnionAll.class, view -> promoteOne(view, preserveViewBoundaries));
-        return collapseSingleChildFanIns(promoted.transformUp(SourceFanInUnionAll.class, SourceFanInUnionAll::withIndexReadsCollapsed));
+        return collapseSingleChildFanIns(
+            promoted.transformUp(SourceFanInUnionAll.class, fanIn -> fanIn.withIndexReadsCollapsed(loadUnmappedFields))
+        );
     }
 
     private static LogicalPlan collapseSingleChildFanIns(LogicalPlan plan) {

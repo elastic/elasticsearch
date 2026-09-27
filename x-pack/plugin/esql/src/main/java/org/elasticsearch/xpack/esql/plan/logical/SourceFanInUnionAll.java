@@ -13,11 +13,17 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -214,46 +220,79 @@ public final class SourceFanInUnionAll extends UnionAll {
      * Sibling index scans of the same {@link IndexMode} become one {@link EsRelation}. A {@code FROM} already
      * joins local index names into one relation; a matched namesake is the same kind of read and joins that
      * relation instead of running as its own branch. Datasets stay separate. Differing index modes stay
-     * separate, because one scan cannot mix them. Scans with different field metadata stay separate, so
-     * field resolution retains each read's mapping and unmapped-field behavior. Scans with exclusions,
-     * overlapping concrete indices, or different metadata fields also stay separate, preserving their
-     * index-selection scope and copies of rows.
+     * separate, because one scan cannot mix them. Compatible subsets are merged independently, so one
+     * overlapping or incompatible read does not prevent other reads from merging. Scans with conflicting
+     * metadata for the same field stay separate, so field resolution retains each read's mapping and
+     * unmapped-field behavior. Scans with exclusions, overlapping concrete indices, or different metadata
+     * fields also stay separate, preserving their index-selection scope and copies of rows.
      * <p>
      * Must run after index resolution and before branch alignment wraps each child in a projection. It is an
      * explicit step rather than part of the constructor, because a node must keep the children it is built with.
      */
     public SourceFanInUnionAll withIndexReadsCollapsed() {
+        return withIndexReadsCollapsed(false);
+    }
+
+    /**
+     * Collapses compatible sibling index scans and preserves fields that are unmapped in part of the
+     * resulting scan when {@code loadUnmappedFields} is enabled.
+     */
+    public SourceFanInUnionAll withIndexReadsCollapsed(boolean loadUnmappedFields) {
         List<LogicalPlan> children = children();
-        Map<IndexMode, List<EsRelation>> byMode = new LinkedHashMap<>();
-        for (LogicalPlan child : children) {
+        Map<IndexMode, List<List<Integer>>> groupsByMode = new LinkedHashMap<>();
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
             if (child instanceof EsRelation es) {
-                byMode.computeIfAbsent(es.indexMode(), mode -> new ArrayList<>()).add(es);
-            }
-        }
-        Map<IndexMode, EsRelation> merged = new LinkedHashMap<>();
-        for (var entry : byMode.entrySet()) {
-            if (entry.getValue().size() >= 2 && canMergeReads(entry.getValue())) {
-                List<Attribute> attributes = mergeAttributes(entry.getValue());
-                if (attributes != null) {
-                    merged.put(entry.getKey(), mergeEsRelations(entry.getValue(), attributes));
+                List<List<Integer>> groups = groupsByMode.computeIfAbsent(es.indexMode(), mode -> new ArrayList<>());
+                boolean added = false;
+                for (List<Integer> group : groups) {
+                    List<EsRelation> candidate = relations(children, group);
+                    candidate.add(es);
+                    if (canMergeReads(candidate) && mergeAttributes(candidate, false) != null) {
+                        group.add(i);
+                        added = true;
+                        break;
+                    }
+                }
+                if (added == false) {
+                    groups.add(new ArrayList<>(List.of(i)));
                 }
             }
         }
-        if (merged.isEmpty()) {
+        Map<Integer, EsRelation> replacements = new HashMap<>();
+        Set<Integer> omitted = new HashSet<>();
+        for (List<List<Integer>> groups : groupsByMode.values()) {
+            for (List<Integer> group : groups) {
+                if (group.size() >= 2) {
+                    List<EsRelation> relations = relations(children, group);
+                    List<Attribute> attributes = mergeAttributes(relations, loadUnmappedFields);
+                    assert attributes != null;
+                    replacements.put(group.getFirst(), mergeEsRelations(relations, attributes));
+                    omitted.addAll(group.subList(1, group.size()));
+                }
+            }
+        }
+        if (replacements.isEmpty()) {
             return this;
         }
         List<LogicalPlan> out = new ArrayList<>(children.size());
-        LinkedHashSet<IndexMode> placed = new LinkedHashSet<>();
-        for (LogicalPlan child : children) {
-            if (child instanceof EsRelation es && merged.containsKey(es.indexMode())) {
-                if (placed.add(es.indexMode())) {
-                    out.add(merged.get(es.indexMode()));
-                }
-            } else {
-                out.add(child);
+        for (int i = 0; i < children.size(); i++) {
+            EsRelation replacement = replacements.get(i);
+            if (replacement != null) {
+                out.add(replacement);
+            } else if (omitted.contains(i) == false) {
+                out.add(children.get(i));
             }
         }
         return new SourceFanInUnionAll(source(), out, output());
+    }
+
+    private static List<EsRelation> relations(List<LogicalPlan> children, List<Integer> positions) {
+        List<EsRelation> relations = new ArrayList<>(positions.size());
+        for (int position : positions) {
+            relations.add((EsRelation) children.get(position));
+        }
+        return relations;
     }
 
     /**
@@ -349,9 +388,15 @@ public final class SourceFanInUnionAll extends UnionAll {
      * marker of an empty mapping is dropped once another scan contributes real fields.
      */
     @Nullable
-    private static List<Attribute> mergeAttributes(List<EsRelation> relations) {
+    private static List<Attribute> mergeAttributes(List<EsRelation> relations, boolean loadUnmappedFields) {
         LinkedHashMap<String, Attribute> byName = new LinkedHashMap<>();
+        Map<String, Integer> relationCounts = loadUnmappedFields ? new HashMap<>() : Map.of();
+        Map<String, Set<String>> mappedIndices = loadUnmappedFields ? new HashMap<>() : Map.of();
+        Set<String> allIndices = loadUnmappedFields ? new HashSet<>() : Set.of();
         for (EsRelation es : relations) {
+            if (loadUnmappedFields) {
+                allIndices.addAll(es.concreteQualifiedIndices());
+            }
             for (Attribute attr : es.output()) {
                 if (Analyzer.NO_FIELDS_NAME.equals(attr.name())) {
                     continue;
@@ -360,9 +405,65 @@ public final class SourceFanInUnionAll extends UnionAll {
                 if (existing != null && existing.ignoreId().equals(attr.ignoreId()) == false) {
                     return null;
                 }
+                if (loadUnmappedFields) {
+                    relationCounts.merge(attr.name(), 1, Integer::sum);
+                    if (attr instanceof FieldAttribute fieldAttribute) {
+                        mappedIndices.computeIfAbsent(attr.name(), key -> new HashSet<>())
+                            .addAll(mappedIndices(fieldAttribute.field(), es));
+                    }
+                }
+            }
+        }
+        if (loadUnmappedFields && allIndices.isEmpty() == false) {
+            for (var entry : byName.entrySet()) {
+                if (relationCounts.get(entry.getKey()) < relations.size() && entry.getValue() instanceof FieldAttribute fieldAttribute) {
+                    EsField field = markPotentiallyUnmapped(
+                        fieldAttribute.field(),
+                        fieldAttribute.fieldName().string(),
+                        mappedIndices.getOrDefault(entry.getKey(), Set.of()),
+                        allIndices.size()
+                    );
+                    entry.setValue(fieldAttribute.withField(field));
+                }
             }
         }
         return byName.isEmpty() ? Analyzer.NO_FIELDS : List.copyOf(byName.values());
+    }
+
+    private static Set<String> mappedIndices(EsField field, EsRelation relation) {
+        if (field instanceof PotentiallyUnmappedSingleTypeEsField potentiallyUnmapped) {
+            return potentiallyUnmapped.mappedIndices();
+        }
+        if (field instanceof TypeConflictedField conflicted) {
+            Set<String> indices = new HashSet<>();
+            conflicted.getTypesToIndices().values().forEach(indices::addAll);
+            return indices;
+        }
+        return relation.concreteQualifiedIndices();
+    }
+
+    private static EsField markPotentiallyUnmapped(EsField field, String fullName, Set<String> mappedIndices, int numberOfIndices) {
+        if (field instanceof PotentiallyUnmappedKeywordEsField
+            || field instanceof TypeConflictedField conflicted && conflicted.isPotentiallyUnmapped()
+            || mappedIndices.isEmpty()) {
+            return field;
+        }
+        Map<String, EsField> properties = field.getProperties();
+        if (properties.isEmpty() == false) {
+            Map<String, EsField> partiallyUnmappedProperties = new LinkedHashMap<>();
+            for (var entry : properties.entrySet()) {
+                partiallyUnmappedProperties.put(
+                    entry.getKey(),
+                    markPotentiallyUnmapped(entry.getValue(), fullName + "." + entry.getKey(), mappedIndices, numberOfIndices)
+                );
+            }
+            field = field.withProperties(partiallyUnmappedProperties);
+        }
+        EsField wrapped = IndexResolver.wrapIfPartiallyUnmapped(field, field.getName(), fullName, mappedIndices, numberOfIndices);
+        if (wrapped instanceof PotentiallyUnmappedKeywordEsField && properties.isEmpty() == false) {
+            return wrapped.withProperties(field.getProperties());
+        }
+        return wrapped;
     }
 
     /** Flattens a fan-in that is itself a direct child. A pipeline wrapped around an inner fan-in stays put. */

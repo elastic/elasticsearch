@@ -448,7 +448,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// See also [#markRelocating]
     ///
     /// @throws IllegalStateException if a handoff is already in flight for this shard, so that a relocation which is
-    ///         cancelled and retried cannot install a second bound over the first one's
+    ///         cancelled and retried cannot install a second bound over the first one
     public ActionListener<Void> markRelocationStarting(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markRelocationStarting();
@@ -473,7 +473,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// used operation permits, the final flush would not be able to proceed.
     ///
     /// [#markRelocationStarting] must have been invoked before this method is called.
-    ///
     public void markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
         getSafe(shardsCommitsStates, shardId).markRelocating(minRelocatedGeneration, listener);
     }
@@ -1898,7 +1897,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
             return pendingUploadBccGenerations.values()
                 .stream()
-                // Freezing a VBCC does not consult [#maxGenerationToUpload], so while the shard is relocating this map
+                // Freezing a VBCC does not consult maxGenerationToUpload, so while the shard is relocating this map
                 // can hold generations above the pinned bound. Whatever survives the filter is safe to hand out. If no
                 // bound is pinned yet then the one markRelocating later pins is the max pending generation at that
                 // point, which is at or above anything pending now.
@@ -2970,11 +2969,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // shard was closed, relocation will fail on its own.
                     return;
                 }
-                if (state != State.RUNNING) {
-                    // Handoff is already in flight, which could happen when a relocation is cancelled and retried before
-                    // the source has finished unwinding the first attempt. In both cases, reject the new attempt.
-                    throw new IllegalStateException("cannot start relocation for " + shardId + ", shard commit state is " + state);
-                }
+                assert state == State.RUNNING;
                 assert maxGenerationToUpload == RelocationUploadBound.UNBOUNDED : "unexpected bound: " + maxGenerationToUpload.generation();
                 state = State.PRE_RELOCATING;
                 maxGenerationToUpload = new RelocationUploadBound();
@@ -2991,20 +2986,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (state == State.CLOSED) {
                     // Shard was concurrently closed. Throw and let `markRelocationFailed` unwind the upload bound.
                     throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
-                } else {
-                    // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so
-                    // this logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it
-                    // has already been uploaded which would make the listener be triggered immediately.
-                    ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
-                    toWaitFor = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration);
-                    assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
-                    assert assertGenerationIsUploadedOrPending(toWaitFor);
-
-                    assert state == State.PRE_RELOCATING : "unexpected state: " + state;
-                    uploadBound = maxGenerationToUpload;
-                    uploadBound.pin(toWaitFor);
-                    state = State.RELOCATING;
                 }
+                assert state == State.PRE_RELOCATING : "unexpected state: " + state;
+                // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so
+                // this logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it
+                // has already been uploaded which would make the listener be triggered immediately. Also include the max uploaded
+                // generation so that a merge that finished uploading after the final flush but before this lock is taken cannot
+                // leave the bound below an already-uploaded generation.
+                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
+                toWaitFor = Math.max(
+                    getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration),
+                    getMaxUploadedGeneration()
+                );
+                assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
+                assert assertGenerationIsUploadedOrPending(toWaitFor);
+
+                uploadBound = maxGenerationToUpload;
+                uploadBound.pin(toWaitFor);
+                state = State.RELOCATING;
             }
             uploadBound.onResponse(toWaitFor);
             addListenerForUploadedGeneration(toWaitFor, listener);

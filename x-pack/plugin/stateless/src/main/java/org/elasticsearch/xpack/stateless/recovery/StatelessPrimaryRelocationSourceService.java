@@ -333,13 +333,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 responseListener.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            final ShardId shardId = indexShard.shardId();
-            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
-
-            final ActionListener<Void> relocationOutcomeListener = statelessCommitService.markRelocationStarting(shardId);
+            // Resolved with the outcome of the relocation, see StatelessCommitService#markRelocationStarting
+            final var relocationOutcomeListener = new SubscribableListener<Void>();
             final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
                 primaryContext,
                 handoffResultListener) -> {
+                final ShardId shardId = indexShard.shardId();
+                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
+
+                // markRelocationStarting before the final flush, so that a registering search shard cannot pick up a
+                // commit above the upload bound that markRelocating pins after it.
+                relocationOutcomeListener.addListener(statelessCommitService.markRelocationStarting(shardId));
                 threadDumpListener.onResponse(null);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
@@ -553,20 +557,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 }), recoveryExecutor, threadContext);
             };
 
-            final ActionListener<Void> wrappedListener = responseListener.<Void>map(
-                unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())
-            ).delegateResponse((l, e) -> {
+            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 try {
+                    handoffConsumer.accept(primaryContext, handoffResultListener);
+                } catch (Exception e) {
+                    // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
+                    // until state is clean.
                     relocationOutcomeListener.onFailure(e);
-                } finally {
-                    l.onFailure(e);
+                    throw e;
                 }
-            });
-
-            ActionListener.run(
-                wrappedListener,
-                l -> indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, l)
-            );
+            }, responseListener.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
         }), recoveryExecutor, threadContext);
     }
 

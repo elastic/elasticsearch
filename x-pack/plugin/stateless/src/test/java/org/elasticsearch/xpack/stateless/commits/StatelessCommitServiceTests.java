@@ -2810,40 +2810,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         return future.actionGet();
     }
 
-    /// A relocation that is cancelled and retried can send a second handoff to a source that has not finished unwinding the
-    /// first one. The second must be rejected, installing a fresh bound over the in-flight one would orphan it and drop the
-    /// deferred stale blob deletions the first attempt accumulated, leaking those blob references.
-    public void testConcurrentRelocationHandoffIsRejected() throws Exception {
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
-            final var shardId = testHarness.shardId;
-            final var commitService = testHarness.commitService;
-            final var commit = testHarness.generateIndexCommits(1).getFirst();
-            commitService.onCommitCreation(commit);
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
-
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            final var boundFuture = new PlainActionFuture<Long>();
-            commitService.addRelocationUploadBoundListener(shardId, boundFuture);
-
-            // A retry arriving while the first attempt is still in PRE_RELOCATING.
-            expectThrows(IllegalStateException.class, () -> commitService.markRelocationStarting(shardId));
-            assertFalse("the in-flight bound was not orphaned", boundFuture.isDone());
-
-            // And one arriving once the first attempt has pinned its bound.
-            final var markedRelocating = new PlainActionFuture<Void>();
-            commitService.markRelocating(shardId, commit.getGeneration(), markedRelocating);
-            markedRelocating.actionGet();
-            expectThrows(IllegalStateException.class, () -> commitService.markRelocationStarting(shardId));
-            assertThat(boundFuture.actionGet(), equalTo(commitService.getMaxGenerationToUpload(shardId)));
-
-            // Once the first attempt has unwound, a retry is accepted again.
-            handoffListener.onFailure(new RuntimeException("relocation aborted"));
-            commitService.markRelocationStarting(shardId).onFailure(new RuntimeException("and the retry is aborted too"));
-            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
-        }
-    }
-
     public void testRelocationUploadBoundIsAlwaysResolved() throws Exception {
         // Pinned by markRelocating.
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {

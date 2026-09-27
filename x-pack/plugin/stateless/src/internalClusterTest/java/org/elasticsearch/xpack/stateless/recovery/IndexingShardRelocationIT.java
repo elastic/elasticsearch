@@ -481,9 +481,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
     }
 
     /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has moved the shard into
-    /// `PRE_RELOCATING` but before the handoff consumer runs, so before `markRelocating` ever pins an upload bound. The
-    /// listener returned by `markRelocationStarting` must unwind the shard state in that case, otherwise the next
-    /// relocation attempt trips over a state that is no longer `RUNNING`.
+    /// `PRE_RELOCATING` but before `markRelocating` pins an upload bound. The listener returned by `markRelocationStarting`
+    /// must unwind the shard state in that case, otherwise the next relocation attempt trips over a state that is no longer
+    /// `RUNNING`.
     public void testRelocationFailureWhilePreRelocating() {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
@@ -504,9 +504,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final String indexNodeId = getNodeId(indexNode);
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
-        // Park the handoff between markRelocationStarting and indexShard.relocated(), so the shard sits in PRE_RELOCATING.
-        // Only the first attempt is parked, cancelling the relocation below makes the master retry, and a retry that arrives
-        // while the first attempt still holds PRE_RELOCATING is rejected by markRelocationStarting.
+        // Park inside the handoff consumer at markRelocationStarting so the shard sits in PRE_RELOCATING. Cancelling the
+        // target makes the consumer fail and the outcome listener unwind.
         final var enteredPreRelocating = new CountDownLatch(1);
         final var resumeRelocation = new CountDownLatch(1);
         final var relocationDone = new CountDownLatch(1);
@@ -537,11 +536,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 equalTo(Long.MAX_VALUE)
             );
 
-            int preRelocatingDocs = randomIntBetween(1, 100);
-            indexDocs(indexName, preRelocatingDocs);
-            docCount += preRelocatingDocs;
-
-            logger.info("--> cancelling the relocation target so that indexShard.relocated() fails before the handoff");
+            logger.info("--> cancelling the relocation target so that the handoff consumer fails while PRE_RELOCATING");
 
             // Keep the master from retrying the cancelled relocation, so the shard stays on the source node.
             updateIndexSettings(
@@ -561,7 +556,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureGreen(indexName);
         assertThat("the shard stayed on the source node", findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(indexNodeId));
 
-        int afterRelocationFailedDocs = randomIntBetween(1, 100);
+        final int afterRelocationFailedDocs = randomIntBetween(1, 100);
         indexDocs(indexName, afterRelocationFailedDocs);
         docCount += afterRelocationFailedDocs;
 

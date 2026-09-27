@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -279,6 +280,65 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
                     BytesRef groundTruth = Replace.safeReplace(inputRef, pattern, newStrRef);
                     assertThat(regex + " / " + input, ReplaceCaptureUntilDelimiter.process(inputRef, idiom), equalTo(groundTruth));
                 }
+            }
+        }
+    }
+
+    /**
+     * Grammar-based differential fuzzer: builds random sequences of required/optional literal prefix
+     * segments (not just the one overlap shape in {@link #testRequiredLiteralAfterOverlappingOptionalPrefix}),
+     * so any part can be required or optional in any position, and their literal content can overlap in
+     * either direction. Cross-checks against the real regex engine on inputs built by independently
+     * including or excluding each segment's literal (even a "required" one -- to also exercise genuine
+     * no-match cases), so a required segment can legitimately be absent from the input.
+     */
+    public void testFastPathAgreesWithRealRegexEngineOnRandomPrefixStructures() {
+        String[] alphabet = { "a", "b", "ab", "ba", "aa" };
+        int iterations = atLeast(100);
+        for (int iter = 0; iter < iterations; iter++) {
+            int numParts = randomIntBetween(1, 4);
+            record Part(String literal, boolean optional) {}
+            List<Part> partsSpec = new ArrayList<>();
+            int numOptional = 0;
+            for (int p = 0; p < numParts; p++) {
+                boolean optional = numOptional < 4 && randomBoolean();
+                if (optional) {
+                    numOptional++;
+                }
+                partsSpec.add(new Part(randomFrom(alphabet), optional));
+            }
+            StringBuilder regexBuilder = new StringBuilder("^");
+            for (Part part : partsSpec) {
+                if (part.optional()) {
+                    regexBuilder.append("(?:").append(part.literal()).append(")?");
+                } else {
+                    regexBuilder.append(part.literal());
+                }
+            }
+            regexBuilder.append("([^/]+)/.*$");
+            String regex = regexBuilder.toString();
+            Pattern pattern = Pattern.compile(regex);
+            BytesRef newStrRef = new BytesRef("$1");
+            ReplaceCaptureUntilDelimiter.Idiom idiom = ReplaceCaptureUntilDelimiter.extract(pattern, newStrRef);
+            assertNotNull(regex, idiom);
+
+            for (int i = 0; i < 30; i++) {
+                StringBuilder inputBuilder = new StringBuilder();
+                for (Part part : partsSpec) {
+                    // Independently include/exclude every segment's literal, required or not, so some
+                    // inputs are genuine no-match cases and others test backtracking across combinations.
+                    if (randomBoolean()) {
+                        inputBuilder.append(part.literal());
+                    }
+                }
+                String host = randomBoolean() ? "" : randomAlphaOfLengthBetween(0, 6);
+                inputBuilder.append(host);
+                if (randomBoolean()) {
+                    inputBuilder.append('/').append(randomTailContent());
+                }
+                BytesRef inputRef = new BytesRef(inputBuilder.toString());
+                BytesRef groundTruth = Replace.safeReplace(inputRef, pattern, newStrRef);
+                assertThat(regex + " / " + inputBuilder, ReplaceCaptureUntilDelimiter.process(inputRef, idiom), equalTo(groundTruth));
             }
         }
     }

@@ -1650,15 +1650,34 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void encodeDocValuesUpdate(Object value, DocValuesUpdateSink sink) {
-        // Mirrors the binary doc-values value written by indexValue for a high-cardinality (binary) keyword: the normalized UTF-8 bytes.
+        // Mirror the binary doc-values value indexing writes for this field so the in-place update is byte-identical and the codec reads it
+        // the same way. A columnar-payload keyword frames its (single) value with StringBinaryPayload; other formats store the raw bytes.
         String normalized = normalizeValue(fieldType().normalizer(), fullPath(), value.toString());
-        sink.binary(fullPath(), new BytesRef(normalized));
+        BytesRef bytes = new BytesRef(normalized);
+        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
+            bytes = BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(bytes)));
+        }
+        sink.binary(fullPath(), bytes);
     }
 
     @Override
     public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
-        // An updatable keyword is single-valued binary doc values (see DocValuesFieldFactory); the stored bytes are the normalized value.
+        // An updatable keyword is single-valued binary doc values (see DocValuesFieldFactory). A columnar-payload keyword frames its value
+        // with StringBinaryPayload, so decode the single slot; other formats store the normalized bytes directly.
         BinaryDocValues docValues = DocValues.getBinary(reader, fullPath());
+        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
+            StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+            return doc -> {
+                if (docValues.advanceExact(doc) == false) {
+                    return null;
+                }
+                if (decoder.reset(docValues.binaryValue()) == 0) {
+                    return null;
+                }
+                BytesRef slot = decoder.next();
+                return slot == null ? null : slot.utf8ToString();
+            };
+        }
         return doc -> docValues.advanceExact(doc) ? docValues.binaryValue().utf8ToString() : null;
     }
 

@@ -381,9 +381,12 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
                     logger.info("PKI realm [{}] reloaded truststore after change to [{}]", config.name(), file);
                 } catch (Exception e) {
                     logger.warn(
-                        "PKI realm [{}] failed to reload truststore after change to [{}]; continuing with the previous trust configuration",
-                        config.name(),
-                        file,
+                        () -> format(
+                            "PKI realm [%s] failed to reload truststore after change to [%s];"
+                                + " continuing with the previous trust configuration",
+                            config.name(),
+                            file
+                        ),
                         e
                     );
                 }
@@ -395,7 +398,7 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
                 fileWatcher.addListener(reloadListener);
                 truststoreWatchers.add(watcherService.add(fileWatcher, ResourceWatcherService.Frequency.HIGH));
             } catch (IOException e) {
-                logger.error("PKI realm [{}] failed to watch truststore file [{}]", config.name(), dependentFile, e);
+                logger.error(() -> format("PKI realm [%s] failed to watch truststore file [%s]", config.name(), dependentFile), e);
             }
         }
     }

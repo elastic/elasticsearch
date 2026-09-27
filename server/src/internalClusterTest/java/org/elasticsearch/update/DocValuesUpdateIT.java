@@ -700,4 +700,33 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(42L));
         assertResponse(prepareSearch("idx").setSize(0).setQuery(QueryBuilders.matchAllQuery()), response -> assertHitCount(response, 1));
     }
+
+    /**
+     * A reindex soft-deletes the prior document generation; an in-place update on the reindexed document then reconstructs the expected
+     * source. The update touches only its fields, and a field written by the reindex but not by the update is preserved.
+     */
+    public void testInPlaceUpdateAfterReindexReconstructsSource() throws Exception {
+        createColumnarIndex(0);
+        prepareIndex("idx").setId("1")
+            .setSource("status", "new", "count", 1, "name", "widget")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Reindex the whole document, soft-deleting the first generation.
+        prepareIndex("idx").setId("1")
+            .setSource("status", "stale", "count", 2, "name", "gizmo")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // In-place update on the reindexed generation.
+        client().update(
+            new UpdateRequest("idx", "1").doc(Map.of("status", "active", "count", 99))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+
+        GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
+        assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
+        assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(99L));
+        // name was set by the reindex and not touched by the in-place update.
+        assertThat(get.getSourceAsMap().get("name"), equalTo("gizmo"));
+        assertResponse(prepareSearch("idx").setSize(0).setQuery(QueryBuilders.termQuery("status", "active")), r -> assertHitCount(r, 1));
+    }
 }

@@ -213,6 +213,38 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
+    /**
+     * The factory that serves reads applies the same endpoint rule as registration, against the node's current
+     * allowlist: a stored endpoint the list no longer admits is refused before any client is built.
+     */
+    public void testReadFactoryRefusesAnEndpointTheAllowlistNoLongerAdmits() throws IOException {
+        Map<String, Object> stored = Map.of("auth", "anonymous", "endpoint", "http://127.0.0.1:9000");
+        Settings admitted = Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000").build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            // Registration admits it while the list names the host.
+            plugin.datasourceValidators(admitted).get("s3").validateDatasource(stored);
+            StorageProviderFactory factory = plugin.storageProviders(
+                new StorageProviderServices(
+                    Settings.EMPTY,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    environment,
+                    mock(ResourceWatcherService.class)
+                )
+            ).get("s3");
+            // Read factory refuses the stored endpoint once the list no longer names the host.
+            var readException = expectThrows(
+                org.elasticsearch.common.ValidationException.class,
+                () -> factory.create(Settings.EMPTY, stored)
+            );
+            assertThat(readException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(readException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
+            // Connection-test probe refuses the stored endpoint for the same reason.
+            var testException = expectThrows(org.elasticsearch.common.ValidationException.class, () -> factory.testConnection(stored));
+            assertThat(testException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(testException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
+        }
+    }
+
     public void testBuildingStorageProvidersDoesNotTouchTheJvmWideTokenProperty() throws IOException {
         // Pod Identity env is set (via the test seam) and the entitled symlink exists. Building the
         // sources must leave the JVM-wide property alone.

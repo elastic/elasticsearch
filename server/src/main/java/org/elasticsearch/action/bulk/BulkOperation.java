@@ -503,7 +503,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             int slot = cancelledRedirectBulkItem.id();
             BulkItemResponse originalFailure = responses.get(slot);
             if (originalFailure.isFailed()) {
-                originalFailure.getFailure().getCause().addSuppressed(exception);
+                addSuppressedIfAbsent(originalFailure.getFailure().getCause(), exception);
                 originalFailure.getFailure().setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
             }
             // Always replace the item in the responses for thread visibility of any mutations
@@ -740,7 +740,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 exception
             );
             // Suppress and do not redirect
-            cause.addSuppressed(exception);
+            addSuppressedIfAbsent(cause, exception);
             return false;
         }
 
@@ -929,7 +929,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Response already recorded. We should only be here if the existing response is a failure and
             // we are encountering a new failure while redirecting.
             assert bulkItemResponse.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
-            bulkItemResponse.getFailure().getCause().addSuppressed(exception);
+            addSuppressedIfAbsent(bulkItemResponse.getFailure().getCause(), exception);
             bulkItemResponse.getFailure().setFailureStoreStatus(failureStoreStatus);
         }
         // Always replace the item in the responses for thread visibility of any mutations
@@ -951,12 +951,25 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Response already recorded. We should only be here if the existing response is a failure and
             // we are encountering a new failure while redirecting.
             assert existingBulkItemResponse.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
-            existingBulkItemResponse.getFailure().getCause().addSuppressed(bulkItemResponse.getFailure().getCause());
+            addSuppressedIfAbsent(existingBulkItemResponse.getFailure().getCause(), bulkItemResponse.getFailure().getCause());
             existingBulkItemResponse.getFailure().setFailureStoreStatus(bulkItemResponse.getFailure().getFailureStoreStatus());
             bulkItemResponse = existingBulkItemResponse;
         }
         // Always replace the item in the responses for thread visibility of any mutations
         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+    }
+
+    /**
+     * Shard-level failures can be shared by every item in a bulk request. Avoid adding the same redirect failure repeatedly to such a
+     * shared cause, since it is serialized once for each item in the bulk response.
+     */
+    private static void addSuppressedIfAbsent(Throwable cause, Throwable exception) {
+        for (Throwable suppressed : cause.getSuppressed()) {
+            if (suppressed == exception) {
+                return;
+            }
+        }
+        cause.addSuppressed(exception);
     }
 
     /**

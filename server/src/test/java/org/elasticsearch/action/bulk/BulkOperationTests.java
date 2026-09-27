@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -772,6 +773,42 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    public void testFailureStoreShardFailureDoesNotDuplicateSuppressedExceptionForSharedCause() throws Exception {
+        int itemCount = randomIntBetween(5, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        int targetShard = Math.floorMod(Murmur3HashFunction.hash("0"), 2);
+        for (int id = 0; bulkRequest.numberOfActions() < itemCount; id++) {
+            String documentId = Integer.toString(id);
+            if (Math.floorMod(Murmur3HashFunction.hash(documentId), 2) == targetShard) {
+                bulkRequest.add(
+                    new IndexRequest(fsDataStreamName).id(documentId).opType(DocWriteRequest.OpType.CREATE).source(Map.of("key", "val"))
+                );
+            }
+        }
+
+        MapperException rootCause = new MapperException("root cause");
+        MapperException failureStoreCause = new MapperException("failure store failure");
+        NodeClient client = getNodeClient((request, listener) -> {
+            if (request.index().equals(ds2BackingIndex1.getIndex().getName())) {
+                listener.onFailure(rootCause);
+            } else if (request.index().equals(ds2FailureStore1.getIndex().getName())) {
+                listener.onFailure(failureStoreCause);
+            } else {
+                fail("Unexpected shard request for index [" + request.index() + "]");
+            }
+        });
+
+        BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+
+        assertThat(response.getItems().length, equalTo(itemCount));
+        for (BulkItemResponse item : response.getItems()) {
+            assertThat(item.isFailed(), is(true));
+            assertThat(item.getFailure().getCause(), is(sameInstance(rootCause)));
+            assertThat(item.getFailure().getCause().getSuppressed().length, equalTo(1));
+            assertThat(item.getFailure().getCause().getSuppressed()[0], is(sameInstance(failureStoreCause)));
+        }
     }
 
     /**

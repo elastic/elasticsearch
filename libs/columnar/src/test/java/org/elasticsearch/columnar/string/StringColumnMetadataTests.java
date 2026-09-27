@@ -75,15 +75,30 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
     }
 
     /** A column holds more slots than it has documents exactly when a document holds more than one. */
-    public void testMultiValuedFollowsFromTheCounts() throws IOException {
+    public void testMultiValuedIsWhatTheColumnRecorded() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(2, 50), 1, false, false);
-        withColumn(docSlots, (metadata, reader) -> assertFalse("as many slots as documents", metadata.multiValued()));
+        withColumn(docSlots, (metadata, reader) -> assertFalse("one slot a document", metadata.multiValued()));
 
         final BytesRef[][] several = randomDocSlots(between(2, 50), 1, false, false);
         several[between(0, several.length - 1)] = new BytesRef[] { new BytesRef("a"), new BytesRef("b") };
         withColumn(several, (metadata, reader) -> {
-            assertTrue("more slots than documents", metadata.multiValued());
+            assertTrue("a document holds two", metadata.multiValued());
             assertEquals("numValues counts slots", numValues(several), metadata.numValues());
+        });
+    }
+
+    /**
+     * The counts cannot answer it: a document holding none and a document holding two leave as many slots as
+     * documents, so multivaluedness is what the column recorded of the documents it wrote rather than what its
+     * totals imply.
+     */
+    public void testMultiValuedWhereTheCountsCancel() throws IOException {
+        final BytesRef[][] docSlots = randomDocSlots(between(4, 50), 1, false, false);
+        docSlots[0] = new BytesRef[0];
+        docSlots[1] = new BytesRef[] { new BytesRef("a"), new BytesRef("b") };
+        withColumn(docSlots, (metadata, reader) -> {
+            assertEquals("the counts cancel", metadata.numValues(), metadata.numDocsWithField());
+            assertTrue("a document holds two", metadata.multiValued());
         });
     }
 

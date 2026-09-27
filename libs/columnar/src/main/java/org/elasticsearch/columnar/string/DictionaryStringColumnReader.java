@@ -153,6 +153,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     @Override
     public int byteLengthAt(long valueAddress) throws IOException {
         final int ordinal = ordinalAt(valueAddress);
+        assert ordinal != StringColumnMetadata.Dictionary.NULL_ORDINAL : "a null slot holds no value to measure";
         if (ordinal == escapeOrdinal) {
             escapes.get(escapeRankOf(valueAddress), lengthScratch);
             return lengthScratch.length;

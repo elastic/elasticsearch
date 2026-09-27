@@ -12,10 +12,12 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BreakerPageBudget;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
@@ -40,11 +42,17 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     private int[] wanted = new int[0];
     private int[] counts = new int[0];
     private int[] lengths = new int[0];
+    /**
+     * Charged before the column grows the page storage it resolves this reader's documents in, and released with
+     * this reader, since that storage lives as long as the reader does.
+     */
+    private final BreakerPageBudget budget;
 
     MultiValuedBinaryColumnarPayloadLengthReader(Warnings warnings, TrackingBinaryDocValues values) {
         super(null);
         this.warnings = warnings;
         this.values = values;
+        this.budget = new BreakerPageBudget(values.breaker());
     }
 
     abstract int length(BytesRef bytesRef);
@@ -76,7 +84,7 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
             for (int i = 0; i < count; i++) {
                 wanted[i] = docs.get(offset + i);
             }
-            columnar.reader().readByteLengths(wanted, 0, count, counts, lengths);
+            columnar.reader().readByteLengths(wanted, 0, count, counts, lengths, budget);
             try (BlockLoader.IntBuilder builder = factory.ints(count)) {
                 for (int i = 0; i < count; i++) {
                     if (counts[i] == 1) {
@@ -157,6 +165,6 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
 
     @Override
     public final void close() {
-        values.close();
+        Releasables.close(budget, values);
     }
 }

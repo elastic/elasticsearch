@@ -565,7 +565,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     final int[] docs = asked.stream().mapToInt(Integer::intValue).toArray();
                     final int[] counts = new int[docs.length];
                     final int[] lengths = new int[docs.length];
-                    reader.readByteLengths(docs, 0, docs.length, counts, lengths);
+                    reader.readByteLengths(docs, 0, docs.length, counts, lengths, PageBudget.UNLIMITED);
                     for (int i = 0; i < docs.length; i++) {
                         int nonNull = 0;
                         int length = -1;

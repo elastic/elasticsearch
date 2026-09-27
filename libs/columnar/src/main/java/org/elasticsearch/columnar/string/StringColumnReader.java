@@ -1045,7 +1045,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
      * lengths apart.
      */
-    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths) throws IOException {
+    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
+        assert budgetBound == false || this.budget == budget
+            : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
+        this.budgetBound = true;
+        this.budget = budget;
         if (count == 0) {
             return;
         }

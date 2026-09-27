@@ -22,6 +22,7 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -302,7 +303,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
 
     private static FixedBitSet collect(IndexSearcher searcher, Query query, int maxDoc) throws IOException {
         final FixedBitSet hits = new FixedBitSet(maxDoc);
-        searcher.search(query, new org.apache.lucene.search.CollectorManager<SimpleCollector, Void>() {
+        searcher.search(query, new CollectorManager<SimpleCollector, Void>() {
             @Override
             public SimpleCollector newCollector() {
                 return new SimpleCollector() {

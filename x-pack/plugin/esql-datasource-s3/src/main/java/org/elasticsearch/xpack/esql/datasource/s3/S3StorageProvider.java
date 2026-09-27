@@ -1209,13 +1209,25 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
-    /** Stable storage identity string encoding endpoint and credential identity. Neither component is secret. */
+    /**
+     * Stable storage identity string encoding endpoint and credential identity. Neither component is secret.
+     * <p>
+     * The identity must differ whenever two provider instances could access different data for the same
+     * bucket/path, so that they never share a footer cache entry. Static-credentials configs are
+     * differentiated by access key; federated-identity configs are differentiated by role ARN and STS
+     * endpoint (a different STS endpoint implies a different trust domain). Managed-identity and anonymous
+     * configs carry no per-datasource credential, so endpoint alone is sufficient — those auth modes are
+     * node-level and cannot produce different data for the same path.
+     * </p>
+     */
     static String computeStorageIdentity(S3Configuration config) {
         if (config == null) {
             return "";
         }
         String ep = config.endpoint() != null ? config.endpoint() : "";
         String ak = config.accessKey() != null ? config.accessKey() : "";
-        return ep + "|" + ak;
+        String roleArn = config.roleArn() != null ? config.roleArn() : "";
+        String stsEp = config.stsEndpoint() != null ? config.stsEndpoint() : "";
+        return ep + "|" + ak + "|" + roleArn + "|" + stsEp;
     }
 }

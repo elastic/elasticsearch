@@ -589,4 +589,109 @@ public class S3ConfigurationTests extends ESTestCase {
         );
         assertEquals(S3Configuration.AddressingStyleMode.VIRTUAL_HOSTED, config.resolveAddressingStyle());
     }
+
+    // --- computeStorageIdentity ---
+
+    public void testStorageIdentityNullConfigIsEmpty() {
+        assertEquals("", S3StorageProvider.computeStorageIdentity(null));
+    }
+
+    public void testStorageIdentityStaticCredentialsDiffersByAccessKey() {
+        S3Configuration a = S3Configuration.fromFields("ak1", "sk", "http://ep", "us-east-1");
+        S3Configuration b = S3Configuration.fromFields("ak2", "sk", "http://ep", "us-east-1");
+        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityStaticCredentialsSameKeysSameIdentity() {
+        S3Configuration a = S3Configuration.fromFields("ak", "sk", "http://ep", "us-east-1");
+        S3Configuration b = S3Configuration.fromFields("ak", "sk2", "http://ep", "us-west-2");
+        // secret key and region are not part of the identity
+        assertEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityFederatedDiffersByRoleArn() {
+        // Two federated configs at the same endpoint but different role ARNs must NOT share an identity.
+        // This was the bug: without roleArn in the key, both returned "endpoint|" and collided.
+        S3Configuration a = S3Configuration.fromFederatedFields("arn:aws:iam::111111:role/A", null, null, null, null, "http://ep", null);
+        S3Configuration b = S3Configuration.fromFederatedFields("arn:aws:iam::222222:role/B", null, null, null, null, "http://ep", null);
+        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityFederatedSameRoleArnSameIdentity() {
+        S3Configuration a = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            null,
+            null,
+            "http://ep",
+            "us-east-1"
+        );
+        S3Configuration b = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            "audience",
+            null,
+            null,
+            "http://ep",
+            "eu-west-1"
+        );
+        assertEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityFederatedDiffersByStsEndpoint() {
+        // Same role ARN but different STS endpoints implies a different trust domain.
+        S3Configuration a = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            "https://sts.us-east-1.amazonaws.com",
+            null,
+            "http://ep",
+            null
+        );
+        S3Configuration b = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            "https://sts.eu-west-1.amazonaws.com",
+            null,
+            "http://ep",
+            null
+        );
+        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityAnonymousAndManagedIdentityShareIdentityPerEndpoint() {
+        // Both anonymous and managed_identity carry no per-datasource credential; sharing an identity
+        // per endpoint is correct since they resolve to the same effective access at the node level.
+        S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
+        S3Configuration managed = S3Configuration.fromFields(null, null, "http://ep", "eu-west-1", "managed_identity");
+        assertEquals(S3StorageProvider.computeStorageIdentity(anon), S3StorageProvider.computeStorageIdentity(managed));
+    }
+
+    public void testStorageIdentityFederatedDiffersFromAnonymousAtSameEndpoint() {
+        S3Configuration federated = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            null,
+            null,
+            "http://ep",
+            null
+        );
+        S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
+        assertNotEquals(S3StorageProvider.computeStorageIdentity(federated), S3StorageProvider.computeStorageIdentity(anon));
+    }
+
+    public void testStorageIdentityDiffersByEndpoint() {
+        S3Configuration a = S3Configuration.fromFields("ak", "sk", "http://ep1", "us-east-1");
+        S3Configuration b = S3Configuration.fromFields("ak", "sk", "http://ep2", "us-east-1");
+        assertNotEquals(S3StorageProvider.computeStorageIdentity(a), S3StorageProvider.computeStorageIdentity(b));
+    }
+
+    public void testStorageIdentityNullEndpointDoesNotThrow() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", null, "us-east-1");
+        assertNotNull(S3StorageProvider.computeStorageIdentity(config));
+    }
 }

@@ -19,11 +19,13 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.AbstractNonTextScriptFieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -54,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
@@ -156,6 +159,26 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("LINESTRING (45.0 45.0, 0.0 0.0)")));
+            }
+        }
+    }
+
+    /**
+     * A script can emit an arbitrarily nested object, which no parser ever sees. Building the geometry must fail with a
+     * parse error instead: both geometry writers recurse once per nesting level while rendering the field, and a
+     * {@link StackOverflowError} on a search thread is treated as a fatal error and takes the node down.
+     */
+    public void testFetchTooDeeplyNested() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                GeoShapeScriptFieldType fieldType = build("deeplyNested", Map.of(), OnScriptError.FAIL);
+                SearchExecutionContext searchContext = mockContext(true, fieldType);
+                Source source = searchContext.lookup().getSource(reader.leaves().get(0), 0);
+                ValueFetcher fetcher = fieldType.valueFetcher(searchContext, randomBoolean() ? null : "wkt");
+                fetcher.setNextReader(reader.leaves().get(0));
+                ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> fetcher.fetchValues(source, 0, null));
+                assertThat(e.getMessage(), containsString("maximum nested depth of [" + WellKnownText.MAX_NESTED_DEPTH + "] exceeded"));
             }
         }
     }
@@ -304,6 +327,22 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
+            };
+            case "deeplyNested" -> (fieldName, params, lookup, onScriptError) -> ctx -> new GeometryFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    Object value = List.of(0.0, 0.0);
+                    for (int i = 0; i < WellKnownText.MAX_NESTED_DEPTH + 1; i++) {
+                        value = List.of(value);
+                    }
+                    emitFromObject(value);
+                }
             };
             case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new GeometryFieldScript(
                 fieldName,

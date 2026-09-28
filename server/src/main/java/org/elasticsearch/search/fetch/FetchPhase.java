@@ -370,7 +370,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-        final int[] locallyAccumulatedBytes = new int[1];
+        final int[] locallyAccumulatedSourceBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
@@ -387,10 +387,10 @@ public final class FetchPhase {
                     streamingHeldBytes[0] += bytes;
                 }
             } : (memoryChecker != null ? memoryChecker : bytes -> {
-                locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
-                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
-                    locallyAccumulatedBytes[0] = 0;
+                locallyAccumulatedSourceBytes[0] += bytes;
+                if (context.checkCircuitBreaker(locallyAccumulatedSourceBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
+                    addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
+                    locallyAccumulatedSourceBytes[0] = 0;
                 }
             });
 
@@ -439,11 +439,11 @@ public final class FetchPhase {
                     addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
                     locallyAccumulatedFieldBytes[0] = 0;
                 }
-                if (locallyAccumulatedBytes[0] > 0) {
+                if (locallyAccumulatedSourceBytes[0] > 0) {
                     context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
-                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
-                    locallyAccumulatedBytes[0] = 0;
+                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedSourceBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                    addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
+                    locallyAccumulatedSourceBytes[0] = 0;
                 }
             }
 

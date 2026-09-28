@@ -760,7 +760,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         for (String nodeName : dataNodes) {
             final TestTelemetryPlugin telemetryPlugin = getTelemetryPluginForNode(nodeName);
             telemetryPlugin.collect();
-            final var maxLatencyValues = telemetryPlugin.getLongAsyncGaugeMeasurement(
+            final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
                 DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
             );
             if (maxLatencyValues.isEmpty() == false) {

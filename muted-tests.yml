@@ -196,6 +196,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/160407
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280
 
 # Examples:
 #

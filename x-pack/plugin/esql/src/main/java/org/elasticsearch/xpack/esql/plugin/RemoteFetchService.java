@@ -459,6 +459,7 @@ public final class RemoteFetchService {
                 ActionListener.noop(),
                 clusterService.getSettings(),
                 setupCallback,
+                configuration.profile(),
                 null,
                 maxWorkers,
                 () -> node

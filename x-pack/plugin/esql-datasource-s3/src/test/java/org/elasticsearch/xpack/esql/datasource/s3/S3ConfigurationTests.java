@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +21,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class S3ConfigurationTests extends ESTestCase {
 
@@ -592,8 +596,25 @@ public class S3ConfigurationTests extends ESTestCase {
 
     // --- S3CredentialIdentity ---
 
-    public void testStorageIdentityNullConfigIsNone() {
-        assertEquals(S3CredentialIdentity.NONE, S3CredentialIdentity.of(null));
+    public void testObjectWithoutIdentityNeverSharesCacheScope() {
+        // The identity-less constructors must not fall back to a shared sentinel: two such objects for the
+        // same path would otherwise share footer-cache entries regardless of the credentials behind them.
+        // The S3 client is mocked because only the constructor runs; no request is ever issued.
+        S3Client client = mock(S3Client.class);
+        StoragePath path = StoragePath.of("s3://bucket/key.parquet");
+        S3StorageObject a = new S3StorageObject(client, "bucket", "key.parquet", path);
+        S3StorageObject b = new S3StorageObject(client, "bucket", "key.parquet", path);
+        assertNotEquals(a.storageIdentity(), b.storageIdentity());
+    }
+
+    public void testObjectRejectsNullIdentity() {
+        S3Client client = mock(S3Client.class);
+        StoragePath path = StoragePath.of("s3://bucket/key.parquet");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new S3StorageObject(client, null, null, null, "bucket", "key.parquet", path)
+        );
+        assertThat(e.getMessage(), containsString("storageIdentity"));
     }
 
     public void testStorageIdentityStaticCredentialsDiffersByAccessKey() {
@@ -604,9 +625,16 @@ public class S3ConfigurationTests extends ESTestCase {
 
     public void testStorageIdentityStaticCredentialsSameKeysSameIdentity() {
         S3Configuration a = S3Configuration.fromFields("ak", "sk", "http://ep", "us-east-1");
-        S3Configuration b = S3Configuration.fromFields("ak", "sk", "http://ep", "us-west-2");
-        // region does not change which principal is authorized, so it is not part of the identity
+        S3Configuration b = S3Configuration.fromFields("ak", "sk", "http://ep", "us-east-1");
         assertEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
+    }
+
+    public void testStorageIdentityDiffersByRegion() {
+        // With no endpoint, region selects the AWS partition, and bucket names are only unique within one:
+        // two anonymous data sources in different partitions can address different objects by the same path.
+        S3Configuration a = S3Configuration.fromFields(null, null, null, "us-east-1", "anonymous");
+        S3Configuration b = S3Configuration.fromFields(null, null, null, "cn-north-1", "anonymous");
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
     public void testStorageIdentityStaticCredentialsDiffersBySecretKey() {
@@ -638,7 +666,6 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testStorageIdentityFederatedSameRoleArnSameIdentity() {
-        // region does not change which principal is authorized, so it is not part of the identity
         S3Configuration a = S3Configuration.fromFederatedFields(
             "arn:aws:iam::111:role/R",
             null,
@@ -655,7 +682,7 @@ public class S3ConfigurationTests extends ESTestCase {
             null,
             null,
             "http://ep",
-            "eu-west-1"
+            "us-east-1"
         );
         assertEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
@@ -726,7 +753,7 @@ public class S3ConfigurationTests extends ESTestCase {
         // anonymous has no credentials; managed_identity uses the node's IAM role. They can have
         // different access levels at the same endpoint and must not share footer cache entries.
         S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
-        S3Configuration managed = S3Configuration.fromFields(null, null, "http://ep", "eu-west-1", "managed_identity");
+        S3Configuration managed = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "managed_identity");
         assertNotEquals(S3CredentialIdentity.of(anon), S3CredentialIdentity.of(managed));
     }
 
@@ -738,7 +765,7 @@ public class S3ConfigurationTests extends ESTestCase {
             null,
             null,
             "http://ep",
-            null
+            "us-east-1"
         );
         S3Configuration anon = S3Configuration.fromFields(null, null, "http://ep", "us-east-1", "anonymous");
         assertNotEquals(S3CredentialIdentity.of(federated), S3CredentialIdentity.of(anon));

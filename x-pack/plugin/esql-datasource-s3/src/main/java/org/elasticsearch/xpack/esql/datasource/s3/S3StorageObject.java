@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -81,7 +82,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final RetryStrategy asyncRetryStrategy;
-    private final S3CredentialIdentity storageIdentity;
+    private final StorageIdentity storageIdentity;
     private final String bucket;
     private final String key;
     private final StoragePath path;
@@ -107,6 +108,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this(s3Client, null, null, bucket, key, path);
     }
 
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     */
     public S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
@@ -115,18 +120,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String key,
         StoragePath path
     ) {
-        this(s3Client, s3AsyncClient, asyncRetryStrategy, S3CredentialIdentity.NONE, bucket, key, path);
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, StorageIdentity.unique(), bucket, key, path);
     }
 
     public S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        S3CredentialIdentity storageIdentity,
+        StorageIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path
     ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (s3Client == null) {
             throw new IllegalArgumentException("s3Client cannot be null");
         }
@@ -173,7 +181,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        S3CredentialIdentity storageIdentity,
+        StorageIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path,
@@ -206,7 +214,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
-        S3CredentialIdentity storageIdentity,
+        StorageIdentity storageIdentity,
         String bucket,
         String key,
         StoragePath path,
@@ -717,7 +725,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public S3CredentialIdentity storageIdentity() {
+    public StorageIdentity storageIdentity() {
         return storageIdentity;
     }
 

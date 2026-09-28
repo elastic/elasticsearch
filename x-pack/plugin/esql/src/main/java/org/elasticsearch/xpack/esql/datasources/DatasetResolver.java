@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
@@ -51,25 +52,26 @@ public class DatasetResolver {
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final boolean federationAvailable;
-    private final XPackLicenseState licenseState;
+    private final Supplier<XPackLicenseState> licenseStateSupplier;
 
     /**
      * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
      * it is fixed for the lifetime of the node, since both of its levers are read at startup.
-     * The {@code licenseState} is checked per query, once the resolver determines the query actually targets a dataset.
+     * The {@code licenseStateSupplier} is called per query, once the resolver determines the query actually targets a
+     * dataset, so that the check always reflects the current license rather than the one at construction time.
      */
     public DatasetResolver(
         Client client,
         Executor executor,
         CrossProjectModeDecider crossProjectModeDecider,
         boolean federationAvailable,
-        XPackLicenseState licenseState
+        Supplier<XPackLicenseState> licenseStateSupplier
     ) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
         this.federationAvailable = federationAvailable;
-        this.licenseState = licenseState;
+        this.licenseStateSupplier = licenseStateSupplier;
     }
 
     /**
@@ -123,6 +125,7 @@ public class DatasetResolver {
             return;
         }
 
+        XPackLicenseState licenseState = licenseStateSupplier.get();
         if (EsqlLicenseChecker.isFederationAllowed(licenseState) == false) {
             listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(licenseState));
             return;

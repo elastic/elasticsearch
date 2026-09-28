@@ -176,7 +176,7 @@ public class DatasetResolverTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             decider,
             federationAvailable,
-            enterpriseLicenseState()
+            DatasetResolverTests::enterpriseLicenseState
         );
     }
 

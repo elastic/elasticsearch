@@ -17,15 +17,14 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 public class TransportDeleteDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportDeleteDataSourceAction(
@@ -34,8 +33,7 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        ProjectResolver projectResolver,
-        XPackLicenseState licenseState
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDataSourceAction.NAME,
@@ -48,7 +46,6 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -58,7 +55,7 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        EsqlLicenseChecker.checkFederation(licenseState);
+        EsqlLicenseChecker.checkFederation(XPackPlugin.getSharedLicenseState());
         dataSourceService.deleteDataSources(
             state.projectId(),
             request.masterNodeTimeout(),

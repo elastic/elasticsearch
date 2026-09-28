@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +25,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
@@ -81,7 +81,6 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final DataSourceService dataSourceService;
-    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportTestDataSourceConnectionAction(
@@ -89,8 +88,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ClusterService clusterService,
-        DataSourceService dataSourceService,
-        XPackLicenseState licenseState
+        DataSourceService dataSourceService
     ) {
         super(TestDataSourceConnectionAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("action [" + TestDataSourceConnectionAction.NAME + "] is local-only");
@@ -98,7 +96,6 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.dataSourceService = dataSourceService;
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -107,7 +104,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         TestDataSourceConnectionAction.Request request,
         ActionListener<TestDataSourceConnectionAction.Response> listener
     ) {
-        EsqlLicenseChecker.checkFederation(licenseState);
+        EsqlLicenseChecker.checkFederation(XPackPlugin.getSharedLicenseState());
         // --- Step 1: validate type against PUT registry (unknown type → 400) ---
         DataSourceValidator validator = dataSourceService.validatorFor(request.type());
         if (validator == null) {

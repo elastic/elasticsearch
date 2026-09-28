@@ -2465,10 +2465,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-            // The same schema the read configuration below is computed from. Without it this rail infers per
-            // file and then labels the harvest with a configuration it did not read under, which is the
-            // mismatch the split rails avoid by passing their split's read schema.
-            .readSchema(PhysicalNames.translateSchema(unifiedReadSchema, renames))
             .readCounters(formatCounters)
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
@@ -2542,8 +2538,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
-                        // As in the native-async rail: read under the schema this read is labelled with.
-                        .readSchema(PhysicalNames.translateSchema(unifiedReadSchema, renames))
                         .readCounters(formatCounters)
                         .build();
                     opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));

@@ -32,16 +32,16 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
 
     /**
      * Shared analyzer is kept only when every index reports the same name and
-     * {@code position_increment_gap}. A disagreement or a missing name returns null.
-     * HIGHLIGHT treats that as {@code standard}, and warns whenever the null came from a disagreement.
+     * {@code position_increment_gap}. A disagreement or a missing name returns null, with the reason.
+     * HIGHLIGHT treats that as {@code standard} and warns.
      */
     public void testSharedIndexAnalyzerNeedsEveryIndexToAgree() {
         assertAnalyzer(resolveTitle("english", "english"), "english", UnknownAnalyzer.NONE);
         assertAnalyzer(resolveTitle("english", "standard"), null, UnknownAnalyzer.CONFLICT);
         // An index that reports no name, like one on an older node, still disagrees with an index naming a built-in.
         assertAnalyzer(resolveTitle("english", null), null, UnknownAnalyzer.CONFLICT);
-        // Every index silent with nothing withheld: no analyzer to speak of, so standard without a warning.
-        assertAnalyzer(resolveTitle(null, null), null, UnknownAnalyzer.NONE);
+        // Every index silent with nothing withheld: a hard-coded analyzer, no index analyzer, or an older node.
+        assertAnalyzer(resolveTitle(null, null), null, UnknownAnalyzer.NOT_REPORTED);
 
         TextEsField sameGap = resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 0));
         assertAnalyzer(sameGap, "english", UnknownAnalyzer.NONE);
@@ -57,6 +57,12 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
      */
     public void testWithheldIndexLocalAnalyzerSurvivesTheMerge() {
         assertAnalyzer(resolveTitle(indexLocal("idx-a"), indexLocal("idx-b")), null, UnknownAnalyzer.INDEX_LOCAL);
+        // An index that reports nothing does not hide the one that withheld its name.
+        assertAnalyzer(
+            resolveTitle(indexLocal("idx-a"), index("idx-b", null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP)),
+            null,
+            UnknownAnalyzer.INDEX_LOCAL
+        );
         assertAnalyzer(resolveTitle(indexLocal("idx-a"), index("idx-b", "english", 100)), null, UnknownAnalyzer.CONFLICT);
     }
 

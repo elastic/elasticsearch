@@ -47,7 +47,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
         Map<String, NamedAnalyzer> resolved = resolve(
             List.of(
                 textField("title", "whitespace", 0),
-                textField("body", null),
+                textField("body", null, DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.NOT_REPORTED),
                 declaredField("note", "simple"),
                 declaredField("other", null),
                 getFieldAttribute("tag", KEYWORD)
@@ -141,7 +141,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 containsString(
                     "HIGHLIGHT on [title] falls back to [standard] for indices [custom_a, custom_b]: its analyzer is defined in"
                 ),
-                containsString("for indices [old_remote:books]: the node holding it did not report its analyzer"),
+                containsString("for indices [old_remote:books]: its analyzer was not reported under a name any node can rebuild"),
                 containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered")
             )
         );
@@ -155,9 +155,36 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(warnings, hasItem(containsString("its analyzer is defined in the index settings")));
     }
 
+    /**
+     * No index reported a name any node can rebuild: a hard-coded analyzer like {@code pattern_text}'s, a field with no
+     * index analyzer like {@code semantic_text}, or an older node. {@code standard} is a guess, so it warns.
+     */
+    public void testNotReportedAnalyzerFallsBackAndWarns() {
+        List<String> warnings = new ArrayList<>();
+        Resolved resolved = resolve(
+            List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.NOT_REPORTED)),
+            null,
+            randomBoolean(),
+            warnings
+        );
+        assertThat(names(resolved.analysisGroups().getFirst()), contains("standard"));
+        assertThat(
+            warnings,
+            contains(
+                containsString(
+                    "HIGHLIGHT on [title] falls back to [standard]: its analyzer was not reported under a name any node can rebuild"
+                )
+            )
+        );
+    }
+
     // WITH takes precedence; a mapping analyzer HIGHLIGHT cannot use must not warn once the user has set WITH.
     public void testWithAnalyzerSuppressesUnknownAnalyzerWarning() {
-        for (var field : List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL), conflictingField("title"))) {
+        for (var field : List.of(
+            unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL),
+            unknownAnalyzerField(TextEsField.UnknownAnalyzer.NOT_REPORTED),
+            conflictingField("title")
+        )) {
             List<String> warnings = new ArrayList<>();
             Resolved resolved = resolve(List.of(field), "keyword", randomBoolean(), warnings);
             assertThat(warnings, hasSize(0));

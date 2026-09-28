@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -418,7 +419,18 @@ public class CsvTestsDataLoader {
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
         new TestDataset("trim_test")
-    ).collect(toMap(TestDataset::indexName, Function.identity()));
+    ).collect(toMap(TestDataset::indexName, Function.identity(), (left, right) -> {
+        throw new IllegalStateException("duplicate CSV dataset [" + left.indexName() + "]");
+    }, HashMap::new));
+
+    static {
+        for (TestDataset dataset : UnionTypeCsvDatasets.datasets()) {
+            TestDataset previous = CSV_DATASET.put(dataset.indexName(), dataset);
+            if (previous != null) {
+                throw new IllegalStateException("duplicate dataset [" + dataset.indexName() + "]");
+            }
+        }
+    }
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
     // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
@@ -1455,19 +1467,74 @@ public class CsvTestsDataLoader {
         @Nullable Map<String, String> dynamicTypeMapping,
         @Nullable String dynamic,
         List<String> inferenceEndpoints,
-        List<EsqlCapabilities.Cap> requiredCapabilities
+        List<EsqlCapabilities.Cap> requiredCapabilities,
+        /**
+         * Mapping JSON held on the dataset, used by generated catalogs such as {@code union_<type>}.
+         * When set, {@link #loadMappings()} does not read {@link #mappingFileName}.
+         */
+        @Nullable String inlineMapping,
+        /**
+         * CSV contents held on the dataset. When set, {@link #streamData()} does not read {@link #dataFileName}.
+         * {@link #dataFileName} stays non-null so loaders that key off it still index the rows.
+         */
+        @Nullable String inlineData,
+        /** Index settings JSON. When set, {@link #loadSettings()} does not read {@link #settingFileName}. */
+        @Nullable String inlineSettings
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
+            this(
+                indexName,
+                "mapping-" + indexName + ".json",
+                indexName + ".csv",
+                null,
+                true,
+                null,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                null
+            );
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of(), null, null, null);
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of(), null, null, null);
+        }
+
+        /**
+         * A dataset whose mapping, rows, and optional settings live on the instance rather than in resource files.
+         * {@code mappingFileName} and {@code dataFileName} are the sentinel {@code "inline"} so callers that skip
+         * datasets with a null data file still index the rows.
+         */
+        public static TestDataset inline(
+            String indexName,
+            String mapping,
+            String csv,
+            @Nullable String settingsJson,
+            List<EsqlCapabilities.Cap> requiredCapabilities
+        ) {
+            return new TestDataset(
+                indexName,
+                "inline",
+                "inline",
+                null,
+                true,
+                null,
+                null,
+                null,
+                List.of(),
+                requiredCapabilities,
+                mapping,
+                csv,
+                settingsJson
+            );
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1481,7 +1548,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1496,7 +1566,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1511,7 +1584,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1526,7 +1602,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1541,7 +1620,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1564,7 +1646,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1597,7 +1682,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1635,7 +1723,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1650,7 +1741,10 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 List.of(inferenceEndpoints),
-                requiredCapabilities
+                requiredCapabilities,
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
@@ -1665,11 +1759,17 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                List.of(requiredCapabilities)
+                List.of(requiredCapabilities),
+                inlineMapping,
+                inlineData,
+                inlineSettings
             );
         }
 
         public Settings loadSettings() throws IOException {
+            if (inlineSettings != null) {
+                return Settings.builder().loadFromSource(inlineSettings, XContentType.JSON).build();
+            }
             if (settingFileName == null) {
                 return Settings.EMPTY;
             }
@@ -1678,14 +1778,23 @@ public class CsvTestsDataLoader {
         }
 
         public String loadMappings() {
+            if (inlineMapping != null) {
+                return inlineMapping;
+            }
             return getResourceString("/index/mappings/" + mappingFileName);
         }
 
         public InputStream streamMapping() {
+            if (inlineMapping != null) {
+                return new ByteArrayInputStream(inlineMapping.getBytes(StandardCharsets.UTF_8));
+            }
             return getResourceStream("/index/mappings/" + mappingFileName);
         }
 
         public InputStream streamData() {
+            if (inlineData != null) {
+                return new ByteArrayInputStream(inlineData.getBytes(StandardCharsets.UTF_8));
+            }
             return getResourceStream("/data/" + dataFileName);
         }
     }

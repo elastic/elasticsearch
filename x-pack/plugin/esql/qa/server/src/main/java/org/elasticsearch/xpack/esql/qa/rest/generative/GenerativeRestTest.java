@@ -67,7 +67,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
@@ -328,7 +327,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET.keySet().iterator().next()) == false) {
+        // employees is part of the catalog this setup always loads.
+        if (indexExists("employees") == false) {
             loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }

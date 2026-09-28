@@ -1,0 +1,69 @@
+// One document per indexable ES|QL type. `field` is that type; `type` names it.
+// Kept as a count so a new DataType updates UnionTypeCsvDatasets (compile error) and this total together.
+// Gated types are skipped on clusters that do not have the capability, which would change the count.
+unionTypeIndicesLoad
+required_capability: date_range_field_type_v6
+required_capability: double_range_tech_preview
+required_capability: dense_vector_field_type_released
+required_capability: flattened_datatype
+required_capability: histogram_release_version
+required_capability: tdigest_tech_preview
+required_capability: exponential_histogram_tech_preview
+
+FROM union_*
+| STATS c = COUNT(*)
+;
+
+c:long
+32
+;
+
+// The same documents, by type name, so a renamed or dropped type fails even when the count stays 32.
+unionTypeNames
+required_capability: date_range_field_type_v6
+required_capability: double_range_tech_preview
+required_capability: dense_vector_field_type_released
+required_capability: flattened_datatype
+required_capability: histogram_release_version
+required_capability: tdigest_tech_preview
+required_capability: exponential_histogram_tech_preview
+
+FROM union_*
+| KEEP type
+| SORT type
+;
+
+type:keyword
+aggregate_metric_double
+boolean
+byte
+cartesian_point
+cartesian_shape
+counter_double
+counter_integer
+counter_long
+date_nanos
+date_range
+datetime
+dense_vector
+double
+double_range
+exponential_histogram
+flattened
+float
+geo_point
+geo_shape
+half_float
+histogram
+integer
+ip
+keyword
+long
+object
+scaled_float
+short
+tdigest
+text
+unsigned_long
+version
+;

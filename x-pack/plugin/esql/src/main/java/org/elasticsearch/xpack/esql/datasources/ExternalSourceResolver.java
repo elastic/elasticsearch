@@ -878,8 +878,9 @@ public class ExternalSourceResolver {
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
             // Pass empty detailCode: rootDetail(ioError) may contain a storage URI from an un-migrated
-            // throw site; the log line above preserves it for diagnosis.
-            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.NONE, "", "", ioError);
+            // throw site; the log line above preserves it for diagnosis. StoragePath.of(path) contributes
+            // only objectName() (the last segment), so the directory/bucket prefix stays hidden.
+            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.of(path), "", "", ioError);
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the

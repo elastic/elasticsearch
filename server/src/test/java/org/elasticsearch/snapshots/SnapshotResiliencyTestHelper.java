@@ -91,6 +91,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -695,7 +696,8 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings()),
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)

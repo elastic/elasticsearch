@@ -547,7 +547,7 @@ $$$event-put-user-managed-service-account$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
     action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
-    "roles":["role1","role2"],"enabled":true}}}
+    "roles":["role1","role2"],"enabled":true,"description":"Deploys my-app"}}}
     ```
     % NOTCONSOLE
 

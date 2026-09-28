@@ -1569,22 +1569,22 @@ rate_on_plain_numeric_long
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 // network.bytes_in is plain long (no counter mapping); implicit to_counter() enables rate().
 PROMQL index=k8s step=1m rate_bytes_in=(round(avg(rate(network.bytes_in[1m])), 0.001))
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-15.921               | 2024-05-10T00:11:00.000Z
-15.437               | 2024-05-10T00:18:00.000Z
-14.16                | 2024-05-10T00:05:00.000Z
-12.856               | 2024-05-10T00:12:00.000Z
-11.636               | 2024-05-10T00:01:00.000Z
-11.337               | 2024-05-10T00:19:00.000Z
-10.135               | 2024-05-10T00:10:00.000Z
-9.859                | 2024-05-10T00:07:00.000Z
-9.356                | 2024-05-10T00:08:00.000Z
-8.942                | 2024-05-10T00:21:00.000Z
+12.716               | 2024-05-10T00:18:00.000Z
+9.991                | 2024-05-10T00:19:00.000Z
+9.918                | 2024-05-10T00:05:00.000Z
+8.202                | 2024-05-10T00:20:00.000Z
+7.676                | 2024-05-10T00:15:00.000Z
+7.018                | 2024-05-10T00:06:00.000Z
+7.017                | 2024-05-10T00:17:00.000Z
+6.725                | 2024-05-10T00:10:00.000Z
+6.452                | 2024-05-10T00:08:00.000Z
+6.364                | 2024-05-10T00:07:00.000Z
 ;
 
 rate_small_window_no_set_operator
@@ -1612,22 +1612,22 @@ rate_bytes_in:double | step:datetime
 rate_on_plain_numeric_gauge
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 // network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables rate().
 PROMQL index=k8s step=1m rate_tx=(round(avg(rate(network.eth0.tx[1m])), 0.001))
 | SORT rate_tx DESC, step DESC | LIMIT 10;
 
 rate_tx:double | step:datetime
-2.828          | 2024-05-10T00:05:00.000Z
-2.684          | 2024-05-10T00:12:00.000Z
-2.559          | 2024-05-10T00:11:00.000Z
-2.116          | 2024-05-10T00:13:00.000Z
-1.915          | 2024-05-10T00:14:00.000Z
-1.838          | 2024-05-10T00:08:00.000Z
-1.562          | 2024-05-10T00:18:00.000Z
-1.538          | 2024-05-10T00:01:00.000Z
-1.433          | 2024-05-10T00:19:00.000Z
-1.407          | 2024-05-10T00:07:00.000Z
+1.556          | 2024-05-10T00:05:00.000Z
+1.367          | 2024-05-10T00:18:00.000Z
+1.245          | 2024-05-10T00:19:00.000Z
+1.193          | 2024-05-10T00:15:00.000Z
+1.178          | 2024-05-10T00:12:00.000Z
+1.16           | 2024-05-10T00:14:00.000Z
+1.106          | 2024-05-10T00:10:00.000Z
+1.022          | 2024-05-10T00:20:00.000Z
+0.998          | 2024-05-10T00:07:00.000Z
+0.995          | 2024-05-10T00:08:00.000Z
 ;
 
 rate_on_counter_field
@@ -1656,44 +1656,44 @@ increase_on_plain_numeric_gauge
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 // network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables increase().
 PROMQL index=k8s step=1m increase_tx=(round(avg(increase(network.eth0.tx[1m])), 0.001))
 | SORT increase_tx DESC, step DESC | LIMIT 10;
 
 increase_tx:double | step:datetime
-110.259            | 2024-05-10T00:08:00.000Z
-100.49             | 2024-05-10T00:05:00.000Z
-97.731             | 2024-05-10T00:12:00.000Z
-92.281             | 2024-05-10T00:01:00.000Z
-89.961             | 2024-05-10T00:18:00.000Z
-85.96              | 2024-05-10T00:19:00.000Z
-81.36              | 2024-05-10T00:10:00.000Z
-72.68              | 2024-05-10T00:16:00.000Z
-70.189             | 2024-05-10T00:15:00.000Z
-69.329             | 2024-05-10T00:07:00.000Z
+101.737            | 2024-05-10T00:05:00.000Z
+101.703            | 2024-05-10T00:18:00.000Z
+99.722             | 2024-05-10T00:12:00.000Z
+90.982             | 2024-05-10T00:14:00.000Z
+90.264             | 2024-05-10T00:10:00.000Z
+86.99              | 2024-05-10T00:19:00.000Z
+83.972             | 2024-05-10T00:15:00.000Z
+82.567             | 2024-05-10T00:13:00.000Z
+80.785             | 2024-05-10T00:07:00.000Z
+80.077             | 2024-05-10T00:08:00.000Z
 ;
 
 increase_on_plain_numeric_long
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 // network.bytes_in is plain long (no counter mapping); implicit to_counter() enables increase().
 PROMQL index=k8s step=1m increase_bytes_in=(round(avg(increase(network.bytes_in[1m])), 0.001))
 | SORT increase_bytes_in DESC, step DESC | LIMIT 10;
 
 increase_bytes_in:double | step:datetime
-883.96                   | 2024-05-10T00:18:00.000Z
-698.188                  | 2024-05-10T00:01:00.000Z
-680.209                  | 2024-05-10T00:19:00.000Z
-602.096                  | 2024-05-10T00:10:00.000Z
-596.931                  | 2024-05-10T00:05:00.000Z
-568.997                  | 2024-05-10T00:07:00.000Z
-561.376                  | 2024-05-10T00:08:00.000Z
-507.112                  | 2024-05-10T00:12:00.000Z
-501.62                   | 2024-05-10T00:20:00.000Z
-495.012                  | 2024-05-10T00:16:00.000Z
+984.446                  | 2024-05-10T00:18:00.000Z
+734.74                   | 2024-05-10T00:19:00.000Z
+650.007                  | 2024-05-10T00:05:00.000Z
+621.23                   | 2024-05-10T00:10:00.000Z
+557.482                  | 2024-05-10T00:20:00.000Z
+548.279                  | 2024-05-10T00:15:00.000Z
+539.358                  | 2024-05-10T00:12:00.000Z
+523.304                  | 2024-05-10T00:07:00.000Z
+512.94                   | 2024-05-10T00:16:00.000Z
+493.845                  | 2024-05-10T00:11:00.000Z
 ;
 
 irate_on_plain_numeric_long
@@ -1852,16 +1852,16 @@ set_operator_union_rate_or_irate
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[1m])), 0.001) or round(avg(irate(network.bytes_in[1m])), 0.001))
 | SORT step | LIMIT 5;
 
 rate_or_irate:double | step:datetime
-11.636               | 2024-05-10T00:01:00.000Z
-5.938                | 2024-05-10T00:02:00.000Z
-7.434                | 2024-05-10T00:03:00.000Z
-5.03                 | 2024-05-10T00:04:00.000Z
-14.16                | 2024-05-10T00:05:00.000Z
+4.407                | 2024-05-10T00:01:00.000Z
+4.697                | 2024-05-10T00:02:00.000Z
+3.758                | 2024-05-10T00:03:00.000Z
+3.643                | 2024-05-10T00:04:00.000Z
+9.918                | 2024-05-10T00:05:00.000Z
 ;
 
 # AwaitsFix: https://github.com/elastic/elasticsearch/issues/152658

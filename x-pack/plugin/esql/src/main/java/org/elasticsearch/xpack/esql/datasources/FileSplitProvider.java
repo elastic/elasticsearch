@@ -414,21 +414,22 @@ public class FileSplitProvider implements SplitProvider {
      * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
      * the full listing's many.
      */
-    private FileList scanFileSet(SplitDiscoveryContext context) throws IOException {
-        DatasetDiscovery discovery = DatasetDiscovery.shared(context.fileList());
+    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed) throws IOException {
+        DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
         if (discovery.schemaListingIsComplete()) {
-            return discovery.scanFileSet();
+            // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
+            return handed;
         }
-        FileList listed = listForQuery(context);
+        FileList listed = listForQuery(handed);
         LOGGER.debug(
             () -> Strings.format(
                 "the schema's listing held %d files of [%s]; discovered %d for the query",
                 discovery.schemaListing().fileCount(),
-                context.metadata() == null ? "?" : context.metadata().location(),
+                handed.metadata() == null ? "?" : handed.metadata().location(),
                 listed.fileCount()
             )
         );
-        return listed;
+        return handed.withScanFileSet(listed);
     }
 
     /**
@@ -483,7 +484,7 @@ public class FileSplitProvider implements SplitProvider {
         }
         final SplitDiscoveryContext context;
         try {
-            context = handedContext.withScanFileSet(scanFileSet(handedContext));
+            context = overTheQuerysFileSet(handedContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -600,15 +601,16 @@ public class FileSplitProvider implements SplitProvider {
         }
         if (DatasetDiscovery.shared(handedContext.fileList()).schemaListingIsComplete()) {
             // The listing is the query's file set already: nothing to discover, so nothing leaves this thread that
-            // did not leave it before.
+            // did not leave it before. Taking the same decision as the sync path through the same helper below is
+            // what keeps the two entry points on one rule; this branch only decides which thread asks.
             planSplitsAsync(handedContext, requestedExecutor, listener);
             return;
         }
         // Otherwise the file set is a walk of the object store — on the dataset this was measured against, ninety-one
         // sequential page requests — and this method's contract is that the calling thread waits for no such thing.
-        discoveryFanOutExecutor(requestedExecutor).execute(ActionRunnable.wrap(listener, resolved -> {
-            planSplitsAsync(handedContext.withScanFileSet(scanFileSet(handedContext)), requestedExecutor, resolved);
-        }));
+        discoveryFanOutExecutor(requestedExecutor).execute(
+            ActionRunnable.wrap(listener, resolved -> planSplitsAsync(overTheQuerysFileSet(handedContext), requestedExecutor, resolved))
+        );
     }
 
     /** Phase-1 filtering and the Phase-2 fan-out, over a context whose file set is the query's own. */

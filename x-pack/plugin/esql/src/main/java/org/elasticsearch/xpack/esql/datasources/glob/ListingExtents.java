@@ -17,17 +17,18 @@ import java.util.List;
  * <p>
  * {@code maxFiles} bounds the files the expansion returns — what split discovery reads and what the listing
  * cache may hold. {@code maxPartitionPaths} bounds the paths partition detection folds over to decide the
- * partition columns and their types. They are separate questions with separate owners: the first is the
- * query's ({@code LIMIT 0} needs no files at all), the second the dataset's (a mode that answers its schema
- * from one file promises to look at less, and path-derived columns come under the same promise).
+ * partition columns and their types. They are separate questions, and both are the dataset's: a mode that
+ * answers its schema from one file promises to look at less, and path-derived columns come under the same
+ * promise. Neither is the query's — the files a query reads are discovered separately, by split discovery.
  * <p>
  * They were one number, which is why a dataset setting named for partition sampling became the listing bound,
  * and why bounding a listing for one reason silently bounded the other. Both are {@link Integer#MAX_VALUE}
  * when nothing bounds them.
  * <p>
- * Only {@code fileSet} sets {@link FileList#isTruncated()}: a listing whose partitions were sampled still
- * returns every file the pattern matches, so it is not a prefix of the dataset and the invariants that keep a
- * prefix away from a reading query do not apply to it.
+ * Only {@code maxFiles} sets {@link FileList#isTruncated()}: a listing whose partitions were sampled still
+ * returns every file the pattern matches, so it is not a prefix of the dataset. A truncated one is, and a
+ * query that reads rows may be handed one — {@link FileList#isTruncated()} states what that obliges its
+ * readers to do.
  */
 public record ListingExtents(int maxFiles, int maxPartitionPaths) {
 

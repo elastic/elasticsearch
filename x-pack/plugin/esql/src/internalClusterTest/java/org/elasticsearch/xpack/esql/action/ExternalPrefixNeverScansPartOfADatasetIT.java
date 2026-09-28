@@ -62,6 +62,7 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         settings.put("partition_sample_size", 2);
         String dataset = registerLocalFileDataset("prefix_hive_ds", dir.toUri() + "**/*.parquet", settings);
 
+        // The same control as the flat case: an ungrouped aggregate declines the bound, so this holds either way.
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"))) {
             assertThat(
                 "a partitioned dataset is read in full too",
@@ -69,6 +70,8 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
                 equalTo((long) hours * rowsPerFile)
             );
         }
+        // This one is bounded, so it is the assertion that bites: 35 rows needs four files, and a query answered
+        // from the two the schema listed returns 20.
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 35"))) {
             assertThat(getValuesList(response).size(), equalTo(35));
         }
@@ -256,8 +259,9 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         settings.put("partition_sample_size", 2);
         String dataset = registerLocalFileDataset("prefix_ds", dir.toUri() + "*.parquet", settings);
 
-        // COUNT(*) cannot be answered from a prefix: twelve files of ten rows is 120, and a query that read only
-        // the two files the schema needed would answer 20.
+        // A dataset-wide aggregate is never handed a prefix in the first place: it wants statistics over every
+        // file, which declines the bound outright. Asserted as the control for the bounded cases below, not as one
+        // of them - this number is the same whatever split discovery does with a prefix.
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"))) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(

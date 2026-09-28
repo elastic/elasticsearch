@@ -160,11 +160,11 @@ public interface FileList {
      * defines a dataset's columns is its {@code schema_resolution} mode, so under {@code first_file_wins} or a
      * declared mapping one page answers that whatever the query goes on to do. A query that reads rows can
      * therefore be handed one. Turning it into the query's own file set is split discovery's job
-     * ({@code FileSplitProvider#scanFileSet}), and everything resolution derived per file from the bounded
+     * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
      * listing — partition values, per-file read schemas — moves with the file set when it does
      * ({@code SplitDiscoveryContext#withScanFileSet}).
      * <p>
-     * One invariant remains, and nothing downstream catches its breach: a truncated list is never written to the
+     * One invariant is absolute, and nothing downstream catches its breach: a truncated list is never written to the
      * shared listing cache, where a later query would find it and read a fraction of the dataset while believing
      * it read all of it. That is {@code ExternalSourceResolver#listingExtentsFor}'s to keep — the cache itself
      * does not check, the expander honours whatever extents it is handed, and omitting the fingerprint and

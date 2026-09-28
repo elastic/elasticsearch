@@ -75,8 +75,8 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      * Each value is conformed to the column's declared type. The two listings can type a column differently —
      * a wider set of paths can carry a value the prefix's type cannot hold, a narrower one can look more
      * specific than the prefix did — and the declared type is the one the plan is built on, so it wins. A value
-     * the declared type cannot hold becomes null, which is what a file outside the prefix already produced;
-     * unlike before, that is now confined to the values that genuinely do not fit.
+     * the declared type cannot hold has none under it, which is confined to the values that genuinely do not fit
+     * rather than falling on every file the schema's listing did not reach.
      */
     public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned) {
         if (partitionColumns.isEmpty() || scanned == null || scanned.filePartitionValues.isEmpty()) {
@@ -103,8 +103,7 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      * the same question the detector asked and gets the same answer. Going the other way it is not: a listing
      * that typed the column numerically has already parsed the token away, and {@code 0} cannot say whether the
      * folder was {@code hour=0} or {@code hour=00}. Under a declared {@link DataType#KEYWORD} the spelling is
-     * the value, so rather than invent one, the file has no value for that column — which is what a file outside
-     * the schema's listing had for every column before any of this.
+     * the value, so rather than invent one, the file has no value for that column.
      */
     private static Object conform(@Nullable Object value, DataType declared, @Nullable DataType detected) {
         if (value == null || declared == detected) {

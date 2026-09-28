@@ -147,13 +147,14 @@ public final class GlobExpander {
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
      * is left uncompacted, because neither compacted encoding carries the truncation flag — see
-     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
-     * resolution may bound the file set; {@link ListingExtents#UNBOUNDED} is the path every reading query takes,
-     * byte for byte as before.
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. A query that reads rows may
+     * be handed such a prefix: what a schema costs is the dataset's business, so the bound is asked for on the
+     * dataset's terms and split discovery lists the dataset itself when the prefix does not cover what it reads.
      * <p>
-     * Whether a bound is eligible at all — nothing else already narrowing the listing, no dataset-chosen file
-     * order — is the caller's to establish, and {@code ExternalSourceResolver#listingExtentsFor} is where that
-     * is decided. This class honours the extents it is handed and does not second-guess them.
+     * Whether a bound is eligible at all — a mode whose schema does not span every file, no dataset-wide
+     * statistics wanted, no dataset-chosen file order — is the caller's to establish, and
+     * {@code ExternalSourceResolver#listingExtentsFor} is where that is decided. This class honours the extents it
+     * is handed and does not second-guess them.
      */
     public static FileList expandAndCompact(
         String path,

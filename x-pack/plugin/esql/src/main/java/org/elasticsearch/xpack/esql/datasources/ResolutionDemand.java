@@ -20,12 +20,16 @@ import java.util.Set;
 public enum ResolutionDemand {
 
     /**
-     * No rows are read from this path, so resolution owes it a schema and nothing else. The only state that may
-     * bound a listing; how far the bound goes is the dataset's resolution mode, not the query's.
+     * No rows are read from this path, so resolution owes it a schema and nothing else. It bounds a listing
+     * wherever the dataset's mode allows one, which {@link #ROWS} now does too: what a schema costs is the
+     * dataset's business, and a query that discards every row asks no less of it than one that reads five.
      */
     SCHEMA_DISCOVERY,
 
-    /** Rows are read. Resolution produces the full file set, because split discovery takes it from the plan. */
+    /**
+     * Rows are read. Resolution still lists only as far as the schema needs, and the files this query reads are
+     * discovered by split discovery, which lists the dataset itself when what resolution held was a prefix.
+     */
     ROWS,
 
     /**

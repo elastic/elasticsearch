@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -174,8 +175,19 @@ public class ExternalSourceResolver {
         return result;
     }
 
+    /**
+     * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
+     * Not a measured deep size.
+     */
+    private static final long SCHEMA_MAP_BYTES_PER_FILE = 760L;
+
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
+    /**
+     * Query reservation for listing and schema-map bytes. Set once from {@code EsqlSession.execute}.
+     * Null when the session has no request breaker; those sessions skip the charge.
+     */
+    private volatile ExternalPlanningReservation planningReservation;
     private final Settings settings;
     /**
      * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
@@ -315,6 +327,27 @@ public class ExternalSourceResolver {
      * synchronous path), matching {@link StorageRetryCancellation}'s documented thread-affinity limits.
      */
     private final Executor metadataReadExecutor;
+
+    /**
+     * Binds the reservation {@code EsqlSession.execute} created from the session block factory.
+     * Charge and release then share that breaker. Null skips the charge.
+     */
+    public void planning(@Nullable ExternalPlanningReservation reservation) {
+        this.planningReservation = reservation;
+    }
+
+    /**
+     * Reserves listing memory plus the per-file schema map before reconciliation or the strict schema loop
+     * builds that map. A trip leaves the reservation unchanged: the breaker throws before the add is recorded.
+     */
+    private void chargeListingPlanning(FileList listing) {
+        ExternalPlanningReservation reservation = planningReservation;
+        if (reservation == null) {
+            return;
+        }
+        long bytes = listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
+        reservation.chargeQuery(bytes);
+    }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
@@ -532,7 +565,8 @@ public class ExternalSourceResolver {
      * and returns {@code true}; otherwise returns {@code false}. Used in the resolution failure path so that a footer
      * read which failed <em>because</em> the query was cancelled mid-flight surfaces as cancellation rather than as a
      * generic resolution error. Such a failure can arrive wrapped — {@code resolveSingleSource} wraps reader failures
-     * in {@link IllegalArgumentException} and the schema cache wraps loader failures in {@code ExecutionException} —
+     * in {@link IllegalArgumentException} and cache loaders (file-metadata {@code computeIfAbsent}, or callers that
+     * wrap schema loads) may wrap failures in {@code ExecutionException} —
      * so the cancellation state is consulted directly rather than matched on the exception type.
      */
     private boolean reportIfCancelled(String path, ActionListener<?> listener) {
@@ -691,10 +725,30 @@ public class ExternalSourceResolver {
         resolveSource(path, config, hints, declaredMapping, demand, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
-            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
-                ? applyNonStrictOverlay(resolvedSource, declaredMapping)
-                : resolvedSource;
-            resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
+            ExternalSourceResolution.ResolvedSource finalSource;
+            DeclaredReadSpec effectiveReadSpec;
+            if (declaredMapping != null && isDeclaredSchema(declaredMapping) == false) {
+                finalSource = applyNonStrictOverlay(resolvedSource, declaredMapping);
+                // When the overlay appended sampled-out columns for a headerless CSV/TSV source (which uses
+                // positional binding under INFERRED provenance), upgrade to DECLARED so that a col<N> name
+                // resolves to physical field N via headerlessFieldIndex rather than to schema-position N.
+                // NDJSON binds by JSON key natively and needs no upgrade.
+                if (finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size()
+                    && isHeaderlessCsvOrTsv(resolvedSource.metadata().sourceType(), resolvedSource.metadata().config())) {
+                    effectiveReadSpec = DeclaredReadSpec.of(
+                        declaredReadSpec.renames(),
+                        declaredReadSpec.dateFormats(),
+                        declaredReadSpec.declaredTypeColumns(),
+                        SchemaProvenance.DECLARED
+                    );
+                } else {
+                    effectiveReadSpec = declaredReadSpec;
+                }
+            } else {
+                finalSource = resolvedSource;
+                effectiveReadSpec = declaredReadSpec;
+            }
+            resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             resolveNextPath(
                 paths,
@@ -832,8 +886,8 @@ public class ExternalSourceResolver {
             return breaking;
         }
         // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
-        // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an
-        // ExecutionException -- so without this a correctly-typed 400 reached the client as a 500, and only on
+        // may arrive behind an ExecutionException (file-metadata {@code computeIfAbsent}, or other wrappers) —
+        // so without this a correctly-typed 400 reached the client as a 500, and only on
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
@@ -844,8 +898,8 @@ public class ExternalSourceResolver {
             return clientError;
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
-        // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
-        // in the schema cache's ExecutionException on the cacheable rail — so without this a missing bucket is a
+        // does. The file-metadata rail raises IOException (missing object, access denied) and it may arrive wrapped
+        // in ExecutionException on the cacheable rail — so without this a missing bucket is a
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
         // is non-retryable and is the caller's fault. rootDetail rather than getMessage so the ExecutionException
@@ -1038,6 +1092,7 @@ public class ExternalSourceResolver {
                 return;
             }
             FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
+            chargeListingPlanning(listing);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1058,9 +1113,9 @@ public class ExternalSourceResolver {
             // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
             // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
             // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
-            // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
-            // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
-            // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+            // across the anchor footer read. Unlike the single-file {@code getOrComputeSchema} path this does not
+            // coalesce concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is
+            // safe because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
@@ -2221,9 +2276,9 @@ public class ExternalSourceResolver {
     /**
      * Cache-aware async single-file resolve for the multi-file fan-out. Peeks the schema cache and, on a miss,
      * resolves asynchronously (without pinning a thread across the footer read) and stores the result. Unlike the
-     * single-file {@code getOrComputeSchema} path this does not coalesce concurrent misses for the same key: two
-     * concurrent misses may both fetch. That is acceptable here because each fan-out file is a distinct key and
-     * footer resolution is idempotent; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
+     * single-file {@link ExternalSourceCacheService#getOrComputeSchema} path this does not coalesce concurrent misses
+     * for the same key: two concurrent misses may both fetch. That is acceptable here because each fan-out file is a
+     * distinct key and footer resolution is idempotent; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
      */
     private void cachedResolveSingleSourceAsync(
         StoragePath filePath,
@@ -3713,6 +3768,7 @@ public class ExternalSourceResolver {
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
+        chargeListingPlanning(listing);
         if (listing.fileCount() == 0) {
             throw noFilesMatched(path, listing);
         }
@@ -3807,6 +3863,47 @@ public class ExternalSourceResolver {
      * {@code ExternalSourceResolverTests#testFileTypedFormatsGatesColumnarRejects}.
      */
     static final Set<String> COERCING_FILE_TYPED_FORMATS = Set.of("parquet", "orc");
+
+    /**
+     * Whether the schema this read produced is a <em>complete</em> column list — every column in the source is named —
+     * or a <em>sample-derived</em> one that may omit sparse or late-appearing columns.
+     * <p>
+     * File-typed formats (Parquet, ORC) derive their schema from the file footer, which is authoritative: every column
+     * the file contains is listed. CSV and TSV with a header row are complete for the same reason — the header names
+     * every column regardless of whether any sampled row carries a value. NDJSON and headerless CSV/TSV build their
+     * column set from a bounded prefix of records; a column whose first non-null value sits past the sample window is
+     * absent from the inferred schema even though the data has it.
+     * <p>
+     * A declared column absent from a complete schema is a typo the user wants reported. A declared column absent from
+     * a sample-derived schema may simply be sparse — it must not be rejected.
+     * <p>
+     * {@code header_row} defaults to {@code true} for CSV/TSV, so an absent key means complete.
+     */
+    private static boolean isSchemaComplete(String sourceType, Map<String, Object> config) {
+        if (FILE_TYPED_FORMATS.contains(sourceType)) {
+            return true;
+        }
+        if ("csv".equals(sourceType) || "tsv".equals(sourceType)) {
+            Object v = config != null ? config.get("header_row") : null;
+            return v == null || Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        }
+        if ("ndjson".equals(sourceType)) {
+            // Derives column list from a bounded sample prefix; a sparse field absent from the sample
+            // may still exist in later records.
+            return false;
+        }
+        // Unknown future format types default to complete: a missing declared column is an actionable
+        // error rather than silently accepted as a sparse-field surprise.
+        return true;
+    }
+
+    /**
+     * True for CSV and TSV files that have no header row — i.e., where {@link #isSchemaComplete} is
+     * {@code false} and the reader uses <em>positional</em> binding (column index == schema position).
+     */
+    private static boolean isHeaderlessCsvOrTsv(String sourceType, Map<String, Object> config) {
+        return ("csv".equals(sourceType) || "tsv".equals(sourceType)) && isSchemaComplete(sourceType, config) == false;
+    }
 
     /**
      * The declaration-vs-source violations detectable without reading file content: a declared column colliding with a
@@ -3959,9 +4056,15 @@ public class ExternalSourceResolver {
 
     /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
+     * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
+     * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
+     * <p>
+     * For sample-derived schemas ({@link #isSchemaComplete} is {@code false}), a declared column absent from the
+     * unified inferred schema is <em>appended</em> (returned in {@link DeclaredSchemaResolver.Overlaid#sampledOut()})
+     * rather than rejected — it may simply be a sparse field the sample window did not reach. The caller
+     * ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to {@link SchemaProvenance#DECLARED}
+     * for headerless CSV/TSV so that a {@code col<N>} name binds to physical field N rather than schema position N.
+     * </p>
      */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
@@ -3979,8 +4082,25 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
-        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        boolean schemaIsComplete = isSchemaComplete(inferred.sourceType(), inferred.config());
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(
+            inferred.schema(),
+            declaredMapping,
+            false,
+            schemaIsComplete
+        );
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
+        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath): when sampledOut columns
+        // exist for a headerless CSV/TSV format the fingerprint must hash DECLARED provenance so it matches what
+        // the data-node's read will produce.
+        if (unified.sampledOut().isEmpty() == false && isHeaderlessCsvOrTsv(inferred.sourceType(), inferred.config())) {
+            declaredReadSpec = DeclaredReadSpec.of(
+                declaredReadSpec.renames(),
+                declaredReadSpec.dateFormats(),
+                declaredReadSpec.declaredTypeColumns(),
+                SchemaProvenance.DECLARED
+            );
+        }
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
@@ -4002,8 +4122,8 @@ public class ExternalSourceResolver {
                 }
                 DataType declaredType = overlaidTypes.get(logical);
                 DataType inferredType = inferredTypes.get(physical);
-                // inferredType == null is unreachable (overlayNonStrict(lenient=false) above rejects a declared column
-                // absent from the unified schema), but poison defensively rather than trust an unkeyed stat.
+                // inferredType == null: declared column was absent from the sample (sparse field in a sample-derived
+                // schema). No inferred stat exists, so poison to prevent stale pushdowns from a missing-column entry.
                 if (me.getValue().format() != null || inferredType == null || inferredType != declaredType) {
                     poisonColumns.add(logical);
                 }
@@ -4050,14 +4170,30 @@ public class ExternalSourceResolver {
                 declaredMapping,
                 true
             );
-            String perFileReadConfig = ReadConfigFingerprint.of(perFile.fileSchema(), declaredReadSpec);
+            // Sampled-out declared columns (absent from the unified inferred schema because the sample did not reach
+            // them) are appended to every per-file schema. For NDJSON the reader always resolves field values by
+            // JSON key; for headerless CSV/TSV resolveNextPath upgrades provenance to DECLARED so the reader uses
+            // headerlessFieldIndex (col<N> → position N) rather than schema-position N — giving the same by-name
+            // semantics. In both cases, rows that do not carry the field null-fill the slot.
+            // Under union-by-name, sampledOut() is empty whenever the column appeared in at least one file's
+            // inferred schema — the lenient per-file overlay correctly skips truly absent columns in the other
+            // files, leaving their column-mapping slots as null-fill, which is the intended behavior.
+            List<Attribute> perFileSchema;
+            if (unified.sampledOut().isEmpty()) {
+                perFileSchema = perFile.fileSchema();
+            } else {
+                ArrayList<Attribute> extended = new ArrayList<>(perFile.fileSchema());
+                extended.addAll(unified.sampledOut());
+                perFileSchema = List.copyOf(extended);
+            }
+            String perFileReadConfig = ReadConfigFingerprint.of(perFileSchema, declaredReadSpec);
             if (expectedReadConfig == null) {
                 expectedReadConfig = perFileReadConfig;
             } else if (expectedReadConfig.equals(perFileReadConfig) == false) {
                 perFileReadConfigsDisagree = true;
             }
             ColumnMapping mapping = hasDeclaredColumns
-                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
+                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFileSchema)
                 : info.mapping();
             // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
             // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
@@ -4078,7 +4214,7 @@ public class ExternalSourceResolver {
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(perFile.fileSchema()),
+                    new ExternalSchema(perFileSchema),
                     mapping,
                     info.statistics(),
                     preRetypeInferredTypes

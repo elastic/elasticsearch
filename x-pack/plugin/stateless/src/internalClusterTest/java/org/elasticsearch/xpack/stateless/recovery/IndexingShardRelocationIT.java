@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -140,6 +140,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -147,6 +148,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -481,10 +483,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
     }
 
     /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has moved the shard into
-    /// `PRE_RELOCATING` but before `markRelocating` pins an upload bound. The listener returned by `markRelocationStarting`
-    /// must unwind the shard state in that case, otherwise the next relocation attempt trips over a state that is no longer
-    /// `RUNNING`.
-    public void testRelocationFailureWhilePreRelocating() {
+    /// `PRE_RELOCATING` but before `markRelocating` pins an upload bound. Here the source shard fails while the handoff consumer
+    /// is parked in `markRelocationStarting`, so the consumer then throws synchronously. The listener returned by
+    /// `markRelocationStarting` must be resolved on that path too, before `IndexShard#relocated` releases the operation permits.
+    public void testRelocationFailureWhilePreRelocating() throws Exception {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
         final String indexNode = startIndexNode(nodeSettings);
@@ -501,20 +503,23 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         final IndexShard indexShard = findIndexShard(indexName);
         final ShardId shardId = indexShard.shardId();
-        final String indexNodeId = getNodeId(indexNode);
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
-        // Park inside the handoff consumer at markRelocationStarting so the shard sits in PRE_RELOCATING. Cancelling the
-        // target makes the consumer fail and the outcome listener unwind.
+        // Park inside the handoff consumer at markRelocationStarting so the shard sits in PRE_RELOCATING, and record how
+        // the relocation outcome listener is resolved.
         final var enteredPreRelocating = new CountDownLatch(1);
         final var resumeRelocation = new CountDownLatch(1);
         final var relocationDone = new CountDownLatch(1);
+        final var unwindException = new AtomicReference<Exception>();
         final var firstAttempt = new AtomicBoolean(true);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
             public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId sid) {
                 if (firstAttempt.compareAndSet(true, false)) {
-                    final var listener = ActionListener.runAfter(originalSupplier.get(), relocationDone::countDown);
+                    final var listener = ActionListener.runAfter(originalSupplier.get().delegateResponse((l, e) -> {
+                        unwindException.set(e);
+                        l.onFailure(e);
+                    }), relocationDone::countDown);
                     enteredPreRelocating.countDown();
                     safeAwait(resumeRelocation);
                     return listener;
@@ -536,15 +541,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 equalTo(Long.MAX_VALUE)
             );
 
-            logger.info("--> cancelling the relocation target so that the handoff consumer fails while PRE_RELOCATING");
-
-            // Keep the master from retrying the cancelled relocation, so the shard stays on the source node.
-            updateIndexSettings(
-                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", newIndexNode),
-                indexName
-            );
-            ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand(indexName, 0, newIndexNode, false));
-            awaitClusterState(indexNode, state -> state.routingTable().shardRoutingTable(shardId).primaryShard().relocating() == false);
+            logger.info("--> failing the source shard while PRE_RELOCATING");
+            indexShard.failShard("test", new ElasticsearchException("simulated failure"));
+            assertBusy(() -> assertThat(indexShard.getEngineOrNull(), nullValue()));
         } finally {
             commitService.setStrategy(new TestStatelessCommitService.Strategy());
             resumeRelocation.countDown();
@@ -552,20 +551,24 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         logger.info("--> waiting for the failed relocation to unwind the source shard");
         safeAwait(relocationDone);
+        assertThat(unwindException.get(), instanceOf(AlreadyClosedException.class));
+        assertThat(unwindException.get().getMessage(), containsString("source shard closed before recovery started"));
 
+        // The failed primary is reallocated and recovers from the object store.
         ensureGreen(indexName);
-        assertThat("the shard stayed on the source node", findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(indexNodeId));
 
         final int afterRelocationFailedDocs = randomIntBetween(1, 100);
         indexDocs(indexName, afterRelocationFailedDocs);
         docCount += afterRelocationFailedDocs;
 
-        // A new relocation succeeds from the restored shard.
-        logger.info("--> relocating {} to {} now that the source has been restored", shardId, newIndexNode);
-        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
+        // A new relocation succeeds from the reallocated primary.
+        final String primaryNode = findIndexShard(indexName).routingEntry().currentNodeId();
+        final String sourceNode = primaryNode.equals(getNodeId(indexNode)) ? indexNode : newIndexNode;
+        final String targetNode = sourceNode.equals(indexNode) ? newIndexNode : indexNode;
+        logger.info("--> relocating {} from {} to {}", shardId, sourceNode, targetNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         ensureGreen(indexName);
-        assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));
+        assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(targetNode)));
 
         // A search shard recovering from the new primary still sees every document.
         setReplicaCount(1, indexName);

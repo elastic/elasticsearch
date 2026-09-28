@@ -445,10 +445,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// including those that never reach [#markRelocating]. Resolving it successfully marks the shard relocated, and
     /// resolving it exceptionally restores the shard to its pre-relocation state.
     ///
-    /// See also [#markRelocating]
+    /// Must be called from the relocation handoff consumer, while all primary operation permits are held. This serializes
+    /// relocation attempts on the shard: a later attempt cannot acquire the permits, and so cannot call this method, until
+    /// the previous attempt has resolved the returned listener.
     ///
-    /// @throws IllegalStateException if a handoff is already in flight for this shard, so that a relocation which is
-    ///         cancelled and retried cannot install a second bound over the first one
+    /// See also [#markRelocating]
     public ActionListener<Void> markRelocationStarting(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markRelocationStarting();
@@ -2969,7 +2970,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // shard was closed, relocation will fail on its own.
                     return;
                 }
-                assert state == State.RUNNING;
+                assert state == State.RUNNING : "unexpected state during markRelocationStarting: " + state;
                 assert maxGenerationToUpload == RelocationUploadBound.UNBOUNDED : "unexpected bound: " + maxGenerationToUpload.generation();
                 state = State.PRE_RELOCATING;
                 maxGenerationToUpload = new RelocationUploadBound();

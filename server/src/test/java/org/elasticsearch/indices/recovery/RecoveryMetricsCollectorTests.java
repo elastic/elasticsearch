@@ -60,6 +60,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         assertThat(blockedDurationMeasurements.getFirst().getLong(), equalTo(blockedTimeMillis));
         assertThat(blockedDurationMeasurements.getLast().getLong(), equalTo(secondBlockedTimeMillis));
 
+        collector.close();
         assertFalse(telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_METRIC));
         assertFalse(
             telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC)
@@ -101,11 +102,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {
         telemetryPlugin.collect();
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
             equalTo(expectedBlocked)
         );
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
             equalTo(expectedDuration)
         );
     }

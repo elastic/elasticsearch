@@ -383,11 +383,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         context.addColumn(
             MappedColumns.longColumn(context.primaryTerms(), PRIMARY_TERM_NAME, PRIMARY_TERM_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
         );
-        // In-place doc-values updates leave _seq_no/_primary_term untouched (the searchable _seq_no cannot be rewritten in place), so a
-        // document's current identity is carried in plain NUMERIC companion columns that CAN be rewritten with
-        // IndexWriter#updateDocValues. They hold the sequence number and primary term of the latest in-place update; readers combine
-        // them with _seq_no as the effective optimistic-concurrency identity. Present only when the index keeps sequence numbers and has
-        // updatable fields, and UNASSIGNED until an update lands.
+        // Seed the DV_UPDATE_SEQ_NO_NAME / DV_UPDATE_PRIMARY_TERM_NAME companion columns as plain NUMERIC (so IndexWriter#updateDocValues
+        // can later rewrite them) and initialize them to UNASSIGNED; an in-place update fills them in. Only present when the index keeps
+        // sequence numbers and has updatable fields.
         if (context.indexSettings().seqNoAwareDocValuesUpdates() && context.mappingLookup().updatableFields().isEmpty() == false) {
             final int docCount = context.docCount();
             final byte[] updateSeqNos = new byte[docCount * Long.BYTES];

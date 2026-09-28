@@ -53,26 +53,18 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Compares the cost of updating one field of a document two ways: reindexing the whole document versus an in-place doc-values update
- * (the {@code doc_values.updatable} feature). Each document is deliberately expensive to index — a large dense vector stored with disk
- * BBQ plus a few analyzed text fields — so it models the case the feature targets: the field being changed is cheap, but the document
- * around it is not.
+ * Compares updating one field of a document two ways: reindexing the whole document versus an in-place doc-values update (the
+ * {@code doc_values.updatable} feature). Each document is deliberately expensive to index (a large dense vector stored with disk BBQ
+ * plus a few analyzed text fields), modelling the case the feature targets: the field being changed is cheap, but the document around
+ * it is not.
  *
  * <p>Each measured invocation starts from a freshly built, committed base index of {@code numDocs} documents (built in {@code @Setup},
- * not measured), applies {@code updateBatch} updates, and flushes. The reindex path re-adds the vector — forcing BBQ quantization and
- * clustering for the new segment — while the doc-values path only rewrites the small keyword column.
+ * not measured), applies {@code updateBatch} updates, and flushes. The reindex path re-adds the vector, forcing BBQ quantization and
+ * clustering for the new segment; the doc-values path only rewrites the small keyword column.
  *
- * <p>Representative result (numDocs=2000, updateBatch=100, AverageTime, ms/op):
- * <pre>
- *   operation             512 dims   1024 dims
- *   doc-values update       ~2.4        ~3.0
- *   full reindex            ~8.9       ~10.6
- * </pre>
- * The doc-values update is ~3.6x cheaper, and its cost barely moves with the vector dimensionality while reindex scales with the
- * document's indexing cost. Two things this flush-level measurement <em>under</em>-states: (1) the vector graph/IVF is fully rebuilt on
- * <em>merge</em>, a cost reindex pays and a doc-values update does not, so the real-world gap is larger; (2) a doc-values update rewrites
- * the whole updated column of every touched segment, so its cost is dominated by segment size rather than by {@code updateBatch} — the
- * write-amplification trade-off of the feature.
+ * <p>This flush-level measurement understates the gap: the vector index is fully rebuilt on merge, a cost reindex pays and a
+ * doc-values update does not. A doc-values update instead rewrites the whole updated column of every touched segment, so its cost
+ * scales with segment size rather than with {@code updateBatch}.
  */
 @Fork(1)
 @Warmup(iterations = 2)

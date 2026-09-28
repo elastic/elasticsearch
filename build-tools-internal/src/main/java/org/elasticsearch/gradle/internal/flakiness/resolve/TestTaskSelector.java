@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.flakiness.resolve;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
 import org.elasticsearch.gradle.internal.flakiness.model.TestTaskInfo;
+
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

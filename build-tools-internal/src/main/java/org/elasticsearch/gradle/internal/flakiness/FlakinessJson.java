@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.flakiness;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+
 import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
 import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan;
 import org.elasticsearch.gradle.internal.flakiness.model.FlakinessRef;

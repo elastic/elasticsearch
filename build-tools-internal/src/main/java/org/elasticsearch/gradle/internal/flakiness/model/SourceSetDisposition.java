@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.flakiness.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
 
 import java.nio.file.Path;

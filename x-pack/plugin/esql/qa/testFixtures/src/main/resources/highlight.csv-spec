@@ -2161,6 +2161,106 @@ Return of the Shadow                                             | 2 | <em>Retur
 ;
 
 
+# Both WHEREs sit below a single HIGHLIGHT, so it borrows MATCH(title) and MATCH(author) across INLINE STATS.
+implicitQueryBorrowsWheresAroundInlineStats
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| INLINE STATS c = COUNT(*)
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT
+| KEEP title, c, highlight_*
+| SORT title
+;
+
+title:text | c:long | highlight_author:keyword | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2 | <em>Tolkien</em> | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | 2 | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>] | <em>Return</em> of the Shadow
+;
+
+
+# The optimizer moves a WHERE after HIGHLIGHT below it, so each HIGHLIGHT highlights its own field. An INLINE STATS
+# whose output is kept between them blocks that move and the query is rejected instead
+# (OptimizerVerificationTests#testFullTextWhereAfterHighlightBlockedByInlineStats).
+implicitQueryTwoHighlightsEachHighlightTheirField
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON title
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT ON author
+| KEEP title, highlight_*
+| SORT title
+;
+
+title:text | highlight_title:keyword | highlight_author:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | <em>Tolkien</em>
+Return of the Shadow                                             | <em>Return</em> of the Shadow                                             | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>]
+;
+
+
+# Common commands between the WHERE and HIGHLIGHT keep one row per document, so MATCH(title) is still borrowed.
+implicitQueryPassesCommonCommands
+required_capability: highlight_implicit_query_and_fields
+required_capability: esql_limit_by
+required_capability: esql_topn_by
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL t = title
+| DROP description
+| KEEP book_no, title, year, t
+| SORT book_no
+| LIMIT 5 BY year
+| SORT title
+| LIMIT 1 BY book_no
+| HIGHLIGHT
+| KEEP title, highlight_*
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# IN subqueries keep the outer rows, so HIGHLIGHT borrows the outer MATCH(title). The subquery's MATCH(author) selects
+# other documents and is not borrowed, so there is no highlight_author column.
+implicitQueryDescendsThroughInSubquery
+required_capability: highlight_implicit_query_and_fields
+required_capability: where_in_subquery_without_view
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE book_no IN (FROM books | WHERE MATCH(author, "Christopher") | KEEP book_no)
+| HIGHLIGHT
+| KEEP title, highlight_*
+;
+
+title:text | highlight_title:keyword
+Return of the Shadow | <em>Return</em> of the Shadow
+;
+
+
+implicitQueryDescendsThroughNotInSubquery
+required_capability: highlight_implicit_query_and_fields
+required_capability: where_in_subquery_without_view
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE book_no NOT IN (FROM books | WHERE MATCH(author, "Christopher") | KEEP book_no)
+| HIGHLIGHT
+| KEEP title, highlight_*
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+;
+
+
 # A borrowed MATCH follows RENAME so HIGHLIGHT targets the current column.
 implicitQueryFollowsRename
 required_capability: highlight_implicit_query_and_fields
@@ -2326,6 +2426,7 @@ Return of the <em>King</em> | null
 # overrides default_field, so description is highlighted and title is not.
 highlightQueryStringQualifierOverridesDefaultFieldNoOn
 required_capability: highlight_implicit_query_and_fields
+required_capability: qstr_function
 
 ROW title = "Return of the King", description = "Tolkien wrote the epic saga."
 | HIGHLIGHT QSTR("description:Tolkien", {"default_field": "title"})
@@ -2341,6 +2442,7 @@ null                    | <em>Tolkien</em> wrote the epic saga.
 # an explicit ON clause. Negative queries never produce spans, so the generated columns are null.
 highlightNotKqlFallsBackToAllStringFields
 required_capability: highlight_implicit_query_and_fields
+required_capability: kql_function
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT NOT KQL("foo")
@@ -2358,6 +2460,8 @@ null                    | null
 # highlight_body is absent-as-null.
 highlightMatchAndNotQstrDerivesWithoutTranslationError
 required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+required_capability: qstr_function
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT MATCH(title, "king") AND NOT QSTR("body:bar")
@@ -2373,6 +2477,7 @@ Return of the <em>King</em> | null
 # out of ON leaves Lucene with searchable fields [author] and rejects [title].
 highlightQstrQualifierSurvivesPruneOfUnusedOnField
 required_capability: highlight_v6
+required_capability: qstr_function
 
 ROW title = "Return of the King", author = "Tolkien"
 | HIGHLIGHT QSTR("title:King") ON title, author
@@ -2387,6 +2492,7 @@ null
 # MATCH(title) still translates against title after KEEP drops highlight_title.
 highlightMatchSurvivesPruneOfUnusedOnField
 required_capability: highlight_v6
+required_capability: match_function
 
 ROW title = "Return of the King", author = "Tolkien"
 | HIGHLIGHT MATCH(title, "king") ON title, author

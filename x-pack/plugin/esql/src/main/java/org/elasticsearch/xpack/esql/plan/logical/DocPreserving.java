@@ -12,9 +12,10 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * expanding a multivalued field preserve that tie; combining multiple documents into one row does not.
  * <p>
  * {@link InlineStats} is doc-preserving because it joins aggregate values back onto the input rows. {@link Aggregate}
- * is not because each output row summarizes multiple documents.
- * Commands that synthesize rows or combine inputs, such as {@code FUSE}, {@code FORK}, and {@code JOIN}, are also
- * deliberately excluded.
+ * is not because each output row summarizes multiple documents. {@code IN} / {@code NOT IN} subquery joins are
+ * doc-preserving through their left side only: the subquery decides which rows survive but contributes none.
+ * Commands that synthesize rows or combine inputs, such as {@code FUSE}, {@code FORK}, {@code LOOKUP JOIN}, and
+ * {@code FROM} subqueries, are deliberately excluded.
  * Consumers should follow {@link #preservingInput()} instead of maintaining their own command allowlist.
  */
 public interface DocPreserving {

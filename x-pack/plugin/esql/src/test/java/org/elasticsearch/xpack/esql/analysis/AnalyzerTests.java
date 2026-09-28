@@ -126,7 +126,10 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -193,6 +196,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -6699,6 +6703,23 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
+    /** Both WHEREs are below one HIGHLIGHT, so it ORs them across INLINE STATS and derives both fields. */
+    public void testHighlightImplicitQueryBorrowsWheresOnBothSidesOfInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | INLINE STATS c = COUNT(*)
+            | WHERE MATCH(last_name, "y")
+            | HIGHLIGHT
+            """));
+        Or query = as(highlight.query(), Or.class);
+        assertThat(Expressions.name(as(query.left(), Match.class).field()), equalTo("last_name"));
+        assertThat(Expressions.name(as(query.right(), Match.class).field()), equalTo("first_name"));
+        assertThat(fieldNames(highlight.fields()), containsInAnyOrder("first_name", "last_name"));
+    }
+
     public void testHighlightHandlesAnalyzerOnWherePredicates() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         Highlight singleLeaf = soleHighlight(supportsHighlight(basic()).query("""
@@ -6719,22 +6740,68 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        Highlight highlight = soleHighlight(supportsHighlight(basicWithEnrich()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x")
-            | EVAL copy = first_name
-            | KEEP first_name, last_name, languages, copy
-            | SORT first_name
-            | LIMIT 10
-            | DISSECT copy "%{part}"
-            | EVAL x = to_string(languages)
-            | ENRICH languages ON x
-            | SAMPLE 0.5
-            | HIGHLIGHT ON first_name
-            """));
+        for (String highlightCommand : List.of("HIGHLIGHT ON first_name", "HIGHLIGHT")) {
+            Highlight highlight = soleHighlight(supportsHighlight(basicWithEnrich()).query("""
+                FROM test
+                | WHERE MATCH(first_name, "x")
+                | EVAL copy = first_name
+                | KEEP first_name, last_name, languages, copy
+                | SORT first_name
+                | LIMIT 10
+                | DISSECT copy "%{part}"
+                | EVAL x = to_string(languages)
+                | ENRICH languages ON x
+                | SAMPLE 0.5
+                """ + "| " + highlightCommand));
 
-        assertThat(highlight.query(), instanceOf(Match.class));
-        assertTrue(highlight.implicitQuery());
+            assertThat(highlightCommand, highlight.query(), instanceOf(Match.class));
+            assertTrue(highlightCommand, highlight.implicitQuery());
+            assertThat(highlightCommand, fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+    }
+
+    public void testHighlightImplicitQueryPassesCommonCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        for (String command : List.of(
+            "EVAL x = emp_no + 1",
+            "DROP last_name",
+            "KEEP first_name, emp_no",
+            "SORT emp_no",
+            "LIMIT 2 BY languages",
+            "SORT emp_no | LIMIT 2 BY languages"
+        )) {
+            Highlight highlight = soleHighlight(analyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | " + command + " | HIGHLIGHT"));
+            assertThat(command, Expressions.name(as(highlight.query(), Match.class).field()), equalTo("first_name"));
+            assertTrue(command, highlight.implicitQuery());
+            assertThat(command, fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+    }
+
+    /**
+     * IN / NOT IN subqueries keep the outer rows, so HIGHLIGHT borrows through the left side of the join. The subquery's own
+     * WHERE selects other documents and is never borrowed.
+     */
+    public void testHighlightImplicitQueryDescendsThroughInSubqueryJoins() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        String subquery = "(FROM test | WHERE MATCH(last_name, \"y\") | KEEP emp_no)";
+        for (var shape : List.<Map.Entry<String, Class<? extends LogicalPlan>>>of(
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no IN " + subquery, SemiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") AND emp_no IN " + subquery, SemiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no NOT IN " + subquery, AntiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no IN " + subquery + " OR emp_no > 5", MarkJoin.class)
+        )) {
+            Highlight highlight = soleHighlight(analyzer.query("FROM test | " + shape.getKey() + " | HIGHLIGHT"));
+            assertTrue(shape.getKey(), highlight.anyMatch(shape.getValue()::isInstance));
+            assertThat(shape.getKey(), Expressions.name(as(highlight.query(), Match.class).field()), equalTo("first_name"));
+            assertTrue(shape.getKey(), highlight.implicitQuery());
+            assertThat(shape.getKey(), fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+        analyzer.error(
+            "FROM test | WHERE emp_no IN " + subquery + " | HIGHLIGHT",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
     }
 
     public void testBareHighlightDerivesQueryFieldsAndGeneratedOutput() {

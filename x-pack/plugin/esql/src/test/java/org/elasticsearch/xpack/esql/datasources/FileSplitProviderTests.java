@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
@@ -14,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -117,9 +121,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -2202,7 +2206,6 @@ public class FileSplitProviderTests extends ESTestCase {
         } finally {
             executor.shutdown();
         }
-        assertWarnings(true, List.of(containsString("1 file(s) were cut into fewer splits")));
 
         assertEquals("a file with no usable boundary is read whole", 1, splits.size());
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
@@ -2212,10 +2215,10 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * What leaves a file with no usable boundary is a property of the dataset, not of the file: records wider than
-     * the probe window make every file of a scan unsplittable at once. The query is told once, with the count and
-     * an example, rather than once per file, which for a scan of many files would bury its response in warnings.
+     * the probe window make every file of a scan unsplittable at once. It is logged once, with the count and an
+     * example, rather than once per file, which for a scan of many files would bury the node log.
      */
-    public void testUnsplittableFilesAreWarnedAboutOncePerQuery() {
+    public void testUnsplittableFilesAreLoggedOncePerQuery() {
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         byte[] payload = oneRecordSpanning(8 * stride);
         Map<String, byte[]> payloads = new HashMap<>();
@@ -2223,20 +2226,20 @@ public class FileSplitProviderTests extends ESTestCase {
             payloads.put("long-lines-" + i + ".csv", payload);
         }
 
-        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(payloads, stride, null, null),
+            new LoggedOnce("[3] file(s) were cut into fewer splits than a [" + ByteSizeValue.ofBytes(stride) + "] split size gives, *")
+        );
 
         assertEquals("each file with no usable boundary is read whole", payloads.size(), splits.size());
-        // assertWarnings fails on any warning left without a matcher, so one matcher is also the assertion that
-        // three unsplittable files raised one warning rather than three.
-        assertWarnings(true, List.of(containsString("3 file(s) were cut into fewer splits")));
     }
 
     /**
-     * A partial shortfall, which is the case the count in the warning exists for: most offsets resolve and some do
-     * not, so the file is cut into fewer pieces than asked for while still being cut. Nothing about the splits
-     * says so, which is why it is reported rather than left for the reader of a slow query to infer.
+     * A partial shortfall, which is the case the count in the log line exists for: most offsets resolve and some
+     * do not, so the file is cut into fewer pieces than asked for while still being cut. Nothing about the splits
+     * says so, which is why it is logged rather than left for whoever looks into a slow query to infer.
      */
-    public void testAPartialShortfallIsWarnedAboutEvenThoughTheFileStillSplits() {
+    public void testAPartialShortfallIsLoggedEvenThoughTheFileStillSplits() {
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         // One record longer than a probe window, so the offset inside it finds nothing while the offsets over the
         // short rows either side of it resolve normally.
@@ -2250,19 +2253,17 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
 
-        List<ExternalSplit> splits = discoverPlainCsvSplits(Map.of("one-long-row.csv", payload), stride, null, null);
-
-        assertThat("the file must still be cut at the offsets that did resolve", splits.size(), greaterThan(1));
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("1 file(s) were cut into fewer splits"),
-                    containsString("0 of them are read as a single whole-file split"),
-                    containsString("probe offsets found no record boundary")
-                )
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(Map.of("one-long-row.csv", payload), stride, null, null),
+            shortfallLogged(
+                "[1] file(s) were cut into fewer splits than a ["
+                    + ByteSizeValue.ofBytes(stride)
+                    + "] split size gives, [0] of them into a single split (* of * probe offsets found no record boundary); "
+                    + "e.g. [*one-long-row.csv] (*); the query may run slower"
             )
         );
+
+        assertThat("the file must still be cut at the offsets that did resolve", splits.size(), greaterThan(1));
     }
 
     /**
@@ -2283,30 +2284,20 @@ public class FileSplitProviderTests extends ESTestCase {
         int offsetCount = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertThat("the file must offer several offsets to probe", offsetCount, greaterThan(2));
 
-        List<ExternalSplit> atNarrowWindow = discoverPlainCsvSplitsWithConfig(
-            payloads,
-            stride,
-            Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, recordBytes / 4 + "b")
+        List<ExternalSplit> atNarrowWindow = withSplitLog(
+            () -> discoverPlainCsvSplitsWithConfig(
+                payloads,
+                stride,
+                Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, recordBytes / 4 + "b")
+            ),
+            shortfallLogged("[1] file(s) were cut into fewer splits than a [*] split size gives, [1] of them into a single split *")
         );
 
         assertEquals("a window narrower than the records leaves no boundary to cut at", 1, atNarrowWindow.size());
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("1 file(s) were cut into fewer splits"),
-                    containsString("1 of them are read as a single whole-file split"),
-                    containsString("[" + FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW + "]")
-                )
-            )
-        );
 
-        // No second assertWarnings call: the test framework fails on any warning left unasserted, so the absence
-        // of one here is what pins that the raised window lost nothing to report.
-        List<ExternalSplit> atRaisedWindow = discoverPlainCsvSplitsWithConfig(
-            payloads,
-            stride,
-            Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, stride + "b")
+        List<ExternalSplit> atRaisedWindow = withSplitLog(
+            () -> discoverPlainCsvSplitsWithConfig(payloads, stride, Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, stride + "b")),
+            nothingLogged("the raised window lost nothing to report")
         );
 
         assertEquals("a window as wide as the stride resolves every offset", offsetCount + 1, atRaisedWindow.size());
@@ -2359,20 +2350,21 @@ public class FileSplitProviderTests extends ESTestCase {
                 Integer.toString(lowCount)
             )
         );
-        assertWarnings(true, List.of(containsString("would probe more than " + lowCount + " record boundaries")));
         assertEquals("the low count is cut at the stride it was widened to", offsetsAtLowCount + 1, atLowCount.size());
 
-        // No assertWarnings call: the raised count neither widens the stride nor loses an offset, so it has
-        // nothing to report, and the test framework fails on any warning left unasserted.
-        List<ExternalSplit> atRaisedCount = discoverPlainCsvSplitsWithConfig(
-            payloads,
-            stride,
-            Map.of(
-                FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW,
-                probeWindow + "b",
-                FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
-                Integer.toString(raisedCount)
-            )
+        // The raised count neither widens the stride nor loses an offset, so it has nothing to log.
+        List<ExternalSplit> atRaisedCount = withSplitLog(
+            () -> discoverPlainCsvSplitsWithConfig(
+                payloads,
+                stride,
+                Map.of(
+                    FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW,
+                    probeWindow + "b",
+                    FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
+                    Integer.toString(raisedCount)
+                )
+            ),
+            nothingLogged("the raised count has nothing to report")
         );
 
         assertThat("raising the count must not cost splits", atRaisedCount.size(), greaterThanOrEqualTo(atLowCount.size()));
@@ -2398,24 +2390,25 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         assertThat("and for no more than the raised count allows", probes, lessThanOrEqualTo(raisedCount));
 
-        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
-        // here is what pins that the raised count left the requested stride alone.
-        List<ExternalSplit> splits = discoverPlainCsvSplitsWithConfig(
-            payloads,
-            stride,
-            Map.of(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES, Integer.toString(raisedCount))
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplitsWithConfig(
+                payloads,
+                stride,
+                Map.of(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES, Integer.toString(raisedCount))
+            ),
+            nothingLogged("the raised count left the requested stride alone")
         );
 
         assertEquals("the file must be cut at the stride asked for", probes + 1, splits.size());
     }
 
     /**
-     * A file that loses one offset of a dozen is not warned about. The shortfall is real but costs a percent or
-     * two of the query's parallelism, and a warning that fires at that size is one people stop reading, which is
-     * the one thing it cannot afford: the same sentence has to still be worth reading when the file was cut into
-     * nothing at all.
+     * A file that loses one offset of a dozen is not logged. The shortfall is real but costs a percent or two of
+     * the query's parallelism, and a line that fires at that size is one people stop reading, which is the one
+     * thing it cannot afford: the same sentence has to still be worth reading when the file was cut into nothing
+     * at all.
      */
-    public void testASingleLostOffsetAmongManyIsNotWarnedAbout() throws IOException {
+    public void testASingleLostOffsetAmongManyIsNotLogged() throws IOException {
         long stride = 256 * 1024;
         String fillerRow = "a,b,c\n";
         // The offset the long record is built to swallow, far enough into the file that plenty of others resolve.
@@ -2438,7 +2431,7 @@ public class FileSplitProviderTests extends ESTestCase {
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("the long record must end past the window of the offset it swallows", recordEnd, greaterThan(swallowedOffset + stride));
 
-        // The loss has to be there for its absence from the response to mean anything, and the splits cannot show
+        // The loss has to be there for its absence from the log to mean anything, and the splits cannot show
         // it: the offset past the swallowed one resolves to the record's end, so that boundary is in the split set
         // either way. The per-offset outcomes are where one lost offset is visible.
         List<Long> positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES);
@@ -2456,9 +2449,10 @@ public class FileSplitProviderTests extends ESTestCase {
         ).stream().filter(outcome -> outcome.kind() == RecordBoundaryProbe.Outcome.Kind.NONE).count();
         assertEquals("exactly the offset inside the long record must find nothing", 1, missing);
 
-        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
-        // here is what pins that a loss this size is below the floor.
-        List<ExternalSplit> splits = discoverPlainCsvSplits(Map.of("one-long-row.csv", payload), stride, null, null);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(Map.of("one-long-row.csv", payload), stride, null, null),
+            nothingLogged("a loss this size is below the floor")
+        );
 
         assertThat("the file must still be cut at the offsets that did resolve", splits.size(), greaterThan(5));
     }
@@ -2466,10 +2460,10 @@ public class FileSplitProviderTests extends ESTestCase {
     /**
      * A quoted CSV whose sequential walk gives up with file left to cut. The walk cannot skip the record it
      * cannot get past, so everything after it goes uncut, and the splits themselves say no more about that than
-     * they do about a strided file that lost offsets. A walked file probes no offsets, so the warning it raises
-     * leaves the offset tally out rather than reporting none of none.
+     * they do about a strided file that lost offsets. A walked file probes no offsets, so the line it logs leaves
+     * the offset tally out rather than reporting none of none.
      */
-    public void testASequentialWalkThatGivesUpIsWarnedAbout() {
+    public void testASequentialWalkThatGivesUpIsLogged() {
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         // Quoted rows, an embedded newline in each so the file can only be walked, for the first stride. Then a
         // run with no terminator at all: past the offset that lands in it there is no record start left to prove.
@@ -2480,39 +2474,25 @@ public class FileSplitProviderTests extends ESTestCase {
         csv.append("z".repeat(Math.toIntExact(3 * stride)));
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
 
-        List<ExternalSplit> splits = discoverCsvSplits(
-            Map.of("unterminated-tail.csv", payload),
-            stride,
-            null,
-            null,
-            Settings.EMPTY,
-            () -> false,
-            Map.of()
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverCsvSplits(Map.of("unterminated-tail.csv", payload), stride, null, null, Settings.EMPTY, () -> false, Map.of()),
+            // No probe offset tally between the count and the example.
+            shortfallLogged(
+                "[1] file(s) were cut into fewer splits than a ["
+                    + ByteSizeValue.ofBytes(stride)
+                    + "] split size gives, [0] of them into a single split; e.g. [*unterminated-tail.csv] (*); the query may run slower"
+            )
         );
 
         assertThat("the file must still be cut where the walk did reach", splits.size(), greaterThan(1));
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("1 file(s) were cut into fewer splits"),
-                    containsString("0 of them are read as a single whole-file split"),
-                    not(containsString("probe offsets")),
-                    // The walk reads neither of the settings the probed path offers, so naming them here would
-                    // send this user to knobs that cannot change their outcome.
-                    containsString("[external_max_record_size]"),
-                    not(containsString("[" + FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW + "]"))
-                )
-            )
-        );
     }
 
     /**
      * A query whose lost files were cut both ways, which a glob spanning formats gets: the quoted CSV is walked
-     * and the NDJSON is probed. One remedy would be wrong for half the files, so both are reported with the count
-     * each applies to.
+     * and the NDJSON is probed. Both are counted in the one line, and the probe offset tally covers the probed
+     * file only.
      */
-    public void testAQueryLosingBothProbedAndWalkedFilesReportsBothRemedies() {
+    public void testAQueryLosingBothProbedAndWalkedFilesLogsBoth() {
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
 
         // Quoted rows with an embedded newline so the file can only be walked, then a run with no terminator at
@@ -2531,55 +2511,118 @@ public class FileSplitProviderTests extends ESTestCase {
             oneRecordSpanning(4 * stride)
         );
 
-        List<ExternalSplit> splits = discoverMixedFormatSplits(payloads, stride);
-
-        assertThat("both files must still yield splits", splits.size(), greaterThanOrEqualTo(2));
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("2 file(s) were cut into fewer splits"),
-                    containsString("1 of them were probed"),
-                    containsString("The other 1 hold quoted or escaped records"),
-                    containsString("[" + FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW + "]"),
-                    containsString("[external_max_record_size]")
-                )
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverMixedFormatSplits(payloads, stride),
+            shortfallLogged(
+                "[2] file(s) were cut into fewer splits than a [*] split size gives, [*] of them into a single split (* probe offsets *"
             )
         );
+
+        assertThat("both files must still yield splits", splits.size(), greaterThanOrEqualTo(2));
     }
 
     /**
-     * A query that has already raised both dataset keys past the record cap, which then bounds every probe read.
-     * The remedy has to name the cap: telling this user to raise a key they have set above it would be advice they
-     * have already followed, with nothing to show for it.
+     * A query that has already raised both dataset keys past the record cap, which then bounds every probe read,
+     * so a record wider than the cap leaves the file with no boundary to cut at.
      */
-    public void testTheRemedyNamesTheRecordCapWhenTheDatasetKeysAreRaisedPastIt() {
+    public void testARecordCapBelowTheDatasetKeysBoundsEveryProbe() {
         int maxRecordBytes = Math.toIntExact(CSV_MIN_SEGMENT_BYTES);
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         long probeWindow = 2 * CSV_MIN_SEGMENT_BYTES;
         byte[] payload = oneRecordSpanning(8 * stride);
 
-        List<ExternalSplit> splits = discoverPlainCsvSplitsWithConfig(
-            Map.of("one-record.csv", payload),
-            stride,
-            Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, probeWindow + "b"),
-            maxRecordBytes
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplitsWithConfig(
+                Map.of("one-record.csv", payload),
+                stride,
+                Map.of(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, probeWindow + "b"),
+                maxRecordBytes
+            ),
+            shortfallLogged("[1] file(s) were cut into fewer splits than a [*] split size gives, [1] of them into a single split (*")
         );
 
         assertEquals("a cap narrower than the record leaves no boundary to cut at", 1, splits.size());
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("1 file(s) were cut into fewer splits"),
-                    containsString("1 of them are read as a single whole-file split"),
-                    containsString("a probe reads at most [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"),
-                    containsString("[external_max_record_size]"),
-                    not(containsString("[" + FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW + "]")),
-                    not(containsString("bounded by [" + FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE + "]"))
-                )
-            )
+    }
+
+    /**
+     * The probe budget error names both keys, the ceiling, and the widest window the given probe count leaves.
+     */
+    public void testAProbeBudgetOverTheCeilingNamesTheWidestWindow() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FileSplitProvider.validateProbeBudget(ByteSizeValue.ofMb(8).getBytes(), 1024)
         );
+        assertEquals(
+            "[split_probe_window] of [8mb] times [max_split_probes] of [1024] exceeds [4gb]; "
+                + "lower either (at [1024] probes the window can be at most [4mb])",
+            e.getMessage()
+        );
+    }
+
+    /** Runs {@code action} and asserts what {@link FileSplitProvider} logged while it ran. */
+    private static <T> T withSplitLog(Supplier<T> action, MockLog.LoggingExpectation... expectations) {
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            for (MockLog.LoggingExpectation expectation : expectations) {
+                mockLog.addExpectation(expectation);
+            }
+            T result = action.get();
+            mockLog.assertAllExpectationsMatched();
+            return result;
+        }
+    }
+
+    /** The split shortfall line, matched as a {@code *} wildcard pattern. */
+    private static MockLog.LoggingExpectation shortfallLogged(String pattern) {
+        return new MockLog.SeenEventExpectation("split shortfall", FileSplitProvider.class.getCanonicalName(), Level.WARN, pattern);
+    }
+
+    /**
+     * A {@link FileSplitProvider} WARN line matching {@code pattern} logged exactly once. {@link MockLog.SeenEventExpectation}
+     * is satisfied by the first match and does not count, so it cannot tell one line from one per file.
+     */
+    private static final class LoggedOnce implements MockLog.LoggingExpectation {
+        private final String pattern;
+        private final AtomicInteger seen = new AtomicInteger();
+
+        LoggedOnce(String pattern) {
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(Level.WARN)
+                && event.getLoggerName().equals(FileSplitProvider.class.getCanonicalName())
+                && Regex.simpleMatch(pattern, event.getMessage().getFormattedMessage())) {
+                seen.incrementAndGet();
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertEquals("times [" + pattern + "] was logged", 1, seen.get());
+        }
+    }
+
+    /** The line logged when the probe budget widened the requested split size. */
+    private static MockLog.LoggingExpectation widenedLogged(long requestedStride, long widenedStride, long probedBytes) {
+        return new MockLog.SeenEventExpectation(
+            "widened split size",
+            FileSplitProvider.class.getCanonicalName(),
+            Level.WARN,
+            "[target_split_size] of ["
+                + ByteSizeValue.ofBytes(requestedStride)
+                + "] raised to ["
+                + ByteSizeValue.ofBytes(widenedStride)
+                + "] to stay within [max_split_probes] of ["
+                + FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES
+                + "] over ["
+                + ByteSizeValue.ofBytes(probedBytes)
+                + "] of files"
+        );
+    }
+
+    private static MockLog.LoggingExpectation nothingLogged(String reason) {
+        return new MockLog.UnseenEventExpectation(reason, FileSplitProvider.class.getCanonicalName(), Level.WARN, "*");
     }
 
     /** A payload of {@code length} bytes that is one record from end to end: no terminator until the final byte. */
@@ -2592,10 +2635,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * A file just over one stride whose only probe finds a newline too close to EOF is read whole, which is the
-     * intended cut, not a missing boundary. The query is not told to raise {@code target_split_size}: that would
-     * point the wrong way.
+     * intended cut, not a missing boundary, so nothing is logged about it.
      */
-    public void testAFileWhoseOnlyFoundBoundaryLeavesAShortTailIsReadWholeWithoutWarning() {
+    public void testAFileWhoseOnlyFoundBoundaryLeavesAShortTailIsReadWholeWithoutLogging() {
         long stride = CSV_MIN_SEGMENT_BYTES;
         byte[] row = "a,b,c\n".getBytes(StandardCharsets.UTF_8);
         byte[] payload = new byte[Math.toIntExact(stride + CSV_MIN_SEGMENT_BYTES)];
@@ -2608,9 +2650,10 @@ public class FileSplitProviderTests extends ESTestCase {
             RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size()
         );
 
-        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
-        // here is what pins that a short leftover after a found boundary is not reported as no record boundary.
-        List<ExternalSplit> splits = discoverPlainCsvSplits(Map.of("just-over-one-stride.csv", payload), stride, null, null);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(Map.of("just-over-one-stride.csv", payload), stride, null, null),
+            nothingLogged("a short leftover after a found boundary is not a missing boundary")
+        );
 
         assertEquals("a file barely over one stride is read whole", 1, splits.size());
     }
@@ -2646,8 +2689,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * that spends exactly the budget, and the file is cut at that. Every offset of a strided file is
      * materialized before any read and each becomes a probe task, a queued listener and a blocking ranged read
      * after that, so an extreme target split size would otherwise cost planning latency and planning-time heap
-     * for splits too small to pay for either. The widening is what the user did not ask for, so it must be
-     * warned about.
+     * for splits too small to pay for either. The widening is not what the dataset asked for, so it is logged.
      */
     public void testATargetStrideAskingForTooManyProbesIsWidened() {
         byte[] payload = delimitedPayload("a,b,c\n");
@@ -2660,18 +2702,12 @@ public class FileSplitProviderTests extends ESTestCase {
             greaterThan(FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES)
         );
 
-        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
-        assertWarnings(
-            true,
-            List.of(
-                allOf(
-                    containsString("would probe more than 1000 record boundaries"),
-                    containsString("[" + FileSplitProvider.CONFIG_MAX_SPLIT_PROBES + "]")
-                )
-            )
+        long widened = Math.ceilDiv(payload.length, FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(payloads, stride, null, null),
+            widenedLogged(stride, widened, payload.length)
         );
 
-        long widened = Math.ceilDiv(payload.length, FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES);
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals("the file must be cut at the widened stride, not the requested one", probes + 1, splits.size());
         assertThat(probes, lessThanOrEqualTo(FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES));
@@ -2704,10 +2740,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Serial discovery, so the overlap latch of one is satisfied by the first stream and never delays a probe.
         StreamTracking tracking = new StreamTracking(1);
-        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, tracking);
-        assertWarnings(true, List.of(containsString("would probe more than 1000 record boundaries")));
-
         long widened = Math.ceilDiv((long) payload.length * payloads.size(), FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(payloads, stride, null, tracking),
+            widenedLogged(stride, widened, (long) payload.length * payloads.size())
+        );
+
         int probesPerWidenedFile = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals(
             "every file must be cut at the stride the whole query was widened to",
@@ -2724,9 +2762,9 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A query whose probes fit the budget is cut at exactly the size asked for, and says nothing. The widening is
+     * A query whose probes fit the budget is cut at exactly the size asked for, and logs nothing. The widening is
      * a last resort for a scan large enough to plan its way into trouble, so an ordinary one must not pay for it,
-     * nor be told about a limit it never came near.
+     * nor be reported against a limit it never came near.
      */
     public void testAQueryWithinTheProbeBudgetIsNotWidened() {
         byte[] payload = delimitedPayload("a,b,c\n");
@@ -2738,9 +2776,10 @@ public class FileSplitProviderTests extends ESTestCase {
             lessThan(FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES)
         );
 
-        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
-        // here is what pins that the requested stride was not overridden.
-        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
+        List<ExternalSplit> splits = withSplitLog(
+            () -> discoverPlainCsvSplits(payloads, stride, null, null),
+            nothingLogged("the requested stride was not overridden")
+        );
 
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals("the file must be cut at the size asked for", probes + 1, splits.size());
@@ -2789,7 +2828,6 @@ public class FileSplitProviderTests extends ESTestCase {
             quotedLine,
             stride
         );
-        assertWarnings(true, List.of(containsString("would probe more than 1000 record boundaries")));
 
         assertThat("the file must still be macro-split", splits.size(), greaterThan(1));
         // The file start begins a split without being probed for, so the walk spends one probe per split past the
@@ -2870,7 +2908,6 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplit spanning = (FileSplit) serial.get(1);
         assertThat("one split must span the record no probe could split", spanning.offset(), lessThan(longRowStart));
         assertThat(spanning.offset() + spanning.length(), greaterThan(longRowStart + longRowBytes));
-        assertWarnings(true, List.of(containsString("1 file(s) were cut into fewer splits")));
     }
 
     /**

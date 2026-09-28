@@ -5585,6 +5585,153 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("and each of them is its own folder's value", folders, hours.size());
     }
 
+    /**
+     * A partition value the dataset's own type cannot hold reads null, and must not do so quietly.
+     * <p>
+     * The type is inferred at resolution over the paths that listing saw. Here that is one folder of digits, so
+     * {@code hour} is a number; a {@code hour=unknown} folder past the prefix has no value under that type. The
+     * plan's attributes are already built from it, so nothing here can widen it — what this pins is that the file
+     * reading null for the column is accounted for in the log rather than left for someone to find in the results.
+     */
+    public void testAPartitionValueThatDoesNotFitIsNotDroppedSilently() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (String folder : List.of("00", "01", "unknown")) {
+            String objectName = "part-" + folder + ".parquet";
+            payloads.put(objectName, new byte[2000]);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=" + folder + "/" + objectName), 2000, Instant.EPOCH));
+        }
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(prefix, w -> {});
+        assertEquals("the sampled folder types the column as a number", DataType.INTEGER, overThePrefix.partitionColumns().get("hour"));
+
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/" + "**/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/" + "**/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            overThePrefix,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        MockLog.assertThatLogger(
+            () -> provider.discoverSplits(handed),
+            FileSplitProvider.class,
+            new MockLog.SeenEventExpectation(
+                "the folder that does not fit is named",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*do not fit the type the sample produced*hour=unknown*partition_sample_size*"
+            )
+        );
+    }
+
+    /**
+     * The quietest version of the same problem: the paths past the sample do not agree with it on the partition key
+     * set at all, so detection over the full listing answers nothing — a detector answers all or nothing — and every
+     * file reads null for every partition column the dataset declares. This is the case that must not pass in
+     * silence, and it is the one an early return for "the scan detected no partitions" would have skipped.
+     */
+    public void testPartitionColumnsTheFullListingDoesNotShareAreNotDroppedSilently() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        // The sampled file sits under hour=00; the one past it sits under no partition folder at all.
+        everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=00/part-a.parquet"), 2000, Instant.EPOCH));
+        everyFile.add(new StorageEntry(StoragePath.of("s3://b/loose/part-b.parquet"), 2000, Instant.EPOCH));
+        payloads.put("part-a.parquet", new byte[2000]);
+        payloads.put("part-b.parquet", new byte[2000]);
+
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(prefix, w -> {});
+        assertFalse("the sample does detect a partition column", overThePrefix.isEmpty());
+
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/" + "**/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/" + "**/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            // A truncated listing publishes its columns without their per-file values, which is what makes this the
+            // all-null case: nothing is left to fall back on when the scan's listing detects no partitions either.
+            overThePrefix.withoutPerFileEvidence(),
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        MockLog.assertThatLogger(
+            () -> provider.discoverSplits(handed),
+            FileSplitProvider.class,
+            new MockLog.SeenEventExpectation(
+                "the columns nothing agrees on are named",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*partition columns*hour*agrees with none of them, so every file reads null*partition_sample_size*"
+            )
+        );
+    }
+
+    /**
+     * The control for the two above: sampling a dataset's paths is not itself a fault. A listing bounded to one
+     * folder, with eleven more past it whose values all fit the type that folder produced, reads every value
+     * correctly and says nothing. A warning here would fire on every bounded partitioned query.
+     */
+    public void testSamplingPartitionPathsAloneWarnsAboutNothing() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            String objectName = "part-" + i + ".parquet";
+            payloads.put(objectName, new byte[2000]);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=" + i + "/" + objectName), 2000, Instant.EPOCH));
+        }
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/" + "**/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/" + "**/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            HivePartitionDetector.INSTANCE.detect(prefix, w -> {}).withoutPerFileEvidence(),
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        MockLog.assertThatLogger(() -> {
+            SplitDiscoveryResult result = provider.discoverSplits(handed);
+            assertEquals("every folder is planned", 12, result.splits().size());
+            for (ExternalSplit split : result.splits()) {
+                assertNotNull("and knows its own value", ((FileSplit) split).partitionValues().get("hour"));
+            }
+        },
+            FileSplitProvider.class,
+            new MockLog.UnseenEventExpectation(
+                "sampling on its own is not worth a word",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*partition*"
+            )
+        );
+    }
+
     /** And the complete case is untouched: a listing that is the whole dataset is the query's file set already. */
     public void testACompleteListingIsUsedAsTheQuerysFileSet() {
         FileSplitProvider provider = rangeAwareProvider(createMockRangeReader(List.of(new SplitRange(0, 2000))), null);

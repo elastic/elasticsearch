@@ -429,7 +429,71 @@ public class FileSplitProvider implements SplitProvider {
                 listed.fileCount()
             )
         );
-        return handed.withScanFileSet(listed);
+        SplitDiscoveryContext rebound = handed.withScanFileSet(listed);
+        warnIfPartitionValuesDoNotFit(handed, listed, rebound);
+        return rebound;
+    }
+
+    /**
+     * Warns about a partition value the dataset's own type cannot hold.
+     * <p>
+     * A partition column's type is inferred at resolution from the paths that listing saw, which under a bounded
+     * listing is a sample of the dataset. A value outside that sample need not fit the type it produced -
+     * {@code year} sampled as a number, and a {@code year=unknown} folder beyond it - and the plan's attributes are
+     * already built from that type, so the value cannot be widened by the time we are here: it has no
+     * representation under the column's type and the rows of that file read null for it.
+     * <p>
+     * That much is the sampling's own consequence, and raising {@code partition_sample_size} is the answer to it.
+     * What must not happen is it happening quietly. This goes to the node log rather than the query's response
+     * because nothing at this point can reach the response, which is worth fixing separately; a null column nobody
+     * can account for is the failure this exists to prevent.
+     */
+    private static void warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
+        PartitionMetadata conformed = rebound.partitionInfo();
+        if (conformed == null || conformed.isEmpty()) {
+            return;
+        }
+        PartitionMetadata scanned = listed.partitionMetadata();
+        if (scanned == null || scanned.isEmpty()) {
+            // The dataset declares partition columns and the scan's listing detected none, which happens when the
+            // paths past the sample do not agree with it on the key set - a detector answers all or nothing. Every
+            // file then reads null for every partition column, so this is the loudest case rather than a quiet one.
+            LOGGER.warn(
+                "[{}]: the dataset's partition columns {} were detected over a sample of its paths, and the full "
+                    + "listing agrees with none of them, so every file reads null for them. Raise [{}] so the "
+                    + "columns are decided over paths the whole dataset shares.",
+                handed.metadata() == null ? "?" : handed.metadata().location(),
+                conformed.partitionColumns().keySet(),
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+            return;
+        }
+        // One example per column is what a reader needs to find the folder; the walk stops once every column has
+        // one, so a dataset whose values all fit pays one pass and a dataset whose values do not pays less.
+        Map<String, Object> examples = new LinkedHashMap<>();
+        for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues().entrySet()) {
+            Map<String, Object> after = conformed.filePartitionValues().get(file.getKey());
+            if (after == null) {
+                continue;
+            }
+            for (Map.Entry<String, Object> value : file.getValue().entrySet()) {
+                if (value.getValue() != null && after.get(value.getKey()) == null) {
+                    examples.putIfAbsent(value.getKey(), value.getValue());
+                }
+            }
+            if (examples.size() == conformed.partitionColumns().size()) {
+                break;
+            }
+        }
+        if (examples.isEmpty() == false) {
+            LOGGER.warn(
+                "[{}]: partition values outside the sampled paths do not fit the type the sample produced, so those "
+                    + "files read null for them: {}. Raise [{}] so the type is decided over them.",
+                handed.metadata() == null ? "?" : handed.metadata().location(),
+                examples,
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+        }
     }
 
     /**

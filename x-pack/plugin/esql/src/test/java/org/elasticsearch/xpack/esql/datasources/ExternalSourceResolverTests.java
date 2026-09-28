@@ -2707,7 +2707,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
                 SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
-                String fingerprint = SchemaCacheKey.buildFormatConfig(effectiveConfig);
+                // Derived the one way production derives it, by asking the reader. Computing it a second way here
+                // would let the two drift and the test would pass while the warm path was dead.
+                String fingerprint = resolver.formatConfigIdentity(
+                    GlobExpander.fileListOf(listing, glob).path(0).objectName(),
+                    effectiveConfig
+                );
 
                 // Counts harvested under a different resolved read configuration measured a different set of rows;
                 // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match

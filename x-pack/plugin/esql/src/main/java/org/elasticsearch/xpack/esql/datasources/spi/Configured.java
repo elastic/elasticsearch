@@ -68,6 +68,19 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
     }
 
     /**
+     * The identity of whichever of {@code recognized} this config actually carries. The entry point for a
+     * participant that has its recognised set in hand but is not going through {@link #fromKnownSubset} —
+     * a reader deriving the value it stamps on a harvest, or a coordinator identifying its own keys.
+     */
+    public static String identityOf(Map<String, Object> config, Set<String> recognized) {
+        if (config == null || config.isEmpty() || recognized == null || recognized.isEmpty()) {
+            return "";
+        }
+        Set<String> present = config.keySet().stream().filter(recognized::contains).collect(Collectors.toUnmodifiableSet());
+        return identityOf(config, present, Set.of());
+    }
+
+    /**
      * The canonical rendering every participant's identity uses: the named entries sorted by key, each
      * key and value length-prefixed.
      * <p>

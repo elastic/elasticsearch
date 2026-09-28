@@ -719,6 +719,25 @@ public class ExternalSourceResolver {
      * succeeding on a stored dataset with a bad setting, as it did before these notices existed. Rejection stays
      * where it was: the PUT-time validator and the data-node operator factory.
      */
+    /**
+     * The identity of the format configuration, as the reader that will parse this object derives it.
+     * <p>
+     * Asked rather than computed here. Only the reader knows which of its settings change what it produces,
+     * and this value has to equal the one the harvest carries: a coordinator and a data node deriving it
+     * differently matches nothing and takes the warm path cold in silence. One derivation, both sides.
+     * <p>
+     * Empty when no format claims the object, which is correct — nothing will stamp a harvest for it either.
+     */
+    String formatConfigIdentity(String objectName, Map<String, Object> config) {
+        try {
+            FormatReader reader = FormatNameResolver.resolveReader(config, objectName, dataSourceModule.formatReaderRegistry());
+            return reader.withConfigTrackingConsumedKeys(config).identity();
+        } catch (IllegalArgumentException e) {
+            LOGGER.trace(() -> "no format claims [" + objectName + "]; no format-config identity to derive", e);
+            return "";
+        }
+    }
+
     private void bufferConfigWarnings(String path, Map<String, Object> config) {
         currentPathConfigWarnings = List.of();
         // The one comma decomposition every rail shares: splitting on the first comma would tear a brace group.
@@ -1929,7 +1948,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
-        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(storageConfig(config));
+        String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -3617,7 +3636,7 @@ public class ExternalSourceResolver {
                         ExternalStats.MTIME_MILLIS_KEY,
                         mtimeMillis,
                         ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        SchemaCacheKey.buildFormatConfig(storageConfig(config)),
+                        formatConfigIdentity(storagePath.objectName(), storageConfig(config)),
                         // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
                         // would carry no read configuration while every harvest carries one, so the first contribution would match
                         // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.

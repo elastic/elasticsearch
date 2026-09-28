@@ -1,0 +1,4 @@
+area: Infra/Core
+pr: 160501
+summary: Upgrade Jackson to 2.21.7
+type: upgrade

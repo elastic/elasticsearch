@@ -102,16 +102,6 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return count;
     }
 
-    /** The byte length of the term at {@code index}, or {@code -1} when out of range. For the Painless allocation estimators. */
-    @Override
-    public int getInternalByteLength(int index) {
-        if (index < 0 || index >= count) {
-            return -1;
-        }
-
-        return values[index].length();
-    }
-
     public String get(String defaultValue) {
         return get(0, defaultValue);
     }

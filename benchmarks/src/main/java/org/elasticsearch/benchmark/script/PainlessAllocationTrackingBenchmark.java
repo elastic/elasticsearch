@@ -113,6 +113,9 @@ public class PainlessAllocationTrackingBenchmark {
      *   <li>{@code keyword_read} – one keyword doc value read through {@code def}, as {@code doc['f'].value} is</li>
      *   <li>{@code keyword_read_typed} – the same read with the static type known</li>
      *   <li>{@code keyword_field_read} – the same read through the fields API</li>
+     *   <li>{@code def_map_get} – {@code map.get(key)} through {@code def}; a hot call whose name is shared with the
+     *       charged doc value reads, so its call site carries the script too</li>
+     *   <li>{@code typed_map_get} – control: the same call with the static type known</li>
      * </ul>
      */
     @Param(
@@ -133,7 +136,9 @@ public class PainlessAllocationTrackingBenchmark {
             "builder_substring",
             "keyword_read",
             "keyword_read_typed",
-            "keyword_field_read" }
+            "keyword_field_read",
+            "def_map_get",
+            "typed_map_get" }
     )
     private String script;
 
@@ -276,6 +281,12 @@ public class PainlessAllocationTrackingBenchmark {
                 case "keyword_field_read" -> """
                     def field = params.keyword;
                     return field.get('').length() > 0""";
+                case "def_map_get" -> """
+                    def m = params.map;
+                    return m.get('k') != null""";
+                case "typed_map_get" -> """
+                    Map m = params.map;
+                    return m.get('k') != null""";
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
@@ -312,6 +323,7 @@ public class PainlessAllocationTrackingBenchmark {
                 throw new UncheckedIOException(e);
             }
             params.put("keyword", keyword);
+            params.put("map", Map.of("k", "v"));
             params.put("field", keyword.toScriptDocValues());
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");

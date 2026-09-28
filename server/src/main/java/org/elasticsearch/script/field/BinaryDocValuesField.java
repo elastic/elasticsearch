@@ -101,16 +101,6 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
         return count;
     }
 
-    /** The byte length of the value at {@code index}, or {@code -1} when out of range. For the Painless allocation estimators. */
-    @Override
-    public int getInternalByteLength(int index) {
-        if (index < 0 || index >= count) {
-            return -1;
-        }
-
-        return values[index].length();
-    }
-
     protected ByteBuffer toWrapped(int index) {
         return ByteBuffer.wrap(values[index].toBytesRef().bytes);
     }

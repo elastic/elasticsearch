@@ -3752,9 +3752,9 @@ public class ExternalSourceResolver {
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
         }
-        // No file defines a declared schema, so this listing is not the schema's: it is the scan's file set, and
-        // the paths partition detection folded over.
-        DatasetDiscovery discovery = DatasetDiscovery.shared(listing);
+        // No file defines a declared schema, so this listing answers two narrower questions: how many files the
+        // dataset holds, and which paths partition detection folds over. It is not the query's file set - split
+        // discovery resolves that for itself when this one is bounded.
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         if (listing.fileCount() == 0) {

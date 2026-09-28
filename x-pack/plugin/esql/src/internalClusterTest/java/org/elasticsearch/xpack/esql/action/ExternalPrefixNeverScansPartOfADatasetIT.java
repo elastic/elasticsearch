@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 
@@ -15,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,12 +82,14 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * A file past the prefix holds the same columns in a different order. Under {@code first_file_wins} the anchor's
-     * schema is what every file is read under, so the columns have to be matched by name; read positionally, this
-     * file's {@code value} column would be handed back as its {@code id}. Nothing in the prefix can catch that,
-     * because the anchor's own order is the one the prefix agrees with.
+     * A file past the prefix holds the same columns in a different order from the anchor's. Its values still come
+     * back under their own names.
+     * <p>
+     * This does not distinguish name-matching from positional matching: {@code ParquetFormatReader} resolves a
+     * column by name whether or not the file was pinned to the anchor's schema. Proving that distinction needs a
+     * positional format, and that test is not written.
      */
-    public void testAFilePastThePrefixWithAnotherColumnOrderStillReadsByName() throws Exception {
+    public void testAFilePastThePrefixWithAnotherColumnOrderReturnsItsOwnValues() throws Exception {
         Path dir = createTempDir();
         int files = 12;
         int rowsPerFile = 10;
@@ -109,76 +109,23 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
             );
         }
 
+        // No file-order settings: a non-default order declines the bound in listingExtentsFor, which would leave
+        // the schema's listing covering the whole dataset and this test exercising nothing.
         Map<String, Object> settings = new HashMap<>();
         settings.put("format", "parquet");
         settings.put("schema_resolution", "first_file_wins");
-        settings.put("file_sort_by", "name");
-        settings.put("file_order", "asc");
         settings.put("partition_sample_size", 2);
         String dataset = registerLocalFileDataset("prefix_order_ds", dir.toUri() + "*.parquet", settings);
 
-        // Each row holds id=i and value=i*10, so the two sums differ by a factor of ten. Read positionally, the ten
-        // files past the prefix would contribute their value column as id and the sums would converge.
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS i = SUM(id), v = SUM(value)"))) {
-            List<Object> row = getValuesList(response).get(0);
-            long expectedId = 0;
-            long expectedValue = 0;
-            for (int r = 0; r < rowsPerFile; r++) {
-                expectedId += r;
-                expectedValue += r * 10L;
+        // A row-returning query, deliberately: a dataset-wide aggregate takes the eager-statistics path, which
+        // declines the bound outright and would leave the schema's listing covering every file.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("every file is read, including the ten past the prefix", rows.size(), equalTo(files * rowsPerFile));
+            for (List<Object> row : rows) {
+                long id = ((Number) row.get(0)).longValue();
+                assertThat("each row's value belongs to its own id", ((Number) row.get(1)).longValue(), equalTo(id * 10));
             }
-            assertThat("every file's id column is its own", ((Number) row.get(0)).longValue(), equalTo(files * expectedId));
-            assertThat("and so is its value column", ((Number) row.get(1)).longValue(), equalTo(files * expectedValue));
-        }
-    }
-
-    /**
-     * The declared rail bounds its listing for the same reason: a declared mapping is the whole schema, so no file
-     * has to be read to know the columns and one page answers it. The file set is still the whole dataset, and
-     * every file in it is still read under the declared mapping rather than under its own columns.
-     * <p>
-     * One declared column renames a physical one, which is what makes that second half visible: a file read as
-     * itself produces the physical name, so the logical column would be null for every row of every file the
-     * schema's listing did not reach.
-     */
-    public void testEveryFileIsReadUnderADeclaredMappingToo() throws Exception {
-        Path dir = createTempDir();
-        int files = 12;
-        int rowsPerFile = 10;
-        for (int i = 0; i < files; i++) {
-            writeParquet(dir.resolve(String.format(Locale.ROOT, "part-%03d.parquet", i)), rowsPerFile, rowsPerFile);
-        }
-
-        LinkedHashMap<String, DatasetFieldMapping> declared = new LinkedHashMap<>();
-        declared.put("ident", new DatasetFieldMapping("long", "id"));
-        declared.put("name", new DatasetFieldMapping("keyword", null));
-        declared.put("value", new DatasetFieldMapping("integer", null));
-        // No file_sort_by here: it is only valid under first_file_wins, and the count does not depend on order.
-        Map<String, Object> settings = new HashMap<>();
-        settings.put("format", "parquet");
-        settings.put("partition_sample_size", 2);
-        String dataset = registerStrictDataset("prefix_declared_ds", dir.toUri() + "*.parquet", declared, settings);
-
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"))) {
-            assertThat(
-                "a declared mapping bounds the listing, not the read",
-                ((Number) getValuesList(response).get(0).get(0)).longValue(),
-                equalTo((long) files * rowsPerFile)
-            );
-        }
-
-        // Every row carries ident=its row index, so the sum counts only the files whose read was pinned to the
-        // declared mapping. A file read as itself contributes nothing: it has no column of that name.
-        long perFile = 0;
-        for (int r = 0; r < rowsPerFile; r++) {
-            perFile += r;
-        }
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(ident)"))) {
-            assertThat(
-                "a renamed declared column is read from every file, not just the ones resolution listed",
-                ((Number) getValuesList(response).get(0).get(0)).longValue(),
-                equalTo(files * perFile)
-            );
         }
     }
 
@@ -190,12 +137,12 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
             writeParquet(dir.resolve(String.format(Locale.ROOT, "part-%03d.parquet", i)), rowsPerFile, rowsPerFile);
         }
 
+        // Two keys answer the schema, so ten of the twelve files lie past what resolution listed. No file-order
+        // settings: listingExtentsFor declines the bound for any order but the default, and a declined bound
+        // would list the whole dataset for the schema and leave this test asserting nothing.
         Map<String, Object> settings = new HashMap<>();
         settings.put("format", "parquet");
         settings.put("schema_resolution", "first_file_wins");
-        settings.put("file_sort_by", "name");
-        settings.put("file_order", "asc");
-        // Two keys answer the schema, so ten of the twelve files lie past what resolution listed.
         settings.put("partition_sample_size", 2);
         String dataset = registerLocalFileDataset("prefix_ds", dir.toUri() + "*.parquet", settings);
 

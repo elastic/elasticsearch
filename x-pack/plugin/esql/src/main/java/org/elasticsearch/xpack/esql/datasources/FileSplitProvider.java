@@ -585,8 +585,9 @@ public class FileSplitProvider implements SplitProvider {
      * Production wires {@code esql_external_io} as {@code requestedExecutor}.
      * <p>
      * When the listing we were handed answered the schema rather than the scan, discovering the query's own file
-     * set is object-store IO, so that and everything after it move to {@code requestedExecutor} — the calling
-     * thread still does none.
+     * set is object-store IO, so that and everything after it move to {@code requestedExecutor}. With no executor
+     * at all — neither requested nor supplied at construction — {@link #discoveryFanOutExecutor} answers
+     * {@code DIRECT}, and that listing runs on the calling thread as every other direct-executor task does.
      */
     @Override
     public void discoverSplitsAsync(

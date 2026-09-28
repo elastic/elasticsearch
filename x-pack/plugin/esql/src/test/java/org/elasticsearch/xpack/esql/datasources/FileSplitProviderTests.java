@@ -1994,9 +1994,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(3000000000L, left.get("id"));
         assertSame(left.get(FileMetadataColumns.DIRECTORY), right.get(FileMetadataColumns.DIRECTORY));
         assertNotSame(left.get(FileMetadataColumns.PATH), right.get(FileMetadataColumns.PATH));
-        Map<String, Object> listed = meta.filePartitionValues().get(first.path());
-        assertSame(listed.get("year"), left.get("year"));
-        assertFalse(listed.containsKey(FileMetadataColumns.PATH));
+        assertSame(meta.getValue(0, "year"), left.get("year"));
         assertNull(left.get(FileMetadataColumns.MODIFIED));
     }
 

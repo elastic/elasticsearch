@@ -72,7 +72,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
         assertFalse(result.isEmpty());
         // Template detector extracts the last segment before filename positionally
-        assertEquals("year=2024", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/file.parquet")).get("year"));
+        assertEquals("year=2024", result.getValue(0, "year"));
     }
 
     public void testNoneStrategyReturnsEmpty() {
@@ -127,8 +127,8 @@ public class AutoPartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertEquals(Set.of("year", "month"), result.partitionColumns().keySet());
-        assertEquals(2024, result.filePartitionValues().get(StoragePath.of("s3://bucket/snapshot=2024.05/2024/01/f1.csv")).get("year"));
-        assertEquals(1, result.filePartitionValues().get(StoragePath.of("s3://bucket/snapshot=2024.05/2024/01/f1.csv")).get("month"));
+        assertEquals(2024, result.getValue(0, "year"));
+        assertEquals(1, result.getValue(0, "month"));
     }
 
     private static StorageEntry entry(String path) {

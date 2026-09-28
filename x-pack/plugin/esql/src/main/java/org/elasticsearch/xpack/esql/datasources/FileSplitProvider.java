@@ -699,11 +699,8 @@ public class FileSplitProvider implements SplitProvider {
             } else {
                 Map<String, Object> values = new LinkedHashMap<>();
                 if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                    if (filePartitions != null) {
-                        // Copy references only. Do not mutate the listing map.
-                        values.putAll(filePartitions);
-                    }
+                    // Copy references only. Do not mutate the listing arrays.
+                    partitionInfo.putValues(i, filePath, values);
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
@@ -808,11 +805,14 @@ public class FileSplitProvider implements SplitProvider {
     ) {
         LinkedHashMap<String, Object> kept = null;
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-            Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-            if (filePartitions != null) {
-                for (Map.Entry<String, Object> entry : filePartitions.entrySet()) {
-                    if (entry.getValue() != null && retained.contains(entry.getKey())) {
-                        kept = putRetained(kept, entry.getKey(), entry.getValue());
+            int resolved = partitionInfo.resolveFileIndex(index, filePath);
+            if (resolved >= 0) {
+                for (String key : partitionInfo.partitionColumns().keySet()) {
+                    if (retained.contains(key)) {
+                        Object value = partitionInfo.getValue(resolved, key);
+                        if (value != null) {
+                            kept = putRetained(kept, key, value);
+                        }
                     }
                 }
             }

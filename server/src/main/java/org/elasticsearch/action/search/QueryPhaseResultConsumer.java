@@ -200,6 +200,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
+            if (isClosed()) {
+                // close() raises the flag before releaseBuffer() drains this list under the same lock
+                Releasables.close(mergeResult.reducedAggs());
+                return;
+            }
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
     }
@@ -522,7 +527,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
-        if (hasFailure()) {
+        if (shouldDiscard()) {
             result.consumeAll();
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
@@ -535,10 +540,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         } else {
             final long aggsSize = ramBytesUsedQueryResult(result);
             boolean executeNextImmediately = true;
-            boolean hasFailure = false;
+            boolean discarded = false;
             synchronized (this) {
-                if (hasFailure()) {
-                    hasFailure = true;
+                // Re-checked under the lock: doClose() is synchronized too and close() raises the closed flag before
+                // calling it, so this read tells a buffer doClose() already released from one it has yet to see.
+                if (shouldDiscard()) {
+                    discarded = true;
                 } else {
                     if (hasAggs) {
                         try {
@@ -546,10 +553,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         } catch (Exception exc) {
                             releaseBuffer();
                             onMergeFailure(exc);
-                            hasFailure = true;
+                            discarded = true;
                         }
                     }
-                    if (hasFailure == false) {
+                    if (discarded == false) {
                         var b = buffer;
                         aggsCurrentBufferSize += aggsSize;
                         // add one if a partial merge is pending
@@ -568,13 +575,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     }
                 }
             }
-            if (hasFailure) {
+            if (discarded) {
                 result.consumeAll();
             }
             if (executeNextImmediately) {
                 next.run();
             }
         }
+    }
+
+    /**
+     * Whether to discard results rather than buffer them, because a partial merge failed or because the search
+     * already closed this consumer.
+     */
+    private boolean shouldDiscard() {
+        return hasFailure() || isClosed();
     }
 
     private void releaseBuffer() {

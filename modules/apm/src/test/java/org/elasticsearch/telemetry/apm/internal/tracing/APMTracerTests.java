@@ -31,6 +31,7 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
@@ -610,6 +611,7 @@ public class APMTracerTests extends ESTestCase {
         Mockito.verify(recordedSpan).setAllAttributes(attributes);
     }
 
+    @SuppressForbidden(reason = "OpenTelemetry logs API usage issues via java.util.logging")
     public void testUntrackedSpans() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);

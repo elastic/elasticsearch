@@ -453,6 +453,46 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testSortRejectsRangeVector() {
+        tsdb.error(
+            "PROMQL index=test step=5m sort(network.bytes_in[5m])",
+            containsString("expected type instant_vector in call to function [sort], got range_vector")
+        );
+    }
+
+    public void testSortDescRejectsRangeVector() {
+        tsdb.error(
+            "PROMQL index=test step=5m sort_desc(network.bytes_in[5m])",
+            containsString("expected type instant_vector in call to function [sort_desc], got range_vector")
+        );
+    }
+
+    public void testSortRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort(network.bytes_in))",
+            containsString("[sort] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testSortDescRejectedBelowAggregate() {
+        tsdb.error(
+            "PROMQL index=test step=5m sum(sort_desc(network.bytes_in))",
+            containsString("[sort_desc] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testSortRejectedBelowReduction() {
+        tsdb.error(
+            "PROMQL index=test step=5m topk(1, sort(network.bytes_in))",
+            containsString("[sort] is only supported at the top-level at this time")
+        );
+    }
+
+    /** The outermost position is the supported one: only an enclosing function makes a sort unreachable. */
+    public void testSortAtTopLevelWrappingAnotherFunctionResolves() {
+        assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort(abs(network.bytes_in))").resolved());
+    }
+
     public void testInstantVectorExpectedWithGrouping() {
         tsdb.error(
             "PROMQL index=test step=5m avg by (pod) (network.bytes_in[5m])",

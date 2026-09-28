@@ -812,6 +812,25 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
+         * Configures a result-ordering function ({@code sort}, {@code sort_desc}).
+         * <p>
+         * These are not lowered through the generic {@link FunctionBuilder}: they resolve into a dedicated logical node
+         * and ordering is injected by the result-ordering analyzer rule. This method therefore only records the metadata
+         * and installs a builder that fails fast if the generic path is ever invoked.
+         */
+        public PromqlFunctionDefinition.Builder resultOrdering() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = PromqlFunctionArity.ONE;
+            this.params = List.of(INSTANT_VECTOR);
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "result-ordering functions are translated directly, not built via the generic function builder"
+                );
+            };
+            return this;
+        }
+
+        /**
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {

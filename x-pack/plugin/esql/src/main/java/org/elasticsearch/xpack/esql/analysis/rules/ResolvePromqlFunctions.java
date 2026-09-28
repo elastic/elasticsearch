@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
@@ -174,7 +177,7 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
-            case RESULT_ORDERING -> new SortFunction(unresolved.source(), child, metadata, extraParams);
+            case RESULT_ORDERING -> resolveResultOrdering(unresolved, child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
@@ -235,6 +238,40 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             }
         }
         return new MetadataManipulationFunction(unresolved.source(), child, metadata, extraParams);
+    }
+
+    /**
+     * Resolves {@code sort}/{@code sort_desc} into {@link SortFunction} and {@code sort_by_label}/{@code sort_by_label_desc}
+     * into {@link SortByLabelFunction}. Every sort-by-label argument after the vector is a label name: invalid names are
+     * rejected here, and each name is minted as an {@link UnresolvedAttribute} so later PromQL ref-resolution binds it
+     * to a stored dimension (or nullifies it when the label is absent).
+     */
+    private static LogicalPlan resolveResultOrdering(
+        UnresolvedPromqlFunction unresolved,
+        LogicalPlan child,
+        PromqlFunctionDefinition metadata,
+        List<Expression> extraParams
+    ) {
+        if (metadata == PromqlBuiltinFunctionDefinitions.SORT || metadata == PromqlBuiltinFunctionDefinitions.SORT_DESC) {
+            return new SortFunction(unresolved.source(), child, metadata, extraParams);
+        }
+        if (child == null) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "[{}] requires an instant vector as its first argument", unresolved.functionName()))
+            );
+        }
+        String name = unresolved.functionName();
+        List<Attribute> sortLabels = new ArrayList<>(extraParams.size());
+        for (Expression extraParam : extraParams) {
+            String label = literalString(extraParam);
+            if (PromqlLabels.isValidLabelName(label) == false) {
+                throw new VerificationException(
+                    List.of(Failure.fail(unresolved, "invalid label name [{}] in call to function [{}]", label, name))
+                );
+            }
+            sortLabels.add(new UnresolvedAttribute(extraParam.source(), label));
+        }
+        return new SortByLabelFunction(unresolved.source(), child, metadata, extraParams, sortLabels);
     }
 
     private static String literalString(Expression e) {

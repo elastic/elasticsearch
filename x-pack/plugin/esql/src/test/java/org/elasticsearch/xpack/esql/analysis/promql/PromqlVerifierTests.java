@@ -493,6 +493,20 @@ public class PromqlVerifierTests extends ESTestCase {
         assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort(abs(network.bytes_in))").resolved());
     }
 
+    public void testSortByLabelRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testSortByLabelDescRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label_desc(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label_desc] is only supported at the top-level at this time")
+        );
+    }
+
     public void testInstantVectorExpectedWithGrouping() {
         tsdb.error(
             "PROMQL index=test step=5m avg by (pod) (network.bytes_in[5m])",

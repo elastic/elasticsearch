@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.completion;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -25,11 +24,21 @@ public class OciGenAiChatCompletionServiceSettings extends OciGenAiServiceSettin
 
     public static final String NAME = "oci_genai_chat_completion_service_settings";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    /**
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        return OciGenAiServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
+    }
+
     public static OciGenAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-        var common = extractCommonSettings(map, validationException, context);
-        validationException.throwIfValidationErrorsExist();
-        return new OciGenAiChatCompletionServiceSettings(common);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return OciGenAiServiceSettings.fromMap(map, context, parser);
     }
 
     public OciGenAiChatCompletionServiceSettings(CommonSettings common) {
@@ -42,15 +51,7 @@ public class OciGenAiChatCompletionServiceSettings extends OciGenAiServiceSettin
 
     @Override
     public OciGenAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            rateLimitSettings(),
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-        validationException.throwIfValidationErrorsExist();
-        return new OciGenAiChatCompletionServiceSettings(common().withRateLimitSettings(extractedRateLimitSettings));
+        return parseUpdate(serviceSettings, Update.PARSER).mergeInto(this);
     }
 
     @Override
@@ -61,5 +62,29 @@ public class OciGenAiChatCompletionServiceSettings extends OciGenAiServiceSettin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         common().writeTo(out);
+    }
+
+    /**
+     * Builds an {@link OciGenAiChatCompletionServiceSettings} from the common OCI Generative AI fields.
+     */
+    public static class Builder extends OciGenAiServiceSettings.Builder<OciGenAiChatCompletionServiceSettings> {
+
+        @Override
+        protected OciGenAiChatCompletionServiceSettings build(CommonSettings common) {
+            return new OciGenAiChatCompletionServiceSettings(common);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field (and the signing key fields). Including
+     * any immutable field (such as {@code model_id} or {@code region}) causes the strict parser to reject the request.
+     */
+    private static class Update extends OciGenAiServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = OciGenAiServiceSettings.buildCommonUpdateParser(Update::new);
+
+        OciGenAiChatCompletionServiceSettings mergeInto(OciGenAiChatCompletionServiceSettings existing) {
+            return new OciGenAiChatCompletionServiceSettings(existing.common().withRateLimitSettings(mergedRateLimitSettings(existing)));
+        }
     }
 }

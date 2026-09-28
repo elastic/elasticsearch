@@ -133,12 +133,7 @@ public class OciGenAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return OciGenAiUtils.ML_INFERENCE_OCI_GENAI_ADDED;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return version.supports(OciGenAiUtils.ML_INFERENCE_OCI_GENAI_ADDED);
+        return OciGenAiUtils.INFERENCE_OCI_GENAI_ADDED;
     }
 
     @Override

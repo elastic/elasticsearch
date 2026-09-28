@@ -24,7 +24,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfigurationTests;
@@ -46,6 +45,7 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsServiceSettings;
@@ -124,6 +125,8 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         + "the model. When omitted the model is served on-demand.";
     private static final String URL_DESCRIPTION = "The base URL of the Generative AI inference endpoint, overriding the public "
         + "regional endpoint derived from the region (for example a private endpoint or a different OCI realm).";
+    private static final String API_VERSION_DESCRIPTION = "The version of the OCI Generative AI inference API to call, for "
+        + "example 20231130. Defaults to 20231130.";
     private static final String DIMENSIONS_DESCRIPTION = "The number of dimensions of the embeddings. Passed to the model "
         + "as the output dimensions when supported (cohere.embed-v4.0); otherwise discovered from the model.";
     private static final String PRIVATE_KEY_DESCRIPTION = "The PEM encoded RSA private key of the "
@@ -215,7 +218,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
                     assertThat(chatModel.getTaskType(), is(taskType));
                     assertThat(chatModel.getServiceSettings().modelId(), is(CHAT_MODEL));
                     assertThat(chatModel.getServiceSettings().apiFormat(), is(OciGenAiChatApiFormat.GENERIC));
-                    assertThat(chatModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+                    assertThat(chatModel.getTaskSettings(), is(OciGenAiChatCompletionTaskSettings.EMPTY_SETTINGS));
                     assertThat(
                         chatModel.uri(),
                         is(URI.create("https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/chat"))
@@ -285,8 +288,8 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
             serviceSettings.put("extra_key", "value");
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [ocigenai] service"
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
 
             service.parseRequestConfig(
@@ -724,6 +727,15 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                 },
+                                "api_version": {
+                                    "description": "%s",
+                                    "label": "API Version",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                                },
                                 "dimensions": {
                                     "description": "%s",
                                     "label": "Dimensions",
@@ -794,6 +806,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
                     MODEL_ID_DESCRIPTION,
                     ENDPOINT_ID_DESCRIPTION,
                     URL_DESCRIPTION,
+                    API_VERSION_DESCRIPTION,
                     DIMENSIONS_DESCRIPTION,
                     PRIVATE_KEY_DESCRIPTION
                 )
@@ -857,6 +870,15 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    /**
+     * OCI Generative AI embeddings default to cosine similarity when the endpoint does not specify one, see
+     * <a href="https://github.com/elastic/elasticsearch/issues/153028">#153028</a> for why dot product is a poor default.
+     */
+    @Override
+    public SimilarityMeasure getDefaultSimilarity() {
+        return SimilarityMeasure.COSINE;
     }
 
     @Override
@@ -929,7 +951,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
     private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
         return ActionListener.wrap((model) -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
-            assertThat(e.getMessage(), is(expectedMessage));
+            assertThat(e.getMessage(), containsString(expectedMessage));
         });
     }
 }

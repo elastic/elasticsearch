@@ -11,7 +11,10 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -194,7 +197,38 @@ public final class OciGenAiTestUtils {
         @Nullable URI uri,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        return new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, rateLimitSettings);
+        return commonSettings(region, compartmentId, modelId, endpointId, uri, null, rateLimitSettings);
+    }
+
+    /**
+     * @param apiVersion the inference API version, or {@code null} for {@link OciGenAiUtils#DEFAULT_API_VERSION}
+     */
+    public static OciGenAiServiceSettings.CommonSettings commonSettings(
+        @Nullable String region,
+        String compartmentId,
+        String modelId,
+        @Nullable String endpointId,
+        @Nullable URI uri,
+        @Nullable String apiVersion,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
+        return new OciGenAiServiceSettings.CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, rateLimitSettings);
+    }
+
+    /**
+     * Randomised common settings for wire serialization tests. When a URL is used the region may be absent.
+     */
+    public static OciGenAiServiceSettings.CommonSettings randomCommonSettings() {
+        var useUrl = ESTestCase.randomBoolean();
+        return new OciGenAiServiceSettings.CommonSettings(
+            useUrl && ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(8),
+            ESTestCase.randomAlphaOfLength(10),
+            ESTestCase.randomAlphaOfLength(10),
+            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(10),
+            useUrl ? URI.create("https://" + ESTestCase.randomAlphaOfLength(8) + ".example.com") : null,
+            ESTestCase.randomBoolean() ? null : Strings.format("%08d", ESTestCase.randomIntBetween(20200101, 20301231)),
+            RateLimitSettingsTests.createRandom()
+        );
     }
 
     /**

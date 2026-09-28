@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.ocigenai.completion;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -67,7 +66,16 @@ public class OciGenAiChatCompletionModel extends OciGenAiModel {
         OciGenAiChatCompletionServiceSettings serviceSettings,
         @Nullable OciGenAiSecretSettings secrets
     ) {
-        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secrets));
+        this(
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                OciGenAiChatCompletionTaskSettings.EMPTY_SETTINGS
+            ),
+            new ModelSecrets(secrets)
+        );
     }
 
     public OciGenAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
@@ -85,7 +93,13 @@ public class OciGenAiChatCompletionModel extends OciGenAiModel {
         BiConsumer<HttpPost, OciGenAiModel> requestSigner
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                OciGenAiChatCompletionTaskSettings.EMPTY_SETTINGS
+            ),
             new ModelSecrets(secrets),
             OciGenAiUtils.CHAT,
             url,
@@ -100,6 +114,11 @@ public class OciGenAiChatCompletionModel extends OciGenAiModel {
     @Override
     public OciGenAiChatCompletionServiceSettings getServiceSettings() {
         return (OciGenAiChatCompletionServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public OciGenAiChatCompletionTaskSettings getTaskSettings() {
+        return (OciGenAiChatCompletionTaskSettings) super.getTaskSettings();
     }
 
     @Override

@@ -66,6 +66,30 @@ public class OciGenAiEmbeddingsModelTests extends ESTestCase {
         assertThat(model.uri(), is(URI.create("https://private.example.com/base/20231130/actions/embedText")));
     }
 
+    public void testUri_UsesTheConfiguredApiVersion() {
+        var serviceSettings = new OciGenAiEmbeddingsServiceSettings(
+            OciGenAiTestUtils.commonSettings(REGION_VALUE, COMPARTMENT_ID, "cohere.embed-v4.0", null, null, "20260101", null),
+            false,
+            null,
+            null,
+            null
+        );
+        var model = new OciGenAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            OciGenAiService.NAME,
+            serviceSettings,
+            OciGenAiEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            OciGenAiTestUtils.createSecretSettings()
+        );
+
+        assertThat(
+            model.uri(),
+            is(URI.create("https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20260101/actions/embedText"))
+        );
+    }
+
     public void testUri_UsesTheOverride() {
         var model = createModel("http://127.0.0.1:1234", "cohere.embed-v4.0", null, null, null, null);
 

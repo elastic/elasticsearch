@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -25,21 +31,30 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeNonEmptyString;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.FINGERPRINT;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.PRIVATE_KEY;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.TENANCY_ID;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.USER_ID;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.COMPARTMENT_ID;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.REGION;
 
 /**
  * Base class for the OCI Generative AI task specific service settings. Holds the fields shared by every task: the region (or an
- * explicit endpoint URL), the compartment OCID, the model id, an optional dedicated AI cluster endpoint OCID and the rate limit.
+ * explicit endpoint URL), the compartment OCID, the model id, an optional dedicated AI cluster endpoint OCID, the inference API
+ * version and the rate limit. It also provides the {@link ObjectParser} building blocks the task specific subclasses extend with their
+ * own fields.
  */
 public abstract class OciGenAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
@@ -53,6 +68,70 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
     private static final Pattern REGION_PATTERN = Pattern.compile("[a-z0-9-]+");
 
     /**
+     * Builds an {@link ObjectParser} for OCI Generative AI service settings, wiring the common fields ({@code region}, {@code url},
+     * {@code compartment_id}, {@code model_id}, {@code endpoint_id}, {@code api_version}) and {@link #DEFAULT_RATE_LIMIT_SETTINGS}.
+     * The OCI API signing key fields are declared as no-ops because, in requests, they share the {@code service_settings} block with
+     * the fields parsed here and are extracted separately by {@link OciGenAiSecretSettings}.
+     */
+    public static <B extends Builder<? extends OciGenAiServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
+    ) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, builderSupplier).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowSecretFields(TENANCY_ID, USER_ID, FINGERPRINT, PRIVATE_KEY).build();
+        parser.declareString(Builder::setRegion, new ParseField(REGION));
+        parser.declareString(Builder::setUrl, new ParseField(URL));
+        parser.declareString(Builder::setCompartmentId, new ParseField(COMPARTMENT_ID));
+        parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
+        parser.declareString(Builder::setEndpointId, new ParseField(ENDPOINT_ID));
+        parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for OCI Generative AI update requests, wiring the rate limit and the signing key no-ops (the
+     * signing key can be rotated through the same update request). The immutable fields are intentionally not declared so that the
+     * strict update parser rejects attempts to change them.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return new UpdateServiceSettingsOPBuilder<>(updateSupplier).enableRateLimitSettings(CommonUpdate::setRateLimitSettings)
+            .allowSecretFields(TENANCY_ID, USER_ID, FINGERPRINT, PRIVATE_KEY)
+            .build();
+    }
+
+    /**
+     * Creates the task specific service settings from a map of settings using the given parser.
+     *
+     * @param map     the settings to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser matching the context, see {@link #buildCommonParser(boolean, Supplier)}
+     */
+    public static <T extends OciGenAiServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS);
+        }
+    }
+
+    /**
+     * Parses an update request with the given update parser, see {@link #buildCommonUpdateParser(Supplier)}.
+     */
+    protected static <U extends CommonUpdate> U parseUpdate(Map<String, Object> serviceSettings, ObjectParser<U, Void> parser) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return parser.apply(xParser, null);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse the [{}] update", e, SERVICE_SETTINGS);
+        }
+    }
+
+    /**
      * The settings shared by all OCI Generative AI tasks.
      *
      * @param region            the OCI region identifier; may be {@code null} only when {@code uri} is provided
@@ -60,7 +139,8 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
      * @param modelId           the OCI Generative AI model id (for example {@code cohere.embed-v4.0})
      * @param endpointId        the OCID of a dedicated AI cluster endpoint, or {@code null} for on-demand serving
      * @param uri               an explicit base URL overriding the public regional endpoint, or {@code null}
-     * @param rateLimitSettings the rate limit, never {@code null}
+     * @param apiVersion        the inference API version, defaults to {@link OciGenAiUtils#DEFAULT_API_VERSION} when {@code null}
+     * @param rateLimitSettings the rate limit, defaults to {@link #DEFAULT_RATE_LIMIT_SETTINGS} when {@code null}
      */
     public record CommonSettings(
         @Nullable String region,
@@ -68,11 +148,13 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
         String modelId,
         @Nullable String endpointId,
         @Nullable URI uri,
+        String apiVersion,
         RateLimitSettings rateLimitSettings
     ) {
         public CommonSettings {
             Objects.requireNonNull(compartmentId);
             Objects.requireNonNull(modelId);
+            apiVersion = Objects.requireNonNullElse(apiVersion, OciGenAiUtils.DEFAULT_API_VERSION);
             rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
             if (region == null && uri == null) {
                 throw new IllegalArgumentException(Strings.format("Either [%s] or [%s] must be provided", REGION, URL));
@@ -85,7 +167,8 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
                 in.readString(),
                 in.readString(),
                 in.readOptionalString(),
-                ServiceUtils.createOptionalUri(in.readOptionalString()),
+                createOptionalUri(in.readOptionalString()),
+                in.readString(),
                 new RateLimitSettings(in)
             );
         }
@@ -96,56 +179,17 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
             out.writeString(modelId);
             out.writeOptionalString(endpointId);
             out.writeOptionalString(uri == null ? null : uri.toString());
+            out.writeString(apiVersion);
             rateLimitSettings.writeTo(out);
         }
 
         public CommonSettings withRateLimitSettings(RateLimitSettings newRateLimitSettings) {
-            return new CommonSettings(region, compartmentId, modelId, endpointId, uri, newRateLimitSettings);
+            return new CommonSettings(region, compartmentId, modelId, endpointId, uri, apiVersion, newRateLimitSettings);
         }
 
         public CommonSettings withModelId(String newModelId) {
-            return new CommonSettings(region, compartmentId, newModelId, endpointId, uri, rateLimitSettings);
+            return new CommonSettings(region, compartmentId, newModelId, endpointId, uri, apiVersion, rateLimitSettings);
         }
-    }
-
-    /**
-     * Extracts (and removes) the common fields from the settings map, accumulating validation errors.
-     *
-     * @return the common settings, or {@code null} if a required field is missing (in which case the validation exception carries the
-     *         error)
-     */
-    @Nullable
-    protected static CommonSettings extractCommonSettings(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
-        var region = extractOptionalString(map, REGION, SERVICE_SETTINGS, validationException);
-        var uri = extractOptionalUri(map, URL, validationException);
-        var compartmentId = extractRequiredString(map, COMPARTMENT_ID, SERVICE_SETTINGS, validationException);
-        var modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
-        var endpointId = extractOptionalString(map, ENDPOINT_ID, SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        if (region == null && uri == null) {
-            validationException.addValidationError(
-                Strings.format("[%s] must contain either the [%s] or the [%s] setting", SERVICE_SETTINGS, REGION, URL)
-            );
-        } else if (region != null && REGION_PATTERN.matcher(region).matches() == false) {
-            validationException.addValidationError(
-                Strings.format(
-                    "[%s] Invalid value [%s] for [%s]. It must be an OCI region identifier such as [us-chicago-1]",
-                    SERVICE_SETTINGS,
-                    region,
-                    REGION
-                )
-            );
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            return null;
-        }
-        return new CommonSettings(region, compartmentId, modelId, endpointId, uri, rateLimitSettings);
     }
 
     private final CommonSettings common;
@@ -182,6 +226,10 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
         return common.uri();
     }
 
+    public String apiVersion() {
+        return common.apiVersion();
+    }
+
     public RateLimitSettings rateLimitSettings() {
         return common.rateLimitSettings();
     }
@@ -199,12 +247,7 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return OciGenAiUtils.ML_INFERENCE_OCI_GENAI_ADDED;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return version.supports(OciGenAiUtils.ML_INFERENCE_OCI_GENAI_ADDED);
+        return OciGenAiUtils.INFERENCE_OCI_GENAI_ADDED;
     }
 
     @Override
@@ -228,6 +271,7 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
         if (common.uri() != null) {
             builder.field(URL, common.uri().toString());
         }
+        builder.field(API_VERSION, common.apiVersion());
         common.rateLimitSettings().toXContent(builder, params);
         return builder;
     }
@@ -248,5 +292,108 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
     @Override
     public int hashCode() {
         return Objects.hash(common);
+    }
+
+    /**
+     * Accumulates the parsed common fields and assembles the {@link CommonSettings}, enforcing that {@code compartment_id} and
+     * {@code model_id} are present and that either {@code region} or {@code url} is provided. Task specific builders extend this
+     * and contribute their own fields.
+     *
+     * @param <T> the task specific settings type produced by {@link #build(CommonSettings)}
+     */
+    public abstract static class Builder<T extends OciGenAiServiceSettings> {
+
+        private String region;
+        private String url;
+        private String compartmentId;
+        private String modelId;
+        private String endpointId;
+        private String apiVersion;
+        protected RateLimitSettings rateLimitSettings;
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void setCompartmentId(String compartmentId) {
+            this.compartmentId = compartmentId;
+        }
+
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        public void setEndpointId(String endpointId) {
+            this.endpointId = endpointId;
+        }
+
+        public void setApiVersion(String apiVersion) {
+            this.apiVersion = apiVersion;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        protected abstract T build(CommonSettings common);
+
+        public final T build() {
+            validateStringIsNotNullOrEmpty(compartmentId, COMPARTMENT_ID);
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
+            validateOptionalStringIsNotEmpty(url, URL);
+            validateOptionalStringIsNotEmpty(endpointId, ENDPOINT_ID);
+            validateOptionalStringIsNotEmpty(apiVersion, API_VERSION);
+
+            if (region == null && url == null) {
+                throw new IllegalArgumentException(
+                    Strings.format("[%s] must contain either the [%s] or the [%s] setting", SERVICE_SETTINGS, REGION, URL)
+                );
+            }
+            if (region != null && REGION_PATTERN.matcher(region).matches() == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[%s] Invalid value [%s] for [%s]. It must be an OCI region identifier such as [us-chicago-1]",
+                        SERVICE_SETTINGS,
+                        region,
+                        REGION
+                    )
+                );
+            }
+
+            return build(
+                new CommonSettings(region, compartmentId, modelId, endpointId, createOptionalUri(url), apiVersion, rateLimitSettings)
+            );
+        }
+
+        private static void validateOptionalStringIsNotEmpty(@Nullable String value, String settingName) {
+            if (value != null && value.isEmpty()) {
+                throw new IllegalArgumentException(mustBeNonEmptyString(settingName, SERVICE_SETTINGS.toString()));
+            }
+        }
+    }
+
+    /**
+     * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
+     * calling {@link #mergedRateLimitSettings(OciGenAiServiceSettings)} to resolve the shared fields.
+     */
+    public static class CommonUpdate {
+
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        /**
+         * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(OciGenAiServiceSettings existing) {
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
+        }
     }
 }

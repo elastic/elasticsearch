@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.COMPARTMENT_ID;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.ENDPOINT_ID;
@@ -148,8 +149,13 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return OciGenAiUtils.ML_INFERENCE_OCI_GENAI_ADDED;
+        return OciGenAiUtils.INFERENCE_OCI_GENAI_ADDED;
     }
 
     @Override
@@ -172,7 +178,7 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
         if (model instanceof OciGenAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             var updatedServiceSettings = new OciGenAiEmbeddingsServiceSettings(
                 serviceSettings.common(),
@@ -353,6 +359,21 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
                             + "the region (for example a private endpoint or a different OCI realm)."
                     )
                         .setLabel("URL")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    API_VERSION,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "The version of the OCI Generative AI inference API to call, for example 20231130. Defaults to "
+                            + OciGenAiUtils.DEFAULT_API_VERSION
+                            + "."
+                    )
+                        .setLabel("API Version")
                         .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)

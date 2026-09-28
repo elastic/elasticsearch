@@ -861,10 +861,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
-                task.addListener(() -> {
+                task.addListener(() -> exchangeService.runOnDriverPool(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
                     internalExchange.finish(true);
-                });
+                }));
                 EsqlFlags flags = computeService.createFlags();
                 int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(

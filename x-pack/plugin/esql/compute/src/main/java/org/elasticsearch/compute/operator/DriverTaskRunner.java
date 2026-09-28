@@ -15,6 +15,7 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -104,8 +105,30 @@ public class DriverTaskRunner {
             return new CancellableTask(id, type, action, "", parentTaskId, headers) {
                 @Override
                 protected void onCancelled() {
+                    // The ban handler invokes this on a transport worker. driver.cancel runs the driver to
+                    // completion, including mapped-input release, so it has to run on the driver's own pool.
                     String reason = Objects.requireNonNullElse(getReasonCancelled(), "cancelled");
-                    driver.cancel(reason);
+                    executor.execute(new AbstractRunnable() {
+                        @Override
+                        public boolean isForceExecution() {
+                            return true;
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            driver.cancel(reason);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false : e;
+                        }
+
+                        @Override
+                        public void onRejection(Exception e) {
+                            driver.cancel(reason);
+                        }
+                    });
                 }
 
                 @Override

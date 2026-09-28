@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -496,8 +497,29 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 Releasables.wrap(shardContext.release, localBreaker)
             );
             task.addListener(() -> {
+                // The ban handler invokes this on a transport worker. Cancel on the pool that runs the driver.
                 String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
-                driver.cancel(reason);
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        driver.cancel(reason);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e;
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        driver.cancel(reason);
+                    }
+                });
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {

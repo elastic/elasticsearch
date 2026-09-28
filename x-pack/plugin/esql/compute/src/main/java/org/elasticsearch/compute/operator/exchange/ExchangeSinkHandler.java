@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.transport.Transports;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -134,6 +135,7 @@ public final class ExchangeSinkHandler {
      * Fails this sink exchange handler
      */
     void onFailure(Exception failure) {
+        assert Transports.assertNotTransportThread("failing an exchange sink can close drivers and release mapped inputs");
         completionFuture.onFailure(failure);
         buffer.finish(true);
         notifyListeners();

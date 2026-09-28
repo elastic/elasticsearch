@@ -157,6 +157,9 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
             () -> createView(viewName, "FROM something-else")
         );
 
+        // but can update definition of system view with another system view
+        assertAcked(createView(viewName, "FROM some-other-index", null, true));
+
         expectThrows(
             IllegalArgumentException.class,
             containsString("cannot delete system view [" + viewName + "]"),
@@ -164,6 +167,14 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
                 DeleteViewAction.INSTANCE,
                 new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
             ).actionGet(30, TimeUnit.SECONDS)
+        );
+
+        // but can be deleted when explicitly asked for
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName }, true)
+            )
         );
     }
 

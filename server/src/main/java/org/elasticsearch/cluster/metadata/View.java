@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
-    private static final TransportVersion VIEW_IS_SYSTEM_VERSION = TransportVersion.fromName("esql_view_is_system");
+    public static final TransportVersion VIEW_IS_SYSTEM_VERSION = TransportVersion.fromName("esql_view_is_system");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");

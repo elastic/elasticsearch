@@ -62,8 +62,10 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             prepareIndex("system-index").setSource(Map.of("id", randomIdentifier(), "source", "system-index")),
             prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
         );
-        var systemView = createView(".system-view", "FROM system-index", null, true);
-        try (var regularView = createView("regular-view", "FROM regular-index")) {
+        try (
+            var regularView = createView("regular-view", "FROM regular-index");
+            var systemView = createView(".system-view", "FROM system-index", null, true)
+        ) {
             try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
@@ -80,6 +82,12 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 // system-view & regular-index matched as indices and another regular-view matched as a view
                 assertResultConcreteIndices(response, "system-index", "regular-index", "regular-index");
+            }
+            try (var fromSystemView = createView("from-system-view", "FROM .system-view")) {
+                try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
+                    assertOk(response);
+                    assertResultConcreteIndices(response, "system-index"); // concrete name resolved in inner system view
+                }
             }
         }
     }
@@ -139,17 +147,12 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, system))
             )
         );
-        return () -> {
-            // TODO delete system views
-            if (system == false) {
-                assertAcked(
-                    client().execute(
-                        DeleteViewAction.INSTANCE,
-                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-                    )
-                );
-            }
-        };
+        return () -> assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, system)
+            )
+        );
     }
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {

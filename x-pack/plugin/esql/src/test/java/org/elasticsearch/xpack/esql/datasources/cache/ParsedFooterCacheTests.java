@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -314,7 +314,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     private static FooterByteCache.Key key(String path, long length) {
-        return new FooterByteCache.Key(StorageIdentity.GLOBAL, path, length);
+        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length);
     }
 
     private static Thread startHerdThread(String name, AtomicReference<AssertionError> failure, CheckedRunnable<Exception> body) {

@@ -37,6 +37,10 @@ import java.util.Locale;
  */
 public final class FlightStorageProvider implements StorageProvider {
 
+    private record FlightIdentity() implements StorageIdentity {}
+
+    private static final FlightIdentity FLIGHT_IDENTITY = new FlightIdentity();
+
     @Override
     public StorageObject newObject(StoragePath path) {
         validateScheme(path);
@@ -190,7 +194,7 @@ public final class FlightStorageProvider implements StorageProvider {
 
         @Override
         public StorageIdentity storageIdentity() {
-            return StorageIdentity.GLOBAL;
+            return FLIGHT_IDENTITY;
         }
     }
 }

@@ -45,14 +45,15 @@ public interface StorageObject {
      * from. Two objects with the same identity, path, and length may share a footer cache entry;
      * objects with different identities must not.
      * <p>
-     * Return {@link StorageIdentity#GLOBAL} for providers with a single global configuration
-     * (local files, GCS with one service account). Return a credential-specific identity when a
-     * provider can be instantiated with different credential configurations in the same JVM —
-     * notably S3, where endpoint and credential identity differ per data source.
+     * Credential-scoped providers (S3, GCS, Azure, HTTP) must return an identity derived from their
+     * endpoint and credential settings. Providers with no per-data-source configuration (local files,
+     * Arrow Flight) declare their own private singleton, never one shared with another provider type.
+     * Objects whose content is not addressable by path (in-memory chunks, single-use streams) return an
+     * identity equal only to itself.
      * <p>
      * <b>Decorator implementations must explicitly override this and return
-     * {@code delegate.storageIdentity()}</b>. Subclasses of {@link AbstractDelegatingStorageObject}
-     * get a compile error if they forget — the method is intentionally left abstract there.
+     * {@code delegate.storageIdentity()}</b>; there is deliberately no default, so a new decorator
+     * cannot silently fall back to an identity that bypasses its delegate's credential scope.
      */
     StorageIdentity storageIdentity();
 

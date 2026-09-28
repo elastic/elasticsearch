@@ -20,7 +20,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.fixture.RequestEntry;
 
+import java.util.List;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
@@ -98,6 +100,14 @@ public class SelectiveAccessS3HttpFixture extends S3HttpFixture {
                 throw e;
             }
         };
+    }
+
+    /**
+     * Returns an unmodifiable view of all requests received by this fixture, in arrival order.
+     * Useful in tests to verify cache hit/miss behaviour by counting S3 GET requests.
+     */
+    public List<RequestEntry> requestLog() {
+        return handler.requestLog();
     }
 
     /**

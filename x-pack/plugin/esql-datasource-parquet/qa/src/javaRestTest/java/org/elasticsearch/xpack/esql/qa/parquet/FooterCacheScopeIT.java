@@ -43,6 +43,7 @@ import org.junit.rules.TestRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,6 +75,16 @@ public class FooterCacheScopeIT extends ESRestTestCase {
     private static final String SECRET_KEY = "test_secret_key";
     private static final String REGION = "us-east-1";
     private static final String ENC_ID = "test";
+    private static final String CONTROL_KEY = "scope/control/part-1.parquet";
+    private static final byte[] CONTROL_BYTES;
+
+    static {
+        try {
+            CONTROL_BYTES = parquetBytes("C", 100, 20);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     // fixture1: single S3 store with two credential tiers (reader + list-only)
     private static final SelectiveAccessS3HttpFixture fixture1 = new SelectiveAccessS3HttpFixture(BUCKET, READER_KEY, LIST_ONLY_KEY);
@@ -120,7 +131,7 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         fixture2.seedBlob("scope/endpoint/part-1.parquet", yBytes);
 
         // Test 3 (control): same file used twice through two data sources with identical settings.
-        fixture1.seedBlob("scope/control/part-1.parquet", parquetBytes("C", 100, 20));
+        fixture1.seedBlob(CONTROL_KEY, CONTROL_BYTES);
     }
 
     // per-test tracking for cleanup
@@ -193,9 +204,13 @@ public class FooterCacheScopeIT extends ESRestTestCase {
     /**
      * Two data sources with identical endpoint and credentials must share footer cache entries.
      * This is the correct and desirable behaviour for reducing redundant I/O.
+     *
+     * <p>Verified from the fixture's request log: the first query must read the file tail (footer
+     * cache miss), and the second query must not read it again. Column-chunk reads are expected on
+     * both queries — the footer cache holds footer bytes only, not row-group data.
      */
     public void testSameStorageSettingsReuseCachedFooter() throws IOException {
-        String resource = "s3://" + BUCKET + "/scope/control/part-1.parquet";
+        String resource = "s3://" + BUCKET + "/" + CONTROL_KEY;
 
         // Two data sources with identical settings — same endpoint, same key.
         putDataSource("control_ds1", fixture1.getAddress(), READER_KEY);
@@ -204,12 +219,34 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         putDataSource("control_ds2", fixture1.getAddress(), READER_KEY);
         putDataset("control_rows2", "control_ds2", resource);
 
-        Map<String, Object> r1 = runEsql("FROM control_rows1 | SORT id | LIMIT 100");
-        Map<String, Object> r2 = runEsql("FROM control_rows2 | SORT id | LIMIT 100");
+        int before = controlGetRanges().size();
+        assertThat(rowCount(runEsql("FROM control_rows1 | SORT id | LIMIT 100")), equalTo(20));
+        List<String> firstQuery = controlGetRanges().subList(before, controlGetRanges().size());
+        assertTrue("first query must read the footer from S3; GET ranges: " + firstQuery, firstQuery.stream().anyMatch(this::isTailRead));
 
-        assertThat(rowCount(r1), equalTo(20));
-        assertThat(rowCount(r2), equalTo(20));
-        assertThat(firstSecret(r1), equalTo(firstSecret(r2)));
+        assertThat(rowCount(runEsql("FROM control_rows2 | SORT id | LIMIT 100")), equalTo(20));
+        List<String> secondQuery = controlGetRanges().subList(before + firstQuery.size(), controlGetRanges().size());
+        assertFalse(
+            "second query with identical storage settings must reuse the cached footer; GET ranges: " + secondQuery,
+            secondQuery.stream().anyMatch(this::isTailRead)
+        );
+    }
+
+    private List<String> controlGetRanges() {
+        String s3Path = "/" + BUCKET + "/" + CONTROL_KEY;
+        return fixture1.requestLog()
+            .stream()
+            .filter(e -> "GET".equals(e.method()) && s3Path.equals(e.path()))
+            .map(e -> String.valueOf(e.range()))
+            .toList();
+    }
+
+    /** A footer read: a suffix range, an open-ended range, a full read, or a range ending at the last byte. */
+    private boolean isTailRead(String range) {
+        if (range.equals("null") || range.startsWith("bytes=-") || range.endsWith("-")) {
+            return true;
+        }
+        return range.endsWith("-" + (CONTROL_BYTES.length - 1));
     }
 
     // -----------------------------------------------------------------------------------------
@@ -221,8 +258,8 @@ public class FooterCacheScopeIT extends ESRestTestCase {
      * (UTF-8 string). Row {@code i} has {@code id = startId + i} and
      * {@code secret = label + "-secret-" + (startId + i)}.
      *
-     * <p>All 20 rows fit comfortably within the 64 KiB footer-tail prefetch window, so the full
-     * file is cached on the first read.
+     * <p>All 20 rows fit comfortably within the 64 KiB footer-tail prefetch window, so the whole
+     * file is small enough for the footer read to span it.
      */
     private static byte[] parquetBytes(String label, int startId, int count) throws IOException {
         MessageType schema = Types.buildMessage()

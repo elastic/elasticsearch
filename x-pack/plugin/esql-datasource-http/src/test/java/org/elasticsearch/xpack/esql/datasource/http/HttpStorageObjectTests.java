@@ -73,6 +73,26 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(path, object.path());
     }
 
+    public void testStorageIdentityScopedByCustomHeaders() {
+        HttpClient mockClient = mock(HttpClient.class);
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpConfiguration alice = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice-secret")).build();
+        HttpConfiguration aliceAgain = HttpConfiguration.builder()
+            .customHeaders(Map.of("Authorization", "Bearer alice-secret"))
+            .requestTimeout(java.time.Duration.ofSeconds(7))
+            .build();
+        HttpConfiguration bob = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer bob-secret")).build();
+
+        HttpStorageObject aliceObject = new HttpStorageObject(mockClient, path, alice);
+        assertEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, aliceAgain).storageIdentity());
+        assertNotEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, bob).storageIdentity());
+        assertNotEquals(
+            aliceObject.storageIdentity(),
+            new HttpStorageObject(mockClient, path, HttpConfiguration.defaults()).storageIdentity()
+        );
+        assertThat(aliceObject.storageIdentity().toString(), not(containsString("alice-secret")));
+    }
+
     public void testPathWithPreKnownLength() {
         HttpClient mockClient = mock(HttpClient.class);
         StoragePath path = StoragePath.of("https://example.com/file.txt");

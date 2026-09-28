@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1905,7 +1906,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
         @Override
         public StorageIdentity storageIdentity() {
-            return StorageIdentity.GLOBAL;
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

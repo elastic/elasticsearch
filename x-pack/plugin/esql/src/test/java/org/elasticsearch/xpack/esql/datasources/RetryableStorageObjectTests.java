@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -159,6 +160,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger attempts = new AtomicInteger();
         StorageObject flaky = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
             }
@@ -248,6 +254,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicBoolean attempt0Closed = new AtomicBoolean();
         AtomicBoolean attempt1Closed = new AtomicBoolean();
         StorageObject flaky = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -502,6 +513,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         // A native-async delegate whose read fails with a non-storage, non-transient fault, so the async driver
         // gives up on the first attempt and records the terminal failure.
         StorageObject delegate = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -1386,6 +1402,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://bucket/key");
         AtomicInteger opens = new AtomicInteger();
         StorageObject delegate = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream(long position, long length) {
                 int pos = Math.toIntExact(position);

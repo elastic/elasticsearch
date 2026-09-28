@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -37,6 +38,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -58,10 +60,25 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
+    /**
+     * Custom headers are the only per-data-source credential HTTP sends, so they scope the footer cache.
+     * Held as a SHA-256 digest: headers typically carry {@code Authorization} values, and records print
+     * their fields in {@code toString}.
+     */
+    private record HttpConfigIdentity(String customHeadersDigest) implements StorageIdentity {
+        static HttpConfigIdentity of(HttpConfiguration config) {
+            // NUL cannot appear in an HTTP header name or value, so it separates entries unambiguously.
+            StringBuilder canonical = new StringBuilder();
+            new TreeMap<>(config.customHeaders()).forEach((name, value) -> canonical.append(name).append('\0').append(value).append('\0'));
+            return new HttpConfigIdentity(StorageIdentity.digestSecret(canonical.toString()));
+        }
+    }
+
     private final HttpClient client;
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    private final HttpConfigIdentity storageIdentity;
     /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
     private final ScheduledExecutorService idleScheduler;
 
@@ -93,6 +110,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.storageIdentity = HttpConfigIdentity.of(config);
         this.idleScheduler = idleScheduler;
     }
 
@@ -311,6 +329,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     @Override

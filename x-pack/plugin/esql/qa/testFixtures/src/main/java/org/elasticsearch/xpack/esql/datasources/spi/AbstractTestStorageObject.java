@@ -19,8 +19,13 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  */
 public abstract class AbstractTestStorageObject implements StorageObject {
 
+    private record NoopIdentity() implements StorageIdentity {}
+
+    /** Shared identity for test storage objects with no credential isolation. */
+    public static final StorageIdentity NOOP = new NoopIdentity();
+
     @Override
     public StorageIdentity storageIdentity() {
-        return StorageIdentity.GLOBAL;
+        return NOOP;
     }
 }

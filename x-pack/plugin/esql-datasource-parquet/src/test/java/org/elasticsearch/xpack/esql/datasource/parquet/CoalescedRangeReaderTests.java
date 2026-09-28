@@ -196,6 +196,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(new byte[0]);
             }
@@ -275,6 +280,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         AtomicInteger asyncCallCount = new AtomicInteger();
         StorageObject storageObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -381,6 +391,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<Long> requestLengths = new ArrayList<>();
         StorageObject storageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
             }
@@ -480,6 +495,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     public void testReadCoalescedFailure() throws Exception {
         StorageObject failingObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new IOException("test failure");
             }
@@ -573,6 +593,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10));
 
         StorageObject shortReadObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
@@ -679,6 +704,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10), new ByteRange(5000, 10));
 
                 StorageObject injecting = new StorageObject() {
+                    @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
                     @Override
                     public InputStream newStream(long position, long length) {
                         throw new UnsupportedOperationException("async path only");
@@ -845,7 +875,10 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         cache.put(key, data);
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
-            cache.put(new FooterByteCache.Key(StorageIdentity.GLOBAL, "memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+            cache.put(
+                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256),
+                sequentialBytes(256)
+            );
         }
         assertNull(cache.get(key));
 
@@ -1033,7 +1066,12 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         return resultRef.get();
     }
 
-    private static class CountingStorage extends AbstractTestStorageObject {
+    private static class CountingStorage implements StorageObject {
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
         private final byte[] data;
         final AtomicInteger asyncGets = new AtomicInteger();
         final AtomicInteger syncGets = new AtomicInteger();

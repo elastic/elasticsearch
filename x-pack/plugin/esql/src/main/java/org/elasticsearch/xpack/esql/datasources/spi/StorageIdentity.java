@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.hash.MessageDigests;
+
+import java.nio.charset.StandardCharsets;
+
 /**
  * Identifies the storage configuration (endpoint, credential identity) a {@link StorageObject} was
  * obtained from. Used as a component of {@code FooterByteCache.Key}: two objects with the same
@@ -15,16 +19,31 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * Implementations must provide correct {@link Object#equals} and {@link Object#hashCode} —
  * records satisfy this automatically and are the recommended implementation vehicle.
  * </p>
+ * <p>
+ * There is deliberately no shared "global" identity: a provider with no per-data-source configuration
+ * declares its own <em>private</em> singleton, so different provider types can never share cache entries
+ * even when they produce the same path and length.
+ * </p>
+ * <p>
+ * Secret settings must be part of the identity, but only through {@link #digestSecret}: cache keys
+ * outlive the data source, and records print their fields in {@code toString}.
+ * </p>
  */
 public interface StorageIdentity {
 
     /**
-     * Shared identity for providers with a single global configuration (local files, GCS with one
-     * service account, etc.). Providers that can be instantiated with different credential
-     * configurations in the same JVM must return a distinct implementation.
+     * Returns a new identity equal only to itself, for objects that must never share a cache entry:
+     * in-memory slices and single-use streams, or providers built without a configuration.
      */
-    StorageIdentity GLOBAL = new Global();
+    static StorageIdentity unique() {
+        return new StorageIdentity() {};
+    }
 
-    /** Default {@link StorageIdentity} for single-configuration providers. */
-    record Global() implements StorageIdentity {}
+    /**
+     * Returns the hex SHA-256 digest of {@code secret}, or {@code null} when it is {@code null}, so that
+     * identities stay equal exactly when their secrets are equal without holding the plaintext.
+     */
+    static String digestSecret(String secret) {
+        return secret == null ? null : MessageDigests.toHexString(MessageDigests.sha256().digest(secret.getBytes(StandardCharsets.UTF_8)));
+    }
 }

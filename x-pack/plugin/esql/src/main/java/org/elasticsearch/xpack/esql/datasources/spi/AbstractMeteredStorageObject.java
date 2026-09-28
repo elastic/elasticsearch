@@ -27,11 +27,8 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
     protected final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     /**
-     * Must return the storage-configuration identity for this object. Concrete provider
-     * implementations must override this; {@link StorageIdentity#GLOBAL} is correct for
-     * single-configuration providers (local files, single-account GCS). Credential-scoped
-     * providers (S3, multi-account GCS) must return a per-credential identity so that the
-     * footer cache correctly partitions entries by credential.
+     * Must return the storage-configuration identity for this object, so that the footer cache
+     * partitions entries by storage configuration. See {@link StorageObject#storageIdentity()}.
      */
     @Override
     public abstract StorageIdentity storageIdentity();

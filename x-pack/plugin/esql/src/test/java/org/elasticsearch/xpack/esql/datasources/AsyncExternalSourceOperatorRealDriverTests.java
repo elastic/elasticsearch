@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -421,7 +422,7 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
 
         @Override
         public StorageIdentity storageIdentity() {
-            return StorageIdentity.GLOBAL;
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

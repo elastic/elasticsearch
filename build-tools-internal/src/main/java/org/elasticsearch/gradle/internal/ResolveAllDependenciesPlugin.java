@@ -14,10 +14,6 @@ import com.avast.gradle.dockercompose.tasks.ComposePull;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.FileCollectionDependency;
-import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 
@@ -35,14 +31,15 @@ public class ResolveAllDependenciesPlugin implements Plugin<Project> {
 
         resolveAllDependencies.configure(task -> {
             List<String> ignoredPrefixes = List.of(DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver");
-            task.getResolvedArtifacts().from(
-                project.getConfigurations()
-                    .stream()
-                    .filter(config -> ignoredPrefixes.stream().noneMatch(config.getName()::startsWith))
-                    .filter(ResolveAllDependenciesPlugin::canBeResolved)
-                    .map(ResolveAllDependenciesPlugin::moduleArtifacts)
-                    .toList()
-            );
+            task.getResolvedArtifacts()
+                .from(
+                    project.getConfigurations()
+                        .stream()
+                        .filter(config -> ignoredPrefixes.stream().noneMatch(config.getName()::startsWith))
+                        .filter(ResolveAllDependencies::canBeResolved)
+                        .map(ResolveAllDependencies::moduleArtifacts)
+                        .toList()
+                );
 
             if (project.getPath().equals(":")) {
                 task.getResolveJavaToolChain().set(true);
@@ -63,32 +60,11 @@ public class ResolveAllDependenciesPlugin implements Plugin<Project> {
             }
         });
 
-        project.getPluginManager().withPlugin(
-            "elasticsearch.mrjar",
-            appliedPlugin -> resolveAllDependencies.configure(task -> task.dependsOn(project.getTasks().withType(JavaCompile.class)))
-        );
+        project.getPluginManager()
+            .withPlugin(
+                "elasticsearch.mrjar",
+                appliedPlugin -> resolveAllDependencies.configure(task -> task.dependsOn(project.getTasks().withType(JavaCompile.class)))
+            );
     }
 
-    private static FileCollection moduleArtifacts(Configuration configuration) {
-        // Make a copy of the configuration, omitting file collection dependencies to avoid building project artifacts.
-        Configuration copy = configuration.copyRecursive(dependency -> dependency instanceof FileCollectionDependency == false);
-        copy.setCanBeConsumed(false);
-
-        // Include only module dependencies, ignoring things like project dependencies so we don't unnecessarily build stuff.
-        return copy.getIncoming().artifactView(view -> view.lenient(true).componentFilter(identifier -> identifier instanceof ModuleComponentIdentifier))
-            .getFiles();
-    }
-
-    private static boolean canBeResolved(Configuration configuration) {
-        if (configuration.isCanBeResolved() == false) {
-            return false;
-        }
-        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration deprecatableConfiguration) {
-            if (deprecatableConfiguration.canSafelyBeResolved() == false) {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }

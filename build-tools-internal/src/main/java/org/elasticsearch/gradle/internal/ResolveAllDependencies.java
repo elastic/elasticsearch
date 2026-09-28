@@ -12,7 +12,11 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.FileCollectionDependency;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -63,5 +67,29 @@ public abstract class ResolveAllDependencies extends DefaultTask {
             javaToolchainSpec.getVendor()
                 .set(bundledVendor.equals("openjdk") ? JvmVendorSpec.ORACLE : JvmVendorSpec.matching(bundledVendor));
         }).get();
+    }
+
+    static FileCollection moduleArtifacts(Configuration configuration) {
+        // Make a copy of the configuration, omitting file collection dependencies to avoid building project artifacts.
+        Configuration copy = configuration.copyRecursive(dependency -> dependency instanceof FileCollectionDependency == false);
+        copy.setCanBeConsumed(false);
+
+        // Include only module dependencies, ignoring things like project dependencies so we don't unnecessarily build stuff.
+        return copy.getIncoming()
+            .artifactView(view -> view.lenient(true).componentFilter(identifier -> identifier instanceof ModuleComponentIdentifier))
+            .getFiles();
+    }
+
+    static boolean canBeResolved(Configuration configuration) {
+        if (configuration.isCanBeResolved() == false) {
+            return false;
+        }
+        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration deprecatableConfiguration) {
+            if (deprecatableConfiguration.canSafelyBeResolved() == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -109,6 +109,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -191,6 +192,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     && dft.getChildFieldType(name.substring(dotIndex + 1)) != null;
             }
             return false;
+        }
+
+        public boolean isExtractableMappedField(String name) {
+            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
         }
     }
 
@@ -308,7 +313,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
             // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
             // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
-            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor()));
+            // Leaves this shard declares under a nested parent must not ship: mapped nested subfields stay null, and only
+            // this shard knows its mapping - see the loader's javadoc.
+            MappingLookup mappingLookup = shardContext.ctx.getMappingLookup();
+            Predicate<String> mappedNestedSubfield = path -> mappingLookup.getFullNameToFieldType().containsKey(path)
+                && mappingLookup.nestedLookup().hasNestedParent(path);
+            return ValuesSourceReaderOperator.load(
+                new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor(), mappedNestedSubfield)
+            );
         }
 
         // Apply any block loader function if present
@@ -538,10 +550,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /**
      * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
-     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
-     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
-     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
-     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     * extractable. Flattened fields store terms for their sub-keys in Lucene even though those
+     * sub-keys are absent from the real mapping; nested subfields are in the mapping but
+     * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+     * field-caps request, and {@code include_in_root} copies their values onto the parent
+     * document. A plain EXISTS query would therefore inflate field-level COUNT results. Wildcard
+     * ({@code "*"}) means COUNT(*) — count every document — so no per-field guard is applied in
+     * that case.
      */
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
         QueryBuilder builder,
@@ -552,7 +567,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return innerFn;
         }
         return ctx -> {
-            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
+            if (shardContexts.get(ctx.index()).isExtractableMappedField(fieldName) == false) {
                 return List.of();
             }
             return innerFn.apply(ctx);
@@ -881,12 +896,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
-            // Exclude dynamically-resolved flattened sub-keys: fieldType() resolves them to a non-null type, but field caps
-            // does not report them and they must not be extracted (see #154508). Only a dotted name can be such a sub-key,
-            // and for a flat name a non-null fieldType already implies isMappedField(name) == true — so gating the (virtual)
-            // mapped-field probe on the dot keeps flat names (the common case) at a single resolution.
-            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys; skip the redundant probe for flat names
-                && isMappedField(name) == false) {
+            // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
+            // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)
+            // - nested subfields: mapped, but IndexResolver applies -nested on the field-caps request (#154011)
+            // Only dotted names can be either, so gating the extra probes on the dot keeps flat names (the common case)
+            // at a single resolution.
+            if (name.indexOf('.') > 0 && isExtractableMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(

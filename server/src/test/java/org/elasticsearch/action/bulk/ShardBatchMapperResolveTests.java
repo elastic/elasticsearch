@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
@@ -1116,6 +1117,24 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertEquals(2, resolution.columnGroups().length);
         assertEquals("src", resolution.columnGroups()[0].mapper().fullPath());
         assertEquals("dst", resolution.columnGroups()[1].mapper().fullPath());
+    }
+
+    /**
+     * When a shard has not yet received its first mapping update the {@link MapperService} returns
+     * {@link MappingLookup#EMPTY}, whose {@code getSortedMetadataMappers()} is an empty array.
+     * Before the fix, the per-metadata-mapper loop was vacuously true, letting an empty {@code {}}
+     * document slip through to the batch path.  The batch created a columnar segment (no {@code _id}
+     * terms), and the next document going to the same shard via the sequential fallback threw
+     * {@code IllegalArgumentException: reader does not have _uid terms but not a no-op segment}.
+     */
+    public void testEmptyMappingFallsBackToSequential() throws IOException {
+        // MappingLookup.EMPTY has no metadata mappers — simulates a shard whose mapping has not
+        // been established yet (MapperService.mapper == null).
+        SourceSchema emptyDocSchema = schemaOfJson("{}");
+        assertNull(
+            "batch path must not run when mapping has not been established",
+            ShardBatchMapper.resolveMappers(emptyDocSchema, MappingLookup.EMPTY, indexSettings)
+        );
     }
 
     /**

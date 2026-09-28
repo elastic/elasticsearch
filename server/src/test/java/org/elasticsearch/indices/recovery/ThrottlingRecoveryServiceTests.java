@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -732,7 +733,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     public void testIncomingThrottleSettingsAreUpdatedAtomically() {
-        final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap: before effective = min(2, ceil(2 * 100)) = 2
         // after batch update: effective = min(100, ceil(2 * 0.5)) = 1
         final var heapBytes = ByteSizeValue.ofGb(2);
@@ -742,12 +742,19 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 100.0)
                 .build()
         );
+        // Use a direct (inline) generic executor so fillSlots runs synchronously inside the settings-update consumer,
+        // mimicking the production race. If the three throttle settings were watched by separate consumers (as before),
+        // the consumer that raises the static limit would run fillSlots while the per-heap-gb limit was still at its old
+        // high value, briefly seeing effective = 100 and starting all 10 recoveries.
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
+            threadPool,
             DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            monitorWithNoGates(taskQueue.getThreadPool()),
+            monitorWithNoGates(threadPool),
             heapBytes
         );
         service.start();
@@ -767,8 +774,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 }
             );
         }
-
-        taskQueue.runAllRunnableTasks();
+        // fillSlots runs inline on each enqueue, so the initial effective limit of 2 is already enforced here.
         assertThat(started.get(), equalTo(2));
 
         clusterService.getClusterSettings()
@@ -779,15 +785,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     .build()
             );
 
-        // grouped update must apply both settings before fillSlots, the higher static alone would have started all 10
-        taskQueue.runAllRunnableTasks();
+        // The grouped consumer applies both settings before the inline fillSlots runs, so the transient high static
+        // limit is never observed and no extra recoveries start.
         assertThat(started.get(), equalTo(2));
 
-        // drain
+        // Completing a held recovery frees a slot. With effective = 1 the queue drains one at a time until all 10 start.
         while (startedListeners.isEmpty() == false) {
             final var listener = startedListeners.removeFirst();
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            taskQueue.runAllRunnableTasks();
         }
         assertThat(started.get(), equalTo(10));
         service.close();

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -692,9 +693,13 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                     )
                     .build()
             );
+        // Use a direct (inline) executor so startRelocationsUpToLimit runs synchronously inside the settings-update
+        // consumer, mimicking the production race. If the two throttle settings were watched by separate consumers (as
+        // before), the consumer that raises the static limit would run startRelocationsUpToLimit while the per-heap-gb
+        // limit was still at its old high value.
         final var throttle = new ThrottledPrimaryRelocations(
             clusterService,
-            taskQueue::scheduleNow,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             (parentClient, request, shard, listener) -> {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
@@ -713,7 +718,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             );
         }
 
-        taskQueue.runAllRunnableTasks();
+        // Relocations start inline on enqueue, so the initial effective limit of 2 is already enforced here.
         assertThat(started.get(), equalTo(2));
 
         // If the static max were applied alone first, effective would jump to 100 and all 10 would start.
@@ -728,7 +733,6 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                     )
                     .build()
             );
-        taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(2));
 
         taskQueue.runAllTasks();

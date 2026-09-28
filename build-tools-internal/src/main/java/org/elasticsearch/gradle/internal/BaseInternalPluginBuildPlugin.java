@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
@@ -45,8 +46,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         // TODO remove once we removed default dependencies from PluginBuildPlugin
         project.getConfigurations().getByName("compileOnly").getDependencies().clear();
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
-        project.getDependencies().add("compileOnly", project.getDependencies().project(Map.of("path", ":server")));
-        project.getDependencies().add("testImplementation", project.getDependencies().project(Map.of("path", ":test:framework")));
+        project.getDependencies()
+            .add("compileOnly", internalDependency(project, ":server", "org.elasticsearch:server:" + VersionProperties.getElasticsearch()));
+        project.getDependencies().add(
+            "testImplementation",
+            internalDependency(project, ":test:framework", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch())
+        );
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into
@@ -83,6 +88,13 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         if (isModule == false || isXPackModule) {
             addNoticeGeneration(project, extension);
         }
+    }
+
+    private static Object internalDependency(Project project, String projectPath, String moduleCoordinate) {
+        if (project.findProject(projectPath) != null) {
+            return project.getDependencies().project(Map.of("path", projectPath));
+        }
+        return moduleCoordinate;
     }
 
     /**

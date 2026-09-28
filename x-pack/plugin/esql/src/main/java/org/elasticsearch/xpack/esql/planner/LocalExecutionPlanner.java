@@ -183,8 +183,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.GraphExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
@@ -512,9 +512,7 @@ public class LocalExecutionPlanner {
      * it via hop subplans into a {@link org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation}.
      */
     private PhysicalOperation planGraphExpand(GraphExpandExec graphExpand, LocalExecutionPlannerContext context) {
-        throw new EsqlIllegalArgumentException(
-            "GRAPH EXPAND should have been expanded by the session coordinator before local planning"
-        );
+        throw new EsqlIllegalArgumentException("GRAPH EXPAND should have been expanded by the session coordinator before local planning");
     }
 
     private PhysicalOperation planMMR(MMRExec mmr, LocalExecutionPlannerContext context) {

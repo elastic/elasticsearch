@@ -56,39 +56,22 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Coordinator-side visited-set BFS for {@link GraphExpand}.
- * <p>
- * Each hop is a full plan/dispatch round through {@link EsqlSession#executeSubPlan}.
- * Without STATS the hop is {@code Filter → Eval → Project}. With STATS an
- * {@link Aggregate} sits on the filtered edge scan (pair grouping always, user
- * {@code BY} refining it) before Eval/Project. Document {@code WHERE} is ANDed
- * into the edge {@link Filter}; aggregate {@code WHERE} is a {@link Filter} on
- * the Aggregate output before admission. {@code direction: both} runs outbound
- * then inbound as separate hop plans and combines pages before SORT and
- * admission. A multi-field {@code TO (f1, f2, …)} runs the same leg(s) once per
- * target field in written order, concatenates those field legs (each row stamped
- * with {@code relation}), then applies SORT / hub_degree / caps / UNTIL /
- * admission once on the union — caps therefore bind to the combined rows, not
- * per field. In-command {@code SORT} (plus an always-on {@code node_reached}
- * ascending tie-break) orders each hop's rows, then {@code hub_degree} may
- * refuse a frontier node (stub row, no budget spend) before the three caps
- * {@code max_edges_per_node}, {@code max_frontier}, {@code max_nodes} — a row
- * removed by a cap cannot satisfy {@code UNTIL} and is not admitted. When
- * {@code UNTIL} holds an {@link InSubquery}, that subquery is executed once
- * before hop 1 and rewritten to an ordinary {@link In} of literals; the hop
- * walk then uses the same Filter-over-hop-rows path as a literal UNTIL. When
- * {@code UNTIL} is present, the remaining hop rows are filtered with that
- * boolean expression (ordinary {@link Filter} over the emit columns); the first
- * matching row and every row before it are admitted, later rows are dropped,
- * and the walk stops. An edge onto a node admitted on an earlier hop is a
- * closing edge: it is emitted with {@code node_reached} null, does not
- * re-enter the frontier, and does not spend any of the three budgets.
- * Same-hop duplicates of a newly admitted {@code node_reached} keep that value
- * and enter the frontier once. Stage subset — see {@link #validateSubset}.
+ * Coordinator-side visited-set BFS for a research snapshot of {@link GraphExpand}.
+ * Each hop is a real ES|QL subplan because the compute engine has no iteration.
+ * The plan is not serialized (same stance as {@link org.elasticsearch.xpack.esql.plan.logical.MMR}).
  */
 public final class GraphExpandDriver {
 
     public static final int DEFAULT_MAX_HOPS = 3;
+
+    private static final Set<String> ALLOWED_OPTIONS = Set.of(
+        "max_hops",
+        "direction",
+        "hub_degree",
+        "max_edges_per_node",
+        "max_nodes",
+        "max_frontier"
+    );
 
     /** Walk orientation for one hop leg. */
     enum Leg {
@@ -105,6 +88,10 @@ public final class GraphExpandDriver {
     private final boolean multiField;
     private final List<Attribute> resultAttributes;
     private final DataType nodeType;
+    private final int nodeFromIdx;
+    private final int nodeToIdx;
+    private final int nodeReachedIdx;
+    private final int hopIdx;
 
     /** Nodes already admitted (including seeds). */
     private final Set<Object> visited = new HashSet<>();
@@ -170,6 +157,10 @@ public final class GraphExpandDriver {
         this.multiField = targetFields.size() > 1;
         this.resultAttributes = resultAttributes;
         this.nodeType = targetFields.get(0).dataType();
+        this.nodeFromIdx = indexOf(resultAttributes, "node_from");
+        this.nodeToIdx = indexOf(resultAttributes, "node_to");
+        this.nodeReachedIdx = indexOf(resultAttributes, "node_reached");
+        this.hopIdx = indexOf(resultAttributes, "hop");
         this.nextLeg = initialLeg();
         this.nextFieldIndex = 0;
         this.until = graphExpand.until();
@@ -197,9 +188,7 @@ public final class GraphExpandDriver {
         validateSubset(ge);
         if ((ge.child() instanceof LocalRelation seedRelation) == false) {
             throw new IllegalArgumentException(
-                "GRAPH EXPAND seed input must be a local relation after optimization, got ["
-                    + ge.child().getClass().getSimpleName()
-                    + "]"
+                "GRAPH EXPAND seed input must be a local relation after optimization, got [" + ge.child().getClass().getSimpleName() + "]"
             );
         }
         List<Attribute> resultAttributes = ge.resultAttributes();
@@ -348,9 +337,7 @@ public final class GraphExpandDriver {
         }
         List<Attribute> schema = subqueryResult.schema();
         if (schema.size() != 1) {
-            throw new IllegalArgumentException(
-                "GRAPH EXPAND UNTIL subquery must return exactly one column, got [" + schema.size() + "]"
-            );
+            throw new IllegalArgumentException("GRAPH EXPAND UNTIL subquery must return exactly one column, got [" + schema.size() + "]");
         }
         DataType valueType = schema.get(0).dataType();
         List<Expression> literals = new ArrayList<>();
@@ -367,9 +354,7 @@ public final class GraphExpandDriver {
             }
         }
         if (literals.isEmpty()) {
-            throw new IllegalArgumentException(
-                "GRAPH EXPAND UNTIL subquery returned no values, so the walk would stop at nothing"
-            );
+            throw new IllegalArgumentException("GRAPH EXPAND UNTIL subquery returned no values, so the walk would stop at nothing");
         }
         // Preserve the user's LHS (usually node_reached); do not hard-code the name.
         until = new In(graphExpand.source(), inSub.value(), literals);
@@ -465,10 +450,10 @@ public final class GraphExpandDriver {
         );
         LogicalPlan hopChild = new Filter(source, scanned, edgePredicate);
 
-        Attribute nodeFrom = resultAttributes.get(0);
-        Attribute nodeTo = resultAttributes.get(1);
-        Attribute nodeReached = resultAttributes.get(2);
-        Attribute hopAttr = resultAttributes.get(3);
+        Attribute nodeFrom = resultAttributes.get(nodeFromIdx);
+        Attribute nodeTo = resultAttributes.get(nodeToIdx);
+        Attribute nodeReached = resultAttributes.get(nodeReachedIdx);
+        Attribute hopAttr = resultAttributes.get(hopIdx);
 
         Attribute seenMatch = retarget(matchField, frontierField, expandedFrontier);
         Attribute seenTarget = retarget(targetField, frontierField, expandedFrontier);
@@ -485,7 +470,6 @@ public final class GraphExpandDriver {
             evalTo = attributeByName(hopChild.output(), targetField.name());
         }
 
-        // node_from / node_to keep stored orientation; node_reached follows the walk leg.
         Attribute reachedExpr = leg == Leg.OUT ? evalTo : evalFrom;
         List<Alias> evalFields = new ArrayList<>(6);
         evalFields.add(new Alias(source, nodeFrom.name(), evalFrom, nodeFrom.id(), false));
@@ -495,17 +479,13 @@ public final class GraphExpandDriver {
         // Multi-field TO only: relation = the pointer field name that fired this leg.
         Attribute relationAttr = findNamed(resultAttributes, "relation");
         if (relationAttr != null) {
-            evalFields.add(
-                new Alias(source, relationAttr.name(), Literal.keyword(source, targetField.name()), relationAttr.id(), false)
-            );
+            evalFields.add(new Alias(source, relationAttr.name(), Literal.keyword(source, targetField.name()), relationAttr.id(), false));
         }
         // Optional dropped: null on every hop row; hub stubs overwrite with the refused degree.
         // Must live on Eval (Literal) — Project only accepts Attribute children.
         Attribute droppedAttr = findNamed(resultAttributes, "dropped");
         if (droppedAttr != null) {
-            evalFields.add(
-                new Alias(source, droppedAttr.name(), new Literal(source, null, DataType.INTEGER), droppedAttr.id(), false)
-            );
+            evalFields.add(new Alias(source, droppedAttr.name(), new Literal(source, null, DataType.INTEGER), droppedAttr.id(), false));
         }
         Eval eval = new Eval(source, hopChild, evalFields);
 
@@ -621,7 +601,7 @@ public final class GraphExpandDriver {
             String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(text)));
         } catch (IllegalArgumentException e) {
-            return value;
+            throw new IllegalArgumentException("invalid IP value [" + value + "]", e);
         }
     }
 
@@ -631,12 +611,12 @@ public final class GraphExpandDriver {
      * Concatenate outbound then inbound rows. A self-loop (stored source equals
      * target) is kept from the outbound leg only.
      */
-    private static List<List<Object>> combineBothLegs(List<List<Object>> outRows, List<List<Object>> inRows) {
+    private List<List<Object>> combineBothLegs(List<List<Object>> outRows, List<List<Object>> inRows) {
         List<List<Object>> combined = new ArrayList<>(outRows.size() + inRows.size());
         combined.addAll(outRows);
         for (List<Object> row : inRows) {
-            Object from = row.get(0);
-            Object to = row.get(1);
+            Object from = row.get(nodeFromIdx);
+            Object to = row.get(nodeToIdx);
             if (Objects.equals(from, to)) {
                 continue;
             }
@@ -688,16 +668,11 @@ public final class GraphExpandDriver {
                 comparator = comparator == null ? key : comparator.thenComparing(key);
             }
         }
-        // Always-on tie-break: node_reached ascending (channel 2).
-        Comparator<List<Object>> tieBreak = comparingChannel(2, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        Comparator<List<Object>> tieBreak = comparingChannel(nodeReachedIdx, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         return comparator == null ? tieBreak : comparator.thenComparing(tieBreak);
     }
 
-    private static Comparator<List<Object>> comparingChannel(
-        int channel,
-        Order.OrderDirection direction,
-        Order.NullsPosition nulls
-    ) {
+    private static Comparator<List<Object>> comparingChannel(int channel, Order.OrderDirection direction, Order.NullsPosition nulls) {
         return (left, right) -> {
             Object a = left.get(channel);
             Object b = right.get(channel);
@@ -716,15 +691,19 @@ public final class GraphExpandDriver {
         };
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static int compareSortValues(Object a, Object b) {
-        if (a instanceof Comparable comparable && a.getClass().isInstance(b)) {
+        if (a instanceof BytesRef aBytes && b instanceof BytesRef bBytes) {
+            return aBytes.compareTo(bBytes);
+        }
+        if (a.getClass() == b.getClass() && a instanceof Comparable<?>) {
+            // Same runtime class: safe to compare as Comparable<Object>.
+            @SuppressWarnings("unchecked")
+            Comparable<Object> comparable = (Comparable<Object>) a;
             return comparable.compareTo(b);
         }
-        if (b instanceof Comparable comparable && b.getClass().isInstance(a)) {
-            return -comparable.compareTo(a);
-        }
-        return a.toString().compareTo(b.toString());
+        throw new IllegalArgumentException(
+            "GRAPH EXPAND cannot compare sort values of [" + a.getClass().getName() + "] and [" + b.getClass().getName() + "]"
+        );
     }
 
     /**
@@ -743,7 +722,7 @@ public final class GraphExpandDriver {
         }
         Map<Object, Set<Object>> distinctReached = new HashMap<>();
         for (List<Object> row : rows) {
-            Object reached = row.get(2);
+            Object reached = row.get(nodeReachedIdx);
             if (reached == null) {
                 continue;
             }
@@ -785,9 +764,9 @@ public final class GraphExpandDriver {
         for (int i = 0; i < resultAttributes.size(); i++) {
             stub.add(null);
         }
-        stub.set(0, frontierNodeId); // node_from
-        // node_to / node_reached stay null
-        stub.set(3, template.get(3)); // hop
+        stub.set(nodeFromIdx, frontierNodeId);
+        // node_to / node_reached stay null — stub admits nobody and spends no budget
+        stub.set(hopIdx, template.get(hopIdx));
         stub.set(droppedIdx, degree);
         return stub;
     }
@@ -830,13 +809,12 @@ public final class GraphExpandDriver {
      * are free. The frontier end is {@code node_from} on an outbound leg and
      * {@code node_to} on an inbound leg.
      */
-    private static List<List<Object>> applyFanOutCap(List<List<Object>> rows, int maxEdgesPerNode, Set<Object> reachedBefore) {
+    private List<List<Object>> applyFanOutCap(List<List<Object>> rows, int maxEdgesPerNode, Set<Object> reachedBefore) {
         Map<Object, Integer> spent = new HashMap<>();
         List<List<Object>> kept = new ArrayList<>(rows.size());
         for (List<Object> row : rows) {
-            Object reached = row.get(2);
+            Object reached = row.get(nodeReachedIdx);
             if (reached == null) {
-                // Hub stub — keep, no budget.
                 kept.add(row);
                 continue;
             }
@@ -861,13 +839,12 @@ public final class GraphExpandDriver {
      * hub stubs, and further edges onto an already-kept new node are kept.
      * {@code limit} may be 0 (admit no new nodes).
      */
-    private static List<List<Object>> applyNewNodeCap(List<List<Object>> rows, int limit, Set<Object> reachedBefore) {
+    private List<List<Object>> applyNewNodeCap(List<List<Object>> rows, int limit, Set<Object> reachedBefore) {
         LinkedHashSet<Object> keptNew = new LinkedHashSet<>();
         List<List<Object>> kept = new ArrayList<>(rows.size());
         for (List<Object> row : rows) {
-            Object reached = row.get(2);
+            Object reached = row.get(nodeReachedIdx);
             if (reached == null) {
-                // Hub stub — keep, no budget.
                 kept.add(row);
                 continue;
             }
@@ -892,10 +869,10 @@ public final class GraphExpandDriver {
      * Endpoint that matched the frontier for this hop leg: stored source on an
      * outbound walk ({@code node_reached == node_to}), stored target on inbound.
      */
-    private static Object frontierNode(List<Object> row) {
-        Object from = row.get(0);
-        Object to = row.get(1);
-        Object reached = row.get(2);
+    private Object frontierNode(List<Object> row) {
+        Object from = row.get(nodeFromIdx);
+        Object to = row.get(nodeToIdx);
+        Object reached = row.get(nodeReachedIdx);
         if (Objects.equals(reached, to)) {
             return from;
         }
@@ -918,11 +895,10 @@ public final class GraphExpandDriver {
     }
 
     private List<Object> admitRows(List<List<Object>> rows) {
-        int reachedIdx = 2; // node_reached
         int hopStart = admittedRows.size();
         LinkedHashSet<Object> newlyAdmitted = new LinkedHashSet<>();
         for (List<Object> row : rows) {
-            Object reached = row.get(reachedIdx);
+            Object reached = row.get(nodeReachedIdx);
             if (reached == null) {
                 // Hub stub: emit as-is, admit nobody, do not frontier.
                 admittedRows.add(row);
@@ -932,7 +908,7 @@ public final class GraphExpandDriver {
             // Emit with node_reached null; do not re-frontier the node.
             if (visited.contains(reached) && newlyAdmitted.contains(reached) == false) {
                 List<Object> closing = new ArrayList<>(row);
-                closing.set(reachedIdx, null);
+                closing.set(nodeReachedIdx, null);
                 admittedRows.add(closing);
                 continue;
             }
@@ -982,25 +958,14 @@ public final class GraphExpandDriver {
             return;
         }
         options.keyFoldedMap().forEach((key, value) -> {
-            switch (key) {
-                case "max_hops" -> {
-                    // allowed
+            if (ALLOWED_OPTIONS.contains(key) == false) {
+                throw new IllegalArgumentException("GRAPH EXPAND option [" + key + "] is not supported in this build");
+            }
+            if (key.equals("direction")) {
+                String direction = BytesRefs.toString(value.fold(FoldContext.small())).toLowerCase(Locale.ROOT);
+                if (direction.equals("out") == false && direction.equals("in") == false && direction.equals("both") == false) {
+                    throw new IllegalArgumentException("GRAPH EXPAND direction [" + direction + "] is not supported in this build");
                 }
-                case "direction" -> {
-                    String direction = BytesRefs.toString(value.fold(FoldContext.small())).toLowerCase(Locale.ROOT);
-                    if (direction.equals("out") == false && direction.equals("in") == false && direction.equals("both") == false) {
-                        throw new IllegalArgumentException(
-                            "GRAPH EXPAND direction [" + direction + "] is not supported in this build"
-                        );
-                    }
-                }
-                case "hub_degree" -> {
-                    // allowed — applied after SORT and before the three budget caps
-                }
-                case "max_edges_per_node", "max_nodes", "max_frontier" -> {
-                    // allowed — applied after SORT/hub_degree and before UNTIL in applyCaps
-                }
-                default -> throw new IllegalArgumentException("GRAPH EXPAND option [" + key + "] is not supported in this build");
             }
         });
     }
@@ -1181,7 +1146,15 @@ public final class GraphExpandDriver {
                     attributes.add(named.toAttribute());
                 } else {
                     attributes.add(
-                        new ReferenceAttribute(grouping.source(), null, grouping.sourceText(), grouping.dataType(), Nullability.TRUE, null, false)
+                        new ReferenceAttribute(
+                            grouping.source(),
+                            null,
+                            grouping.sourceText(),
+                            grouping.dataType(),
+                            Nullability.TRUE,
+                            null,
+                            false
+                        )
                     );
                 }
             }

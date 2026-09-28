@@ -1133,13 +1133,7 @@ public class EsqlSession {
         if (graphExpand.get() != null && graphExpand.get().finished() == false) {
             LogicalPlan hopPlan = graphExpand.get().firstSubPlan();
             if (hopPlan != null) {
-                return new SubPlanAndCallback(
-                    hopPlan,
-                    result -> graphExpand.get().newMainPlan(mainPlan, result),
-                    () -> {},
-                    true,
-                    false
-                );
+                return new SubPlanAndCallback(hopPlan, result -> graphExpand.get().newMainPlan(mainPlan, result), () -> {}, true, false);
             }
         }
 

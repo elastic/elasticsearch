@@ -294,3 +294,31 @@ ROW node_id = "a"
 node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
 a                 | b               | b                    | 1
 ;
+
+
+inbound walk matches one value of a multi-valued pointer
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | a                    | 1
+;
+
+
+UNTIL ip subquery matches an IPv4-mapped stop address
+required_capability: graph_expand
+
+ROW node_id = TO_IP("10.0.0.1")
+| GRAPH EXPAND graph_expand_ip_edges ON node_id == source TO dest
+    SORT node_reached DESC
+    UNTIL node_reached IN (FROM graph_expand_ip_stops | KEEP addr)
+    WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:ip | node_to:ip     | node_reached:ip | hop:integer
+10.0.0.1     | 203.0.113.77   | 203.0.113.77    | 1
+;

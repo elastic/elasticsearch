@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -84,7 +85,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -5495,10 +5495,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testGraphExpandMinimalCommand() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        var plan = as(
-            TEST_PARSER.parseQuery("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager"),
-            GraphExpand.class
-        );
+        var plan = as(TEST_PARSER.parseQuery("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager"), GraphExpand.class);
         assertThat(plan.indexPattern().indexPattern(), equalTo("idx"));
         assertThat(plan.seedColumn(), equalToIgnoringIds(attribute("node_id")));
         assertThat(plan.matchField(), equalToIgnoringIds(attribute("id")));
@@ -5525,10 +5522,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testGraphExpandRejectsPairFormWith() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError(
-            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH max_hops = 3",
-            "mismatched input 'max_hops'"
-        );
+        expectError("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH max_hops = 3", "mismatched input 'max_hops'");
     }
 
     public void testGraphExpandRejectsStatsBeforeDocumentWhere() {
@@ -5560,21 +5554,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testGraphExpandUntilInSubqueryParses() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        var plan = as(
-            TEST_PARSER.parseQuery(
-                """
-                    ROW node_id = "a"
-                    | GRAPH EXPAND edges ON node_id == source TO target
-                        UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
-                        WITH { "max_hops": 5, "direction": "out" }
-                    """
-            ),
-            GraphExpand.class
-        );
+        var plan = as(TEST_PARSER.parseQuery("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                WITH { "max_hops": 5, "direction": "out" }
+            """), GraphExpand.class);
         assertNotNull(plan.until());
         assertTrue(
-            plan.until()
-                .anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery)
+            plan.until().anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery)
         );
         assertFalse(
             plan.until()
@@ -5584,15 +5572,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testGraphExpandUntilMultiColumnInSubqueryRejected() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError(
-            """
-                ROW node_id = "a"
-                | GRAPH EXPAND edges ON node_id == source TO target
-                    UNTIL (node_reached, hop) IN (FROM stops | KEEP id, active)
-                    WITH { "max_hops": 5, "direction": "out" }
-                """,
-            "GRAPH EXPAND UNTIL subquery form is not supported yet"
-        );
+        expectError("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL (node_reached, hop) IN (FROM stops | KEEP id, active)
+                WITH { "max_hops": 5, "direction": "out" }
+            """, "GRAPH EXPAND UNTIL subquery form is not supported yet");
     }
 
     public void testInvalidSample() {

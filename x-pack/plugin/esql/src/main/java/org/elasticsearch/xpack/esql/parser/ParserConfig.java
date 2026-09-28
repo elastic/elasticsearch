@@ -29,6 +29,9 @@ public abstract class ParserConfig extends Parser {
      * Used by GRAPH EXPAND so STATS / SORT / UNTIL can follow a clause that
      * already switched the lexer into {@code EXPRESSION_MODE}, where those
      * words are not command tokens.
+     * Referenced only from the {@code graphExpandStatsKeyword} /
+     * {@code graphExpandSortKeyword} / {@code graphExpandUntilKeyword} rules,
+     * so it does not retokenize other commands.
      */
     boolean isIdent(String keyword) {
         Token t = _input.LT(1);

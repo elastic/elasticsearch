@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -2176,14 +2176,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(List.of(ctx.index)));
         // Edge index as UnresolvedRelation — Analyzer resolves it to EsRelation like FROM.
-        UnresolvedRelation edgeRelation = new UnresolvedRelation(
-            source,
-            indexPattern,
-            false,
-            List.of(),
-            IndexMode.STANDARD,
-            null
-        );
+        UnresolvedRelation edgeRelation = new UnresolvedRelation(source, indexPattern, false, List.of(), IndexMode.STANDARD, null);
         Attribute seedColumn = visitQualifiedName(ctx.seedColumn);
         Attribute matchField = visitQualifiedName(ctx.matchField);
 
@@ -2201,9 +2194,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.graphExpandStats() != null) {
             var statsCtx = ctx.graphExpandStats();
             aggregates = statsCtx.stats != null ? visitAggFields(statsCtx.stats) : List.of();
-            groupings = statsCtx.grouping != null
-                ? new ArrayList<Expression>(visitGrouping(statsCtx.grouping))
-                : List.of();
+            groupings = statsCtx.grouping != null ? new ArrayList<Expression>(visitGrouping(statsCtx.grouping)) : List.of();
         }
 
         Expression aggregateFilter = ctx.aggFilter != null ? expression(ctx.aggFilter.booleanExpression()) : null;

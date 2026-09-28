@@ -4997,17 +4997,12 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testGraphExpandUntilMultiColumnInSubqueryFails() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         // Parser refuses multi-column UNTIL subquery before analysis.
-        expectThrows(
-            ParsingException.class,
-            () -> graphExpandAnalyzer().query(
-                """
-                    ROW node_id = "a"
-                    | GRAPH EXPAND idx ON node_id == id TO manager
-                        UNTIL (node_reached, hop) IN (FROM idx | KEEP id, manager)
-                        WITH { "max_hops": 1, "direction": "out" }
-                    """
-            )
-        );
+        expectThrows(ParsingException.class, () -> graphExpandAnalyzer().query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND idx ON node_id == id TO manager
+                UNTIL (node_reached, hop) IN (FROM idx | KEEP id, manager)
+                WITH { "max_hops": 1, "direction": "out" }
+            """));
     }
 
     public void testTopSnippetsQueryFoldableAfterOptimization() {

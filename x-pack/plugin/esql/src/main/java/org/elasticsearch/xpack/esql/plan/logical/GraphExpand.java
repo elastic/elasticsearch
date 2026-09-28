@@ -47,11 +47,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * {@link #edgeRelation()} starts as an {@link UnresolvedRelation} and is
  * resolved to an {@link EsRelation} during analysis (same shape as FROM).
  */
-public class GraphExpand extends UnaryPlan
-    implements
-        PostAnalysisVerificationAware,
-        TelemetryAware,
-        ExecutesOn.Coordinator {
+public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, ExecutesOn.Coordinator {
 
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
         "max_hops",
@@ -390,9 +386,7 @@ public class GraphExpand extends UnaryPlan
         }
         String direction = BytesRefs.toString(folded).toLowerCase(Locale.ROOT);
         if (DIRECTION_VALUES.contains(direction) == false) {
-            failures.add(
-                fail(this, "GRAPH EXPAND direction must be one of [in, out, both], got [" + value.sourceText() + "]")
-            );
+            failures.add(fail(this, "GRAPH EXPAND direction must be one of [in, out, both], got [" + value.sourceText() + "]"));
         }
     }
 
@@ -407,12 +401,7 @@ public class GraphExpand extends UnaryPlan
         }
         Number numericValue = (Number) value.fold(FoldContext.small());
         if (numericValue == null || numericValue.longValue() < 1) {
-            failures.add(
-                fail(
-                    this,
-                    "GRAPH EXPAND option [" + key + "] must be an integer >= 1, got [" + value.sourceText() + "]"
-                )
-            );
+            failures.add(fail(this, "GRAPH EXPAND option [" + key + "] must be an integer >= 1, got [" + value.sourceText() + "]"));
         }
     }
 

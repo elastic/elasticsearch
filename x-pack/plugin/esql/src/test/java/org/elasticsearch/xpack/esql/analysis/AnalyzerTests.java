@@ -6681,7 +6681,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertTrue(graphExpand.targetFields().stream().allMatch(Attribute::resolved));
         assertThat(graphExpand.targetFields().get(0).name(), equalTo("manager"));
         assertThat(graphExpand.resultAttributes(), notNullValue());
-        assertThat(graphExpand.resultAttributes().stream().map(Attribute::name).toList(), equalTo(List.of("node_from", "node_to", "node_reached", "hop")));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop"))
+        );
     }
 
     public void testGraphExpandMultiFieldToEmitsRelationColumn() {
@@ -6723,14 +6726,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
             new EsField("label", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
-        var plan = a.query(
-            """
-                ROW node_id = "a"
-                | GRAPH EXPAND edges ON node_id == source TO target
-                    STATS weight = SUM(weight), edges = COUNT(*) BY label
-                    WITH { "max_hops": 2, "direction": "out" }
-                """
-        );
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                STATS weight = SUM(weight), edges = COUNT(*) BY label
+                WITH { "max_hops": 2, "direction": "out" }
+            """);
         if (plan instanceof Project project) {
             plan = project.child();
         }
@@ -6766,16 +6767,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
             new EsField("weight", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
-        var plan = a.query(
-            """
-                ROW node_id = "a"
-                | GRAPH EXPAND edges ON node_id == source TO target
-                    WHERE weight > 1
-                    STATS weight = SUM(weight), edges = COUNT(*)
-                    WHERE edges >= 2
-                    WITH { "max_hops": 2, "direction": "out" }
-                """
-        );
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                WHERE weight > 1
+                STATS weight = SUM(weight), edges = COUNT(*)
+                WHERE edges >= 2
+                WITH { "max_hops": 2, "direction": "out" }
+            """);
         if (plan instanceof Project project) {
             plan = project.child();
         }
@@ -6811,14 +6810,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
         TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", edges)))
             .addIndex("stops", IndexResolution.valid(EsIndexGenerator.esIndex("stops", stops)));
-        var plan = a.query(
-            """
-                ROW node_id = "a"
-                | GRAPH EXPAND edges ON node_id == source TO target
-                    UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
-                    WITH { "max_hops": 5, "direction": "out" }
-                """
-        );
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                WITH { "max_hops": 5, "direction": "out" }
+            """);
         if (plan instanceof Project project) {
             plan = project.child();
         }
@@ -6827,7 +6824,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertNotNull(graphExpand.until());
         var holder = new org.elasticsearch.xpack.esql.core.util.Holder<
             org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery>();
-        graphExpand.until().forEachDown(org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery.class, holder::set);
+        graphExpand.until()
+            .forEachDown(org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery.class, holder::set);
         assertNotNull(holder.get());
         assertTrue(holder.get().value().resolved());
         assertThat(holder.get().value().toString(), containsString("node_reached"));

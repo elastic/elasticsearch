@@ -2832,19 +2832,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 && matchField.resolved()
                 && Resolvables.resolved(targetFields)
                 && targetFields.isEmpty() == false) {
-                List<Attribute> hopAggregateOutput = hopAggregateOutputAttributes(
-                    matchField,
-                    targetFields.get(0),
-                    aggregates,
-                    groupings
-                );
-                Expression resolvedAggFilter = aggregateFilter.transformUp(
-                    UnresolvedAttribute.class,
-                    ua -> maybeResolveAttribute(ua, hopAggregateOutput)
-                );
-                aggregateFilterChanged = resolvedAggFilter != aggregateFilter;
-                aggregateFilter = resolvedAggFilter;
-            }
+                    List<Attribute> hopAggregateOutput = hopAggregateOutputAttributes(
+                        matchField,
+                        targetFields.get(0),
+                        aggregates,
+                        groupings
+                    );
+                    Expression resolvedAggFilter = aggregateFilter.transformUp(
+                        UnresolvedAttribute.class,
+                        ua -> maybeResolveAttribute(ua, hopAggregateOutput)
+                    );
+                    aggregateFilterChanged = resolvedAggFilter != aggregateFilter;
+                    aggregateFilter = resolvedAggFilter;
+                }
 
             boolean includeDropped = org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasHubDegree(ge.options());
             boolean includeRelation = org.elasticsearch.xpack.esql.session.GraphExpandDriver.isMultiFieldTo(targetFields);
@@ -2904,10 +2904,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean untilChanged = false;
             if (until != null && resultAttributes != null) {
                 List<Attribute> untilScope = resultAttributes;
-                Expression resolvedUntil = until.transformUp(
-                    UnresolvedAttribute.class,
-                    ua -> maybeResolveAttribute(ua, untilScope)
-                );
+                Expression resolvedUntil = until.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, untilScope));
                 Expression withAnalyzedSubqueries = resolvedUntil.transformUp(InSubquery.class, inSub -> {
                     LogicalPlan analyzedSub = analyzeUntilSubquery(inSub.subquery(), context);
                     if (analyzedSub != inSub.subquery()) {
@@ -2993,7 +2990,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Order> resolved = new ArrayList<>(sorts.size());
             boolean changed = false;
             for (Order order : sorts) {
-                Expression nextChild = order.child().transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, resultAttributes));
+                Expression nextChild = order.child()
+                    .transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, resultAttributes));
                 if (nextChild != order.child()) {
                     changed = true;
                     resolved.add(new Order(order.source(), nextChild, order.direction(), order.nullsPosition()));

@@ -278,6 +278,45 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
+    public void testBatchedPartialResultIsReleasedOnceBeforeOrAfterClose() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            () -> false,
+            SearchProgressListener.NOOP,
+            2,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        AtomicInteger released = new AtomicInteger();
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
+        assertEquals("a result added before close is still needed by the reduce", 0, released.get());
+
+        consumer.close();
+        assertEquals("close must release what it collected", 1, released.get());
+
+        // a node response for the batched path lands after the failed phase closed the consumer
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
+        assertEquals("a result arriving after close must be released too", 2, released.get());
+    }
+
+    private static QueryPhaseResultConsumer.MergeResult countingMergeResult(AtomicInteger released) {
+        var reducedAggs = new DelegatingDelayableWriteable<InternalAggregations>(() -> null) {
+            @Override
+            public void close() {
+                released.incrementAndGet();
+            }
+        };
+        return new QueryPhaseResultConsumer.MergeResult(List.of(), null, reducedAggs, 0L);
+    }
+
     private static QuerySearchResult queryResultWithAggs(int shardIndex) {
         QuerySearchResult result = new QuerySearchResult(
             new ShardSearchContextId("", shardIndex),

@@ -211,6 +211,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
+            if (isClosed()) {
+                // close() raises the flag before releaseBuffer() drains this list under the same lock
+                Releasables.close(mergeResult.reducedAggs());
+                return;
+            }
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
     }

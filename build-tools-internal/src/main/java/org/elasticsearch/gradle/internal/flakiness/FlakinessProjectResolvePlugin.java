@@ -14,6 +14,7 @@ import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 
 import java.nio.file.Path;
@@ -84,11 +85,11 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
             return; // inert unless explicitly enabled by the resolve/scan Buildkite steps
         }
 
-        String refsPath = FlakinessProperties.refsPath(project);
-        int taskCap = FlakinessProperties.taskCap(project);
+        Provider<String> refsPath = FlakinessProperties.refsPath(project);
 
         Directory repoRoot = project.getLayout().getSettingsDirectory();
-        Provider<String> refsJson = project.getProviders().fileContents(repoRoot.file(refsPath)).getAsText();
+        ProviderFactory providers = project.getProviders();
+        Provider<String> refsJson = refsPath.flatMap(path -> providers.fileContents(repoRoot.file(path)).getAsText());
         Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project)));
 
         String base = TARGETS_DIR + "/" + fileBaseName(project.getPath());
@@ -99,7 +100,7 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
             t.getRefsJson().set(refsJson);
             t.getRefsPath().set(refsPath);
             t.getRepoRoot().set(repoRoot);
-            t.getTaskCap().set(taskCap);
+            t.getTaskCap().set(FlakinessProperties.taskCap(project));
             t.getTargetsFile().set(repoRoot.file(base + ".json"));
             t.getModelFile().set(project.getLayout().getBuildDirectory().file(MODEL_FILE));
         });

@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.flakiness;
 
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 
 /**
  * The build-configuration surface of flakiness resolution: the {@code -Pflakiness.*} project properties, their
@@ -43,26 +44,26 @@ final class FlakinessProperties {
 
     /** Whether flakiness resolution was requested at all. */
     static boolean enabled(Project project) {
-        return project.hasProperty(ENABLE);
+        return project.getProviders().gradleProperty(ENABLE).isPresent();
     }
 
     /** Path to {@code flakiness-refs.json} (contract 1), relative to the repo root. */
-    static String refsPath(Project project) {
+    static Provider<String> refsPath(Project project) {
         return string(project, REFS, DEFAULT_REFS);
     }
 
     /** Path {@code flakinessScan} writes {@code flakiness-plan.json} (contract 2) to. */
-    static String planPath(Project project) {
+    static Provider<String> planPath(Project project) {
         return string(project, PLAN, DEFAULT_PLAN);
     }
 
     /** How many concrete subclasses of an abstract base to run. */
-    static int subclassCap(Project project) {
+    static Provider<Integer> subclassCap(Project project) {
         return integer(project, SUBCLASS_CAP, PlanBuilder.DEFAULT_SUBCLASS_CAP);
     }
 
     /** How many candidate {@code Test} tasks one target may fan out to. */
-    static int taskCap(Project project) {
+    static Provider<Integer> taskCap(Project project) {
         return integer(project, TASK_CAP, TestTaskSelector.DEFAULT_TASK_CAP);
     }
 
@@ -70,12 +71,18 @@ final class FlakinessProperties {
      * The iteration-count override: {@code -Pflakiness.iters} wins, else the {@code FLAKINESS_ITERS} env var
      * (carried in the CI build env), else {@code null} (the per-kind defaults apply). A non-integer or
      * non-positive value is ignored rather than failing the build - an operator typo must not break the
-     * pipeline, and the defaults are always a safe fallback.
+     * pipeline, and the defaults are always a safe fallback. An invalid project property does not fall back
+     * to the environment variable: the project property takes precedence whenever it is present.
      */
-    static Integer iters(Project project) {
-        Object prop = project.findProperty(ITERS);
-        String raw = prop != null ? prop.toString() : project.getProviders().environmentVariable(ITERS_ENV).getOrNull();
-        if (raw == null || raw.isBlank()) {
+    static Provider<Integer> iters(Project project) {
+        return project.getProviders()
+            .gradleProperty(ITERS)
+            .orElse(project.getProviders().environmentVariable(ITERS_ENV))
+            .map(FlakinessProperties::positiveInteger);
+    }
+
+    private static Integer positiveInteger(String raw) {
+        if (raw.isBlank()) {
             return null;
         }
         try {
@@ -86,13 +93,11 @@ final class FlakinessProperties {
         }
     }
 
-    private static String string(Project project, String name, String defaultValue) {
-        Object v = project.findProperty(name);
-        return v == null ? defaultValue : v.toString();
+    private static Provider<String> string(Project project, String name, String defaultValue) {
+        return project.getProviders().gradleProperty(name).orElse(defaultValue);
     }
 
-    private static int integer(Project project, String name, int defaultValue) {
-        Object v = project.findProperty(name);
-        return v == null ? defaultValue : Integer.parseInt(v.toString());
+    private static Provider<Integer> integer(Project project, String name, int defaultValue) {
+        return project.getProviders().gradleProperty(name).map(Integer::parseInt).orElse(defaultValue);
     }
 }

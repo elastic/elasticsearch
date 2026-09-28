@@ -371,6 +371,43 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         plan.unresolved[0].reason == "no-source-file"
     }
 
+    def "property providers supply paths and caps, and iteration overrides honor precedence"() {
+        given:
+        file("custom-refs.json").text = '''
+            { "mergeBase": "test",
+              "refs": [ { "source": "unmute", "className": "com.other.OtherTests" } ] }
+        '''
+
+        when: "the project property supplies the refs path and the environment supplies iterations"
+        gradleRunner("-Pflakiness.resolve", "-Pflakiness.refs=custom-refs.json", "-Pflakiness.taskCap=3", "flakinessResolveProject").build()
+        gradleRunner("-Pflakiness.resolve", "-Pflakiness.refs=custom-refs.json", "-Pflakiness.plan=custom-plan.json",
+            "-Pflakiness.taskCap=3", "-Pflakiness.subclassCap=2", "flakinessScan")
+            .withEnvironment(System.getenv() + [FLAKINESS_ITERS: "7"]).build()
+
+        then:
+        def plan = new JsonSlurper().parse(file("custom-plan.json"))
+        plan.entries.find { it.fqcn == "com.other.OtherTests" } != null
+        plan.commands.any { it.command.contains("-Dtests.iters=7") }
+
+        when: "the project property overrides the environment"
+        gradleRunner("-Pflakiness.resolve", "-Pflakiness.refs=custom-refs.json", "-Pflakiness.plan=custom-plan.json",
+            "-Pflakiness.iters=11", "flakinessScan")
+            .withEnvironment(System.getenv() + [FLAKINESS_ITERS: "7"]).build()
+
+        then:
+        new JsonSlurper().parse(file("custom-plan.json")).commands.any { it.command.contains("-Dtests.iters=11") }
+
+        when: "an invalid project override disables the override rather than falling back to the environment"
+        gradleRunner("-Pflakiness.resolve", "-Pflakiness.refs=custom-refs.json", "-Pflakiness.plan=custom-plan.json",
+            "-Pflakiness.iters=bad", "flakinessScan")
+            .withEnvironment(System.getenv() + [FLAKINESS_ITERS: "7"]).build()
+
+        then:
+        def defaultPlan = new JsonSlurper().parse(file("custom-plan.json"))
+        defaultPlan.commands.any { it.command.contains("-Dtests.iters=100") }
+        defaultPlan.commands.every { !it.command.contains("-Dtests.iters=7") }
+    }
+
     private Object projectTargets(String project) {
         new JsonSlurper().parse(file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.json"))
     }

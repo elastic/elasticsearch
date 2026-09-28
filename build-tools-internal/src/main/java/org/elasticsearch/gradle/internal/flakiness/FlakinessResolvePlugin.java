@@ -11,7 +11,9 @@ package org.elasticsearch.gradle.internal.flakiness;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.Directory;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 
 /**
  * Registers the root-project half of flakiness resolution - just {@code flakinessScan}. Gated behind the
@@ -50,16 +52,12 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
             throw new IllegalStateException("elasticsearch.internal-flakiness-resolve must be applied to the root project");
         }
 
-        String refsPath = FlakinessProperties.refsPath(project);
-        String planPath = FlakinessProperties.planPath(project);
-        int cap = FlakinessProperties.subclassCap(project);
-        int taskCap = FlakinessProperties.taskCap(project);
+        Provider<String> refsPath = FlakinessProperties.refsPath(project);
+        Provider<String> planPath = FlakinessProperties.planPath(project);
+        Directory repoRoot = project.getLayout().getProjectDirectory();
+        ProviderFactory providers = project.getProviders();
 
-        Provider<String> refsJson = project.getProviders()
-            .fileContents(project.getLayout().getProjectDirectory().file(refsPath))
-            .getAsText();
-
-        Integer iters = FlakinessProperties.iters(project);
+        Provider<String> refsJson = refsPath.flatMap(path -> providers.fileContents(repoRoot.file(path)).getAsText());
 
         project.getTasks().register("flakinessScan", FlakinessScanTask.class, t -> {
             t.setGroup("flakiness");
@@ -72,12 +70,10 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
                 }));
             t.getRefsJson().set(refsJson);
             t.getRefsPath().set(refsPath);
-            t.getSubclassCap().set(cap);
-            t.getTaskCap().set(taskCap);
-            if (iters != null) {
-                t.getIters().set(iters);
-            }
-            t.getPlanFile().set(project.getLayout().getProjectDirectory().file(planPath));
+            t.getSubclassCap().set(FlakinessProperties.subclassCap(project));
+            t.getTaskCap().set(FlakinessProperties.taskCap(project));
+            t.getIters().set(FlakinessProperties.iters(project));
+            t.getPlanFile().set(planPath.map(repoRoot::file));
         });
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 
@@ -14,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,6 +80,105 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
                 assertThat("a file past the prefix still knows its partition value", row.get(1), notNullValue());
                 assertThat(((Number) row.get(0)).longValue(), equalTo((long) rowsPerFile));
             }
+        }
+    }
+
+    /**
+     * A file past the prefix holds the same columns in a different order. Under {@code first_file_wins} the anchor's
+     * schema is what every file is read under, so the columns have to be matched by name; read positionally, this
+     * file's {@code value} column would be handed back as its {@code id}. Nothing in the prefix can catch that,
+     * because the anchor's own order is the one the prefix agrees with.
+     */
+    public void testAFilePastThePrefixWithAnotherColumnOrderStillReadsByName() throws Exception {
+        Path dir = createTempDir();
+        int files = 12;
+        int rowsPerFile = 10;
+        String anchorOrder = "message test { required int64 id; required binary name (UTF8); required int32 value; }";
+        String otherOrder = "message test { required int32 value; required int64 id; required binary name (UTF8); }";
+        for (int i = 0; i < files; i++) {
+            writeParquet(
+                dir.resolve(String.format(Locale.ROOT, "part-%03d.parquet", i)),
+                i < 2 ? anchorOrder : otherOrder,
+                rowsPerFile,
+                rowsPerFile,
+                (g, row) -> {
+                    g.add("id", (long) row);
+                    g.add("name", "row_" + row);
+                    g.add("value", row * 10);
+                }
+            );
+        }
+
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("file_sort_by", "name");
+        settings.put("file_order", "asc");
+        settings.put("partition_sample_size", 2);
+        String dataset = registerLocalFileDataset("prefix_order_ds", dir.toUri() + "*.parquet", settings);
+
+        // Each row holds id=i and value=i*10, so the two sums differ by a factor of ten. Read positionally, the ten
+        // files past the prefix would contribute their value column as id and the sums would converge.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS i = SUM(id), v = SUM(value)"))) {
+            List<Object> row = getValuesList(response).get(0);
+            long expectedId = 0;
+            long expectedValue = 0;
+            for (int r = 0; r < rowsPerFile; r++) {
+                expectedId += r;
+                expectedValue += r * 10L;
+            }
+            assertThat("every file's id column is its own", ((Number) row.get(0)).longValue(), equalTo(files * expectedId));
+            assertThat("and so is its value column", ((Number) row.get(1)).longValue(), equalTo(files * expectedValue));
+        }
+    }
+
+    /**
+     * The declared rail bounds its listing for the same reason: a declared mapping is the whole schema, so no file
+     * has to be read to know the columns and one page answers it. The file set is still the whole dataset, and
+     * every file in it is still read under the declared mapping rather than under its own columns.
+     * <p>
+     * One declared column renames a physical one, which is what makes that second half visible: a file read as
+     * itself produces the physical name, so the logical column would be null for every row of every file the
+     * schema's listing did not reach.
+     */
+    public void testEveryFileIsReadUnderADeclaredMappingToo() throws Exception {
+        Path dir = createTempDir();
+        int files = 12;
+        int rowsPerFile = 10;
+        for (int i = 0; i < files; i++) {
+            writeParquet(dir.resolve(String.format(Locale.ROOT, "part-%03d.parquet", i)), rowsPerFile, rowsPerFile);
+        }
+
+        LinkedHashMap<String, DatasetFieldMapping> declared = new LinkedHashMap<>();
+        declared.put("ident", new DatasetFieldMapping("long", "id"));
+        declared.put("name", new DatasetFieldMapping("keyword", null));
+        declared.put("value", new DatasetFieldMapping("integer", null));
+        // No file_sort_by here: it is only valid under first_file_wins, and the count does not depend on order.
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("partition_sample_size", 2);
+        String dataset = registerStrictDataset("prefix_declared_ds", dir.toUri() + "*.parquet", declared, settings);
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"))) {
+            assertThat(
+                "a declared mapping bounds the listing, not the read",
+                ((Number) getValuesList(response).get(0).get(0)).longValue(),
+                equalTo((long) files * rowsPerFile)
+            );
+        }
+
+        // Every row carries ident=its row index, so the sum counts only the files whose read was pinned to the
+        // declared mapping. A file read as itself contributes nothing: it has no column of that name.
+        long perFile = 0;
+        for (int r = 0; r < rowsPerFile; r++) {
+            perFile += r;
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(ident)"))) {
+            assertThat(
+                "a renamed declared column is read from every file, not just the ones resolution listed",
+                ((Number) getValuesList(response).get(0).get(0)).longValue(),
+                equalTo(files * perFile)
+            );
         }
     }
 

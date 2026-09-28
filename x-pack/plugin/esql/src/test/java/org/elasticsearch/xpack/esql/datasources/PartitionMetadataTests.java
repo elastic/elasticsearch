@@ -221,4 +221,33 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals(Set.of("year", "month"), unproven.nullablePartitionColumns());
         assertSame("and nothing to drop leaves it alone", unproven, unproven.withoutPerFileEvidence());
     }
+
+    /**
+     * The re-cast runs through the value's text, which recovers the path's token only when the scan's listing kept
+     * it as text. A listing that typed the column numerically has parsed the token away, so under a declared
+     * keyword — where the spelling is the value — there is nothing to recover and no value is invented.
+     */
+    public void testASpellingTheScansListingParsedAwayIsNotInvented() {
+        StoragePath text = StoragePath.of("s3://b/hour=morning/a.parquet");
+        StoragePath padded = StoragePath.of("s3://b/hour=00/b.parquet");
+        PartitionMetadata declaredKeyword = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(text, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        // A filtered scan can see a narrower set of folders than the schema's listing did, and type them tighter.
+        PartitionMetadata scanned = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(padded, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertEquals(DataType.KEYWORD, declaredKeyword.partitionColumns().get("hour"));
+        assertEquals(DataType.INTEGER, scanned.partitionColumns().get("hour"));
+
+        PartitionMetadata valued = declaredKeyword.valuedOver(scanned);
+
+        assertEquals(DataType.KEYWORD, valued.partitionColumns().get("hour"));
+        assertNull(
+            "[hour=00] must not come back as the string [0], which is what re-casting a parsed value would give",
+            valued.filePartitionValues().get(padded).get("hour")
+        );
+    }
 }

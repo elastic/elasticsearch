@@ -96,13 +96,22 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
 
     /**
      * One value under the type the dataset's schema declares for its column, rather than the type the listing it
-     * came from inferred. Same type, or no value: nothing to do. Otherwise the token is re-cast, which is exact —
-     * the detected types are the ones {@link HivePartitionDetector#inferType} produces, and every one of them
-     * round-trips through its own text. A token the declared type cannot hold has no value under it.
+     * came from inferred. Same type, or no value: nothing to do.
+     * <p>
+     * Otherwise the value is re-cast through its text, and that is exact in one direction only. A listing that
+     * typed the column as text still holds the path's own token, so casting it to a narrower declared type asks
+     * the same question the detector asked and gets the same answer. Going the other way it is not: a listing
+     * that typed the column numerically has already parsed the token away, and {@code 0} cannot say whether the
+     * folder was {@code hour=0} or {@code hour=00}. Under a declared {@link DataType#KEYWORD} the spelling is
+     * the value, so rather than invent one, the file has no value for that column — which is what a file outside
+     * the schema's listing had for every column before any of this.
      */
     private static Object conform(@Nullable Object value, DataType declared, @Nullable DataType detected) {
         if (value == null || declared == detected) {
             return value;
+        }
+        if (declared == DataType.KEYWORD && detected != DataType.KEYWORD) {
+            return null;
         }
         try {
             return HivePartitionDetector.castValue(String.valueOf(value), declared);

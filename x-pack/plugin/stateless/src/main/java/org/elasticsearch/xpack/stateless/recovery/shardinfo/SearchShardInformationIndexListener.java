@@ -141,9 +141,6 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             }, e -> {
                 logger.warn("could not retrieve search shard information data for shard [" + indexShard.shardId() + "]", e);
                 collector.recordError();
-                if (wantVolumes) {
-                    shardWarmVolumes.recordFetchFailure();
-                }
             });
             if (wantVolumes) {
                 responseListener = ActionListener.runAfter(responseListener, () -> shardWarmVolumes.releaseClaim(relocatingNodeId));

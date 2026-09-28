@@ -362,12 +362,11 @@ public class SharedBlobCacheWarmingService {
 
     /**
      * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
-     * shutting-down source node. Default false until every search pod runs a build that serves the fetch action
-     * and recovery warming re-evaluates on a short tick that can shorten the wait.
+     * shutting-down source node.
      */
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -1281,8 +1280,7 @@ public class SharedBlobCacheWarmingService {
      *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero):
      *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
      *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists):
-     *   {@code (w_i / S) * remaining} over searchable shards still on the source that are in the map.
-     *   Missing this shard uses the mean of that set.</li>
+     *   {@code (shardSize / sumSizesOnSource) * remaining}, proportional to shard sizes</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)} and {@code remaining = deadline - now}.
      */
@@ -1359,9 +1357,6 @@ public class SharedBlobCacheWarmingService {
      * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
      */
     private double warmVolumeShareMs(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
-        if (state.nodes().get(sourceNodeId) == null) {
-            return 0;
-        }
         var entry = shardWarmVolumes.get(state, sourceNodeId);
         if (entry == null) {
             return 0;
@@ -1372,11 +1367,9 @@ public class SharedBlobCacheWarmingService {
         }
         long sourceWarmVolumeSum = 0L;
         int shardsWithVolumeOnSource = 0;
-        boolean sourceHasThisShard = false;
+        Long thisShardVolume = null;
         for (ShardRouting routing : sourceNode) {
-            if (routing.isSearchable() == false) {
-                continue;
-            }
+            assert routing.isSearchable();
             Long volume = entry.volumes().get(routing.shardId());
             if (volume == null) {
                 continue;
@@ -1384,14 +1377,14 @@ public class SharedBlobCacheWarmingService {
             sourceWarmVolumeSum += volume;
             shardsWithVolumeOnSource++;
             if (routing.shardId().equals(shardId)) {
-                sourceHasThisShard = true;
+                thisShardVolume = volume;
             }
         }
         if (shardsWithVolumeOnSource == 0 || sourceWarmVolumeSum <= 0L) {
             return 0;
         }
-        final double shardVolume = sourceHasThisShard
-            ? entry.volumes().get(shardId)
+        final double shardVolume = thisShardVolume != null
+            ? thisShardVolume
             : sourceWarmVolumeSum / (double) shardsWithVolumeOnSource;
         return (shardVolume / (double) sourceWarmVolumeSum) * remaining;
     }

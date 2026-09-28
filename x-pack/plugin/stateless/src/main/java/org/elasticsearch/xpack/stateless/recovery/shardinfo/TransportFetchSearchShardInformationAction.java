@@ -98,9 +98,10 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     private final Executor genericExecutor;
     private final AtomicInteger seed = new AtomicInteger(0);
     private final LongSupplier nowSupplier;
+    // Memoization of the shard sizes table. Only populated on requests that ask for it, which are only sent when there is a shutdown signal
+    // for this node present.
     private final Object sourceMemoLock = new Object();
-    private volatile long sourceMemoGeneration = Long.MIN_VALUE;
-    private volatile Map<ShardId, Long> sourceMemoVolumes;
+    private VolumesSnapshot sourceMemo;
 
     @SuppressWarnings("this-escape")
     @Inject
@@ -204,28 +205,21 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             if (request.wantVolumes() == false) {
                 return lastSearcherAcquired == SHARD_HAS_MOVED ? SHARD_HAS_MOVED_RESPONSE : new Response(lastSearcherAcquired);
             }
-            VolumesSnapshot snapshot = cachedOrCollect();
-            return new Response(
-                lastSearcherAcquired,
-                clusterService.state().nodes().getLocalNodeId(),
-                snapshot.generation(),
-                snapshot.volumes()
-            );
+            final var state = clusterService.state();
+            VolumesSnapshot snapshot = cachedOrCollect(state);
+            return new Response(lastSearcherAcquired, state.nodes().getLocalNodeId(), snapshot.generation(), snapshot.volumes());
         });
     }
 
-    private VolumesSnapshot cachedOrCollect() {
-        final var state = clusterService.state();
+    private VolumesSnapshot cachedOrCollect(ClusterState state) {
         final var shutdown = state.metadata().nodeShutdowns().get(state.nodes().getLocalNodeId());
         final long generation = shutdown == null ? Long.MIN_VALUE : shutdown.getStartedAtMillis();
         synchronized (sourceMemoLock) {
-            if (sourceMemoVolumes != null && sourceMemoGeneration == generation) {
-                return new VolumesSnapshot(generation, sourceMemoVolumes);
+            if (sourceMemo != null && sourceMemo.generation() == generation) {
+                return sourceMemo;
             }
-            Map<ShardId, Long> collected = collectWarmVolumes(snapshotSearchableShards(indicesService));
-            sourceMemoGeneration = generation;
-            sourceMemoVolumes = collected;
-            return new VolumesSnapshot(generation, collected);
+            sourceMemo = new VolumesSnapshot(generation, collectWarmVolumes(snapshotSearchableShards(indicesService)));
+            return sourceMemo;
         }
     }
 
@@ -269,7 +263,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
                 return OptionalLong.empty();
             }
             SearchDirectory directory = SearchDirectory.unwrapDirectory(store.directory());
-            return OptionalLong.of(estimateWarmVolume(List.copyOf(directory.getCurrentCommitBlobFileRanges())));
+            return OptionalLong.of(estimateWarmVolume(directory.getCurrentCommitBlobFileRanges()));
         } catch (Exception e) {
             logger.debug(() -> "failed to estimate warm volume for " + shard.shardId(), e);
             return OptionalLong.empty();

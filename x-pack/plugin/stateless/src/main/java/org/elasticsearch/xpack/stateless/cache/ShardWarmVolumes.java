@@ -11,14 +11,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.Map;
@@ -27,18 +24,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Target-side memo of per-shard warm volumes fetched from a draining search node.
+ * Target-side memoization of per-shard warm volumes fetched from a draining search node.
  * Fetches are fire-and-forget: recovery never waits on the RPC.
  */
 public class ShardWarmVolumes implements ClusterStateListener {
 
     public static final ShardWarmVolumes NOOP = new ShardWarmVolumes();
 
-    public static final String FETCH_TOTAL_METRIC = "es.blob_cache_warming.shard_warm_volumes.fetch.total";
-    public static final String FETCH_OUTCOME_ATTRIBUTE_KEY = "es_fetch_outcome";
-
-    @Nullable
-    private final LongCounter fetchTotalMetric;
     // Maps from source node ID to the warm-volume snapshot for a specific shutdown generation.
     // Entries are added only while that source has a shutdown record, and dropped when the node leaves
     // or its shutdown is cancelled / replaced with a new generation.
@@ -48,22 +40,14 @@ public class ShardWarmVolumes implements ClusterStateListener {
     private volatile boolean enabled;
 
     private ShardWarmVolumes() {
-        this.fetchTotalMetric = null;
         this.enabled = false;
     }
 
-    public ShardWarmVolumes(ClusterService clusterService) {
-        this(clusterService, MeterRegistry.NOOP);
-    }
-
-    public ShardWarmVolumes(ClusterService clusterService, MeterRegistry meterRegistry) {
-        this.fetchTotalMetric = meterRegistry.registerLongCounter(
-            FETCH_TOTAL_METRIC,
-            "Fetches of per-shard warm volumes from a draining search node, broken down by [" + FETCH_OUTCOME_ATTRIBUTE_KEY + "]",
-            "count"
+    public ShardWarmVolumes(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(
+            SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING,
+            v -> this.enabled = v
         );
-        clusterService.getClusterSettings()
-            .initializeAndWatch(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING, v -> this.enabled = v);
     }
 
     /**
@@ -137,16 +121,11 @@ public class ShardWarmVolumes implements ClusterStateListener {
         Map<ShardId, Long> volumes
     ) {
         putIfCurrentGeneration(state, respondingNodeId, volumesGeneration, volumes);
-        inFlight.remove(claimedId);
-        recordFetchOutcome("success");
+        releaseClaim(claimedId);
     }
 
     public void releaseClaim(String sourceNodeId) {
         inFlight.remove(sourceNodeId);
-    }
-
-    public void recordFetchFailure() {
-        recordFetchOutcome("failure");
     }
 
     private void putIfCurrentGeneration(ClusterState state, String nodeId, long generation, Map<ShardId, Long> volumes) {
@@ -160,29 +139,23 @@ public class ShardWarmVolumes implements ClusterStateListener {
         memo.put(nodeId, new Entry(generation, volumes));
     }
 
-    private void recordFetchOutcome(String outcome) {
-        if (fetchTotalMetric != null) {
-            fetchTotalMetric.incrementBy(1, Map.of(FETCH_OUTCOME_ATTRIBUTE_KEY, outcome));
-        }
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesChanged() == false && event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE) == false) {
+        boolean shutdownsChanged = event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        if (memo.isEmpty() && inFlight.isEmpty() && shutdownsChanged == false) {
             return;
         }
-        if (event.nodesChanged()) {
-            for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
-                memo.remove(node.getId());
-                inFlight.remove(node.getId());
-            }
+        var nodes = event.state().nodes();
+        memo.entrySet().removeIf(e -> nodes.nodeExists(e.getKey()) == false);
+        inFlight.removeIf(id -> nodes.nodeExists(id) == false);
+        if (shutdownsChanged) {
+            var shutdowns = event.state().metadata().nodeShutdowns();
+            memo.entrySet().removeIf(e -> {
+                var shutdown = shutdowns.get(e.getKey());
+                return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().generationStartedAtMillis();
+            });
+            inFlight.removeIf(id -> shutdowns.get(id) == null);
         }
-        var shutdowns = event.state().metadata().nodeShutdowns();
-        memo.entrySet().removeIf(e -> {
-            var shutdown = shutdowns.get(e.getKey());
-            return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().generationStartedAtMillis();
-        });
-        inFlight.removeIf(id -> shutdowns.get(id) == null);
     }
 
     // visible for testing

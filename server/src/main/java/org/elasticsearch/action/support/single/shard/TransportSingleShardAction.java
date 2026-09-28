@@ -247,9 +247,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 listener.onFailure(failure);
                 return;
             }
-            if (shardRouting.assignedToNode()) {
-                onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
-            }
             DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
             if (node == null) {
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));

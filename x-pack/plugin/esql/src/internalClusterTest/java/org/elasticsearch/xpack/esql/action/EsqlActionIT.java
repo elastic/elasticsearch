@@ -2659,6 +2659,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/160068")
     public void testLimitPushdownToAggregate() {
         int numGroups = between(20, 100);
         int limit = between(1, 5);

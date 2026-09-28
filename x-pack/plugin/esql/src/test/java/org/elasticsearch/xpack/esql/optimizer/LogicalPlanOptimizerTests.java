@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -1028,7 +1029,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("s", "f"));
         Alias as = as(aggs.get(0), Alias.class);
-        var aggFunc = as(as.child(), AggregateFunction.class);
+        var aggFunc = as(as.child(), Sum.class);
         assertThat(Expressions.name(aggFunc.field()), is("emp_no"));
         as = as(aggs.get(1), Alias.class);
         assertThat(Expressions.name(as.child()), is("first_name"));
@@ -4281,7 +4282,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -4308,7 +4309,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -10301,6 +10302,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
     }
 
+    /**
+     * After surrogate substitution, {@code YEAR(hire_date)} is {@code DATE_EXTRACT("year", hire_date)}.
+     */
+    public void testYearFunctionEqualsInvertsToTimestampRange() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE YEAR(hire_date) == 1986
+            """);
+    }
+
     private void assertDateExtractYearEqualsInverts(String query) {
         long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
         long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
@@ -10475,21 +10486,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(limit.child(), EsRelation.class);
         assertThat(relation.children(), hasSize(0));
         assertThat(relation.indexPattern(), equalTo("base_conversion"));
-    }
-
-    /*
-     * Nested subqueries are not supported yet.
-     */
-    public void testNestedSubqueries() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
-            FROM test, (FROM test, (FROM languages
-                                                      | WHERE language_code > 0))
-            | WHERE emp_no > 10000
-            """));
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 1 problem\nline ";
-        assertEquals("1:18: Nested subqueries are not supported", e.getMessage().substring(header.length()));
     }
 
     /*

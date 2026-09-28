@@ -1939,3 +1939,21 @@ ROW title = to_text("The Lord of the Rings")
 highlight_title:keyword
 The Lord of the <em>Rings</em>
 ;
+
+
+# Full-text functions in a HIGHLIGHT query define highlighting terms, not filter predicates,
+# so they are allowed on non-STANDARD (e.g. time-series) indices where WHERE would reject them.
+highlightMatchFunctionOnTimeSeriesIndex
+required_capability: highlight_v6
+required_capability: ts_command_v0
+required_capability: match_function
+
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:01:25.000Z"
+| HIGHLIGHT MATCH(event_log, "dapibus") ON event_log
+| KEEP @timestamp, event_log, highlight_event_log
+;
+
+@timestamp:datetime       | event_log:text                | highlight_event_log:keyword
+2024-05-10T00:01:25.000Z | dapibus condimentum vulputate | <em>dapibus</em> condimentum vulputate
+;

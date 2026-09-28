@@ -402,7 +402,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         AggregateFunction bucketInputAggregation = null;
         for (NamedExpression candidate : firstPassAggs) {
             if (candidate instanceof Alias alias
-                && Alias.unwrap(alias) instanceof AggregateFunction aggregation
+                && Alias.unwrap(alias) instanceof TimeSeriesAggregateFunction aggregation
                 && aggregation.field().semanticEquals(bucket.field())) {
                 if (bucketInputAggregation != null && bucketInputAggregation.semanticEquals(aggregation) == false) {
                     throw new EsqlIllegalArgumentException(

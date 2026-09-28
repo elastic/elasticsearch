@@ -43,7 +43,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -1083,7 +1083,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                             }
 
                             @Override
-                            public SortedBinaryDocValues getBytesValues() {
+                            public SortableBinaryDocValues getBytesValues() {
                                 throw new UnsupportedOperationException();
                             }
 

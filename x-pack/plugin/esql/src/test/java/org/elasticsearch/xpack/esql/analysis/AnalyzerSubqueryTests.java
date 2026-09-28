@@ -17,14 +17,18 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -40,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -60,9 +65,12 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -77,8 +85,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
@@ -723,6 +734,66 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         filter.condition().forEachDown(Attribute.class, attribute -> {
             if (attribute.name().contains("converted_to")) {
                 converted.add(attribute);
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
+    /**
+     * With {@code unmapped_fields="nullify"} the unmapped {@code does_not_exist} only resolves once {@code ResolveUnmapped} has run,
+     * so the {@code EVAL} above the {@code WHERE} resolves one Resolution pass later than the {@code WHERE}'s own conversion.
+     * {@code ResolveUnionTypesInUnionAll} has already pushed {@code TO_STRING(client_ip)} into the branches by then; the later,
+     * equal conversion must be replaced with that same union output attribute instead of pushing another same-named alias.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify() {
+        requireNullifySupport();
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("nullify");
+    }
+
+    /**
+     * Same as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, with the unmapped field loaded instead.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoad() {
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("load");
+    }
+
+    /**
+     * Same trigger as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, under {@code LOAD_ALL}. The loop is in the
+     * analyzer, so it has to terminate before the {@code LOAD_ALL} command allow-list in the verifier can reject the subquery union.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoadAll() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        analyzer().addSampleData().statementError("""
+            SET unmapped_fields="LOAD_ALL";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, containsString("[UnionAll] is not supported yet"));
+    }
+
+    private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {
+        LogicalPlan plan = analyzer().addSampleData().statement(LoggerMessageFormat.format(null, """
+            SET unmapped_fields="{}";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, unmappedFields));
+
+        List<Attribute> converted = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if ((p instanceof Filter || p instanceof Eval) && p.anyMatch(UnionAll.class::isInstance)) {
+                p.forEachExpression(
+                    AbstractConvertFunction.class,
+                    convert -> fail("conversion left unreplaced above the subquery union: " + convert)
+                );
+                p.forEachExpression(Attribute.class, attribute -> {
+                    if (attribute.name().contains("converted_to")) {
+                        converted.add(attribute);
+                    }
+                });
             }
         });
         assertThat(converted, hasSize(2));
@@ -1738,6 +1809,23 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
     }
 
+    public void testNestedUnionAllWithConflictingTypesInInnerUnion() {
+        analyzer().addDefaultIndex().addDefaultIncompatible().error("""
+            FROM test,
+                 (FROM (FROM test | KEEP emp_no),
+                       (FROM test_mixed_types | KEEP emp_no)
+                  | WHERE emp_no > 10000)
+            | KEEP emp_no
+            """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+    }
+
+    public void testForkAfterNineSubqueryBranches() {
+        analyzer().addDefaultIndex().error("""
+            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
+            | FORK (WHERE true) (WHERE true)
+            """, containsString("FORK after subquery is not supported"));
+    }
+
     /**
      * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
      * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the
@@ -1746,6 +1834,115 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
      * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
      */
+    /**
+     * The outer {@code METADATA} request must not be applied until the subquery's output is final.
+     * A body ending in {@code KEEP *} still exposes an unresolved star when the Initialize batch runs, so
+     * injecting there used to throw {@code UnresolvedException}. The body does produce {@code _index}, so
+     * the outer request must pass the real metadata attribute through, not null-fill it.
+     */
+    public void testOuterMetadataWithWildcardKeepInSubqueryPassesThrough() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test METADATA _index | KEEP *) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        as(project.projections().get(1), MetadataAttribute.class);
+        // no null-fill anywhere in the plan
+        plan.forEachDown(Eval.class, eval -> fail("unexpected null-fill: " + eval));
+    }
+
+    /**
+     * Same wildcard shape as above, but the body does not produce {@code _index}, so the outer request is
+     * null-filled once the wildcard has been expanded.
+     */
+    public void testOuterMetadataWithWildcardKeepInSubqueryNullInjected() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test | KEEP emp*, first_name) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        ReferenceAttribute index = as(project.projections().get(1), ReferenceAttribute.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals(index.id(), alias.id());
+        Literal nullLiteral = as(alias.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(DataType.KEYWORD, nullLiteral.dataType());
+    }
+
+    /**
+     * An unknown outer {@code METADATA} field on a subquery is reported by the Verifier with the same wording
+     * used for a plain {@code FROM}, and never reaches the physical planner.
+     */
+    public void testUnknownOuterMetadataOnSubqueryIsVerificationError() {
+        analyzer().addDefaultIndex()
+            .error(
+                "FROM (FROM test) METADATA _bogus",
+                equalTo(
+                    "Found 2 problems\nline 1:6: unresolved metadata fields: [?_bogus]\nline 1:27: Unresolved metadata pattern [_bogus]"
+                )
+            );
+    }
+
+    /**
+     * Regression test for the interplay between the outer {@code METADATA} wrapper and union-type handling.
+     * {@code client_ip} is {@code ip} in one branch and {@code keyword} in another, so {@code client_ip::ip} is pushed
+     * into the branches and the multi-typed union column is null-filled. If the wrapper delays the resolution of the
+     * outer {@code EVAL} by a pass, the push-down happens after the null-fill and converts the null-filled attribute
+     * instead of the original one, silently dropping every subquery row. The pushed-down conversion must therefore
+     * never read a null-filled {@code client_ip}.
+     */
+    public void testOuterMetadataDoesNotDelayUnionTypeConversionPushDown() {
+        Map<String, EsField> mapping = new HashMap<>(loadMapping("mapping-sample_data.json"));
+        mapping.put("client_ip", new EsField("client_ip", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        String name = "sample_data_str";
+        Map<String, List<String>> grouped = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(name));
+        EsIndex sampleDataStr = new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), grouped, grouped);
+
+        LogicalPlan plan = analyzer().addEmployees("employees").addSampleData().addIndex(sampleDataStr).query("""
+            FROM employees,
+                 (FROM sample_data METADATA _index | STATS cnt = count(*) BY _index, client_ip),
+                 (FROM sample_data_str METADATA _index | STATS cnt = count(*) BY _index, client_ip)
+                 METADATA _index
+            | EVAL client_ip = client_ip::ip
+            | WHERE emp_no == 10091 OR client_ip == "172.21.3.15"
+            | KEEP _index, emp_no, cnt, client_ip
+            """);
+
+        Set<NameId> nullFilledClientIps = new HashSet<>();
+        List<ConvertFunction> pushedDownConversions = new ArrayList<>();
+        plan.forEachDown(Eval.class, eval -> {
+            for (Alias alias : eval.fields()) {
+                // The keyword-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
+                // UnionAll alignment adds to the employees branch is a legitimate conversion input.
+                if (alias.name().equals("client_ip")
+                    && alias.child() instanceof Literal literal
+                    && literal.value() == null
+                    && literal.dataType() == DataType.KEYWORD) {
+                    nullFilledClientIps.add(alias.id());
+                } else if (alias.child() instanceof ConvertFunction convert && convert.dataType() == DataType.IP) {
+                    pushedDownConversions.add(convert);
+                }
+            }
+        });
+        assertThat("expected client_ip::ip to be pushed into the UnionAll branches", pushedDownConversions, not(empty()));
+        assertThat("expected the multi-typed client_ip column to be null-filled", nullFilledClientIps, not(empty()));
+        for (ConvertFunction convert : pushedDownConversions) {
+            Attribute converted = as(convert.field(), Attribute.class);
+            assertFalse(
+                "client_ip::ip must convert the original branch column, not the null-fill: " + convert,
+                nullFilledClientIps.contains(converted.id())
+            );
+        }
+    }
+
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
@@ -1757,7 +1954,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

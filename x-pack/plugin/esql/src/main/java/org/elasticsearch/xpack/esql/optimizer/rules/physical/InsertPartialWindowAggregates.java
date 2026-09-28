@@ -187,7 +187,7 @@ public class InsertPartialWindowAggregates extends PhysicalOptimizerRules.Optimi
     ) {
         if (candidate.getClass() != af.getClass()
             || candidate.hasWindow()
-            || candidate.field().equals(af.field()) == false
+            || candidate.fields().equals(af.fields()) == false
             || candidate.parameters().equals(af.parameters()) == false) {
             return false;
         }

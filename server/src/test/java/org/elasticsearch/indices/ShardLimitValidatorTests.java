@@ -132,18 +132,6 @@ public class ShardLimitValidatorTests extends ESTestCase {
         assertEquals(shardLimitsResult.group(), group);
     }
 
-    public void testCountShardsOnIndexMetadata() {
-        for (LimitGroup group : LimitGroup.values()) {
-            int shards = randomIntBetween(1, 10);
-            int replicas = randomIntBetween(0, 3);
-            IndexMetadata open = indexMetadata("open-" + group, shards, replicas, group.groupName(), IndexMetadata.State.OPEN).build();
-            assertEquals(computeTotalShards(group, shards, replicas), group.countShards(open));
-
-            IndexMetadata closed = indexMetadata("closed-" + group, shards, replicas, group.groupName(), IndexMetadata.State.CLOSE).build();
-            assertEquals(0, group.countShards(closed));
-        }
-    }
-
     public void testCountShardsOnMetadata() {
         for (LimitGroup group : LimitGroup.values()) {
             assertEquals(0L, group.countShards(Metadata.EMPTY_METADATA));

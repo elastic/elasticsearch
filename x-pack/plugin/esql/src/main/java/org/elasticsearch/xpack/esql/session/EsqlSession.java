@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -244,6 +245,7 @@ public class EsqlSession {
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
+    private final ThreadPool threadPool;
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
@@ -379,6 +381,7 @@ public class EsqlSession {
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
+        this.threadPool = services.transportService().getThreadPool();
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
@@ -655,17 +658,47 @@ public class EsqlSession {
                                 approximationApplied,
                                 minimumVersion
                             );
-                            l.onResponse(
-                                new Versioned<>(
-                                    ExpandUnmappedFieldsPostProcessor.expand(
-                                        withAdditionalData.inner(),
-                                        unmappedFieldsOrdering,
-                                        blockFactory,
-                                        plannerSettings
-                                    ),
-                                    withAdditionalData.minimumVersion()
-                                )
-                            );
+                            Result inner = withAdditionalData.inner();
+                            TransportVersion resultVersion = withAdditionalData.minimumVersion();
+                            if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
+                                // Under SET unmapped_fields="LOAD_ALL" the expansion is a CPU-heavy scan over every row of
+                                // every result page. This continuation runs on whichever thread completed the compute result
+                                // (the esql_worker pool, or the search pool when a data node completes it last), so a large
+                                // expansion could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
+                                // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
+                                // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
+                                // down); expand() releases them itself once it runs, and page release is idempotent.
+                                threadPool.executor(EsqlPlugin.computePool())
+                                    .execute(
+                                        ActionRunnable.wrapReleasing(l, () -> Releasables.closeExpectNoException(inner.pages()), ll -> {
+                                            assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+                                            ll.onResponse(
+                                                new Versioned<>(
+                                                    ExpandUnmappedFieldsPostProcessor.expand(
+                                                        inner,
+                                                        unmappedFieldsOrdering,
+                                                        blockFactory,
+                                                        plannerSettings
+                                                    ),
+                                                    resultVersion
+                                                )
+                                            );
+                                        })
+                                    );
+                            } else {
+                                // No LOAD_ALL expansion to do; complete inline to avoid an unnecessary thread hop.
+                                l.onResponse(
+                                    new Versioned<>(
+                                        ExpandUnmappedFieldsPostProcessor.expand(
+                                            inner,
+                                            unmappedFieldsOrdering,
+                                            blockFactory,
+                                            plannerSettings
+                                        ),
+                                        resultVersion
+                                    )
+                                );
+                            }
                         })
                         .addListener(listener);
                 }

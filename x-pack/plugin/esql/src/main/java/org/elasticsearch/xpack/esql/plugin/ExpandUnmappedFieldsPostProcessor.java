@@ -139,6 +139,15 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
+     * Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code _unmapped_fields}
+     * column added by {@code SET unmapped_fields="LOAD_ALL"} is still present. Lets callers decide whether the
+     * CPU-heavy expansion scan is worth dispatching to a dedicated executor rather than running it inline.
+     */
+    public static boolean hasUnmappedFields(List<Attribute> schema) {
+        return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute) != -1;
+    }
+
+    /**
      * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
      * <p>
      * Every key here earns an output column, which is why the data node drops the keys that carry no value - see

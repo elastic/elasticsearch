@@ -2025,6 +2025,12 @@ public final class TextFieldMapper extends FieldMapper {
                     continue;
                 }
 
+                if (hasNonNull && docValuesParameters.multiValue() == false) {
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+
                 if (terms != null) {
                     terms.setString(currentDoc, value);
                 }

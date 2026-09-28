@@ -105,6 +105,10 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 "index-a",
                 DlmFrozenTransitionsHealthInfo.TransitionState.UNMARKED,
                 "index-b",
+                DlmFrozenTransitionsHealthInfo.TransitionState.MARKED,
+                "index-c",
+                DlmFrozenTransitionsHealthInfo.TransitionState.MARKED,
+                "index-d",
                 DlmFrozenTransitionsHealthInfo.TransitionState.MARKED
             )
         );
@@ -112,13 +116,13 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             DlmFrozenTransitionsHealthInfo.TransitionState.class
         );
         counts.put(DlmFrozenTransitionsHealthInfo.TransitionState.UNMARKED, 1);
-        counts.put(DlmFrozenTransitionsHealthInfo.TransitionState.MARKED, 1);
+        counts.put(DlmFrozenTransitionsHealthInfo.TransitionState.MARKED, 3);
         DlmFrozenTransitionsHealthInfo original = new DlmFrozenTransitionsHealthInfo(
             true,
             true,
             true,
             sample,
-            2,
+            4,
             System.currentTimeMillis(),
             60_000L,
             counts
@@ -137,6 +141,10 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
         // Counts must equal what can be derived from the capped sample.
         assertThat(copy.overdueIndicesCountByState(), equalTo(counts));
+
+        int totalCount = copy.overdueIndicesCountByState().values().stream().mapToInt(Integer::intValue).sum();
+        assertThat(totalCount, equalTo(4));
+        assertThat(copy.totalOverdueIndicesCount(), equalTo(totalCount));
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {

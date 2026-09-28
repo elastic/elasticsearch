@@ -2,5 +2,5 @@ area: Search
 issues:
  - 158991
 pr: 159248
-summary: Fix mixed-version CCS search PIT + batched query phase bug
+summary: Fix mixed-version CCS PIT bug (IllegalArgumentException unknown transport version)
 type: bug

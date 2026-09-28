@@ -502,7 +502,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
             } catch (IllegalArgumentException e) {
                 // Can occur when the PIT was encoded by a coordinator running a newer version than this data node.
-                // Since the PIT cannot be decoded, membership cannot be determined; return true as the
+                // Since the PIT cannot be decoded, membership cannot be determined, so return true as the
                 // conservative fallback.
                 return true;
             }

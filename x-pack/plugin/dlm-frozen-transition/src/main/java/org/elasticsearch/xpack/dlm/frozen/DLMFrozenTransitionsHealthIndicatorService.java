@@ -118,7 +118,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
     public static final Diagnosis.Definition MARKED_TRANSITIONS_NOT_STARTED_DIAGNOSIS_DEF = new Diagnosis.Definition(
         NAME,
         "marked_transitions_not_started",
-        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition executor. ",
+        "Some indices have been marked for conversion to the frozen tier but have not been submitted to the transition executor.",
         "Check the current master node's logs for errors related to the DLM frozen transition service. Check the current "
             + "status of the affected indices using the [GET /<affected_index_name>/_lifecycle/explain] API. Please replace "
             + "the <affected_index_name> in the API with the actual index name.",

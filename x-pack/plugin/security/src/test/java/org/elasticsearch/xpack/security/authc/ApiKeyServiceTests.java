@@ -3334,11 +3334,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (apiKeyMetadata == null) {
             assertThat(restoredApiKeyMetadata, anEmptyMap());
         } else {
+            // the service returns a new object each time
             assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
-        }
+            assertThat(restoredApiKeyMetadata, not(sameInstance(apiKeyMetadata)));
 
-        // the returned value from getApiKeyMetadata is the identical object on subsequent invocations
-        assertThat(restoredApiKeyMetadata, sameInstance(ApiKeyService.getApiKeyMetadata(apiKeyAuthentication)));
+            // but the authentication itself just returns references to the same object
+            assertThat(apiKeyAuthentication.getApiKeyMetadata(), sameInstance(apiKeyAuthentication.getApiKeyMetadata()));
+        }
 
         final Authentication authentication = AuthenticationTests.randomAuthentication(
             AuthenticationTests.randomUser(),

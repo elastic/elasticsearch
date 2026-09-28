@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -146,6 +147,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -2646,7 +2648,7 @@ public class ApiKeyService implements Closeable {
     /**
      * If the authentication has type of api_key, returns the parsed metadata associated with the
      * API key, or an empty map if no metadata is present. The result is lazily computed and cached
-     * on the authentication's subject; callers must not mutate the returned structure.
+     * on the authentication's subject.
      * @param authentication {@link Authentication}
      * @return the parsed metadata map, or an empty map if no metadata is found
      * @throws IllegalArgumentException if the authentication is not an API key authentication
@@ -2661,7 +2663,9 @@ public class ApiKeyService implements Closeable {
                     + "]"
             );
         }
-        return authentication.getApiKeyMetadata();
+        // deep-copy because we previously exposed mutable maps via this method, so there may
+        // be existing ingest pipelines that mutate the returned structure.
+        return CollectionUtils.deepCopy(authentication.getApiKeyMetadata(), LAX);
     }
 
     final class CachedApiKeyHashResult {

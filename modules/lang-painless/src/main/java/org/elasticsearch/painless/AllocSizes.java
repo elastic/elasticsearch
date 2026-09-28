@@ -9,6 +9,9 @@
 
 package org.elasticsearch.painless;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 /**
  * Sizing constants and helpers for Painless allocation tracking. Sizes are derived purely from the allocation's structure
  * (element type and count, captured-value count, boxed primitive) as known at compile time -- no reflection. All constants
@@ -239,5 +242,48 @@ public final class AllocSizes {
             return (long) s.length() * 2;
         }
         return NON_STRING_OBJECT_CONCAT_BYTES;
+    }
+
+    /** Longest {@code Double.toString} result, {@code -1.7976931348623157E308}. */
+    private static final int DOUBLE_CHARS = 24;
+
+    /** Longest {@code Float.toString} result, {@code -3.4028235E38}. */
+    private static final int FLOAT_CHARS = 15;
+
+    /**
+     * Chars in the String made of {@code value}: "null", the text itself, an exact or bounded count for a number, boolean or
+     * character, and half the object allowance for anything else. Counts without rendering, so it allocates nothing.
+     */
+    public static long renderedChars(Object value) {
+        if (value == null) {
+            return 4;
+        } else if (value instanceof CharSequence sequence) {
+            return sequence.length();
+        } else if (value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) {
+            return decimalChars(((Number) value).longValue());
+        } else if (value instanceof Double) {
+            return DOUBLE_CHARS;
+        } else if (value instanceof Float) {
+            return FLOAT_CHARS;
+        } else if (value instanceof Boolean) {
+            return 5;
+        } else if (value instanceof Character) {
+            return 1;
+        } else if (value instanceof BigInteger big) {
+            return big.bitLength() / 3 + 2;
+        } else if (value instanceof BigDecimal decimal) {
+            return decimal.precision() + 14L;
+        }
+        return NON_STRING_OBJECT_CONCAT_BYTES / 2;
+    }
+
+    /** Digits in {@code value} written in decimal, plus one for a minus sign. */
+    public static long decimalChars(long value) {
+        long chars = value < 0 ? 1 : 0;
+        do {
+            chars++;
+            value /= 10;
+        } while (value != 0);
+        return chars;
     }
 }

@@ -155,11 +155,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
         });
         // ensure the shard remain started
-        var state = client(internalCluster().getMasterName()).admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState();
+        var state = client(internalCluster().getMasterName()).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
         var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());

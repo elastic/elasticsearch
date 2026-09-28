@@ -48,10 +48,11 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
         project.getDependencies()
             .add("compileOnly", internalDependency(project, ":server", "org.elasticsearch:server:" + VersionProperties.getElasticsearch()));
-        project.getDependencies().add(
-            "testImplementation",
-            internalDependency(project, ":test:framework", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch())
-        );
+        project.getDependencies()
+            .add(
+                "testImplementation",
+                internalDependency(project, ":test:framework", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch())
+            );
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into

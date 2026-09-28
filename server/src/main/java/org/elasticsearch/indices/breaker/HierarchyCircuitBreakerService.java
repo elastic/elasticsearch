@@ -596,6 +596,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     static class G1OverLimitStrategy implements OverLimitStrategy {
+        private static final int FILLER_ARRAY_HEADER_ALLOWANCE_BYTES = 64;
+
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
         private final LongSupplier gcCountSupplier;
@@ -644,6 +646,28 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             } else {
                 this.g1RegionSize = g1RegionSize;
             }
+        }
+
+        /**
+         * At most one humongous allocation, followed by eden fillers under a budget derived from the estimate of free regions plus one.
+         * The fillers go through eden, so G1's own young sizing decides when to collect. As before, reaching a GC is best-effort.
+         */
+        static int triggerAllocationCount(long maxHeap, long baseUsage, long g1RegionSize) {
+            long regions = (maxHeap - baseUsage) / g1RegionSize + 1;
+            if (regions <= 0) {
+                return 0;
+            }
+            return Math.toIntExact(1 + regions * g1RegionSize / fillerAllocationSize(g1RegionSize) + 1);
+        }
+
+        static int triggerAllocationSize(int allocationIndex, long g1RegionSize) {
+            // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
+            // smaller allocations are regular eden allocations.
+            return allocationIndex == 0 ? (int) (g1RegionSize >> 1) : fillerAllocationSize(g1RegionSize);
+        }
+
+        static int fillerAllocationSize(long g1RegionSize) {
+            return (int) (g1RegionSize >> 2) - FILLER_ARRAY_HEADER_ALLOWANCE_BYTES;
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
@@ -769,10 +793,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 long initialCollectionCount = gcCountSupplier.getAsLong();
                 logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                 long localBlackHole = 0;
-                // number of allocations, corresponding to (approximately) number of free regions + 1
-                int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                int allocationSize = (int) (g1RegionSize >> 1);
+                int allocationCount = triggerAllocationCount(maxHeap, memoryUsed.baseUsage, g1RegionSize);
                 long maxUsageObserved = memoryUsed.baseUsage;
                 for (; allocationIndex < allocationCount; ++allocationIndex) {
                     long current = currentMemoryUsageSupplier.getAsLong();
@@ -786,7 +807,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         break;
                     }
                     // noinspection ArrayHashCode - prevent array allocation from being optimized away
-                    localBlackHole += new byte[allocationSize].hashCode();
+                    localBlackHole += new byte[triggerAllocationSize(allocationIndex, g1RegionSize)].hashCode();
                 }
 
                 blackHole += localBlackHole;

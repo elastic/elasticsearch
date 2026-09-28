@@ -52,8 +52,10 @@ import java.util.stream.IntStream;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -680,6 +682,208 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             blocker.join(10000);
             assertThat(blocker.isAlive(), is(false));
         }
+    }
+
+    public void testG1TriggerAllocationCount() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long maxHeap = regionSize * randomLongBetween(64, 32768);
+        long freeHeap = randomLongBetween(0, maxHeap / 2);
+
+        assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap - freeHeap, regionSize);
+        assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap, regionSize);
+
+        int noFreeHeapCount = triggerAllocationCount(maxHeap, maxHeap, regionSize);
+        assertThat(triggerAllocationCount(maxHeap, maxHeap + randomLongBetween(1, regionSize - 1), regionSize), equalTo(noFreeHeapCount));
+    }
+
+    public void testG1TriggerAllocationCountDoesNotLoopWhenUpstreamBudgetIsEmpty() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long maxHeap = regionSize * randomLongBetween(64, 32768);
+        long baseUsage = maxHeap + regionSize + randomLongBetween(0, maxHeap);
+
+        assertThat((maxHeap - baseUsage) / regionSize + 1, lessThanOrEqualTo(0L));
+        assertThat(triggerAllocationCount(maxHeap, baseUsage, regionSize), equalTo(0));
+    }
+
+    public void testG1TriggerAllocationCountOnLargeHeap() {
+        assertFillersCoverFreeRegionsPlusOne(ByteSizeUnit.TB.toBytes(4), 0, ByteSizeUnit.MB.toBytes(1));
+    }
+
+    public void testG1TriggerAllocationSizeIsHumongousOnlyForFirstAllocation() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long halfRegion = regionSize / 2;
+
+        long firstSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationSize(0, regionSize);
+        assertThat(firstSize, greaterThanOrEqualTo(halfRegion));
+        int fillerSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationSize(randomIntBetween(1, 10_000), regionSize);
+        assertThat(fillerSize, greaterThan(0));
+        assertThat((long) fillerSize, lessThan(halfRegion));
+        assertThat(fillerSize, equalTo(HierarchyCircuitBreakerService.G1OverLimitStrategy.fillerAllocationSize(regionSize)));
+    }
+
+    public void testG1OverLimitStrategyAllocatesTriggerAllocationCount() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        int freeRegions = randomIntBetween(0, 3);
+        long baseUsage = maxHeap - freeRegions * regionSize;
+        AtomicLong memoryReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            countingMemoryUsage(memoryReads, baseUsage),
+            () -> 0
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(baseUsage, baseUsage, 0, 0);
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        long allocations = triggerAllocationCount(maxHeap, baseUsage, regionSize);
+        assertThat(allocations, equalTo(1L + 4L * (freeRegions + 1) + 1));
+        assertThat(memoryReads.get(), equalTo(allocations + READS_AFTER_ALLOCATION_LOOP));
+    }
+
+    public void testG1OverLimitStrategyStopsAllocatingOnGcCountChange() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        int allocationsBeforeGc = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong gcCountReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            countingMemoryUsage(memoryReads, baseUsage),
+            () -> gcCountReads.incrementAndGet() > allocationsBeforeGc + 1 ? 1 : 0
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(baseUsage, baseUsage, 0, 0);
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeGc + 1 + READS_AFTER_ALLOCATION_LOOP));
+    }
+
+    /**
+     * The young GC provoked by the fillers reclaims memory while the loop runs: the loop must stop at the drop, report the
+     * reduced usage and not fall back to a full GC.
+     */
+    public void testG1OverLimitStrategyStopsWhenYoungGcReducesMemory() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        long reducedUsage = randomLongBetween(0, baseUsage - 1);
+        int allocationsBeforeDrop = randomIntBetween(2, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong timeReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            () -> memoryReads.incrementAndGet() > allocationsBeforeDrop ? reducedUsage : baseUsage,
+            () -> 0,
+            timeReads
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(
+            baseUsage,
+            baseUsage + randomLongBetween(0, 100),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50)
+        );
+
+        assertReducedUsage(strategy.overLimit(input), input, reducedUsage);
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeDrop + 1 + READS_AFTER_ALLOCATION_LOOP));
+        assertThat(timeReads.get(), equalTo(TIME_READS_WITHOUT_FULL_GC_CHECK));
+    }
+
+    /**
+     * The young GC count changes during the loop and the collection reclaimed memory, which only the reads after the loop see.
+     */
+    public void testG1OverLimitStrategyReportsReducedMemoryAfterYoungGc() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        long reducedUsage = randomLongBetween(0, baseUsage - 1);
+        int allocationsBeforeGc = randomIntBetween(2, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong gcCountReads = new AtomicLong();
+        AtomicLong timeReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            () -> memoryReads.incrementAndGet() > allocationsBeforeGc + 1 ? reducedUsage : baseUsage,
+            () -> gcCountReads.incrementAndGet() > allocationsBeforeGc + 1 ? 1 : 0,
+            timeReads
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(
+            baseUsage,
+            baseUsage + randomLongBetween(0, 100),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50)
+        );
+
+        assertReducedUsage(strategy.overLimit(input), input, reducedUsage);
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeGc + 1 + READS_AFTER_ALLOCATION_LOOP));
+        assertThat(timeReads.get(), equalTo(TIME_READS_WITHOUT_FULL_GC_CHECK));
+    }
+
+    private static void assertReducedUsage(
+        HierarchyCircuitBreakerService.MemoryUsage output,
+        HierarchyCircuitBreakerService.MemoryUsage input,
+        long reducedUsage
+    ) {
+        assertThat(output, not(sameInstance(input)));
+        assertThat(output.baseUsage, equalTo(reducedUsage));
+        assertThat(output.totalUsage, equalTo(reducedUsage + input.totalUsage - input.baseUsage));
+        assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
+        assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
+    }
+
+    /**
+     * After the allocation loop, the strategy reads memory usage once to decide on the full GC fallback and once for its result.
+     */
+    private static final long READS_AFTER_ALLOCATION_LOOP = 2;
+
+    /**
+     * An attempt reads the time when it starts, after the allocation loop and for its duration. Deciding on the full GC fallback,
+     * which only happens when no memory was reclaimed, reads it at least once more.
+     */
+    private static final long TIME_READS_WITHOUT_FULL_GC_CHECK = 3;
+
+    private static void assertFillersCoverFreeRegionsPlusOne(long maxHeap, long baseUsage, long regionSize) {
+        long freeHeap = Math.max(0, maxHeap - baseUsage);
+        long freeRegionsPlusOneBytes = (freeHeap / regionSize + 1) * regionSize;
+        long fillerSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.fillerAllocationSize(regionSize);
+        long fillers = triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1;
+        assertThat(fillers * fillerSize, greaterThan(freeHeap));
+        assertThat(fillers * fillerSize, greaterThan(freeRegionsPlusOneBytes));
+        assertThat((fillers - 1) * fillerSize, lessThanOrEqualTo(freeRegionsPlusOneBytes));
+    }
+
+    private static int triggerAllocationCount(long maxHeap, long baseUsage, long regionSize) {
+        return HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationCount(maxHeap, baseUsage, regionSize);
+    }
+
+    private static long strategyRegionSize() {
+        long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
+        return g1RegionSize > 0 ? g1RegionSize : HierarchyCircuitBreakerService.G1OverLimitStrategy.fallbackRegionSize(JvmInfo.jvmInfo());
+    }
+
+    private static LongSupplier countingMemoryUsage(AtomicLong memoryReads, long memoryUsage) {
+        return () -> {
+            memoryReads.incrementAndGet();
+            return memoryUsage;
+        };
+    }
+
+    private static HierarchyCircuitBreakerService.G1OverLimitStrategy strategyWithoutFullGC(
+        LongSupplier memoryUsageSupplier,
+        LongSupplier gcCountSupplier
+    ) {
+        return strategyWithoutFullGC(memoryUsageSupplier, gcCountSupplier, new AtomicLong());
+    }
+
+    private static HierarchyCircuitBreakerService.G1OverLimitStrategy strategyWithoutFullGC(
+        LongSupplier memoryUsageSupplier,
+        LongSupplier gcCountSupplier,
+        AtomicLong timeReads
+    ) {
+        AtomicLong time = new AtomicLong(Long.MIN_VALUE / 2);
+        return new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsageSupplier, gcCountSupplier, () -> {
+            timeReads.incrementAndGet();
+            return time.incrementAndGet();
+        }, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
     }
 
     public void testTrippedCircuitBreakerDurability() {

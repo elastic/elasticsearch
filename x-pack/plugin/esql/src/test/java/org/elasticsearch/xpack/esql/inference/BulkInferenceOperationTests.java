@@ -79,10 +79,8 @@ public class BulkInferenceOperationTests extends ESTestCase {
      * {@code InferenceOperator#getOutput} reads on a later turn of the driver. In between, {@code clearBuffers} empties that
      * same list whenever {@code hasFailure()} is true.
      *
-     * A failure can arrive in exactly that window because {@code onException} sets the flag WITHOUT holding the checkpoint
-     * lock, so {@code hasFailure()} can flip between the success decision and {@code clearBuffers()} a statement later. The
-     * listener below stands in for that concurrent caller: it runs inside the window by construction, which makes an
-     * interleaving that is otherwise timing-dependent deterministic here.
+     * The listener below stages cleanup after the handoff by recording a failure before {@code clearBuffers} runs. This
+     * verifies that the listener owns a stable snapshot; it does not model how a late failure might arise in production.
      *
      * The consequence downstream is not a lost response but a corrupt page: the embedding output builder appends one entry
      * per response, so an emptied list yields a block with zero positions and the page invariant fails with

@@ -490,13 +490,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          * @param exception The exception that occurred.
          */
         public void onException(Exception exception) {
-            // Under the checkpoint lock so hasFailure() cannot change between completeIfFinished()'s success
-            // decision and the clearBuffers() that follows it.
-            boolean isFirstFailure;
-            synchronized (checkpoint) {
-                isFirstFailure = this.exception.trySet(exception);
-            }
-            if (isFirstFailure) {
+            if (this.exception.trySet(exception)) {
                 completeIfFinished();
             }
         }

@@ -65,17 +65,21 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
                 )
             )
         );
+        // a null temporality is treated as delta, so the histogram passes through unchanged
         for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
             suppliers.add(
                 new TestCaseSupplier(
                     "<" + histoSupplier.type().typeName() + ", null>",
                     List.of(histoSupplier.type(), DataType.NULL),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(histoSupplier.get(), nullSupplier.get()),
-                        "LiteralsEvaluator[lit=null]",
-                        histoSupplier.type(),
-                        nullValue()
-                    )
+                    () -> {
+                        TestCaseSupplier.TypedData histogram = histoSupplier.get();
+                        return new TestCaseSupplier.TestCase(
+                            List.of(histogram, nullSupplier.get()),
+                            getExpectedEvaluatorString(histoSupplier.type()),
+                            histoSupplier.type(),
+                            equalTo(histogram.getValue())
+                        );
+                    }
                 )
             );
         }

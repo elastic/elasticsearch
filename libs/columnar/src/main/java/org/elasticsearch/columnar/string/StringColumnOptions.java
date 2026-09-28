@@ -19,12 +19,21 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * fields written differently are read by the same reader and a field may be written differently tomorrow
  * than it was today.
  *
- * @param dictionary when the column's values are named by ordinals rather than stored
- * @param summary    how much of what the column held it summarises for a later merge
- * @param chunkCodec what compresses the chunks the values are written in
- * @param sizes      the units the column's streams are written in
+ * @param dictionary   when the column's values are named by ordinals rather than stored
+ * @param summary      how much of what the column held it summarises for a later merge
+ * @param chunkCodec   what compresses the chunks the values are written in
+ * @param sizes        the units the column's streams are written in
+ * @param singleValued when {@code true} the mapping guarantees at most one non-null value per document
+ *                     ({@code multi_value: false}), so the column records that guarantee on disk and the
+ *                     reader returns the raw value bytes rather than building a payload
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
+public record StringColumnOptions(
+    DictionaryPolicy dictionary,
+    SummaryPolicy summary,
+    ChunkCodec chunkCodec,
+    Sizes sizes,
+    boolean singleValued
+) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
@@ -182,7 +191,17 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
-        DEFAULT_SIZES
+        DEFAULT_SIZES,
+        false
+    );
+
+    /** Default options for a field whose mapping guarantees at most one non-null value per document. */
+    public static final StringColumnOptions DEFAULT_SINGLE_VALUED = new StringColumnOptions(
+        DEFAULT_DICTIONARY,
+        DEFAULT_SUMMARY,
+        ChunkCodec.ZSTD,
+        DEFAULT_SIZES,
+        true
     );
 
     public StringColumnOptions {
@@ -206,11 +225,11 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued);
     }
 }

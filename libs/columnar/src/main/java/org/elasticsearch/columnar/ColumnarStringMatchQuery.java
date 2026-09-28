@@ -53,12 +53,18 @@ public final class ColumnarStringMatchQuery extends Query {
     private final Predicate<BytesRef> matcher;
     private final Object identity;
     private final ScanBudget budget;
+    private final boolean plainBytes;
 
     public ColumnarStringMatchQuery(String field, Predicate<BytesRef> matcher, Object identity, ScanBudget budget) {
+        this(field, matcher, identity, budget, false);
+    }
+
+    public ColumnarStringMatchQuery(String field, Predicate<BytesRef> matcher, Object identity, ScanBudget budget, boolean plainBytes) {
         this.field = Objects.requireNonNull(field);
         this.matcher = Objects.requireNonNull(matcher);
         this.identity = Objects.requireNonNull(identity);
         this.budget = Objects.requireNonNull(budget);
+        this.plainBytes = plainBytes;
     }
 
     @Override
@@ -92,9 +98,21 @@ public final class ColumnarStringMatchQuery extends Query {
                         }
 
                         // An overlay rather than the column, as an updated field is: the values are read one
-                        // document at a time and tested. The surface carries a document's slots as one payload, so
-                        // each is tested in turn and any of them accepted accepts the document, which is what the
-                        // column answers too.
+                        // document at a time and tested. For a plain (single-valued) field the blob is the raw
+                        // value bytes; for a payload field the blob carries slot count + framed values.
+                        if (plainBytes) {
+                            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                                @Override
+                                public boolean matches() throws IOException {
+                                    return matcher.test(values.binaryValue());
+                                }
+
+                                @Override
+                                public float matchCost() {
+                                    return 100f;
+                                }
+                            });
+                        }
                         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                             @Override
@@ -145,11 +163,11 @@ public final class ColumnarStringMatchQuery extends Query {
             return false;
         }
         final ColumnarStringMatchQuery that = (ColumnarStringMatchQuery) other;
-        return field.equals(that.field) && identity.equals(that.identity);
+        return field.equals(that.field) && identity.equals(that.identity) && plainBytes == that.plainBytes;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, identity);
+        return Objects.hash(classHash(), field, identity, plainBytes);
     }
 }

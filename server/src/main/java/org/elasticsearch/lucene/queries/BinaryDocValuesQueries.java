@@ -34,9 +34,11 @@ public interface BinaryDocValuesQueries {
 
     /** The implementation for {@code format}, shared rather than built per call. */
     static BinaryDocValuesQueries forFormat(BinaryDocValuesFormat format) {
-        return format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD
-            ? ColumnarBinaryDocValuesQueries.INSTANCE
-            : ScanningBinaryDocValuesQueries.forFormat(format);
+        return switch (format) {
+            case COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesQueries.INSTANCE;
+            case PLAIN -> ColumnarBinaryDocValuesQueries.PLAIN_INSTANCE;
+            default -> ScanningBinaryDocValuesQueries.forFormat(format);
+        };
     }
 
     /** Documents holding exactly {@code term}. */

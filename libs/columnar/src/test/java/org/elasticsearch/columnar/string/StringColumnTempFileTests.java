@@ -57,7 +57,8 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
                         StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                         ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-                    )
+                    ),
+                    false
                 ),
                 null,
                 dir,

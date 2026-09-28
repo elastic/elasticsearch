@@ -130,6 +130,7 @@ public final class StringColumnWriter {
                         surveyed.columnBytes(),
                         chunkCodec,
                         sizes,
+                        options.singleValued(),
                         directory,
                         context,
                         outputs
@@ -237,6 +238,7 @@ public final class StringColumnWriter {
                 addressing,
                 written,
                 sorted,
+                options.singleValued(),
                 valuesWorthNaming
             ),
             surveyed,
@@ -306,6 +308,7 @@ public final class StringColumnWriter {
         long valueBytes,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
+        boolean singleValued,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs
@@ -516,7 +519,8 @@ public final class StringColumnWriter {
                 escapeRanks,
                 escapeRankBlockSize,
                 dictionarySize,
-                sorted
+                sorted,
+                singleValued
             );
         } finally {
             IOUtils.close(replays);

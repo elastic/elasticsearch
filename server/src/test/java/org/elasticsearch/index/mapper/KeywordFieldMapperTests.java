@@ -24,7 +24,6 @@ import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1354,9 +1353,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         String value = randomAlphanumericOfLength(20);
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
-        var expectedBytesValue = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            ? new StringBinaryPayload.Builder().encode(List.of(new BytesRef(value)))
-            : new BytesRef(value);
+        // multi_value: false fields always store raw bytes (no payload framing), whether columnar or not.
+        var expectedBytesValue = new BytesRef(value);
         assertThat(doc.rootDoc().getFields("field").stream().anyMatch(f -> expectedBytesValue.equals(f.binaryValue())), equalTo(true));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
     }

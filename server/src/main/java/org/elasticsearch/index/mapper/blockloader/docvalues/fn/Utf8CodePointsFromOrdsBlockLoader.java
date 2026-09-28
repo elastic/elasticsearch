@@ -124,6 +124,8 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 context,
                 (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
             );
+            // PLAIN is single-valued; it should have been routed to the single-valued loader path.
+            case PLAIN -> throw new AssertionError("PLAIN field [" + fieldName + "] should not use the multi-valued Utf8CodePoints loader");
         };
     }
 

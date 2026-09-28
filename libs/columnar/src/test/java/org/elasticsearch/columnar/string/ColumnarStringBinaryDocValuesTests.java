@@ -212,7 +212,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     public void testBinaryValueRebuildsThePayload() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(20, 300), 6, true, true);
         withColumn(docSlots, (metadata, reader) -> {
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -231,7 +231,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), 64, (metadata, reader) -> {
             assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
             assertEquals("null slots counted by hand", 5L, numNullSlots(docSlots));
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -259,7 +259,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             // answering from the ordinals alone gives up on a column that let anything escape, so a null
             // costing an escape would cost that column the ordinals entirely.
             assertEquals("a null does not escape", 0L, reader.escapeCount());
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -306,7 +306,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 dictionary.ordinalAt(first + 1)
             );
 
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 assertEquals("doc " + doc, encode(docSlots[doc]), dv.binaryValue());
             }
@@ -451,7 +451,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
                 ordinalMap[ordinal] = ordinal + 100;
             }
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             final StringColumnValues cursor = dv.directValues(ordinalMap);
             final BytesRef term = new BytesRef();
 
@@ -481,7 +481,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
     /** Writes {@code docValues} as a column, opens it at the binary surface, and runs {@code check} over it. */
     private void withSurface(BytesRef[] docValues, SurfaceCheck check) throws IOException {
-        withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator())));
+        withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator(), false)));
     }
 
     /** The current document's only value, decoded out of the one-slot payload the surface hands back. */

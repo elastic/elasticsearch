@@ -85,6 +85,8 @@ final class BinaryDocValuesLengthQuery extends Query {
                         return switch (binaryFormat) {
                             // Refused by the constructor, so a query holding this format does not exist.
                             case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
+                            // PLAIN fields are single-valued columnar fields; they also go to ColumnarBinaryDocValuesQueries.
+                            case PLAIN -> throw new AssertionError("plain columnar field [" + fieldName + "]");
                             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);

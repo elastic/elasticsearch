@@ -700,8 +700,26 @@ public class IndexEngine extends InternalEngine {
         if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
-                // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
-                flush(true, true);
+
+                /// Listener in this API fires when the new commit, created by the flush, is uploaded,
+                /// but we don't need and don't _want_ to wait for uploads.
+                ///
+                /// This operation is potentially called while holding [versionMap] lock in [InternalEngine#getVersionFromMap]
+                /// and therefore waiting for upload would result in holding the lock for a prolonged period of time.
+                /// That blocks _all_ concurrent operations that need to use the map (like updates) which in turn can block a
+                /// relocation.
+                ///
+                /// In case of realtime gets, [lastCommittedSegmentInfos] is updated during the synchronous part of the flush
+                /// before the upload. It is then used to set [lastUnsafeSegmentGenerationForGets].
+                /// Search shard will need to wait for this segment generation
+                /// (via [org.elasticsearch.action.get.TransportGetFromTranslogAction]) in any case
+                /// and as such waiting for durability on the index shard is unnecessary.
+                ///
+                /// Other operations like updates technically don't need to flush at all but [StatelessLiveVersionMapArchive]
+                /// expects this flush to happen when live version map transitions from unsafe to safe.
+                /// Still, we don't need to wait for durability inline here, `StatelessLiveVersionMapArchive` will receive a notification
+                /// when it is uploaded and search shards are notified anyway.
+                flush(true, true, ActionListener.noop());
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);
             }

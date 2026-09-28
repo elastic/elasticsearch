@@ -21,7 +21,8 @@ import java.util.Set;
  *
  * @param analyzerName          the reported analyzer, or {@code null} when it was withheld or not reported at all
  * @param indexLocal            whether a {@code null} name was withheld because the analyzer is an {@code index.analysis}
- *                              definition, rather than not reported by an older node
+ *                              definition, rather than unknown: hard-coded by the mapper, absent from a field with no
+ *                              index analyzer, or not reported by an older node
  * @param positionIncrementGap  the field's {@code position_increment_gap} under that analyzer
  * @param indices               concrete index names, cluster-qualified for remote indices like {@code _index} values
  */

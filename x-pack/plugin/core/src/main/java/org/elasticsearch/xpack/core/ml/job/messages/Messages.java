@@ -96,6 +96,9 @@ public final class Messages {
         "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";
+    public static final String INVALID_PATH_SAFE_ID = "In a future release, {0} values that are not safe as a single filesystem path "
+        + "component will be rejected; ''{1}'' must not be empty, must not be ''.'' or ''..'', and must not contain a path separator or "
+        + "NUL character";
     public static final String INVALID_MODEL_PACKAGE_ID = "Invalid {0}; ''{1}'' is not a valid model package id";
     public static final String ID_TOO_LONG = "Invalid {0}; ''{1}'' cannot contain more than {2} characters.";
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric"
@@ -163,6 +166,10 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES =
+        "Datafeed auto-stopped after {0} consecutive real-time extraction failures. Last error: {1}. "
+            + "Job remains open. Fix the source problem, then start the datafeed. "
+            + "To change the threshold, set max_consecutive_extraction_failures on the datafeed (-1 disables).";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
         "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]."
             + " Consider increasing query_delay and investigate the cause of high latency in your ingestion process.";

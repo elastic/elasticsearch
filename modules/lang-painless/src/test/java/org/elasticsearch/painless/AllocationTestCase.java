@@ -41,8 +41,8 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     }
 
     /**
-     * Compiles {@code source} under {@code limit} with {@code params} bound to the script. Tests whose receiver cannot be
-     * written as a literal, such as a doc-values field, hand it in this way and reach it through {@code params}.
+     * Compiles {@code source} under {@code limit} with script parameters, recording no metrics. A mutable object in
+     * {@code params} is how a test observes what a script did before it was stopped.
      */
     protected PainlessTestScript compile(String source, String limit, Map<String, Object> params) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
@@ -78,6 +79,6 @@ public class MergeExecKindMapperTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("left", left);
         children.put("right", right);
-        return new ViewUnionAll(Source.EMPTY, children, left.output());
+        return new ViewUnionAll(Source.EMPTY, children, Set.of("left", "right"), left.output());
     }
 }

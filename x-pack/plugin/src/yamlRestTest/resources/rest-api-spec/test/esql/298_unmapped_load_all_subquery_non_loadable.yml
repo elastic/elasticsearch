@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, aggregate_metric_double_v0, support_partial_results ]
+          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, support_partial_results ]
       reason: 'a type with no implicit conversion from KEYWORD cannot be rebuilt from _source, so a sibling branch carrying a value null-fills and warns'
 
   - do:
@@ -155,8 +155,12 @@ setup:
         - "Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | SORT txt NULLS LAST | LIMIT 10'
-  - match: { values: [ [ "mapped" ], [ null ], [ null ] ] }
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | LIMIT 10'
+  - match: { columns.0.name: txt }
+  - match: { columns.0.type: unsupported }
+  - match: { values.0: [ null ] }
+  - match: { values.1: [ null ] }
+  - match: { values.2: [ null ] }
 
 ---
 "LOAD_ALL subquery implicit cast to long nulls a keyword source value that is not a long":

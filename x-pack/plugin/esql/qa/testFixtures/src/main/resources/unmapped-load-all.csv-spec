@@ -1870,6 +1870,7 @@ partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466 
 
 loadAllSubqueryMentionedLongMappedBranchFirstStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration)
@@ -1884,6 +1885,7 @@ null
 
 loadAllSubqueryMentionedLongUnmappedBranchFirstStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
@@ -1898,8 +1900,7 @@ null
 
 loadAllSubqueryMentionedAmdMappedBranchFirstStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
-required_capability: aggregate_metric_double_v0
-
+required_capability: subquery_in_from_command
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
 | KEEP network.eth0.tx
@@ -1913,8 +1914,7 @@ null
 
 loadAllSubqueryMentionedAmdUnmappedBranchFirstStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
-required_capability: aggregate_metric_double_v0
-
+required_capability: subquery_in_from_command
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s_nonexistent | KEEP network.eth0.tx), (FROM k8s-downsampled)
 | KEEP network.eth0.tx
@@ -2083,8 +2083,6 @@ unmapped-1     | null
 loadAllSubqueryMappedAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent)
 | KEEP *eth0.tx
@@ -2127,8 +2125,6 @@ null
 loadAllSubqueryMappedAmdLoadsOnUnmappedSiblingReversed
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s_nonexistent), (FROM k8s-downsampled)
 | KEEP *eth0.tx
@@ -2171,8 +2167,6 @@ null
 loadAllSubqueryMappedAmdNullsOnUnmappedSiblingWithSourceValue
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled METADATA _index | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
      (FROM k8s_unmapped METADATA _index | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
@@ -2190,8 +2184,6 @@ k8s_unmapped    | null
 loadAllSubqueryMappedAmdNullsOnUnmappedSiblingLateFilter
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled METADATA _index | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
      (FROM k8s_unmapped METADATA _index | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
@@ -2209,8 +2201,6 @@ network.eth0.tx:aggregate_metric_double
 loadAllSubqueryDropAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_unmapped | DROP network.eth0.tx)
 | KEEP cluster, network.eth0.tx
@@ -2225,8 +2215,6 @@ loaded:long | rows:long
 loadAllSubqueryKeepExcludingAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_unmapped | KEEP cluster)
 | KEEP cluster, network.eth0.tx
@@ -2241,8 +2229,6 @@ loaded:long | clusters:long | rows:long
 loadAllSubqueryKeepWildcardExcludingAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_unmapped | KEEP clus*)
 | KEEP cluster, network.eth0.tx
@@ -2257,8 +2243,6 @@ loaded:long | clusters:long | rows:long
 loadAllSubqueryMentionPrunedByOuterKeepNotLoadedOnSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled | KEEP network.eth0.tx), (FROM k8s_unmapped)
 | KEEP cluster
@@ -2352,8 +2336,6 @@ null                     | null         | null                       | null     
 loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
 | KEEP network.eth0.tx
@@ -2439,8 +2421,6 @@ ignoreOrder:true
 loadAllSubqueryKeepStarAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
-required_capability: aggregate_metric_double_v0
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
 | KEEP *eth0.tx

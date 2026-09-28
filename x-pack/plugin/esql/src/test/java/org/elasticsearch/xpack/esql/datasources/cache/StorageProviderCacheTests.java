@@ -221,7 +221,10 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache cache = new StorageProviderCache();
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("access_key", "ak"));
 
-        Configured<StorageProvider> first = cache.getOrCreate(key, () -> new Configured<>(new TrackingProvider(), Set.of("access_key")));
+        Configured<StorageProvider> first = cache.getOrCreate(
+            key,
+            () -> new Configured<>(new TrackingProvider(), Set.of("access_key"), "")
+        );
         Configured<StorageProvider> second = cache.getOrCreate(
             key,
             () -> { throw new AssertionError("supplier must not be re-invoked on hit"); }

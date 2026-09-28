@@ -77,7 +77,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
         FormatReader wrapped = configured.value() == inner ? this : new CompressionDelegatingFormatReader(configured.value(), codec);
-        return new Configured<>(wrapped, configured.consumedKeys());
+        return new Configured<>(wrapped, configured.consumedKeys(), configured.identity());
     }
 
     @Override

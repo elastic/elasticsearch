@@ -5756,7 +5756,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(provider);
                 }
-                return new Configured<>(provider, Set.copyOf(config.keySet()));
+                return new Configured<>(
+                    provider,
+                    Set.copyOf(config.keySet()),
+                    Configured.identityOf(config, Set.copyOf(config.keySet()), Set.of())
+                );
             }
         };
     }

@@ -274,7 +274,7 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys(), raw.identity());
             });
         } catch (RuntimeException e) {
             throw e;

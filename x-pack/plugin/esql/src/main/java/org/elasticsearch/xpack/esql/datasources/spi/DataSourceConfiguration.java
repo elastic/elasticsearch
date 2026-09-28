@@ -169,20 +169,27 @@ public abstract class DataSourceConfiguration {
      * carries a mix of storage and format options; the storage plugin must ignore keys it does
      * not own rather than reject them as unknown. Returns {@code null}/empty unchanged.
      *
+     * <p>Also derives the identity of what was kept: this is the one place that holds both the consumed
+     * entries and each field's secret flag, so it is the only place that can identify a storage
+     * configuration without a list of credential names maintained elsewhere. A secret's value is folded
+     * into the definition version instead, so rotating one still moves every key derived from it while no
+     * secret value reaches one.
+     *
      * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
      * find out why the storage config came back with defaults. Only key <em>names</em> are
-     * logged — values are never emitted, since this method is unaware of which keys are secrets.
-     * Format keys (like {@code header_row}) will appear here too, which is expected.
+     * logged, never values. Format keys (like {@code header_row}) will appear here too, which is
+     * expected.
      */
     protected static Configured<Map<String, Object>> filterKnown(
         Map<String, Object> raw,
         Map<String, DataSourceConfigDefinition> fieldDefs
     ) {
         if (raw == null || raw.isEmpty()) {
-            return new Configured<>(raw, Set.of());
+            return new Configured<>(raw, Set.of(), "");
         }
         Map<String, Object> filtered = new HashMap<>(raw.size());
         Set<String> consumed = new HashSet<>();
+        Set<String> identifying = new HashSet<>();
         // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
         // is not worth tracking precisely here.
         boolean debug = logger.isDebugEnabled();
@@ -191,6 +198,9 @@ public abstract class DataSourceConfiguration {
             if (fieldDefs.containsKey(entry.getKey())) {
                 filtered.put(entry.getKey(), entry.getValue());
                 consumed.add(entry.getKey());
+                if (fieldDefs.get(entry.getKey()).secret() == false) {
+                    identifying.add(entry.getKey());
+                }
             } else if (debug) {
                 if (dropped == null) {
                     dropped = new ArrayList<>();
@@ -201,7 +211,7 @@ public abstract class DataSourceConfiguration {
         if (dropped != null) {
             logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
         }
-        return new Configured<>(filtered, consumed);
+        return new Configured<>(filtered, consumed, Configured.identityOf(filtered, identifying, Set.of()));
     }
 
     /**
@@ -217,7 +227,7 @@ public abstract class DataSourceConfiguration {
     ) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
         T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
-        return new Configured<>(value, filtered.consumedKeys());
+        return new Configured<>(value, filtered.consumedKeys(), filtered.identity());
     }
 
     /**

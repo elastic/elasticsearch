@@ -111,7 +111,9 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
             }
             return new Configured<>(
                 new CredentialGatedLocalStorageProvider(SCHEME, secret, expectedCredentialOverride),
-                secret == null ? Set.of() : Set.of(SECRET_KEY)
+                secret == null ? Set.of() : Set.of(SECRET_KEY),
+                // The only key consumed here is a secret, and a secret never identifies a configuration.
+                ""
             );
         }
     }

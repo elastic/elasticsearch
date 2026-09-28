@@ -197,7 +197,7 @@ public class StorageProviderCache implements Closeable {
     }
 
     private Configured<StorageProvider> wrap(Entry entry) {
-        return new Configured<>(new PooledStorageProvider(entry), entry.consumedKeys);
+        return new Configured<>(new PooledStorageProvider(entry), entry.consumedKeys, entry.identity);
     }
 
     private Object createLock(CacheKey key) {
@@ -306,12 +306,14 @@ public class StorageProviderCache implements Closeable {
         private final CacheKey key;
         private final StorageProvider provider;
         private final Set<String> consumedKeys;
+        private final String identity;
         private volatile long lastAccessNanos;
 
         Entry(CacheKey key, Configured<StorageProvider> created, long nowNanos) {
             this.key = key;
             this.provider = created.value();
             this.consumedKeys = created.consumedKeys();
+            this.identity = created.identity();
             this.lastAccessNanos = nowNanos;
         }
 

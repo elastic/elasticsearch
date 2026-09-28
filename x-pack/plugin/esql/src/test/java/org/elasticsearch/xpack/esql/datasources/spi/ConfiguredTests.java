@@ -41,13 +41,13 @@ public class ConfiguredTests extends ESTestCase {
     }
 
     public void testEmptyConsumedKeysAccepted() {
-        Configured<String> result = new Configured<>("v", Set.of());
+        Configured<String> result = new Configured<>("v", Set.of(), "");
         assertEquals("v", result.value());
         assertThat(result.consumedKeys(), empty());
     }
 
     public void testNullConsumedKeysCoercedToEmpty() {
-        Configured<String> result = new Configured<>("v", null);
+        Configured<String> result = new Configured<>("v", null, null);
         assertEquals("v", result.value());
         assertThat(result.consumedKeys(), empty());
     }

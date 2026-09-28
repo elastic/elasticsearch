@@ -731,7 +731,11 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
      * nor a leak.
      */
     public void testFieldsAndStoredFieldsOverlapDoesNotDoubleCharge() throws Exception {
-        String dataNode = startDataNode("100mb");
+        // Limit sits between one copy of the per-hit charge and two copies so that if the field were charged twice
+        // the test would trip. 20 hits × 500 tags produces roughly 680 KB of estimated field heap (as reported by
+        // the breaker exception in testCircuitBreakerTripsOnLargeFieldsFetch), so a double charge would be roughly
+        // 1.37 MB. 900 KB sits between the two: a single charge passes, a double charge trips.
+        String dataNode = startDataNode("900kb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -748,7 +752,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 }
                 """)
         );
-        populateIndexWithKeywordArray(overlapIndex, 50, 200);
+        populateIndexWithKeywordArray(overlapIndex, 50, 500);
         ensureSearchable(overlapIndex);
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);

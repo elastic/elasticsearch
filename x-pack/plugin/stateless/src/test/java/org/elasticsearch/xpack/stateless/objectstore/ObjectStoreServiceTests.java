@@ -131,6 +131,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -902,6 +903,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .build();
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node1);
 
         var node2 = new FakeStatelessNode(
             this::newEnvironment,
@@ -959,6 +961,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // See implementation of generateIndexCommits().
                 assertEquals(commitCount, indexSearcher.search(new TermQuery(new Term("field0", "term")), 100).totalHits.value());
             }
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -1016,6 +1020,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 };
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node);
 
         try (node) {
             ShardId sourceShardId = node.shardId;
@@ -1036,6 +1041,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
                 fail("Cancelled copy task but copy still ongoing");
             }
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -1043,8 +1050,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
         var primaryTerm = randomLongBetween(1, 42);
         var commitCount = between(2, 15);
         var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
-        final var copyFailureIOE = new IOException("Fail copy");
-        final var copyFailureRE = new RuntimeException("Fail copy");
         final boolean throwIOE = randomBoolean();
         final var blobsToCopy = new AtomicInteger();
 
@@ -1085,9 +1090,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         // always fail last blob
                         if (blobsToCopy.decrementAndGet() == 0 || randomBoolean()) {
                             if (throwIOE) {
-                                throw copyFailureIOE;
+                                throw new IOException("Fail copy");
                             } else {
-                                throw copyFailureRE;
+                                throw new RuntimeException("Fail copy");
                             }
                         }
                         innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
@@ -1095,6 +1100,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 };
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node);
 
         try (node) {
             ShardId sourceShardId = node.shardId;
@@ -1113,7 +1119,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 Exception.class,
                 () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
             );
-            assertSame(failure, throwIOE ? copyFailureIOE : copyFailureRE);
+            assertThat(failure, instanceOf(throwIOE ? IOException.class : RuntimeException.class));
+            assertThat(failure.getMessage(), equalTo("Fail copy"));
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -1427,5 +1436,17 @@ public class ObjectStoreServiceTests extends ESTestCase {
             sizeInBytes += commitRef.getDirectory().fileLength(additionalFile);
         }
         return sizeInBytes;
+    }
+
+    private Optional<CountDownLatch> maybeBlockCopyThreads(FakeStatelessNode node) {
+        if (randomBoolean()) {
+            return Optional.empty();
+        }
+        final int numCopyThreads = node.threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax();
+        final var releaseThreadsLatch = new CountDownLatch(1);
+        for (int i = 0; i < numCopyThreads; i++) {
+            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
+        }
+        return Optional.of(releaseThreadsLatch);
     }
 }

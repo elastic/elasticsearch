@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.recovery.metering;
 
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
@@ -32,7 +31,6 @@ public class StatelessPrimaryRelocationMetricsCollector {
         "es.recovery.shard.primary.relocation.target.read_indexing_shard_state.time";
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
-    public static final String RELOCATION_REFERENCED_BCCS_METRIC = "es.recovery.shard.primary.relocation.referenced_bccs.histogram";
 
     public static final StatelessPrimaryRelocationMetricsCollector NOOP = new StatelessPrimaryRelocationMetricsCollector(
         MeterRegistry.NOOP
@@ -45,7 +43,6 @@ public class StatelessPrimaryRelocationMetricsCollector {
     private final DoubleHistogram relocationTargetPreRecoveryDurationMetric;
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
-    private final LongHistogram relocationReferencedBccsCountMetric;
 
     public StatelessPrimaryRelocationMetricsCollector(MeterRegistry meterRegistry) {
         relocationInitialFlushDurationMetric = meterRegistry.registerDoubleHistogram(
@@ -83,11 +80,6 @@ public class StatelessPrimaryRelocationMetricsCollector {
             "Time spent opening the engine (and activating with primary context) during primary relocation handoff on the target",
             "seconds"
         );
-        relocationReferencedBccsCountMetric = meterRegistry.registerLongHistogram(
-            RELOCATION_REFERENCED_BCCS_METRIC,
-            "Number of referenced BCCs from one commit during primary relocation",
-            "unit"
-        );
     }
 
     public void recordRelocationSourceMetrics(RelocationSourceMetrics metrics) {
@@ -107,9 +99,5 @@ public class StatelessPrimaryRelocationMetricsCollector {
 
     public void recordRelocationTargetOpenEngineDuration(long durationInMillis) {
         relocationTargetOpenEngineDurationMetric.record(durationInMillis / 1000.0);
-    }
-
-    public void recordRelocationReferencedBccsCountMetric(long referencedBccsCount) {
-        relocationReferencedBccsCountMetric.record(referencedBccsCount);
     }
 }

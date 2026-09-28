@@ -118,11 +118,6 @@ public class StatelessPrimaryRelocationTargetService {
         final var recoveryHintsFromSource = request.recoveryInfoFromSource();
         if (recoveryHintsFromSource != null) {
             statelessCommitService.putRecoveryInfoFromSourceEntry(request.shardId(), recoveryHintsFromSource);
-
-            if (recoveryHintsFromSource.lastCommitBlobs() != null) {
-                relocationMetricsCollectorProvider.get()
-                    .recordRelocationReferencedBccsCountMetric(recoveryHintsFromSource.lastCommitBlobs().size());
-            }
         }
 
         final var blobCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());

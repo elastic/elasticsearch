@@ -53,7 +53,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
@@ -508,7 +507,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                  * succeed, and there will always be an error in the error store. This behavior is subject to change in the future.
                  */
                 assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
-                assertThat(Objects.requireNonNull(response.getIndices().get(0).getError()).error(), containsString("Force merge request "));
+                assertThat(response.getIndices().get(0).getError().error(), containsString("Force merge request "));
                 assertThat(response.getIndices().get(1).getError(), is(nullValue()));
             }
         });

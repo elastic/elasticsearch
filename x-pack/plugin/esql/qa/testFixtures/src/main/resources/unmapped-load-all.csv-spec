@@ -3831,6 +3831,7 @@ id:keyword | arr:keyword | a.b:integer | _source:_source | count_all:long
 disabledSourceAcrossAllSourceFilteringModes
 required_capability: optional_fields_load_all_v2
 required_capability: source_field_mapping
+required_capability: fix_parsing_subobjects_false_dynamic_false
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
@@ -3853,9 +3854,9 @@ unmapped_source_mapped   | 5          | null        | [x, y]      | null        
 unmapped_source_disabled | 6          | null        | null        | null             | null             | null
 unmapped_source_excludes | 6          | null        | null        | null             | null             | "{""id"":""6""}"
 unmapped_source_includes | 6          | null        | null        | null             | null             | "{""id"":""6""}"
-unmapped_source_mapped   | 6          | null        | null        | null             | null             | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_mapped   | 6          | null        | null        | null             | [p, q]           | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
 unmapped_source_disabled | 7          | null        | null        | null             | null             | null
 unmapped_source_excludes | 7          | null        | null        | null             | null             | "{""id"":""7""}"
 unmapped_source_includes | 7          | null        | null        | null             | null             | "{""id"":""7""}"
-unmapped_source_mapped   | 7          | null        | null        | null             | null             | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_mapped   | 7          | null        | null        | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
 ;

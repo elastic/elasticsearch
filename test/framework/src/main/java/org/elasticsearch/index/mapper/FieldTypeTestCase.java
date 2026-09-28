@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -141,31 +142,35 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         };
     }
 
+    protected void assertTermQueryWithBinaryDocValues(MappedFieldType ft) throws IOException {
+        assertTermQueryWithBinaryDocValues(ft, Function.identity());
+    }
+
     /**
      * Indexes four document shapes (foo×2, bar×1, empty-string×1) per iteration using
      * {@link BinaryDocValuesField} and verifies that {@link MappedFieldType#termQuery} returns
      * the correct hit counts. Use this for field types whose {@code termQuery} falls back to binary
      * doc values (e.g. high-cardinality keyword or text fields).
      */
-    protected void assertTermQueryWithBinaryDocValues(MappedFieldType ft) throws IOException {
+    protected void assertTermQueryWithBinaryDocValues(MappedFieldType ft, Function<BytesRef, BytesRef> valueEncoding) throws IOException {
         try (Directory dir = newDirectory()) {
             int indexIters = randomIntBetween(1, 10);
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (int i = 0; i < indexIters; i++) {
                     Document doc = new Document();
-                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("foo")));
+                    doc.add(new BinaryDocValuesField(ft.name(), valueEncoding.apply(new BytesRef("foo"))));
                     writer.addDocument(doc);
 
                     doc = new Document();
-                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("bar")));
+                    doc.add(new BinaryDocValuesField(ft.name(), valueEncoding.apply(new BytesRef("bar"))));
                     writer.addDocument(doc);
 
                     doc = new Document();
-                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("foo")));
+                    doc.add(new BinaryDocValuesField(ft.name(), valueEncoding.apply(new BytesRef("foo"))));
                     writer.addDocument(doc);
 
                     doc = new Document();
-                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("")));
+                    doc.add(new BinaryDocValuesField(ft.name(), valueEncoding.apply(new BytesRef(""))));
                     writer.addDocument(doc);
                 }
             }

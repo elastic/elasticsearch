@@ -535,9 +535,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
 
     /**
      * Regression test for the BWC break where the {@code on_disk_merge} byte was added to the ASH per-field meta
-     * record without bumping {@code VERSION_CURRENT}. A reader at the newer build consuming a segment stamped with
-     * the old version read the byte unconditionally, shifting all subsequent field reads and throwing
-     * {@code CorruptIndexException: Invalid vector encoding id: 16777216}.
+     * record without bumping {@code VERSION_CURRENT}.
      */
     public void testReadsSegmentsWrittenBeforeOnDiskMergeByte() throws IOException {
         KnnVectorsFormat oldWriter = new ESNextDiskASHVectorsFormat(

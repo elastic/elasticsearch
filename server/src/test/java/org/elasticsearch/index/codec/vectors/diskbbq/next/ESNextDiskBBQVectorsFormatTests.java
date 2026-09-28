@@ -944,13 +944,7 @@ public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
 
     /**
      * Regression test for the BWC break introduced when {@code on_disk_merge} byte was added to the per-field
-     * meta record without bumping {@code VERSION_CURRENT}. A search node running the newer build tried to read
-     * that byte from segments written by the older build (which never wrote it), causing every subsequent field
-     * read to shift by one byte and throwing {@code CorruptIndexException: Invalid vector encoding id: 16777216}.
-     *
-     * <p>The fix is: {@link ESNextDiskBBQVectorsFormat#VERSION_ON_DISK_MERGE} &gt; {@link
-     * ESNextDiskBBQVectorsFormat#VERSION_START}, so a reader can use the meta version to decide whether the byte
-     * is present.
+     * meta record without bumping {@code VERSION_CURRENT}.
      */
     public void testReadsSegmentsWrittenBeforeOnDiskMergeByte() throws IOException {
         KnnVectorsFormat oldWriter = new ESNextDiskBBQVectorsFormat(

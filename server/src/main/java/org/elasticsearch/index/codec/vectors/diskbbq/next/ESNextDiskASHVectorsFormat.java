@@ -49,10 +49,6 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    // VERSION_ON_DISK_MERGE must be > VERSION_DIRECT_IO so that a reader can distinguish segments written before
-    // the on_disk_merge byte was added (meta version 1, no byte) from segments written after (meta version 2, byte present).
-    // If both versions are equal the reader unconditionally consumes the byte from an old segment and every subsequent
-    // field read shifts, causing CorruptIndexException: Invalid vector encoding id.
     public static final int VERSION_ON_DISK_MERGE = 2;
     public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;

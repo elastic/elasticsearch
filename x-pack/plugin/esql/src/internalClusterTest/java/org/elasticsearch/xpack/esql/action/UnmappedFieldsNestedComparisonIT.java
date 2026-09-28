@@ -104,7 +104,8 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
      *     declared, so it is plain unmapped loading.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
-     * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.</li>
+     * <li>flattened: verifier error when the other index does not map the leaf. When both map it, the
+     *     flattened shard returns null.</li>
      * </ul>
      */
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -120,8 +121,8 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
 
             cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
             cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, NULL),
+            cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, NULL),
             cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
             cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );

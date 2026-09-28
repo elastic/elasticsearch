@@ -113,12 +113,13 @@ setup:
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ fix_nested_subfield_extraction, optional_fields_fix_load_partially_mapped ]
       reason: "SET unmapped_fields=load must still nullify mapped nested subfields"
+  # 9.4 rejects STATS on a partially unmapped non-keyword unless the field is cast.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM nest_int, obj_long | STATS s = SUM(item.value), c = COUNT(item.value)'
+          query: 'SET unmapped_fields="load"; FROM nest_int, obj_long | STATS s = SUM(item.value::long), c = COUNT(item.value::long)'
   - match: { values.0: [ 3, 2 ] }
 
 ---

@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_RECOVERY;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
@@ -887,5 +888,68 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 keyLevelError.getMessage()
             );
         }
+    }
+
+    public void testFeatureGatedParameterInDynamicTemplate() throws IOException {
+        String templateValueA = dynamicTemplateMapping("value", "a");
+        String templateValueB = dynamicTemplateMapping("value", "b");
+
+        // key-level gate rejects the template when it is stored
+        MapperService unsupported = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(unsupported, MAPPING_UPDATE, templateValueA));
+        assertThat(e.getMessage(), containsString("dynamic template [gated_tmpl] has invalid content"));
+        assertEquals(
+            "parameter [gated] on mapper [__dynamic__gated_tmpl] of type [test_mapper] is not supported until all nodes in the cluster"
+                + " support it",
+            e.getRootCause().getMessage()
+        );
+
+        // value-level gate rejects the template when it is stored
+        MapperService featureAOnly = new TestMapperServiceBuilder().clusterSupportsFeature(FEATURE_A::equals).build();
+        e = expectThrows(MapperParsingException.class, () -> merge(featureAOnly, MAPPING_UPDATE, templateValueB));
+        assertThat(e.getMessage(), containsString("dynamic template [gated_tmpl] has invalid content"));
+        assertEquals(
+            "value [b] for parameter [gated] on mapper [__dynamic__gated_tmpl] is not supported until all nodes in the cluster support it",
+            e.getRootCause().getMessage()
+        );
+
+        // recovering a stored template must never fail on the gate
+        merge(unsupported, MAPPING_RECOVERY, templateValueB);
+        assertEquals(templateValueB, unsupported.documentMapper().mappingSource().toString());
+
+        for (String template : List.of(templateValueA, templateValueB)) {
+            MapperService supported = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+            merge(supported, MAPPING_UPDATE, template);
+            assertEquals(template, supported.documentMapper().mappingSource().toString());
+        }
+    }
+
+    // {name} templates are not validated when stored and building the dynamic field during document parsing bypasses the
+    // gate, so the gate is only enforced when the resulting mapping update is merged
+    public void testFeatureGatedParameterInNameTemplateRejectedOnIndexing() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        merge(mapperService, MAPPING_UPDATE, dynamicTemplateMapping("{name}", "a"));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "x")));
+        CompressedXContent update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(update.string(), containsString("\"gated\":\"a\""));
+
+        String expectedMessage =
+            "parameter [gated] on mapper [foo] of type [test_mapper] is not supported until all nodes in the cluster support it";
+
+        // primary-side preflight check
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.isNoOpUpdate(update));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+
+        // master-side merge
+        e = expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", update, MAPPING_AUTO_UPDATE));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+    }
+
+    private static String dynamicTemplateMapping(String required, String gated) {
+        return Strings.format("""
+            {"_doc":{"dynamic_templates":[{"gated_tmpl":{"match":"*","mapping":\
+            {"gated":"%s","required":"%s","type":"test_mapper"}}}]}}""", gated, required);
     }
 }

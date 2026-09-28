@@ -4129,6 +4129,16 @@ public class EsqlCapabilities {
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps declared columns absent from the inferred
+         * schema when the schema is sample-derived (NDJSON, headerless CSV/TSV), instead of rejecting them with
+         * "declared columns not found in the source". The reader then looks them up by name and null-fills records that
+         * do not carry the field. Gates tests that exercise this behaviour so they are skipped against old coordinators
+         * that still throw on sparse declared columns.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/159997">#159997</a>.
+         */
+        FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after

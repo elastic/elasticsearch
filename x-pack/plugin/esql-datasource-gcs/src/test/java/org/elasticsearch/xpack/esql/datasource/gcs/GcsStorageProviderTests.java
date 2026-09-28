@@ -13,6 +13,7 @@ import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
@@ -22,6 +23,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 import org.junit.After;
 
 import java.io.IOException;
@@ -286,6 +288,24 @@ public class GcsStorageProviderTests extends ESTestCase {
             List.of(blob("data/a.parquet", 1), blob("data/b.parquet", 1), blob("data/c.parquet", 1))
         );
         assertNull(provider.listChildren(StoragePath.of("gs://bucket/data"), 2));
+    }
+
+    public void testTestConnectionAnonymousIsUntestable() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, "anonymous");
+        GcsStorageProvider provider = new GcsStorageProvider(config, null);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("anonymous"));
+    }
+
+    public void testTestConnection403IsUntestable() {
+        // A 403 on list-buckets means the credentials are valid but bucket-scoped. The probe should
+        // report untestable rather than failure so working credentials aren't flagged as broken.
+        Storage storage = mock(Storage.class);
+        when(storage.list(any(Storage.BucketListOption[].class))).thenThrow(new StorageException(403, "Forbidden"));
+        GcsStorageProvider provider = new GcsStorageProvider(storage);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("403"));
+        assertThat(ex.userReason(), containsString("dataset"));
     }
 
 }

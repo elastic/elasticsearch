@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -113,6 +114,8 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * CSV/TSV format reader for external datasources.
@@ -412,6 +415,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     static final String CONFIG_SKIP_ROWS = "skip_rows";
 
+    /** Context prefix {@link ExternalFailures#surface} puts on an I/O failure of the record iterator. */
+    static final String READ_RECORD_FAILURE = "Failed to read CSV record";
+
+    /**
+     * The start of Jackson's {@code StreamReadConstraints.maxStringLength} violation message. Jackson formats the numbers
+     * with the default locale, hence {@code \p{Nd}}; {@link Integer#parseInt} reads any Unicode decimal digits.
+     */
+    private static final Pattern JACKSON_FIELD_TOO_LONG = Pattern.compile(
+        "String value length \\((\\p{Nd}+)\\) exceeds the maximum allowed \\((\\p{Nd}+),"
+    );
+
+    /**
+     * Jackson's reference to the constraint that tripped, such as {@code , from `StreamReadConstraints.getMaxStringLength()`}.
+     * {@link #rowErrorReason} strips it from any message {@link #JACKSON_FIELD_TOO_LONG} does not match, so a reworded
+     * Jackson message still does not name a Jackson class.
+     */
+    private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
+
+    /** Mode [escaped] plus an explicit [quote]: the PUT-time error and the read-time warning say the same thing. */
+    static final String ESCAPED_WITH_QUOTE_MESSAGE =
+        "[quote] turns off the [escaped] mode's \\N and \\t decoding; remove [quote] to decode them";
+
     /**
      * Upper bound on {@code skip_rows}. Preambles are a handful of lines; a larger cap would
      * outrun a 64MB first split and leak leftover preamble into split 1. Must stay equal to
@@ -445,9 +470,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
-    private final CsvReaderCounters counters;
     /**
      * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
      * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
@@ -577,45 +599,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean declaredProvenanceBinding,
         List<String> configWarnings
     ) {
-        this(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            null,
-            configWarnings
-        );
-    }
-
-    /**
-     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
-     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
-     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
-     */
-    private CsvFormatReader(
-        BlockFactory blockFactory,
-        CsvFormatOptions options,
-        String format,
-        List<String> extensions,
-        List<Attribute> resolvedSchema,
-        int schemaSampleSize,
-        ErrorPolicy effectivePolicy,
-        String canonicalConfig,
-        String readConfig,
-        boolean directBlockEnabled,
-        Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
-        CsvReaderCounters sharedCounters,
-        List<String> configWarnings
-    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -628,7 +611,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
-        this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -807,17 +789,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // rejects it so the broken config is never stored; a stored one keeps reading and the notice is recorded,
             // not emitted (see configWarnings).
             if (strict) {
-                throw new IllegalArgumentException(
-                    "Mode [escaped] combined with an explicit [quote] turns quoting on, which disables "
-                        + "the escaped-mode decode (\\N to null, \\t to tab); "
-                        + "remove [quote] to keep C-style decoding, or use mode [quoted] to enable quoting explicitly"
-                );
+                throw new IllegalArgumentException(ESCAPED_WITH_QUOTE_MESSAGE);
             }
-            configWarnings.add(
-                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                    + "keep it to parse quoted fields instead."
-            );
+            configWarnings.add(ESCAPED_WITH_QUOTE_MESSAGE);
         }
 
         Object delimiterValue = config.get(CONFIG_DELIMITER);
@@ -1223,9 +1197,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
-        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
-        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
-        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1239,7 +1210,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1331,7 +1301,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        String sourceLocation = object.path().toString();
+        // Only messages read this, so redact once here: a pre-signed URL's query string is a credential.
+        String sourceLocation = ExternalFailures.redactHttpUrl(object.path().toString());
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1498,17 +1469,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int c = 0; c < row.length; c++) {
                 if (isBackslashNullMarker(row[c])) {
                     warningSink.accept(
-                        "["
-                            + format
-                            + "] read from ["
-                            + sourceLocation
-                            + "]: the value at data row ["
+                        "[\\N] at sample row ["
                             + (r + 1)
                             + "], column ["
                             + (c + 1)
-                            + "] is the \\N null marker, but the current mode keeps it as literal text instead of reading "
-                            + "it as null. Set mode=escaped to decode it; do not also set a "
-                            + "quote, which turns the decode back off."
+                            + "] of ["
+                            + sourceLocation
+                            + "] is read as text; "
+                            + (options.escaping() ? "remove [quote]" : "set [mode] to [escaped]")
+                            + " to read it as null"
                     );
                     return;
                 }
@@ -1804,7 +1773,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         capturedErrors = new ArrayList<>(MAX_CAPTURED_SAMPLING_ERRORS);
                     }
                     if (capturedErrors.size() < MAX_CAPTURED_SAMPLING_ERRORS) {
-                        capturedErrors.add(CsvErrorMessages.summarize(e.getMessage()));
+                        capturedErrors.add(rowErrorReason(e.getMessage()));
                     }
                     if (policy.isBudgetExceeded(errorCount, totalRowCount)) {
                         throw budgetExceededSamplingError(errorCount, totalRowCount, policy, capturedErrors, firstCause);
@@ -1841,11 +1810,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new ExternalClientException(
             e,
             "{}",
-            "CSV schema sampling failed at row ["
+            "schema sampling failed at row ["
                 + row
                 + "]: "
-                + CsvErrorMessages.summarize(cause != null ? cause.getMessage() : "(no message)")
-                + "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
+                + rowErrorReason(cause != null ? cause.getMessage() : "(no message)")
+                + "; set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -1857,16 +1826,39 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Throwable firstCause
     ) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
-        StringBuilder details = new StringBuilder("CSV schema sampling exceeded error budget: [").append(errorCount)
+        StringBuilder details = new StringBuilder("schema sampling: [").append(errorCount)
             .append("] errors in [")
             .append(rowCount)
-            .append("] sampled rows, maximum allowed is [")
-            .append(policy.maxErrors())
-            .append("] errors or [")
-            .append(policy.maxErrorRatio())
-            .append("] ratio; first errors: ");
+            .append("] rows, ")
+            .append(policy.trippedLimit(errorCount))
+            .append("; first errors: ");
         appendCapturedErrors(details, capturedErrors);
         return new ExternalClientException(cause, "{}", details.toString());
+    }
+
+    /**
+     * The reason clause of a row the reader could not parse: the cause message without the
+     * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link CsvErrorMessages#summarize}.
+     * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
+     * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
+     * {@link #JACKSON_CONSTRAINT_REFERENCE}.
+     */
+    static String rowErrorReason(String message) {
+        String prefix = READ_RECORD_FAILURE + ": ";
+        String reason = message != null && message.startsWith(prefix) ? message.substring(prefix.length()) : message;
+        if (reason != null) {
+            Matcher tooLong = JACKSON_FIELD_TOO_LONG.matcher(reason);
+            if (tooLong.lookingAt()) {
+                return fieldSizeExceededDetail(Integer.parseInt(tooLong.group(1)), Integer.parseInt(tooLong.group(2)));
+            }
+            reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
+        }
+        return CsvErrorMessages.summarize(reason);
+    }
+
+    /** The reason for a value that does not fit its column's type. */
+    static String cannotRead(String value, DataType type) {
+        return "cannot read [" + CsvErrorMessages.summarize(value) + "] as [" + type.typeName() + "]";
     }
 
     private static ExternalClientException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
@@ -2169,7 +2161,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters,
+            context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
@@ -2180,13 +2172,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    /**
-     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
-     * envelope. Zero-valued counters when no batches have run.
-     */
     @Override
-    public CsvReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new CsvReaderCounters(format);
     }
 
     @Override
@@ -2333,13 +2321,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
-                "pinned schema has "
-                    + readSchema.size()
-                    + " columns but ["
+                "["
                     + object.path()
-                    + "] has only "
+                    + "] has ["
                     + fields.length
-                    + " — the file may have drifted (or set header_row=false if the file has no header row)"
+                    + "] columns, the schema has ["
+                    + readSchema.size()
+                    + "]; set [header_row] to [false] if the file has no header"
             );
         }
         return null;
@@ -2592,7 +2580,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * or {@code \} inside the cell is data, not a quote toggle — otherwise real-world rows like
      * {@code [text",1,2013-...,38,-12345]} would look unclosed here, the splitter would treat the leading {@code [}
      * as literal, and the inner commas would become delimiters, yielding extra columns and the
-     * {@code "row has [N+k] columns but schema defines [N]"} failure.
+     * {@code "[N+k] columns, the schema has [N]"} failure.
      */
     private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
         if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
@@ -2925,20 +2913,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The detail portion of the over-max-field-size error, byte-for-byte the text Jackson's
-     * {@code StreamReadConstraints.maxStringLength} violation produces. Shared by the direct-block
-     * walker ({@link CsvBatchIterator#rejectFieldTooLarge}, which prefixes {@code "CSV parse error: "})
-     * and the house record tokenizer ({@link #splitRecordFields}, which throws it as a
-     * {@link MalformedRowException} that the batch loop re-prefixes identically), so both arms emit the
-     * same message. ASCII digits on purpose (locale-independent), unlike Jackson's {@code FORMAT}-locale
-     * number formatting.
+     * The reason for an over-max-field-size row. Shared by the direct-block walker
+     * ({@link CsvBatchIterator#rejectFieldTooLarge}) and the house record tokenizer ({@link #splitRecordFields},
+     * which throws it as a {@link MalformedRowException}), so both arms emit the same message. ASCII digits on
+     * purpose (locale-independent).
      */
     static String fieldSizeExceededDetail(int valueLen, int maxFieldChars) {
-        return "String value length ("
-            + valueLen
-            + ") exceeds the maximum allowed ("
-            + maxFieldChars
-            + ", from `StreamReadConstraints.getMaxStringLength()`)";
+        return "field of [" + valueLen + "] characters exceeds [" + maxFieldChars + "]";
     }
 
     /**
@@ -3150,7 +3131,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     r++;
                 }
                 if (r < len && record.charAt(r) != delim) {
-                    throw new MalformedRowException("CSV row has unexpected content after a closing quote");
+                    throw new MalformedRowException("unexpected content after a closing quote");
                 }
                 fields.add(value.toString());
                 lastField = r >= len;
@@ -3218,7 +3199,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, "Failed to read CSV record");
+                throw ExternalFailures.surface(e, READ_RECORD_FAILURE);
             }
         }
 
@@ -3389,6 +3370,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
+        /**
+         * {@link #sourceLocation} as messages render it, with an HTTP location's query string and user info removed.
+         * {@link #sourceLocation} itself keys stats and cache entries, so it keeps the location verbatim.
+         */
+        private final String messageLocation;
         private final SkipWarnings skipWarnings;
         /** The read context's informational sink; the read-time null-marker hint goes here. */
         @Nullable
@@ -3528,7 +3514,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
         private final boolean chunkMode;
 
-        // Reader-level counters shared across this iterator and any sibling segments.
+        @Nullable
         private final CsvReaderCounters counters;
 
         /** True when the direct-to-block plain (unquoted) path is eligible (decided once in {@link #read}). */
@@ -3688,6 +3674,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -3706,11 +3693,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
-                "CSV read from ["
-                    + sourceLocation
-                    + "] encountered parse errors handled per policy (policy: "
-                    + errorPolicy.modeName()
-                    + "); affected rows/fields are listed below",
+                errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD
+                    ? "Some values in [" + messageLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed"
+                    : "Some rows in [" + messageLocation + "] cannot be read; skipping them",
                 this.warningSink
             );
         }
@@ -3737,8 +3722,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
-                counters.addRowsEmitted(deltaTotal - deltaErrors);
-                counters.addParseErrors(deltaErrors);
+                if (counters != null) {
+                    counters.addRowsEmitted(deltaTotal - deltaErrors);
+                    counters.addParseErrors(deltaErrors);
+                }
             }
         }
 
@@ -4072,7 +4059,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (headerLine == null) {
                         return null;
                     }
-                    counters.markHeaderDetected();
+                    if (counters != null) {
+                        counters.markHeaderDetected();
+                    }
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
@@ -4279,7 +4268,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     // pragma-dependent count.
                                     recordCapDropped = true;
                                 }
-                                onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                                onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
                             }
                         }
                     }
@@ -4404,7 +4393,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
@@ -4432,7 +4421,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),
@@ -4505,8 +4494,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Discriminates on the binding, not on whether the two numbers happen to coincide: a declaration that names
             // as many columns as the file still bound the row by the FILE's width, and should say so.
             return schemaFieldIndex == null
-                ? "CSV row has [" + actualFields + "] columns but schema defines [" + schemaColumnCount + "] columns"
-                : "CSV row has [" + actualFields + "] columns but the file's header defines [" + rowWidthLimit + "] columns";
+                ? "[" + actualFields + "] columns, the schema has [" + schemaColumnCount + "]"
+                : "[" + actualFields + "] columns, the header has [" + rowWidthLimit + "]";
         }
 
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */
@@ -5462,17 +5451,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Routes an over-long field through the error policy with byte-for-byte the same message Jackson's
-         * {@code StreamReadConstraints.maxStringLength} violation produces (see {@link #read}, which wires
-         * {@code maxFieldSize} into that constraint). The fault is structural and unparsed, so it carries
-         * the {@code EMPTY_ROW} excerpt ({@code <unparsed>}) exactly as the Jackson bulk path does.
+         * Routes an over-long field through the error policy with the same message the Jackson arm reports for a
+         * {@code StreamReadConstraints.maxStringLength} violation (see {@link #read}, which wires {@code maxFieldSize}
+         * into that constraint, and {@link #rowErrorReason}, which renders Jackson's message). The fault is structural
+         * and unparsed, so it carries the {@code EMPTY_ROW} excerpt ({@code <unparsed>}) exactly as the Jackson bulk
+         * path does.
          *
          * @param valueLen the field's value length in characters (trimmed for unquoted fields, decoded for
          *                 quoted fields), matching the length Jackson reports
          * @return always {@code false}, so callers can {@code return rejectFieldTooLarge(len)} to drop the row
          */
         private boolean rejectFieldTooLarge(int valueLen) {
-            onRowError("CSV parse error: " + fieldSizeExceededDetail(valueLen, maxFieldChars), null, EMPTY_ROW, true);
+            onRowError(fieldSizeExceededDetail(valueLen, maxFieldChars), null, EMPTY_ROW, true);
             return false;
         }
 
@@ -5525,7 +5515,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         try {
                             return splitAndConvertQuoted(buf, from, to);
                         } catch (MalformedRowException e) {
-                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                            onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
                             return false;
                         }
                     }
@@ -5543,7 +5533,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     try {
                         return splitAndConvertQuoted(buf, from, to);
                     } catch (MalformedRowException e) {
-                        onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                        onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
                         return false;
                     }
                 }
@@ -5940,7 +5930,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         r++;
                     }
                     if (r < len && buf[r] != delim) {
-                        onRowError("CSV parse error: CSV row has unexpected content after a closing quote", null, EMPTY_ROW, true);
+                        onRowError("unexpected content after a closing quote", null, EMPTY_ROW, true);
                         return false;
                     }
                     if (projected) {
@@ -6426,7 +6416,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
-                    lastFieldError = "Unsupported data type: " + dataType;
+                    lastFieldError = cannotRead(value, dataType);
                     yield null;
                 }
             };
@@ -6541,7 +6531,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
                 default -> {
-                    lastFieldError = "Unsupported data type: " + dataType;
+                    lastFieldError = cannotRead(value, dataType);
                     yield null;
                 }
             };
@@ -6560,27 +6550,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return value;
         }
 
-        // The numeric parsers reuse the ES|QL :: cast engine (EsqlDataTypeConverter.stringToInt/
-        // stringToLong/stringToDouble) so a declared CSV read is value-identical to ::integer/::long/
-        // ::double and to the columnar readers: a fractional/scientific token parses and ROUNDS for the
-        // whole-number targets (e.g. "1.9" -> 2), where the former Integer/Long.parseLong rejected it as
-        // a policy error. The direct-block fast path still parses clean integers straight from the char
-        // buffer and only falls back here for non-integer tokens, so the hot path is unchanged. A failure
-        // stays a per-field policy error (lastFieldError + null), counted against the read's error budget.
+        // Whole-number parsers use DeclaredTypeCoercions.exactToInt/exactToLong/exactToUnsignedLong so a
+        // declared CSV read reports what the file holds: a token must name a whole number exactly
+        // ("2.0", "1e5" succeed; "1.9" fails). This deliberately diverges from ::integer/::long (which
+        // round) and from coerceToUnsignedLong / ::unsigned_long (which truncate). The direct-block fast
+        // path still parses clean ASCII-digit integers straight from the char buffer and only falls back
+        // here for non-digit tokens, so the hot path is unchanged. A failure stays a per-field policy
+        // error (lastFieldError + null), counted against the read's error budget.
         private Object tryParseInt(String value) {
             try {
-                return EsqlDataTypeConverter.stringToInt(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [INTEGER]";
+                return DeclaredTypeCoercions.exactToInt(value);
+            } catch (InvalidArgumentException e) {
+                lastFieldError = cannotRead(value, DataType.INTEGER);
                 return null;
             }
         }
 
         private Object tryParseLong(String value) {
             try {
-                return EsqlDataTypeConverter.stringToLong(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [LONG]";
+                return DeclaredTypeCoercions.exactToLong(value);
+            } catch (InvalidArgumentException e) {
+                lastFieldError = cannotRead(value, DataType.LONG);
                 return null;
             }
         }
@@ -6592,24 +6582,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return Double.parseDouble(value);
             } catch (NumberFormatException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [DOUBLE]";
+                lastFieldError = cannotRead(value, DataType.DOUBLE);
                 return null;
             }
         }
 
         private Object tryParseUnsignedLong(String value) {
             try {
-                // Delegate to the single unsigned_long authority (DeclaredTypeCoercions.coerceToUnsignedLong), the
-                // same scalar the Parquet and ORC declared-read paths use. It parses, range-checks [0, 2^64-1] and
-                // returns the sign-flip block encoding, so a declared unsigned_long reads bit-identically whatever
-                // the file format. Fractional and scientific tokens truncate toward zero, matching ::unsigned_long
-                // and deliberately unlike the round-half behavior of the long/integer coercers.
-                return DeclaredTypeCoercions.coerceToUnsignedLong(value);
-            } catch (IllegalArgumentException e) {
-                // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard, the
-                // ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
-                // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [UNSIGNED_LONG]";
+                // Delegate to the single exact unsigned_long authority (DeclaredTypeCoercions.exactToUnsignedLong),
+                // the same scalar the Parquet and ORC declared-read paths use. It parses whole numbers only,
+                // range-checks [0, 2^64-1] and returns the sign-flip block encoding. Deliberately unlike
+                // coerceToUnsignedLong / ::unsigned_long, which truncate toward zero.
+                return DeclaredTypeCoercions.exactToUnsignedLong(value);
+            } catch (InvalidArgumentException e) {
+                lastFieldError = cannotRead(value, DataType.UNSIGNED_LONG);
                 return null;
             }
         }
@@ -6621,7 +6607,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // all accept exactly true/false case-insensitively and reject everything else.
                 return DeclaredTypeCoercions.strictParseBoolean(value);
             } catch (IllegalArgumentException | InvalidArgumentException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [BOOLEAN]";
+                lastFieldError = cannotRead(value, DataType.BOOLEAN);
                 return null;
             }
         }
@@ -6639,7 +6625,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 try {
                     return DeclaredTypeCoercions.parseDatetimeMillis(value, declaredFormatters[columnIndex]);
                 } catch (Exception e) {
-                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                    lastFieldError = cannotRead(value, DataType.DATETIME);
                     return null;
                 }
             }
@@ -6655,13 +6641,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     try {
                         return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);
                     } catch (Exception e) {
-                        lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                        lastFieldError = cannotRead(value, DataType.DATETIME);
                         return null;
                     }
                 }
                 Long epoch = parseEpoch(value);
                 if (epoch == null) {
-                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                    lastFieldError = cannotRead(value, DataType.DATETIME);
                 }
                 return epoch;
             }
@@ -6702,7 +6688,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return DateUtils.asDateTime(value).toInstant().toEpochMilli();
             } catch (DateTimeParseException e) {
-                lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                lastFieldError = cannotRead(value, DataType.DATETIME);
                 return null;
             }
         }
@@ -6711,7 +6697,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
             } catch (IllegalArgumentException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [IP]";
+                lastFieldError = cannotRead(value, DataType.IP);
                 return null;
             }
         }
@@ -6731,7 +6717,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 try {
                     return EsqlDataTypeConverter.dateNanosToLong(value, declaredFormatters[columnIndex]);
                 } catch (Exception e) {
-                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    lastFieldError = cannotRead(value, DataType.DATE_NANOS);
                     return null;
                 }
             }
@@ -6742,7 +6728,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     try {
                         return EsqlDataTypeConverter.dateNanosToLong(value, datetimeFormatter);
                     } catch (Exception e) {
-                        lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                        lastFieldError = cannotRead(value, DataType.DATE_NANOS);
                         return null;
                     }
                 }
@@ -6750,7 +6736,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (epoch == null || epoch < 0) {
                     // A negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it fails the
                     // cell through the error policy rather than ever emitting a negative nanos long.
-                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    lastFieldError = cannotRead(value, DataType.DATE_NANOS);
                     return null;
                 }
                 return epoch;
@@ -6762,7 +6748,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 if (epoch != null) {
                     // A negative epoch is not a representable date_nanos; fail the cell rather than emit it.
-                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    lastFieldError = cannotRead(value, DataType.DATE_NANOS);
                     return null;
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
@@ -6770,7 +6756,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return EsqlDataTypeConverter.dateNanosToLong(value);
             } catch (IllegalArgumentException e) {
-                lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                lastFieldError = cannotRead(value, DataType.DATE_NANOS);
                 return null;
             }
         }
@@ -6779,7 +6765,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return EsqlDataTypeConverter.stringToVersion(value);
             } catch (IllegalArgumentException e) {
-                lastFieldError = "Failed to parse CSV value [" + value + "] as [VERSION]";
+                lastFieldError = cannotRead(value, DataType.VERSION);
                 return null;
             }
         }
@@ -6811,12 +6797,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 String hint = structural
-                    ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
-                    : "; set error_mode=null_field to null-fill the bad field instead of failing";
+                    ? "; set [error_mode] to [skip_row] to skip the row instead"
+                    : "; set [error_mode] to [null_field] to return null instead";
                 throw new ExternalClientException(
                     cause,
                     "{}",
-                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
+                    "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
             if (structural == false) {
@@ -6826,7 +6812,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectionDependentDrop = true;
             }
             errorCount++;
-            skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
+            skipWarnings.add("row [" + totalRowCount + "]: " + message);
             if (logErrors) {
                 logger.warn(
                     "Skipping malformed CSV row [{}] (error {}/{}): {}",
@@ -6836,13 +6822,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     message
                 );
             }
-            checkBudget(message, cause);
+            checkBudget(cause);
         }
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
             String summarizedValue = CsvErrorMessages.summarize(value);
-            skipWarnings.add("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + summarizedValue + "]: " + message);
+            skipWarnings.add("row [" + totalRowCount + "], column [" + attr.name() + "]: " + message);
             if (logErrors) {
                 logger.warn(
                     "Null-filling unparseable field [{}] value [{}] in row [{}] (error {}/{}): {}",
@@ -6854,33 +6840,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     message
                 );
             }
-            checkBudget(message, null);
+            checkBudget(null);
         }
 
-        private void checkBudget(String message, Exception cause) {
+        private void checkBudget(Exception cause) {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
-                // Surface the budget-exceeded condition as a warning too so clients see which row tripped it
-                // even when the request itself fails.
-                skipWarnings.add(
-                    "CSV error budget exceeded at row ["
-                        + totalRowCount
-                        + "]: ["
-                        + errorCount
-                        + "] errors, maximum ["
-                        + errorPolicy.maxErrors()
-                        + "] or ratio ["
-                        + errorPolicy.maxErrorRatio()
-                        + "]"
-                );
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
                 throw new ExternalClientException(
                     cause,
-                    "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                    "[{}] errors in [{}] rows of [{}]; {}",
                     errorCount,
                     totalRowCount,
-                    errorPolicy.maxErrors(),
-                    errorPolicy.maxErrorRatio()
+                    messageLocation,
+                    errorPolicy.trippedLimit(errorCount)
                 );
             }
         }

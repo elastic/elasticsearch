@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -111,6 +112,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -906,6 +908,8 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
 
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.getSettings()).thenReturn(settings);
+        Mockito.when(clusterService.getClusterSettings())
+            .thenReturn(new ClusterSettings(settings, Set.of(RemoteFetchService.MAX_WORKERS_SETTING)));
         Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
         DiscoveryNode coordinatorNode = DiscoveryNodeUtils.create("coordinator-node");
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

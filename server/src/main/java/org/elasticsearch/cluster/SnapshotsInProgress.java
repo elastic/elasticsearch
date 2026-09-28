@@ -2041,8 +2041,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     entry -> entry.shards()
                         .entrySet()
                         .stream()
-                        .filter(kv -> kv.getValue().state() == ShardState.WAITING)
-                        .map(kv -> Tuple.tuple(entry.snapshot(), kv.getKey()))
+                        .filter(shardIdAndStatus -> shardIdAndStatus.getValue().state() == ShardState.WAITING)
+                        .map(shardIdAndStatus -> Tuple.tuple(entry.snapshot(), shardIdAndStatus.getKey()))
                 )
                 .collect(toSet());
         }

@@ -177,7 +177,7 @@ public class GeoHexGridTilerTests extends ESTestCase {
         int precision = randomIntBetween(1, 4);
         GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, null);
         GeoShapeDocValues shape = shape(geometry);
-        GeoHexGridTiler.Cells recursive = new GeoHexGridTiler.Cells(NO_LIMIT, m -> {});
+        GridCells recursive = new GridCells("ST_GEOHEX", NO_LIMIT, m -> {});
         tiler.setValuesByRecursion(recursive, shape);
         List<Long> bruteForce = new ArrayList<>();
         for (long h3 : H3.getLongRes0Cells()) {

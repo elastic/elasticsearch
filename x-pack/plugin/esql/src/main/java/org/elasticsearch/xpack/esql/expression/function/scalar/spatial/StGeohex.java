@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -256,7 +255,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
                 GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, bbox);
-                return wkb -> toList(tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning));
+                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -276,7 +275,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
                 GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, null);
-                return wkb -> toList(tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning));
+                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
@@ -415,8 +414,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      * The fold path emits warnings via HTTP response headers using {@link SpatialGridFunction#foldWarningConsumer()};
      * the evaluator path passes {@code warnings::registerWarning} so the user sees a driver-context warning.
      */
-    static List<Long> computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
-        throws IOException {
+    static long[] computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation) throws IOException {
         return computeGeohexCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
     }
 
@@ -425,8 +423,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      * available. Builds a fresh {@link GeoHexGridTiler}, so callers computing cells for many shapes should instead keep
      * one tiler per thread, as the evaluator and the block loader do.
      */
-    static List<Long> computeGeohexCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+    static long[] computeGeohexCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        return toList(GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, MAX_GRID_CELLS, onTruncation));
+        return GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, MAX_GRID_CELLS, onTruncation);
     }
 }

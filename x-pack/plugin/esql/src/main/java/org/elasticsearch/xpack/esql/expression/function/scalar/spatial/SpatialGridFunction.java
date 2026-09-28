@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -303,37 +302,48 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         };
     }
 
-    protected static long[] toLongArray(List<Long> list) {
-        long[] array = new long[list.size()];
-        for (int i = 0; i < list.size(); i++) {
-            array[i] = list.get(i);
-        }
-        return array;
-    }
-
-    protected static List<Long> toList(long[] array) {
-        List<Long> list = new ArrayList<>(array.length);
-        for (long v : array) {
-            list.add(v);
-        }
-        return list;
-    }
-
     @Override
     public boolean foldable() {
         return spatialField.foldable() && parameter.foldable() && (bounds == null || bounds.foldable());
     }
 
-    protected static void addGrids(LongBlock.Builder results, List<Long> gridIds) {
-        if (gridIds.isEmpty()) {
+    protected static void addGrids(LongBlock.Builder results, long[] gridIds) {
+        addGrids(results, gridIds, gridIds.length);
+    }
+
+    protected static void addGrids(LongBlock.Builder results, long[] gridIds, int count) {
+        if (count == 0) {
             results.appendNull();
-        } else if (gridIds.size() == 1) {
-            results.appendLong(gridIds.getFirst());
+        } else if (count == 1) {
+            results.appendLong(gridIds[0]);
         } else {
             results.beginPositionEntry();
+            for (int i = 0; i < count; i++) {
+                results.appendLong(gridIds[i]);
+            }
+            results.endPositionEntry();
+        }
+    }
+
+    /** Appends the cells of all values of one multi-valued position, flattened into a single entry. */
+    private static void addGrids(LongBlock.Builder results, long[][] gridIdsPerValue) {
+        int count = 0;
+        for (long[] gridIds : gridIdsPerValue) {
+            count += gridIds.length;
+        }
+        if (count == 0) {
+            results.appendNull();
+            return;
+        }
+        if (count > 1) {
+            results.beginPositionEntry();
+        }
+        for (long[] gridIds : gridIdsPerValue) {
             for (long gridId : gridIds) {
                 results.appendLong(gridId);
             }
+        }
+        if (count > 1) {
             results.endPositionEntry();
         }
     }
@@ -351,16 +361,16 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
     }
 
     /**
-     * Converts a {@link List}{@code <Long>} of cell IDs to the fold-result format: {@code null} for empty,
-     * a single {@link Long} for one cell, or a {@link List}{@code <Long>} for multiple cells.
+     * Converts cell IDs to the fold-result format: {@code null} for empty, a single {@link Long} for one cell,
+     * or a {@link List}{@code <Long>} for multiple cells.
      */
-    protected static Object foldMultiValue(List<Long> cells) {
-        if (cells.isEmpty()) {
+    protected static Object foldMultiValue(long[] cells) {
+        if (cells.length == 0) {
             return null;
-        } else if (cells.size() == 1) {
-            return cells.get(0);
+        } else if (cells.length == 1) {
+            return cells[0];
         } else {
-            return cells;
+            return Arrays.stream(cells).boxed().toList();
         }
     }
 
@@ -387,7 +397,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
      */
     @FunctionalInterface
     protected interface GeoShapeCellsComputer {
-        List<Long> compute(BytesRef wkb) throws IOException;
+        long[] compute(BytesRef wkb) throws IOException;
     }
 
     protected static void fromWKB(
@@ -409,9 +419,9 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
             addGridIdsFromWkb(results, wkbBlock.getBytesRef(firstValueIndex, scratch), precision, unboundedGrid, cellsComputer);
         } else {
             // multi-valued field — flatten all grid ids from all values
-            List<Long> gridIds = new ArrayList<>();
+            long[][] gridIds = new long[valueCount][];
             for (int i = 0; i < valueCount; i++) {
-                appendGridIds(gridIds, wkbBlock.getBytesRef(firstValueIndex + i, scratch), precision, unboundedGrid, cellsComputer);
+                gridIds[i] = gridIds(wkbBlock.getBytesRef(firstValueIndex + i, scratch), precision, unboundedGrid, cellsComputer);
             }
             addGrids(results, gridIds);
         }
@@ -436,22 +446,15 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         }
     }
 
-    private static void appendGridIds(
-        List<Long> gridIds,
-        BytesRef wkb,
-        int precision,
-        UnboundedGrid unboundedGrid,
-        GeoShapeCellsComputer cellsComputer
-    ) {
+    private static long[] gridIds(BytesRef wkb, int precision, UnboundedGrid unboundedGrid, GeoShapeCellsComputer cellsComputer) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
-            gridIds.add(unboundedGrid.calculateGridId(point, precision));
-        } else {
-            try {
-                gridIds.addAll(cellsComputer.compute(wkb));
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
-            }
+            return new long[] { unboundedGrid.calculateGridId(point, precision) };
+        }
+        try {
+            return cellsComputer.compute(wkb);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
         }
     }
 
@@ -496,9 +499,9 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         if (valueCount == 1) {
             addBoundedGridIdsFromWkb(results, wkbBlock.getBytesRef(firstValueIndex, scratch), bounds, cellsComputer);
         } else {
-            var gridIds = new ArrayList<Long>();
+            long[][] gridIds = new long[valueCount][];
             for (int i = 0; i < valueCount; i++) {
-                appendBoundedGridIds(gridIds, wkbBlock.getBytesRef(firstValueIndex + i, scratch), bounds, cellsComputer);
+                gridIds[i] = boundedGridIds(wkbBlock.getBytesRef(firstValueIndex + i, scratch), bounds, cellsComputer);
             }
             addGrids(results, gridIds);
         }
@@ -528,19 +531,16 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         }
     }
 
-    private static void appendBoundedGridIds(List<Long> gridIds, BytesRef wkb, BoundedGrid bounds, GeoShapeCellsComputer cellsComputer) {
+    private static long[] boundedGridIds(BytesRef wkb, BoundedGrid bounds, GeoShapeCellsComputer cellsComputer) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             long grid = bounds.calculateGridId(point);
-            if (grid != -1L) {
-                gridIds.add(grid);
-            }
-        } else {
-            try {
-                gridIds.addAll(cellsComputer.compute(wkb));
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
-            }
+            return grid == -1L ? EMPTY_LONG_ARRAY : new long[] { grid };
+        }
+        try {
+            return cellsComputer.compute(wkb);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
         }
     }
 
@@ -558,14 +558,15 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
                     results.appendLong(grid);
                 }
             } else {
-                var gridIds = new ArrayList<Long>(valueCount);
+                long[] gridIds = new long[valueCount];
+                int count = 0;
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)));
+                    long grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)));
                     if (grid != -1L) {
-                        gridIds.add(grid);
+                        gridIds[count++] = grid;
                     }
                 }
-                addGrids(results, gridIds);
+                addGrids(results, gridIds, count);
             }
         }
     }

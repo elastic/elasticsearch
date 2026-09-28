@@ -14,7 +14,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -71,7 +70,7 @@ public abstract class GeoHexGridTiler {
      * the partial array is returned.
      */
     public long[] cells(GeoShapeDocValues shape, int maxCells, Consumer<String> onTruncation) throws IOException {
-        Cells cells = new Cells(maxCells, onTruncation);
+        GridCells cells = new GridCells("ST_GEOHEX", maxCells, onTruncation);
         assert shape.minLon() <= shape.maxLon();
         // first check if we are touching just fetch cells
         if (shape.maxLon() - shape.minLon() < 180d) {
@@ -90,7 +89,7 @@ public abstract class GeoHexGridTiler {
     /**
      * It calls {@link #maybeAdd(long, GeoRelation, Cells)} for {@code h3} and the neighbour cells if necessary.
      */
-    private void setValuesFromPointResolution(long h3, Cells cells, GeoShapeDocValues shape) throws IOException {
+    private void setValuesFromPointResolution(long h3, GridCells cells, GeoShapeDocValues shape) throws IOException {
         {
             final GeoRelation relation = relateTile(shape, h3);
             maybeAdd(h3, relation, cells);
@@ -136,7 +135,7 @@ public abstract class GeoHexGridTiler {
      * Adds {@code h3} to the cells if {@link #relateTile(GeoShapeDocValues, long)} returned a relation different to
      * {@link GeoRelation#QUERY_DISJOINT}.
      */
-    private static void maybeAdd(long h3, GeoRelation relation, Cells cells) {
+    private static void maybeAdd(long h3, GeoRelation relation, GridCells cells) {
         if (relation != GeoRelation.QUERY_DISJOINT) {
             cells.add(h3);
         }
@@ -147,7 +146,7 @@ public abstract class GeoHexGridTiler {
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
     // package private for testing
-    void setValuesByRecursion(Cells cells, GeoShapeDocValues shape) throws IOException {
+    void setValuesByRecursion(GridCells cells, GeoShapeDocValues shape) throws IOException {
         // NOTE: When we recurse, we cannot shortcut for CONTAINS relationship because it might fail when visiting noChilds.
         if (shape.maxLon() - shape.minLon() < 180d) {
             final long singleCell = boundsInSameCell(shape, 0);
@@ -174,7 +173,7 @@ public abstract class GeoHexGridTiler {
      * Recursively search the H3 tree, only following branches that intersect the geometry.
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
-    private void setValuesByRecursion(Cells cells, GeoShapeDocValues shape, long h3, int precision) throws IOException {
+    private void setValuesByRecursion(GridCells cells, GeoShapeDocValues shape, long h3, int precision) throws IOException {
         assert H3.getResolution(h3) == precision;
         if (cells.full()) {
             return;
@@ -216,7 +215,7 @@ public abstract class GeoHexGridTiler {
      * Recursively scan the H3 tree, assuming all children are fully contained in the geometry.
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
-    private void setAllValuesByRecursion(Cells cells, long h3, int precision, boolean valueInsideBounds) {
+    private void setAllValuesByRecursion(GridCells cells, long h3, int precision, boolean valueInsideBounds) {
         if (cells.full()) {
             return;
         }
@@ -229,44 +228,6 @@ public abstract class GeoHexGridTiler {
                     setAllValuesByRecursion(cells, H3.childPosToH3(h3, i), precision + 1, valueInsideBounds);
                 }
             }
-        }
-    }
-
-    /** Collects cells up to a limit, warning once through the callback when the limit is reached. */
-    static final class Cells {
-        private long[] array;
-        private int size;
-        private final int maxCells;
-        private final Consumer<String> onTruncation;
-        private boolean full;
-
-        Cells(int maxCells, Consumer<String> onTruncation) {
-            this.maxCells = maxCells;
-            this.onTruncation = onTruncation;
-            this.array = new long[Math.min(maxCells, 16)];
-        }
-
-        void add(long h3) {
-            if (full) {
-                return;
-            }
-            if (size >= maxCells) {
-                full = true;
-                onTruncation.accept("ST_GEOHEX generated more than " + maxCells + " grid cells");
-                return;
-            }
-            if (size == array.length) {
-                array = Arrays.copyOf(array, Math.min(size * 2, maxCells));
-            }
-            array[size++] = h3;
-        }
-
-        boolean full() {
-            return full;
-        }
-
-        long[] toArray() {
-            return size == array.length ? array : Arrays.copyOf(array, size);
         }
     }
 

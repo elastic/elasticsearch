@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -219,23 +220,27 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
      */
     private static void assertGeohexCellsMatchBruteForce(Geometry geometry, int precision) throws IOException {
         BytesRef wkb = GEO.asWkb(geometry);
-        List<Long> recursive = new ArrayList<>(StGeohex.computeGeohexCells(wkb, precision, null, w -> {}));
+        long[] recursive = StGeohex.computeGeohexCells(wkb, precision, null, w -> {});
         List<Long> brute = bruteForceGeohexCells(wkb, precision, null);
-        Collections.sort(recursive);
+        Arrays.sort(recursive);
         Collections.sort(brute);
-        assertEquals("ST_GEOHEX recursive and brute-force results differ at precision " + precision, brute, recursive);
+        assertEquals(
+            "ST_GEOHEX recursive and brute-force results differ at precision " + precision,
+            brute,
+            Arrays.stream(recursive).boxed().toList()
+        );
     }
 
     private static void assertGeohexCellsMatchBruteForce(Geometry geometry, int precision, GeoBoundingBox bbox) throws IOException {
         BytesRef wkb = GEO.asWkb(geometry);
-        List<Long> recursive = new ArrayList<>(StGeohex.computeGeohexCells(wkb, precision, bbox, w -> {}));
+        long[] recursive = StGeohex.computeGeohexCells(wkb, precision, bbox, w -> {});
         List<Long> brute = bruteForceGeohexCells(wkb, precision, bbox);
-        Collections.sort(recursive);
+        Arrays.sort(recursive);
         Collections.sort(brute);
         assertEquals(
             "ST_GEOHEX recursive and brute-force results differ at precision " + precision + " with bbox " + bbox,
             brute,
-            recursive
+            Arrays.stream(recursive).boxed().toList()
         );
     }
 

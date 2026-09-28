@@ -959,7 +959,8 @@ class NodeConstruction {
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1438,7 +1439,6 @@ class NodeConstruction {
 
             resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
-            resourcesToClose.add(recoveryMetricsCollector);
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
@@ -1652,7 +1652,7 @@ class NodeConstruction {
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService, projectResolver),
             new DiskHealthIndicatorService(clusterService, projectResolver),
-            new ShardsCapacityHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService, projectResolver),
             new FileSettingsHealthIndicatorService()
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)

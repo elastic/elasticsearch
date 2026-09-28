@@ -65,6 +65,34 @@ public class BytesRefArrayStateTests extends ESTestCase {
         );
     }
 
+    public void testCloseSkipsNullGroupsButReleasesEverySetGroup() {
+        var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
+        var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var countingBreaker = new ReleaseCountingCircuitBreaker(breaker);
+
+        var state = new BytesRefArrayState(bigArrays, countingBreaker, "test");
+        state.enableGroupIdTracking(new SeenGroupIds.Empty());
+
+        // Deterministically leave every even groupId unset (null), guaranteeing close() must skip
+        // real null entries rather than relying on random chance to exercise that path.
+        int numGroups = 20;
+        for (int g = 1; g < numGroups; g += 2) {
+            state.set(g, new BytesRef(randomByteArrayOfLength(randomIntBetween(0, 64))));
+        }
+        for (int g = 0; g < numGroups; g += 2) {
+            assertFalse("group " + g + " should be unset/null", state.hasValue(g));
+        }
+
+        assertThat("breaker should be holding memory for the set groups before close", breaker.getUsed(), greaterThan(0L));
+
+        long releaseCallsBeforeClose = countingBreaker.releaseCalls.get();
+        state.close();
+        long releaseCallsDuringClose = countingBreaker.releaseCalls.get() - releaseCallsBeforeClose;
+
+        assertThat("breaker must be fully released after close even with null groups present", breaker.getUsed(), equalTo(0L));
+        assertThat("null groups must not cause extra breaker calls", releaseCallsDuringClose, equalTo(1L));
+    }
+
     public void testCloseWithNoValuesTouchesBreakerZeroTimes() {
         var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
         var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);

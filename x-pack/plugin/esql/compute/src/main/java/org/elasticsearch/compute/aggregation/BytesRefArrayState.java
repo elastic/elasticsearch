@@ -172,12 +172,15 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     @Override
     public void close() {
-        // Release all groups' builders with a single batched breaker call, rather than one
-        // per group -- avoids repeatedly tripping the parent breaker's AtomicLong on high-cardinality BY keys.
+        // Release all groups' builders with a single batched breaker call, rather than one per
+        // group -- avoids repeatedly tripping the parent breaker's AtomicLong on high-cardinality
+        // BY keys. Relies on every builder here sharing this exact breaker instance (asserted
+        // below) and on BreakingBytesRefBuilder.close()'s documented contract (see its Javadoc).
         long releasedBytes = 0;
         for (int i = 0; i < values.size(); i++) {
             var builder = values.get(i);
             if (builder != null) {
+                assert builder.breaker() == breaker : "builder uses a different breaker than this BytesRefArrayState";
                 releasedBytes += builder.ramBytesUsed();
             }
         }

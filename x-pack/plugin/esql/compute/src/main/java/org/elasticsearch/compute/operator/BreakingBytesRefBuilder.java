@@ -107,6 +107,11 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         bytes.length = length;
     }
 
+    /** The breaker use by this builder.  */
+    public CircuitBreaker breaker() {
+        return breaker;
+    }
+
     /**
      * Append a byte.
      */
@@ -166,6 +171,12 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity);
     }
 
+    /**
+     * Releases exactly {@link #ramBytesUsed()} bytes from the breaker and nothing else.
+     * {@link org.elasticsearch.compute.aggregation.BytesRefArrayState#close()} relies on this
+     * exact contract to batch many builders' releases into a single breaker call. If this method
+     * ever does more than that one breaker release, revisit that batching logic too.
+     */
     @Override
     public void close() {
         breaker.addWithoutBreaking(-ramBytesUsed());

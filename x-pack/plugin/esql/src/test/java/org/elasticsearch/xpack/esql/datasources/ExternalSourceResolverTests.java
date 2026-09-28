@@ -2060,15 +2060,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A cacheable provider is the shape that matters here: the local filesystem does not support stable metadata,
-     * so it never consults the listing cache and a filesystem-backed test cannot see this at all. S3 does.
-     *
-     * <p>The second resolve is the assertion. It runs over the same glob, through the same cache, immediately
-     * after a schema discovery resolve that listed a prefix — so if that prefix had been written to the cache it would
-     * be served here, and a query that reads rows would scan 1,000 files of a 2,500-file dataset and report
-     * success.
-     */
-    /**
      * A dataset's partition columns are derived from the paths its schema's listing saw, so they are the dataset's
      * answer and not the query's. Before the two listings were separated, a query reading rows folded over every
      * path while one reading none folded over a sample, and a value late in listing order could widen a column's
@@ -2154,6 +2145,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("and lists no more for a reading query", listsForNoRows, readingProvider.listCallCount.get());
             assertEquals("and opens no more files for it", opensForNoRows, readingProvider.schemaCallCount.get());
             assertEquals("one file defines the schema under first_file_wins", 1, opensForNoRows);
+
+            // And the bounded listing never reached the shared cache. This is the invariant with no downstream
+            // catch: a prefix served from the cache to a later query would have it read a fraction of the dataset
+            // and report success. A second resolve through the same cache has to list again.
+            resolveWithNoRowPaths(resolver, Set.of(GLOB));
+            assertThat(
+                "a truncated listing must never be served from the listing cache",
+                provider.listCallCount.get(),
+                greaterThan(listsForNoRows)
+            );
         }
     }
 

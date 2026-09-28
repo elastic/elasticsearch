@@ -62,7 +62,7 @@ public record SplitDiscoveryContext(
     @Nullable Set<String> retainedPartitionKeys,
     // How many rows the query needs from this relation, or FormatReader.NO_LIMIT when the commands above it make no
     // promise about that count. A provider may use it to stop producing splits once the demand is covered; one that
-    // ignores it produces them all, as every provider does today.
+    // ignores it produces them all, which every provider but FileSplitProvider does.
     int rowLimit
 ) {
     public SplitDiscoveryContext(

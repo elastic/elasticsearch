@@ -138,71 +138,44 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * The declared rail, bounded. A declared mapping is the whole schema, so no file is read to know the columns
-     * and one bounded listing answers what is left — the file count and the partition columns. The file set is
-     * still the whole dataset.
-     * <p>
-     * {@code schema_resolution} is set explicitly because the bound turns on it: {@code FileOrderConfig#forListing}
-     * answers name-ascending for every other mode, and {@code listingExtentsFor} declines a bound for any order but
-     * the default. A declared dataset that leaves it unset is never bounded and this case would assert nothing.
-     */
-    /**
      * A text format, where a file's columns come from reading it rather than from a footer, and where the read is
-     * positional. Files past the prefix carry a fourth column the anchor does not have.
+     * positional. One file defines the dataset's columns; the eleven past it carry a fourth column it does not have,
+     * and a row that does not fit the dataset's schema is a row error.
      * <p>
-     * Under {@code first_file_wins} the anchor's schema is the dataset's, and a row that does not fit it is a row
-     * error — which is what a file inside the prefix gets, and what every file got before a listing could be a
-     * prefix at all. This is the case that shows the per-file read schema has to travel with the file set: left
-     * behind, a file past the prefix is read under its own columns instead, and the same dataset answers a query
-     * that the dataset's own schema says is an error.
+     * {@code partition_sample_size} is 1 so the prefix is a single file, which is what makes this deterministic
+     * without naming a file order — naming one declines the bound. Whichever file the provider lists first, the
+     * other width does not fit it, so the error is raised either way; and answered from that one file alone there is
+     * nothing to disagree with it and no error at all, which is what fails when the seam is reverted.
      */
     public void testATextFilePastThePrefixIsReadUnderTheAnchorsColumns() throws Exception {
         Path dir = createTempDir();
         int files = 12;
         int rowsPerFile = 10;
-        // A comma-separated resource list, not a glob: it is the one way to have both a bounded listing and a known
-        // first file, since file_sort_by declines the bound. The first two files are the prefix, and they agree.
-        StringBuilder resource = new StringBuilder();
         for (int i = 0; i < files; i++) {
-            boolean anchorShaped = i < 2;
-            StringBuilder csv = new StringBuilder(anchorShaped ? "id,name,value\n" : "id,name,value,extra\n");
+            boolean narrow = i == 0;
+            StringBuilder csv = new StringBuilder(narrow ? "id,name,value\n" : "id,name,value,extra\n");
             for (int r = 0; r < rowsPerFile; r++) {
                 int id = i * rowsPerFile + r;
-                csv.append(id).append(",row_").append(id).append(',').append(id * 10).append(anchorShaped ? "\n" : ",spare\n");
+                csv.append(id).append(",row_").append(id).append(',').append(id * 10).append(narrow ? "\n" : ",spare\n");
             }
-            Path file = dir.resolve(String.format(Locale.ROOT, "part-%03d.csv", i));
-            Files.writeString(file, csv.toString(), StandardCharsets.UTF_8);
-            resource.append(resource.isEmpty() ? "" : ",").append(file.toUri());
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%03d.csv", i)), csv.toString(), StandardCharsets.UTF_8);
         }
 
         Map<String, Object> settings = new HashMap<>();
         settings.put("format", "csv");
         settings.put("schema_resolution", "first_file_wins");
-        settings.put("partition_sample_size", 2);
-        String dataset = registerLocalFileDataset("prefix_csv_ds", resource.toString(), settings);
+        settings.put("partition_sample_size", 1);
+        String dataset = registerLocalFileDataset("prefix_csv_ds", dir.toUri() + "*.csv", settings);
 
         Exception e = expectThrows(
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile)).close()
         );
         assertThat(
-            "a file past the prefix is read under the dataset's three columns, so its fourth column is a row error",
+            "a file past the prefix is read under the dataset's columns, so a row of another width is an error",
             e.getMessage() + causeChain(e),
-            containsString("the schema has [3]")
+            containsString("columns, the schema has")
         );
-
-        // And under a policy that drops such a row, the answer comes from the files that do fit the schema: the
-        // two the prefix held. Left unpinned, the other ten would be read under their own four columns and counted.
-        Map<String, Object> skipping = new HashMap<>(settings);
-        skipping.put("error_mode", "skip_row");
-        String skippingDataset = registerLocalFileDataset("prefix_csv_skip_ds", resource.toString(), skipping);
-        try (var response = run(syncEsqlQueryRequest("FROM " + skippingDataset + " | STATS c = COUNT(*)"))) {
-            assertThat(
-                "rows that do not fit the dataset's schema are dropped, not silently widened",
-                ((Number) getValuesList(response).get(0).get(0)).longValue(),
-                equalTo(2L * rowsPerFile)
-            );
-        }
     }
 
     /** Flattens an exception's causes so an assertion can match a message the transport wrapped. */
@@ -214,6 +187,15 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         return sb.toString();
     }
 
+    /**
+     * The declared rail, bounded. A declared mapping is the whole schema, so no file is read to know the columns
+     * and one bounded listing answers what is left — the file count and the partition columns. The file set is
+     * still the whole dataset.
+     * <p>
+     * {@code schema_resolution} is set explicitly because the bound turns on it: {@code FileOrderConfig#forListing}
+     * answers name-ascending for every other mode, and {@code listingExtentsFor} declines a bound for any order but
+     * the default. A declared dataset that leaves it unset is never bounded and this case would assert nothing.
+     */
     public void testEveryFileIsReadUnderADeclaredMapping() throws Exception {
         Path dir = createTempDir();
         int files = 12;

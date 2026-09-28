@@ -562,7 +562,7 @@ public class ExternalSourceResolver {
         resolve(paths, pathConfigs, filterHints, null, null, null, listener);
     }
 
-    /** As below, with no schema discovery information: no path may bound its listing. */
+    /** As below, with no schema discovery information: every path resolves as one that reads rows. */
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
@@ -588,8 +588,8 @@ public class ExternalSourceResolver {
      *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
      *        {@link ExternalStatsRequirementExtractor#pathsRequiringEagerStats}.
      * @param pathsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
-     *        nothing else and may stop listing once it has one. {@code null} leaves every path resolving as a
-     *        reading query, which is what every existing call site does. See
+     *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
+     *        reading query too. {@code null} leaves every path resolving as a reading query. See
      *        {@link SchemaDiscoveryPathExtractor#pathsReadingNoRows}.
      */
     public void resolve(
@@ -1298,9 +1298,9 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         Map<StoragePath, Map<String, DataType>> inferredTypesByPath
     ) {
-        // The schema's listing answers what the columns are - the anchor, and the partition columns derived from
-        // the paths it saw. The scan's file set answers which files get read, and is what the per-file map below
-        // and the resolved source carry.
+        // The schema's listing answers what the anchor is. The scan's file set answers which files get read, and is
+        // what the per-file map below, the resolved source, and the partition columns come off - the two are the
+        // same listing here, and detection ran over whichever paths that listing returned.
         FileList schemaListing = discovery.schemaListing();
         FileList listing = discovery.scanFileSet();
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
@@ -3738,7 +3738,8 @@ public class ExternalSourceResolver {
         // A declared mapping is used whatever schema_resolution says, so no file defines the schema — a null
         // resolution is how that is said here. The file order is still consulted in listingExtentsFor, where
         // forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping is bounded only
-        // under first_file_wins, the default.
+        // where schema_resolution says first_file_wins. A dataset persisted without that setting does not:
+        // DatasetRewriter hydrates union_by_name onto the query config for those, so it must be set to reach this.
         ListingExtents extents = listingExtentsFor(demand, null, config);
         // Same rule as the inferred rail, and here it always answers the same way: a declared mapping is read from
         // no file, so what is left for this listing to answer - the file count, the partition columns, and which

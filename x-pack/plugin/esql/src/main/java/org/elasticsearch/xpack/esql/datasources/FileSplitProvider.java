@@ -460,8 +460,9 @@ public class FileSplitProvider implements SplitProvider {
             // file then reads null for every partition column, so this is the loudest case rather than a quiet one.
             LOGGER.warn(
                 "[{}]: the dataset's partition columns {} were detected over a sample of its paths, and the full "
-                    + "listing agrees with none of them, so every file reads null for them. Raise [{}] so the "
-                    + "columns are decided over paths the whole dataset shares.",
+                    + "listing agrees with none of them, so every file reads null for them. Either those paths do not "
+                    + "share one key set, in which case the dataset has no partition columns to report, or [{}] is too "
+                    + "small to have reached the ones they do share.",
                 handed.metadata() == null ? "?" : handed.metadata().location(),
                 conformed.partitionColumns().keySet(),
                 PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE

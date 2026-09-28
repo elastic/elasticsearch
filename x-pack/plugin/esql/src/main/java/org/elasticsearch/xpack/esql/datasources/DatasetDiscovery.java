@@ -24,14 +24,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
  * for the files a query reads and for anything counted over them, such as the dataset's file count and its
  * aggregated statistics — a prefix's count is not a dataset's.
  * <p>
- * Both sides are the same listing today, and {@link #shared} is how that is said. Letting them differ is the
- * next step, and every consumer being on the right side of the line is what makes it safe.
+ * Both sides are the same listing here, and {@link #shared} is how that is said. Where they differ is past this
+ * type: split discovery swaps in the query's own file set through {@code SplitDiscoveryContext#withScanFileSet},
+ * and this names the distinction that swap rests on.
  */
 public record DatasetDiscovery(FileList schemaListing, FileList scanFileSet) {
 
     /**
-     * One listing answering both questions, which is where this starts: the schema's listing is complete, so the
-     * scan can read it as its own file set.
+     * One listing standing for both answers, which is every construction site today. Whether it can serve as the
+     * scan's file set is a question about it rather than a promise made here - {@link #schemaListingIsComplete}
+     * is what asks.
      */
     public static DatasetDiscovery shared(FileList listing) {
         return new DatasetDiscovery(listing, listing);

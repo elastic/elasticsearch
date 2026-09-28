@@ -4159,7 +4159,7 @@ public class GlobExpanderTests extends ESTestCase {
      * Whether a bound is eligible at all — no narrowing hints, no dataset-chosen file order — is decided once, by
      * the resolver, before it chooses between the listing cache and a bounded expansion. Stating that rule here as
      * well is what let the two statements drift; the decline it used to assert now lives in
-     * {@code ExternalSourceResolverTests#testPartitionPruningHintDeclinesTheBound}.
+     * {@code ExternalSourceResolverTests#testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt}.
      */
     public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));

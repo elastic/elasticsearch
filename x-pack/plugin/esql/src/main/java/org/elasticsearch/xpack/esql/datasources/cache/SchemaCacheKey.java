@@ -34,8 +34,7 @@ public record SchemaCacheKey(
     String endpoint,
     String region,
     @Nullable FileSetFingerprint fileSetFingerprint,
-    String definitionVersion,
-    @Nullable String readConfig
+    String definitionVersion
 ) {
     // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
     // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
@@ -114,41 +113,6 @@ public record SchemaCacheKey(
         return v instanceof String s ? s : "";
     }
 
-    /**
-     * The key addressing a file's harvested statistics, which depend on the schema the file was read at
-     * as well as on the file. {@code readConfig} is that read's configuration — the columns bound, their
-     * types, how they were bound and any declared date pattern — the value {@link ReadConfigFingerprint}
-     * produces and {@link ExternalStats#READ_CONFIG_FINGERPRINT_KEY} carries on a contribution.
-     * <p>
-     * A schema key leaves it null, because a file's schema does not depend on how anything read it. That
-     * is the whole distinction: one record per file for what the file is, one per read for what a read of
-     * it measured.
-     * <p>
-     * The writer keys by what it measured under and the reader by what it is about to read under, so the
-     * two meet when it is the same read and miss otherwise. A miss costs a scan; a match that should not
-     * have happened costs a wrong answer, which is why this is a key rather than a value compared later.
-     */
-    public static SchemaCacheKey forStatistics(
-        String canonicalPath,
-        long mtime,
-        String formatType,
-        Map<String, Object> config,
-        String readConfig
-    ) {
-        EndpointRegion location = EndpointRegion.of(config);
-        return new SchemaCacheKey(
-            canonicalPath,
-            mtime,
-            formatType != null ? formatType : "",
-            buildFormatConfig(config),
-            location.endpoint(),
-            location.region(),
-            null,
-            definitionVersionOf(config),
-            readConfig
-        );
-    }
-
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
         EndpointRegion location = EndpointRegion.of(config);
         String formatConfig = buildFormatConfig(config);
@@ -160,8 +124,7 @@ public record SchemaCacheKey(
             location.endpoint(),
             location.region(),
             null,
-            definitionVersionOf(config),
-            null
+            definitionVersionOf(config)
         );
     }
 
@@ -233,8 +196,7 @@ public record SchemaCacheKey(
             location.endpoint(),
             location.region(),
             fingerprint,
-            definitionVersionOf(config),
-            null
+            definitionVersionOf(config)
         );
     }
 

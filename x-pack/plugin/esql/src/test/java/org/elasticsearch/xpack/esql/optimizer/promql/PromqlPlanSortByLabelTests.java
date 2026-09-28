@@ -117,9 +117,8 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         assertTrue(key.synthetic());
         assertTrue(key.child() instanceof NaturalSortKey);
         assertEquals(2, orderBy.order().size());
-        assertEquals(Order.OrderDirection.ASC, orderBy.order().getFirst().direction());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.ASC);
         assertTrue(orderBy.order().getFirst().child().semanticEquals(key.toAttribute()));
-        assertEquals(Order.OrderDirection.ASC, orderBy.order().get(1).direction());
         Attribute tieBreak = as(orderBy.order().get(1).child(), Attribute.class);
         assertEquals(MetadataAttribute.TIMESERIES, tieBreak.name());
     }
@@ -131,8 +130,7 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         );
         OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
         assertEquals(2, orderBy.order().size());
-        assertEquals(Order.OrderDirection.DESC, orderBy.order().getFirst().direction());
-        assertEquals(Order.OrderDirection.DESC, orderBy.order().get(1).direction());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.DESC);
         Attribute tieBreak = as(orderBy.order().get(1).child(), Attribute.class);
         assertEquals(MetadataAttribute.TIMESERIES, tieBreak.name());
     }
@@ -145,9 +143,33 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
         OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
         assertFalse(orderBy.child() instanceof Eval);
         assertEquals(1, orderBy.order().size());
-        assertEquals(Order.OrderDirection.ASC, orderBy.order().getFirst().direction());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.ASC);
         Attribute tieBreak = as(orderBy.order().getFirst().child(), Attribute.class);
         assertEquals("cluster", tieBreak.name());
+    }
+
+    public void testClosedHeaderInstantDescOrdersByRemainingIdentity() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(sort_by_label_desc(avg by (cluster) (network.bytes_in), \"pod\"))",
+            false
+        );
+        OrderBy orderBy = as(plan.collect(OrderBy.class).getFirst(), OrderBy.class);
+        assertEquals(1, orderBy.order().size());
+        assertOrdersMissingLabelAsEmpty(orderBy, Order.OrderDirection.DESC);
+        Attribute tieBreak = as(orderBy.order().getFirst().child(), Attribute.class);
+        assertEquals("cluster", tieBreak.name());
+    }
+
+    /**
+     * An absent label compares as the empty string, which precedes every other value. An identity column is null
+     * exactly where its label is absent, so every injected order must place nulls first ascending and last descending.
+     */
+    private static void assertOrdersMissingLabelAsEmpty(OrderBy orderBy, Order.OrderDirection direction) {
+        Order.NullsPosition nulls = direction == Order.OrderDirection.DESC ? Order.NullsPosition.LAST : Order.NullsPosition.FIRST;
+        for (Order order : orderBy.order()) {
+            assertEquals(direction, order.direction());
+            assertEquals(nulls, order.nullsPosition());
+        }
     }
 
     public void testClosedHeaderInstantOrdersByPresentSortLabel() {

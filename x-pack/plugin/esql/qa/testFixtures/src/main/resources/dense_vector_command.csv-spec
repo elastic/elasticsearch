@@ -671,12 +671,12 @@ FROM books metadata _score
 | DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
 | WHERE knn(vec, [45.0, 56.0, 48.0], {"boost": 2.0})
 | SORT _score DESC, book_no
-| KEEP book_no
+| KEEP book_no, _score
 | LIMIT 1
 ;
 
-book_no:keyword
-2924
+book_no:keyword | _score:double
+2924            | 2.0
 ;
 
 // The suffix output-naming form produces a column named <field><suffix>; runtime KNN searches over that

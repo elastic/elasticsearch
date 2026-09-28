@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -32,6 +33,19 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
     static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
     static final int MAX_SEPARATOR_COUNT = 50;
+
+    public static final int DEFAULT_REGEX_READ_LIMIT_FACTOR = 10;
+    public static final Setting<Integer> REGEX_READ_LIMIT_FACTOR_SETTING = Setting.intSetting(
+        "xpack.inference.chunking.regex_read_limit_factor",
+        DEFAULT_REGEX_READ_LIMIT_FACTOR,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static List<Setting<?>> getSettingsDefinitions() {
+        return List.of(REGEX_READ_LIMIT_FACTOR_SETTING);
+    }
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),

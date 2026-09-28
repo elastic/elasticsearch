@@ -46,6 +46,8 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Account
 
     private final boolean routingRequired;
 
+    private volatile long ramBytesUsed = -1;
+
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
@@ -118,8 +120,19 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Account
         return this.source;
     }
 
+    /**
+     * Returns an estimated heap footprint for this mapping metadata instance. The result is memoized because
+     * {@link MappingMetadata} is immutable.
+     */
     @Override
     public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = computeRamBytesUsed();
+        }
+        return ramBytesUsed;
+    }
+
+    private long computeRamBytesUsed() {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(type) + source.ramBytesUsed();
     }
 

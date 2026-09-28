@@ -60,6 +60,33 @@ public class CsvModeTests extends ESTestCase {
         );
         assertTrue(legacy.quoting());
         assertTrue(legacy.escaping());
+        assertEquals(0, legacy.skipRows());
+        assertEquals(0, CsvFormatOptions.DEFAULT.skipRows());
+        assertEquals(0, CsvFormatOptions.TSV.skipRows());
+    }
+
+    public void testNegativeSkipRowsRejected() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatOptions(
+                ',',
+                '"',
+                '\\',
+                "//",
+                null,
+                StandardCharsets.UTF_8,
+                null,
+                CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+                CsvFormatOptions.MultiValueSyntax.NONE,
+                true,
+                CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+                true,
+                true,
+                false,
+                -1
+            )
+        );
+        assertTrue(ex.getMessage().contains("skipRows must be non-negative"));
     }
 
     // ---- Structural validation: active characters pairwise-distinct, no line terminators ----

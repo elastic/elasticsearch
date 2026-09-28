@@ -46,6 +46,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public static final TransportVersion ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID = TransportVersion.fromName(
         "esql_dense_vector_fallback_inference_id"
     );
+    public static final TransportVersion ESQL_DENSE_VECTOR_OUTPUT_NAMING = TransportVersion.fromName("esql_dense_vector_output_naming");
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);

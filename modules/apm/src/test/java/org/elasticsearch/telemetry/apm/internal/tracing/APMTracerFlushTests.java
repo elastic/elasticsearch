@@ -65,7 +65,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
         tracer.start();
         tracer.stop();
         assertThat(supplier.calls, contains("attemptFlushTraces"));
@@ -78,7 +78,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
         tracer.start();
         tracer.attemptFlushTraces();
 
@@ -89,7 +89,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier(() -> { throw new RuntimeException("simulated flush failure"); });
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
         tracer.start();
         tracer.close(); // must not throw
 
@@ -106,7 +106,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
         tracer.start();
         tracer.close();
 

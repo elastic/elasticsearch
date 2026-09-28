@@ -74,8 +74,7 @@ public final class ProjectState {
      */
     public void ensureProjectNotUnderDeletion() {
         // The default project is not managed by the project soft-deletion lifecycle.
-        if (ProjectId.DEFAULT.equals(projectId()) == false
-            && blocks().hasGlobalBlock(projectId(), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)) {
+        if (ProjectId.DEFAULT.equals(projectId()) == false && ProjectMetadata.isProjectUnderDeletion(blocks(), projectId())) {
             throw new ClusterBlockException(Set.of(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
         }
     }

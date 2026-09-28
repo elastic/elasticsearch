@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -155,11 +154,10 @@ public abstract class ViewResolutionBenchmarkBase {
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
-        SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName).plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -311,7 +309,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, null, viewParser, future);
+        viewResolver.replaceViews(preParsedPlan, null, viewParser, false, future);
         blackhole.consume(future.actionGet());
     }
 
@@ -321,7 +319,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, null, viewParser, future);
+        viewResolver.replaceViews(parsed, null, viewParser, false, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);

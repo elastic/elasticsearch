@@ -2804,6 +2804,59 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testRemoteFetchExchangeSetupActionIsAuthorizedByName() {
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
+    }
+
+    public void testRemoteFetchReleaseActionIsAuthorizedByName() {
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/release");
+    }
+
+    public void testRemoteFetchActionRequiresIndexPrivileges() {
+        final String action = randomFrom(
+            "indices:data/read/esql/remote_fetch/exchange_setup",
+            "indices:data/read/esql/remote_fetch/release"
+        );
+        final TransportRequest request = new EmptyRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
+        final RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        roleMap.put("no_indices", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        assertThrowsAuthorizationException(() -> authorize(authentication, action, request), action, "test user");
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    private void assertRemoteFetchActionIsAuthorizedByName(String action) {
+        final TransportRequest request = new EmptyRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "role"));
+        final RoleDescriptor role = new RoleDescriptor(
+            "role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("read").build() },
+            null
+        );
+        roleMap.put("role", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, action, request);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testCompositeActionsMustImplementCompositeIndicesRequest() {
         String action = randomCompositeRequest().v1();
         TransportRequest request = mock(TransportRequest.class);

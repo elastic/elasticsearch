@@ -58,7 +58,7 @@ public final class DeclaredSchemaResolver {
 
     /**
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an empty
-     * list when there is no {@code mappings} block (an _id-only mappings block contributes no columns).
+     * list when there is no {@code mappings} block, or when the block declares no {@code properties}.
      */
     public static List<Attribute> declaredAttributes(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();

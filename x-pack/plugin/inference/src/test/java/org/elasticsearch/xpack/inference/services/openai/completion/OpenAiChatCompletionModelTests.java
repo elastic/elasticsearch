@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +56,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
         var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
@@ -70,7 +70,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
         assertThat(of(model, request), is(createCompletionModel("url", "org", "api_key", "different_model", "user")));
     }
 
-    private static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    private static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
         return OpenAiChatCompletionModel.of(
             model,
             request,
@@ -82,7 +82,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,

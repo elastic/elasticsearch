@@ -22,6 +22,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
@@ -88,9 +91,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
-                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -101,9 +103,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -114,9 +115,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -127,8 +127,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * Both arms report the identical wrapped message for junk after a closing quote — the direct-block arm
-     * previously emitted it without the {@code "CSV parse error: "} prefix that the fallback arm adds.
+     * Both arms report the identical message for junk after a closing quote.
      */
     public void testContentAfterCloseQuoteErrorParity() throws IOException {
         assertFailFastParity(
@@ -136,9 +135,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
-                + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
-                + "instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -232,9 +230,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(ul("0")), row(ul("9223372036854775808")), row(ul("18446744073709551615"))), rows);
     }
 
-    public void testUnsignedLongTruncatingTokensParity() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.9\n1e3\n");
+    /**
+     * Exact whole-number tokens (trailing-zero decimal, scientific) agree on both arms; a non-whole
+     * fraction is refused and nulls the cell under {@code null_field}, deliberately unlike
+     * {@code ::unsigned_long} which truncates toward zero.
+     */
+    public void testUnsignedLongExactWholeTokensParity() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.0\n1e3\n");
         assertEquals(List.of(row(ul("42")), row(ul("1000"))), rows);
+        assertEquals(List.of(row((Object) null), row(ul("5"))), read(false, nullField(), "a:unsigned_long\n42.9\n5\n"));
     }
 
     public void testUnsignedLongOutOfRangeNullFieldParity() throws IOException {
@@ -261,11 +265,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
-        // A decimal token in a long column now ROUNDS (declared read == ::long, which reuses the
-        // cast engine), where the former Long.parseLong path rejected it as a null-field error.
-        List<List<Object>> rows = read(false, nullField(), "a:long\n1.6\n");
-        assertEquals(List.of(row(2L)), rows);
+    public void testDecimalInLongColumnRefusesNonWholeUnderNullField() throws IOException {
+        // A non-whole decimal in a long column is a value error (exact read); under null_field the cell
+        // nulls. Exact wholes still succeed. Deliberately unlike ::long, which rounds.
+        assertEquals(List.of(row((Object) null)), read(false, nullField(), "a:long\n1.6\n"));
+        assertEquals(List.of(row(2L)), read(false, nullField(), "a:long\n2.0\n"));
     }
 
     /**
@@ -398,25 +402,28 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------
 
     public void testEmptyCellIsEmptyStringOnDeclaredStringColumnNullOnNumeric() throws IOException {
-        // A present-but-empty cell reads as the empty string on a DECLARED string (KEYWORD) column and as
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as
         // null on a numeric column, which has no empty representation.
         List<List<Object>> rows = readDeclared(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
         assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     /**
-     * The same bytes read with an INFERRED schema: a blank cell is null on both columns, so its meaning does
-     * not depend on the type the column's other rows produced. Both arms must agree on that too.
+     * An inferred read: blank cell on a string column reads {@code ""}, blank on a numeric column reads
+     * {@code null}. Both arms (direct walker and replay) must agree — identical to the declared-arm result
+     * in {@link #testEmptyCellIsEmptyStringOnDeclaredStringColumnNullOnNumeric}.
      */
-    public void testBlankCellIsNullOnEveryInferredColumn() throws IOException {
+    public void testBlankCellIsEmptyStringOnInferredStringColumnNullOnNumeric() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
-    /** {@code null_value: ""} names the blank, which nulls it even on a declared string column. */
-    public void testEmptyNullValueNullsDeclaredStringColumn() throws IOException {
+    /** {@code null_value: ""} names the blank, which nulls it on both declared and inferred string columns. */
+    public void testEmptyNullValueNullsStringColumn() throws IOException {
         List<List<Object>> rows = readDeclared(false, Map.of("null_value", ""), "a:keyword,b:long\n,5\nx,\n");
         assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        List<List<Object>> rowsInferred = read(false, Map.of("null_value", ""), "a:keyword,b:long\n,5\nx,\n");
+        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rowsInferred);
     }
 
     /**
@@ -426,18 +433,20 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
      * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
      * loop. Six rows rather than four is what puts a row past the boundary at all.
+     * Both blanks in {@code phrase} read {@code ""} (string column); the trailing blank in {@code tail} also
+     * reads {@code ""} because tail infers as keyword too.
      */
-    public void testInferredBlankIsNullAcrossThePrefetchBoundary() throws IOException {
+    public void testInferredBlankIsEmptyStringAcrossThePrefetchBoundary() throws IOException {
         String csv = "id,phrase,tail\n1,apple,x\n2,,y\n3,pear,z\n4,plum,w\n5,,v\n6,banana,\n";
         List<List<Object>> rows = read(false, Map.of("schema_sample_size", 2), csv);
         assertEquals(
             List.of(
                 row(1, br("apple"), br("x")),
-                row(2, null, br("y")), // replayed from the prefetch
+                row(2, br(""), br("y")), // replayed from the prefetch -- blank phrase -> ""
                 row(3, br("pear"), br("z")),
                 row(4, br("plum"), br("w")),
-                row(5, null, br("v")), // decoded by the direct loop
-                row(6, br("banana"), null)
+                row(5, br(""), br("v")), // decoded by the direct loop -- blank phrase -> ""
+                row(6, br("banana"), br("")) // trailing blank tail (keyword) -> ""
             ),
             rows
         );
@@ -746,7 +755,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        String expected = "Row [1] of [mem://csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -890,9 +899,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testTsvPlainDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
-        List<List<Object>> rows = read(true, nullField(), "a:long\n1.6\n");
-        assertEquals(List.of(row(2L)), rows);
+    public void testTsvPlainDecimalInLongColumnRefusesNonWholeUnderNullField() throws IOException {
+        assertEquals(List.of(row((Object) null)), read(true, nullField(), "a:long\n1.6\n"));
+        assertEquals(List.of(row(2L)), read(true, nullField(), "a:long\n2.0\n"));
     }
 
     public void testTsvPlainDoubleForms() throws IOException {
@@ -921,7 +930,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testTsvPlainEmptyCellIsEmptyStringOnDeclaredStringColumnNullOnNumeric() throws IOException {
-        // A present-but-empty cell reads as the empty string on a DECLARED string (KEYWORD) column and as
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as
         // null on a numeric column, which has no empty representation.
         List<List<Object>> rows = readDeclared(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
         assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
@@ -1009,8 +1018,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         // it; the delimiter-aware check must keep it.
         List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:keyword\tc:keyword\nx\ty\tz\n\t\t\np\tq\tr\n");
         assertEquals("separator-only TSV row must not be dropped", 3, rows.size());
-        // The separator row produces three blank fields, null here because the schema is inferred.
-        assertEquals(row(null, null, null), rows.get(1));
+        // The separator row produces three blank fields: "" on inferred keyword columns.
+        assertEquals(row(br(""), br(""), br("")), rows.get(1));
     }
 
     public void testTsvPlainCommentLinesSkipped() throws IOException {
@@ -1046,6 +1055,99 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTsvPlainHeaderlessSynthesizedColumns() throws IOException {
         List<List<Object>> rows = read(true, Map.of("header_row", false), "1\thello\n2\tworld\n");
         assertEquals(List.of(row(1, br("hello")), row(2, br("world"))), rows);
+    }
+
+    public void testSkipRowsProsePreambleThenHeader() throws IOException {
+        String csv = """
+            This is a dump of user sessions
+            Generated 2026-04-01
+            state:keyword,ip:keyword,user_agent:keyword
+            CA,10.0.0.1,Mozilla
+            NY,10.0.0.2,Safari
+            """;
+        List<List<Object>> rows = read(false, Map.of("skip_rows", 2, "header_row", true), csv);
+        assertEquals(List.of(row(br("CA"), br("10.0.0.1"), br("Mozilla")), row(br("NY"), br("10.0.0.2"), br("Safari"))), rows);
+    }
+
+    public void testSkipRowsJacksonBulkPathTrimSpaces() throws IOException {
+        // jacksonGrammarApplies needs trim_spaces; default skip cases compare direct-to-block vs the
+        // house tokenizer, not Jackson bulk. Skip advances CsvLogicalRecordReader then Jackson resumes
+        // on the same BufferedReader (same pattern as consumeHeaderLine). Padded Mozilla proves trim.
+        String csv = """
+            This is a dump of user sessions
+            Generated 2026-04-01
+            state:keyword,user_agent:keyword
+            CA,  Mozilla
+            NY,Safari
+            """;
+        List<List<Object>> rows = read(false, Map.of("skip_rows", 2, "header_row", true, "trim_spaces", true), csv);
+        assertEquals(List.of(row(br("CA"), br("Mozilla")), row(br("NY"), br("Safari"))), rows);
+    }
+
+    public void testSkipRowsCommentsDoNotCount() throws IOException {
+        String csv = """
+            This is a dump of user sessions
+            // internal note
+            Generated 2026-04-01
+            state:keyword,ip:keyword
+            CA,10.0.0.1
+            """;
+        List<List<Object>> rows = read(false, Map.of("skip_rows", 2, "header_row", true), csv);
+        assertEquals(List.of(row(br("CA"), br("10.0.0.1"))), rows);
+    }
+
+    public void testSkipRowsZeroKeepsCommentSkip() throws IOException {
+        String csv = """
+            // Generated
+            k:keyword
+            hello
+            """;
+        List<List<Object>> rows = read(false, Map.of("skip_rows", 0), csv);
+        assertEquals(List.of(row(br("hello"))), rows);
+    }
+
+    public void testSkipRowsHeaderless() throws IOException {
+        String csv = """
+            ignore me
+            also ignore
+            1,hello
+            2,world
+            """;
+        List<List<Object>> rows = read(false, Map.of("skip_rows", 2, "header_row", false), csv);
+        assertEquals(List.of(row(1, br("hello")), row(2, br("world"))), rows);
+    }
+
+    public void testSkipRowsTsvProsePreamble() throws IOException {
+        String tsv = """
+            This is a dump of user sessions
+            Generated 2026-04-01
+            state:keyword\tip:keyword
+            CA\t10.0.0.1
+            NY\t10.0.0.2
+            """;
+        List<List<Object>> rows = read(true, Map.of("skip_rows", 2, "header_row", true), tsv);
+        assertEquals(List.of(row(br("CA"), br("10.0.0.1")), row(br("NY"), br("10.0.0.2"))), rows);
+    }
+
+    public void testSkipRowsNonFirstSplitDoesNotSkipAgain() throws IOException {
+        String csv = "CA,10.0.0.1,Mozilla\nNY,10.0.0.2,Safari\n";
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "state", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "ip", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "user_agent", DataType.KEYWORD)
+        );
+        CsvFormatReader configured = (CsvFormatReader) baseReader(false).withConfig(Map.of("skip_rows", 2, "header_row", false));
+        StorageObject object = new InMemoryStorageObject(csv.getBytes(StandardCharsets.UTF_8));
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1024)
+            .firstSplit(false)
+            .recordAligned(true)
+            .readSchema(schema)
+            .build();
+        List<List<Object>> direct = collect(configured.withDirectBlockEnabled(true).withSchema(schema), object, ctx);
+        List<List<Object>> jackson = collect(configured.withDirectBlockEnabled(false).withSchema(schema), object, ctx);
+        assertEquals("direct-block output diverged from the Jackson baseline", jackson, direct);
+        assertEquals(List.of(row(br("CA"), br("10.0.0.1"), br("Mozilla")), row(br("NY"), br("10.0.0.2"), br("Safari"))), direct);
     }
 
     public void testTsvPlainCountStar() throws IOException {
@@ -1084,16 +1186,16 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         // A TSV line whose first cell is empty (a leading TAB delimiter) is NOT a comment, even though
         // the comment prefix follows: Jackson classifies comments on the first parsed cell, so the
         // direct path must keep this as a two-column data row rather than dropping it. The blank first
-        // cell reads as null on this inferred schema; what matters here is that the row survives.
+        // cell reads as "" on this inferred keyword schema; what matters here is that the row survives.
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:keyword\tb:keyword\nx\ty\n\t// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row(null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testCommaLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // Same first-cell rule for CSV: an empty first cell before the comment prefix is a data row.
-        // The blank first cell reads as null on this inferred schema.
+        // The blank first cell reads as "" on this inferred keyword schema.
         List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\nx,y\n,// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row(null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {

@@ -1,0 +1,216 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.routing.allocation.allocator;
+
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.DoubleSupplier;
+import java.util.function.Function;
+
+import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator.THRESHOLD_RATIO;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+
+public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
+
+    /**
+     * Test for {@link PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator}.
+     */
+    public void testPrioritiseByShardWriteLoadComparator() {
+        final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
+        final double writeLoadThreshold = maxWriteLoad * THRESHOLD_RATIO;
+        final int numberOfShardsWithMaxWriteLoad = between(1, 5);
+        final int numberOfShardsWithWriteLoadBetweenThresholdAndMax = between(0, 50);
+        final int numberOfShardsWithWriteLoadBelowThreshold = between(0, 50);
+        final int numberOfShardsWithNoWriteLoad = between(0, 50);
+        final int totalShards = numberOfShardsWithMaxWriteLoad + numberOfShardsWithWriteLoadBetweenThresholdAndMax
+            + numberOfShardsWithWriteLoadBelowThreshold + numberOfShardsWithNoWriteLoad;
+
+        // We create single-shard indices for simplicity's sake and to make it clear the shards are independent of each other
+        final var indices = new ArrayList<IndexMetadata.Builder>();
+        for (int i = 0; i < totalShards; i++) {
+            indices.add(anIndex("index-" + i));
+        }
+
+        final var nodeId = randomIdentifier();
+        final var clusterState = createStateWithIndices(List.of(nodeId), shardId -> nodeId, indices.toArray(IndexMetadata.Builder[]::new));
+
+        final var allShards = clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
+        final var shardWriteLoads = new HashMap<ShardId, Double>();
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numberOfShardsWithMaxWriteLoad, () -> maxWriteLoad);
+        addRandomWriteLoadAndRemoveShard(
+            shardWriteLoads,
+            allShards,
+            numberOfShardsWithWriteLoadBetweenThresholdAndMax,
+            () -> randomDoubleBetween(writeLoadThreshold, maxWriteLoad, true)
+        );
+        addRandomWriteLoadAndRemoveShard(
+            shardWriteLoads,
+            allShards,
+            numberOfShardsWithWriteLoadBelowThreshold,
+            () -> randomDoubleBetween(0, writeLoadThreshold, true)
+        );
+        assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
+
+        final ClusterInfo clusterInfo = ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build();
+
+        // Assign all shards to node
+        final var allocatedRoutingNodes = clusterState.getRoutingNodes().mutableCopy();
+        for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
+            allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
+        }
+
+        final var comparator = new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(
+            clusterInfo,
+            allocatedRoutingNodes.node(nodeId)
+        );
+
+        logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, writeLoadThreshold);
+        var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();
+
+        for (ShardRouting shardRouting : sortedShards) {
+            logger.info("--> {}: {}", shardRouting.shardId(), shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0));
+        }
+
+        double lastWriteLoad = 0.0;
+        int currentIndex = 0;
+
+        logger.info("--> expecting {} between threshold and max in ascending order", numberOfShardsWithWriteLoadBetweenThresholdAndMax);
+        for (int i = 0; i < numberOfShardsWithWriteLoadBetweenThresholdAndMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, greaterThanOrEqualTo(lastWriteLoad));
+            }
+        }
+        logger.info("--> expecting {} below threshold in descending order", numberOfShardsWithWriteLoadBelowThreshold);
+        for (int i = 0; i < numberOfShardsWithWriteLoadBelowThreshold; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, lessThanOrEqualTo(lastWriteLoad));
+            }
+        }
+        logger.info("--> expecting {} at max", numberOfShardsWithMaxWriteLoad);
+        for (int i = 0; i < numberOfShardsWithMaxWriteLoad; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            assertThat(currentWriteLoad, equalTo(maxWriteLoad));
+        }
+        logger.info("--> expecting {} missing", numberOfShardsWithNoWriteLoad);
+        for (int i = 0; i < numberOfShardsWithNoWriteLoad; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++);
+            assertThat(shardWriteLoads, not(hasKey(currentShardId.shardId())));
+        }
+    }
+
+    /**
+     * Randomly select a shard and add a random write-load for it
+     *
+     * @param shardWriteLoads The map of shards to write-loads, this will be added to
+     * @param shards The set of shards to select from, selected shards will be removed from this set
+     * @param count The number of shards to generate write loads for
+     * @param writeLoadSupplier The supplier of random write loads to use
+     */
+    private void addRandomWriteLoadAndRemoveShard(
+        Map<ShardId, Double> shardWriteLoads,
+        Set<ShardRouting> shards,
+        int count,
+        DoubleSupplier writeLoadSupplier
+    ) {
+        for (int i = 0; i < count; i++) {
+            final var shardRouting = randomFrom(shards);
+            shardWriteLoads.put(shardRouting.shardId(), writeLoadSupplier.getAsDouble());
+            shards.remove(shardRouting);
+        }
+    }
+
+    private static IndexMetadata.Builder anIndex(String name) {
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).numberOfShards(1).numberOfReplicas(0);
+    }
+
+    private static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        final boolean allocateShards = randomBoolean();
+        if (allocateShards == false) {
+            for (var index : indexMetadataBuilders) {
+                var indexMetadata = index.build();
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.addAsNew(indexMetadata);
+            }
+        } else {
+            for (var index : indexMetadataBuilders) {
+                var inSyncId = UUIDs.randomBase64UUID();
+                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
+                metadataBuilder.put(indexMetadata, false);
+                ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(indexMetadata.getIndex())
+                        .addShard(
+                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
+                                AllocationId.newInitializing(inSyncId)
+                            ).build()
+                        )
+                );
+            }
+        }
+
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : nodeNames) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+    }
+}

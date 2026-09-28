@@ -9,8 +9,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+
+import java.util.Comparator;
 
 /**
  * The cluster nodes and shards are partitioned into mutually disjoint partitions. Each partition
@@ -47,4 +50,18 @@ public interface BalancingWeights {
      * Returns true if disk usage is ignored for the purposes of weight calculations
      */
     boolean diskUsageIgnored();
+
+    /**
+     * Orders shards on {@code node} by how desirable they are to move when {@code canRemain} is {@code NOT_PREFERRED}.
+     * A smaller result is a better move.
+     * An empty load map compares every shard as equal.
+     *
+     * @param node The node the shards currently reside on
+     * @param clusterInfo Cluster info supplying the load maps
+     * @return A node-specific comparator
+     */
+    // TODO - Override when we have search load to balance on
+    default Comparator<ShardRouting> shardMovePreference(RoutingNode node, ClusterInfo clusterInfo) {
+        return new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(clusterInfo, node);
+    }
 }

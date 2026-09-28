@@ -8,6 +8,12 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Context;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -16,12 +22,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +41,6 @@ import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -43,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -1277,79 +1281,63 @@ public class ThreadContextTests extends ESTestCase {
         assertNotNull(threadContext.getHeader(header));
     }
 
-    public void testNewTraceContext() {
+    public void testNewTraceContextPreservesParentAndResponseHeaders() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
-
-        var rootTraceContext = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
-        var apmTraceContext = new Object();
-        var traceStartTime = Instant.now();
-        var responseKey = randomIdentifier();
-        var responseValue = randomAlphaOfLength(10);
-
-        threadContext.putHeader(rootTraceContext);
-        threadContext.putTransient(Task.TRACE_START_TIME, traceStartTime);
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
-
-        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-        try (var ignored = threadContext.newTraceContext()) {
-            assertThat(threadContext.hasApmTraceContext(), equalTo(false)); // no trace started yet
-            assertThat(threadContext.hasParentApmTraceContext(), equalTo(true));
-
-            assertThat(threadContext.getHeaders(), is(anEmptyMap()));
-            // trace start time is not propagated
-            assertThat(
-                threadContext.getTransientHeaders(),
-                equalTo(
-                    Map.of(
-                        Task.PARENT_TRACE_PARENT_HEADER,
-                        rootTraceContext.get(Task.TRACE_PARENT_HTTP_HEADER),
-                        Task.PARENT_TRACE_STATE,
-                        rootTraceContext.get(Task.TRACE_STATE),
-                        Task.PARENT_APM_TRACE_CONTEXT,
-                        apmTraceContext
+        var parent = io.opentelemetry.context.Context.root()
+            .with(
+                io.opentelemetry.api.trace.Span.wrap(
+                    io.opentelemetry.api.trace.SpanContext.create(
+                        "0123456789abcdef0123456789abcdef",
+                        "0123456789abcdef",
+                        io.opentelemetry.api.trace.TraceFlags.getSampled(),
+                        io.opentelemetry.api.trace.TraceState.getDefault()
                     )
                 )
             );
-            // response headers shall be propagated
-            threadContext.addResponseHeader(responseKey, responseValue);
+        try (var scope = parent.makeCurrent()) {
+            try (var stored = threadContext.newStoredContextPreservingResponseHeaders()) {
+                assertSame(parent, io.opentelemetry.context.Context.current());
+                threadContext.addResponseHeader("test", "value");
+            }
+            assertSame(parent, io.opentelemetry.context.Context.current());
+            assertEquals(List.of("value"), threadContext.getResponseHeaders().get("test"));
         }
-
-        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-        assertThat(threadContext.getHeaders(), equalTo(rootTraceContext));
-        assertThat(
-            threadContext.getTransientHeaders(),
-            equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext, Task.TRACE_START_TIME, traceStartTime))
-        );
-        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
     }
 
-    public void testNewTraceContextWithoutParentTrace() {
-        final var threadContext = new ThreadContext(Settings.EMPTY);
+    public void testDirectTraceHeadersFollowActiveSpanWithoutChangingIncomingHeaders() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        String traceId = "0123456789abcdef0123456789abcdef";
+        String incomingParent = "00-" + traceId + "-aaaaaaaaaaaaaaaa-01";
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, incomingParent);
+        threadContext.putHeader(Task.TRACE_STATE, "vendor=parent");
 
-        var responseKey = randomIdentifier();
-        var responseValue = randomAlphaOfLength(10);
+        var child = SpanContext.create(
+            traceId,
+            "bbbbbbbbbbbbbbbb",
+            TraceFlags.getSampled(),
+            TraceState.builder().put("vendor", "child").build()
+        );
+        try (var scope = Context.root().with(Span.wrap(child)).makeCurrent()) {
+            assertEquals(traceId, threadContext.getHeader(Task.TRACE_ID));
+            assertEquals("00-" + traceId + "-bbbbbbbbbbbbbbbb-01", threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+            assertEquals("vendor=child", threadContext.getHeader(Task.TRACE_STATE));
+            assertEquals(
+                threadContext.getHeaders().get(Task.TRACE_PARENT_HTTP_HEADER),
+                threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER)
+            );
+            assertEquals(threadContext.getHeaders().get(Task.TRACE_STATE), threadContext.getHeader(Task.TRACE_STATE));
 
-        assertThat(threadContext.hasApmTraceContext(), equalTo(false));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-        try (var ignored = threadContext.newTraceContext()) {
-            assertTrue(threadContext.isDefaultContext());
-            assertThat(threadContext.hasApmTraceContext(), equalTo(false));
-            assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-            // discared, just making sure the context is isolated
-            threadContext.putTransient(randomIdentifier(), randomAlphaOfLength(10));
-            // response headers shall be propagated
-            threadContext.addResponseHeader(responseKey, responseValue);
+            var extracted = Span.fromContext(TracingContext.extract(threadContext)).getSpanContext();
+            assertEquals("aaaaaaaaaaaaaaaa", extracted.getSpanId());
+            assertEquals("parent", extracted.getTraceState().get("vendor"));
         }
 
-        assertThat(threadContext.getHeaders(), is(anEmptyMap()));
-        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
-        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+        var childWithoutTraceState = SpanContext.create(traceId, "cccccccccccccccc", TraceFlags.getSampled(), TraceState.getDefault());
+        try (var scope = Context.root().with(Span.wrap(childWithoutTraceState)).makeCurrent()) {
+            assertNull(threadContext.getHeader(Task.TRACE_STATE));
+        }
+        assertEquals(incomingParent, threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+        assertEquals("vendor=parent", threadContext.getHeader(Task.TRACE_STATE));
     }
 
     public void testRestoreExistingContext() {

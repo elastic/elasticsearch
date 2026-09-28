@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -125,7 +126,9 @@ public class InboundHandler {
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
-                handleRequest(channel, /* autocloses absent exception */ message);
+                try (var scope = TracingContext.activate(threadContext, TracingContext.extract(threadContext))) {
+                    handleRequest(channel, /* autocloses absent exception */ message);
+                }
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
@@ -297,7 +300,7 @@ public class InboundHandler {
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
                 if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                    try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                    try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                         doHandleRequest(reg, request, transportChannel);
                     }
                 } else {
@@ -329,7 +332,7 @@ public class InboundHandler {
     private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
         boolean success = false;
         try {
-            reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+            reg.getExecutor().execute(threadPool.getThreadContext().preserveContext(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
                     doHandleRequest(reg, request, channel);

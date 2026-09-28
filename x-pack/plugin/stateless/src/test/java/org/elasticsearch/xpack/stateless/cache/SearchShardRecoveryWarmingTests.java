@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,7 +48,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.FakeTimeThreadPool;
@@ -135,8 +136,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     private static TelemetryProvider telemetryProvider(MeterRegistry meterRegistry) {
         return new TelemetryProvider() {
             @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
+            public OpenTelemetry getOpenTelemetry() {
+                return OpenTelemetry.noop();
             }
 
             @Override

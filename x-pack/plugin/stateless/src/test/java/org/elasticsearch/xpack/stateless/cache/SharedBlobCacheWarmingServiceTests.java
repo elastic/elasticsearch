@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
@@ -52,7 +54,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -2736,8 +2737,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private static TelemetryProvider telemetryProvider(MeterRegistry meterRegistry) {
         return new TelemetryProvider() {
             @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
+            public OpenTelemetry getOpenTelemetry() {
+                return OpenTelemetry.noop();
             }
 
             @Override

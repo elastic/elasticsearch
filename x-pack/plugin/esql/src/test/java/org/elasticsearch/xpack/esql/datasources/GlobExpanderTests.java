@@ -3093,7 +3093,8 @@ public class GlobExpanderTests extends ESTestCase {
                     "exclusion",
                     GlobExpander.class.getCanonicalName(),
                     Level.DEBUG,
-                    "2 of 4 objects matching the resource under [data] were excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+                    "2 of 4 objects matching the resource under [data] were excluded by the [file_exclusions] dataset setting,"
+                        + " for example [_SUCCESS] which matched entry [**/_*]"
                 )
             );
             result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);

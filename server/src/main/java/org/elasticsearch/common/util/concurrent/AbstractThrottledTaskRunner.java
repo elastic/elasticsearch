@@ -76,6 +76,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return false;
     }
 
+    /**
+     * Called on every task when we take it off the `tasks` queue.
+     */
+    protected void onDequeue(T task) {}
+
     private void pollAndSpawn() {
         // A pollAndSpawn attempts to run a new task. There could be many concurrent pollAndSpawn calls competing
         // to get a "free slot", since we attempt to run a new task on every enqueueTask call and every time an
@@ -95,6 +100,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 // non-empty queue and no workers!
                 if (tasks.peek() == null) break;
             } else {
+                onDequeue(task);
                 final boolean isForceExecution = isForceExecution(task);
                 var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
@@ -159,12 +165,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return preUpdateValue < maxRunningTasks;
     }
 
-    // exposed for testing
     int runningTasks() {
         return runningTasks.get();
     }
 
-    // exposed for testing
     int queuedTasks() {
         return tasks.size();
     }
@@ -179,8 +183,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             protected void doRun() {
                 final AtomicBoolean isDone = new AtomicBoolean(true);
                 final Releasable ref = () -> isDone.set(true);
-                ActionListener<Releasable> task;
+                T task;
                 while ((task = tasks.poll()) != null) {
+                    onDequeue(task);
                     isDone.set(false);
                     try {
                         logger.trace("[{}] eagerly running task {}", taskRunnerName, task);

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.unified;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail;
 import org.elasticsearch.inference.completion.ContentObjects;
@@ -48,7 +48,16 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
+            messageList,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
         OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
@@ -92,7 +101,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             "model",
             100L, // maxCompletionTokens
@@ -180,7 +189,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             null, // model
             null, // maxCompletionTokens
@@ -229,7 +238,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             null, // model
             null, // maxCompletionTokens
@@ -296,7 +305,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             randomModel,
             100L, // maxCompletionTokens
@@ -422,7 +431,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         Message messageWithString = new Message(new ContentString(contentString), ROLE, null, null);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(
-            UnifiedCompletionRequest.of(List.of(messageWithString, messageWithObjects)),
+            UnifiedCompletionRequestBody.of(List.of(messageWithString, messageWithObjects)),
             true
         );
 
@@ -491,7 +500,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             null, // model
             null, // maxCompletionTokens
@@ -546,7 +555,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             null, // model
             null, // maxCompletionTokens
@@ -622,7 +631,16 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<Message>();
         messageList.add(message);
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
+        UnifiedCompletionRequestBody unifiedRequest = new UnifiedCompletionRequestBody(
+            messageList,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
         OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);

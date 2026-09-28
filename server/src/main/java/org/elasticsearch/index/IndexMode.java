@@ -810,10 +810,9 @@ public enum IndexMode {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
 
-        // TODO: support SourceFieldMapper.Mode#COLUMNAR_STORED
         @Override
         public List<SourceFieldMapper.Mode> supportedSourceModes() {
-            return List.of(SourceFieldMapper.Mode.SYNTHETIC);
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
         }
 
         @Override

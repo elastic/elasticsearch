@@ -281,6 +281,46 @@ public class StringColumnTests extends ColumnarStringTestCase {
         }
     }
 
+    public void testDictionaryRejectedWhenTooManyValuesEscape() throws IOException {
+        final BytesRef[] docs = new BytesRef[2000];
+        final String[] frequent = { "alpha", "bravo", "char.", "delta", "echo." };
+        for (int i = 0; i < 1000; i++) {
+            docs[i] = new BytesRef(frequent[i % frequent.length]);
+        }
+        // 1000 unique 50-byte values seen once each: all escape the dictionary after keepMostFrequent.
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[50];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            docs[1000 + i] = new BytesRef(escape);
+        }
+        // NOTE: the five named terms answer half the reads and the rest escape, so a bar above a half refuses
+        // the dictionary however little those escapes weigh.
+        withColumn(
+            docs,
+            randomValidBlockSize(),
+            ChunkCodec.ZSTD,
+            64 * 1024,
+            new DictionaryPolicy(512 * 1024, 0.9, 0.2),
+            (metadata, reader) -> {
+                plainOf(metadata);
+                assertColumnValues(docs, reader);
+            }
+        );
+        // A bar at a half admits it, since exactly half the reads are answered by an ordinal.
+        withColumn(
+            docs,
+            randomValidBlockSize(),
+            ChunkCodec.ZSTD,
+            64 * 1024,
+            new DictionaryPolicy(512 * 1024, 0.5, 0.2),
+            (metadata, reader) -> {
+                dictionaryOf(metadata);
+                assertColumnValues(docs, reader);
+            }
+        );
+    }
+
     /** Writes {@code docSlots} as a string column, reads it back, and asserts every slot round-trips in order. */
     private void assertSlots(BytesRef[][] docSlots) throws IOException {
         withColumn(docSlots, (metadata, reader) -> assertSlots(docSlots, metadata, reader));
@@ -341,5 +381,15 @@ public class StringColumnTests extends ColumnarStringTestCase {
             }
             assertEquals("documents with a value", numDocsWithField, seenDocs);
         });
+    }
+
+    private static void assertColumnValues(BytesRef[] docValues, StringColumnReader reader) throws IOException {
+        int seenDocs = 0;
+        final ColumnIterator iterator = reader.iterator();
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            assertEquals(docValues[doc], reader.valueAt(reader.firstValueAddress(iterator.rank())));
+            seenDocs++;
+        }
+        assertEquals(numDocsWithField(docValues), seenDocs);
     }
 }

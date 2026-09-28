@@ -1507,6 +1507,73 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
+    public void testMergeOmitsCompletionOptionsWithoutFetchResults() {
+        boolean includeRegularHit = randomBoolean();
+        AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(2);
+        for (int shardIndex = 0; shardIndex < 2; shardIndex++) {
+            SearchShardTarget target = new SearchShardTarget("", new ShardId("", "", shardIndex), null);
+            QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", shardIndex), target, null);
+            TopDocs topDocs = includeRegularHit && shardIndex == 1
+                ? new TopDocs(new TotalHits(1, Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) })
+                : Lucene.EMPTY_TOP_DOCS;
+            queryResult.topDocs(new TopDocsAndMaxScore(topDocs, 1.0f), null);
+            queryResult.size(includeRegularHit && shardIndex == 1 ? 1 : 0);
+            CompletionSuggestion suggestion = new CompletionSuggestion("suggestion", 2, false);
+            CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("term"), 0, 4);
+            entry.addOption(
+                new CompletionSuggestion.Entry.Option(shardIndex, new Text("suggestion-" + shardIndex), 1.0f, Collections.emptyMap())
+            );
+            suggestion.addTerm(entry);
+            queryResult.suggest(new Suggest(new ArrayList<>(List.of(suggestion))));
+            queryResult.setShardIndex(shardIndex);
+            queryResults.set(shardIndex, queryResult);
+        }
+
+        List<TopDocs> bufferedTopDocs = new ArrayList<>();
+        TopDocsStats topDocsStats = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        for (SearchPhaseResult result : queryResults.asList()) {
+            TopDocsAndMaxScore topDocs = result.queryResult().consumeTopDocs();
+            SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
+            bufferedTopDocs.add(topDocs.topDocs);
+            topDocsStats.add(topDocs, false, false);
+        }
+
+        try {
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
+                queryResults.asList(),
+                InternalAggregations.EMPTY,
+                bufferedTopDocs,
+                topDocsStats,
+                0,
+                false,
+                null,
+                null
+            );
+
+            AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(2);
+            SearchShardTarget target = queryResults.get(0).getSearchShardTarget();
+            FetchSearchResult fetchResult = new FetchSearchResult(new ShardSearchContextId("", 0), target);
+            fetchResult.shardResult(
+                new SearchHits(new SearchHit[] { new SearchHit(0, "") }, new TotalHits(1, Relation.EQUAL_TO), 1.0f),
+                null
+            );
+            fetchResults.set(0, fetchResult);
+
+            try (SearchResponseSections response = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                CompletionSuggestion suggestion = (CompletionSuggestion) response.suggest().getSuggestion("suggestion");
+                assertThat(suggestion.getOptions(), hasSize(1));
+                CompletionSuggestion.Entry.Option option = suggestion.getOptions().get(0);
+                assertThat(option.getText().string(), equalTo("suggestion-0"));
+                assertNotNull(option.getHit());
+                assertSame(target, option.getHit().getShard());
+            } finally {
+                fetchResult.decRef();
+            }
+        } finally {
+            queryResults.asList().forEach(RefCounted::decRef);
+        }
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 

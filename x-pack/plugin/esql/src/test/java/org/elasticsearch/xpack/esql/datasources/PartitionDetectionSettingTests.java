@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -26,8 +27,8 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
- * Pins that the {@code partition_detection}, {@code partition_path} and {@code hive_partitioning} dataset settings
- * select the partition detector on the read path.
+ * Pins that the {@code partition_detection} and {@code partition_path} dataset settings select the partition
+ * detector on the read path.
  *
  * <p>Each test drives {@link GlobExpander#expand} with a settings map, the way {@code ExternalSourceResolver} does,
  * and asserts the partition columns that fall out. A failure here means a setting has stopped reaching the detector.
@@ -83,18 +84,15 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     }
 
     /**
-     * {@code partition_detection: none} and {@code hive_partitioning: false} both mean "do not derive columns from
-     * the path". They must agree. Against {@code main} only the second worked, so the documented setting and the undocumented one produced
-     * different schemas.
+     * {@code hive_partitioning} is a deprecated no-op: any value, including the former special-case {@code false},
+     * leaves partition detection enabled. A stored dataset carrying {@code hive_partitioning:false} now detects Hive
+     * columns it previously did not have.
      */
-    public void testNoneAgreesWithHivePartitioningFalse() throws IOException {
-        FileList viaDocumentedSetting = expandAsResolverDoes(HIVE_PATTERN, HIVE_TREE, Map.of("partition_detection", "none"));
-        FileList viaUndocumentedSetting = expandAsResolverDoes(HIVE_PATTERN, HIVE_TREE, Map.of("hive_partitioning", "false"));
-        assertEquals(
-            "partition_detection:none and hive_partitioning:false must produce the same schema",
-            columnsOf(viaUndocumentedSetting),
-            columnsOf(viaDocumentedSetting)
-        );
+    public void testHivePartitioningIsANoOpForAnyValue() throws IOException {
+        for (Object value : List.of("false", false, "true", true)) {
+            FileList listing = expandAsResolverDoes(HIVE_PATTERN, HIVE_TREE, Map.of("hive_partitioning", value));
+            assertEquals("hive_partitioning [" + value + "] must not suppress detection", Set.of("year"), columnsOf(listing));
+        }
     }
 
     /**
@@ -126,21 +124,6 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     }
 
     /**
-     * The load-bearing BWC shape. {@code {partition_detection: hive, hive_partitioning: "false"}} was registerable
-     * before this validation existed, and read with detection OFF because the boolean short-circuited first. It
-     * must keep reading that way now that the two settings resolve through one strategy — verified here at the
-     * read-path grain, not just at {@code fromConfig}.
-     */
-    public void testGrandfatheredHiveFalseWithExplicitStrategyStillDisablesDetection() throws IOException {
-        FileList listing = expandAsResolverDoes(
-            HIVE_PATTERN,
-            HIVE_TREE,
-            Map.of("partition_detection", "hive", PartitionConfig.CONFIG_PARTITIONING_HIVE, "false")
-        );
-        assertNull("hive_partitioning:false must still win over an explicit strategy", listing.partitionMetadata());
-    }
-
-    /**
      * A stored template that names no columns — {@code year={year}} is not a whole-segment placeholder — must keep
      * reading as it did before the setting reached the read path, which for this layout means Hive detection.
      * {@code TemplatePartitionDetector}'s constructor rejects such a template, so the guard in
@@ -153,6 +136,19 @@ public class PartitionDetectionSettingTests extends ESTestCase {
             Map.of("partition_detection", "template", "partition_path", "year={year}/month={month}")
         );
         assertEquals("a placeholderless template must not throw, and must keep the Hive columns", Set.of("year"), columnsOf(listing));
+    }
+
+    public void testTemplateLiteralSegmentAnchorsTheBinding() throws IOException {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/logs/2024/junk/01/part-0.parquet"));
+        FileList listing = expandAsResolverDoes(
+            FLAT_PATTERN,
+            tree,
+            Map.of("partition_detection", "template", "partition_path", "{year}/junk/{month}")
+        );
+        PartitionMetadata md = listing.partitionMetadata();
+        assertNotNull("template detection must produce partition metadata", md);
+        Object year = md.filePartitionValues().values().iterator().next().get("year");
+        assertEquals("the literal segment [junk] must anchor, so year binds the 2024 directory", 2024, year);
     }
 
     /**
@@ -210,12 +206,9 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     }
 
     /**
-     * The listing cache is keyed on {@code GlobExpander.listingCacheDiscriminator}, which binds the path pattern, the
-     * filter hints and the {@code hivePartitioning} flag — but not the partition strategy. The cached {@link FileList} carries its
-     * {@code PartitionMetadata}, so once the strategy affects detection, two datasets differing only in
-     * {@code partition_detection} collide on one cache entry and one of them is served the other's partition
-     * columns. This was latent while the setting was unread; wiring it makes the collision a wrong answer, so the key binds the
-     * strategy in the same change.
+     * The listing-cache discriminator must encode the resolved partition strategy, not just the path pattern and
+     * filter hints. Without this, two datasets differing only in {@code partition_detection} share one cache entry
+     * and one is served the other's partition columns.
      */
     public void testListingCacheIdentityBindsThePartitionStrategy() throws IOException {
         FileList none = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
@@ -271,6 +264,11 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     }
 
     private static class StubProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final List<StorageEntry> listing;
 
         StubProvider(List<StorageEntry> listing) {

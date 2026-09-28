@@ -93,7 +93,7 @@ public class ConcurrentMultipartHelper {
 
         if (exceptions.isEmpty() == false) {
             final Iterator<Exception> it = exceptions.iterator();
-            final IOException exception = new IOException("Failed to upload parts", it.next());
+            final IOException exception = new IOException("Concurrent multipart operation failed", it.next());
             while (it.hasNext()) {
                 exception.addSuppressed(it.next());
             }

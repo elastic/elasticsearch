@@ -52,8 +52,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     ) {
         super(in, dimensions, dataLength, bulkSize);
         this.dotProduct = dotProduct;
-        this.queryBitScale = bitScale(encoding.queryBits());
-        this.indexBitScale = bitScale(encoding.indexBits());
+        this.queryBitScale = bitScale(encoding.bbqEncoding().queryBits());
+        this.indexBitScale = bitScale(encoding.bbqEncoding().dataBits());
     }
 
     /**
@@ -155,14 +155,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     private static final class PanamaImpl extends StripedES940OSQVectorsScorer {
 
         PanamaImpl(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
-            super(
-                in,
-                encoding,
-                dimensions,
-                dataLength,
-                bulkSize,
-                PanamaBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
-            );
+            super(in, encoding, dimensions, dataLength, bulkSize, PanamaBBQDotProduct.create(in, dimensions, encoding.bbqEncoding()));
         }
 
         @Override
@@ -197,14 +190,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
         private MemorySegment cachedScoresSegment;
 
         NativeImpl(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
-            super(
-                in,
-                encoding,
-                dimensions,
-                dataLength,
-                bulkSize,
-                NativeBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
-            );
+            super(in, encoding, dimensions, dataLength, bulkSize, NativeBBQDotProduct.create(in, dimensions, encoding.bbqEncoding()));
         }
 
         private MemorySegment scoresSegment(float[] scores) {

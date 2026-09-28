@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 
 import java.util.List;
@@ -50,8 +51,11 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
             nodeClient,
             ESQL_ORIGIN,
             TransportListTasksAction.TYPE,
-            new ListTasksRequest().setActions(EsqlQueryAction.NAME, EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
-                .setDetailed(true),
+            new ListTasksRequest().setActions(
+                EsqlQueryAction.NAME,
+                EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
+                EsqlStreamQueryAction.NAME
+            ).setDetailed(true),
             new ActionListener<>() {
                 @Override
                 public void onResponse(ListTasksResponse response) {

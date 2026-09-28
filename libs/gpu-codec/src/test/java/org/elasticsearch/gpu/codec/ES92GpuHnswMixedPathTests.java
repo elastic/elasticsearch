@@ -15,10 +15,9 @@ import com.nvidia.cuvs.CuVSMatrix;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.gpu.CuVSGPUSupport;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -32,11 +31,7 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
  * forcing a mix of GPU and CPU fallback paths across flush calls within the same index.
  * Requires a GPU — skipped on non-GPU nodes.
  */
-public class ES92GpuHnswMixedPathTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging();
-    }
+public class ES92GpuHnswMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
 
     static Codec codec;
 

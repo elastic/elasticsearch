@@ -87,7 +87,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // No preParse/postParse override — nothing to port for the columnar path either.
         return true;
     }

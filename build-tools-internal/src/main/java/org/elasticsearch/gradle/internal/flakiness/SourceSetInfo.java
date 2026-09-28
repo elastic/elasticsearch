@@ -9,6 +9,9 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectModel;
+import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessScanTask;
 import java.nio.file.Path;
 import java.util.List;
 

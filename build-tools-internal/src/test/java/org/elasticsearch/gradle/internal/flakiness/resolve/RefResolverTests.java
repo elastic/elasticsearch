@@ -7,8 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.resolve;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessTargets;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -335,7 +342,7 @@ public class RefResolverTests {
     }
 
     private static RefResolver resolver(Path repo, ProjectInfo p, List<TestTaskInfo> tasks) {
-        return new RefResolver(repo, p, tasks, TestTaskSelector.DEFAULT_TASK_CAP);
+        return new RefResolver(repo, p, tasks, FlakinessProperties.DEFAULT_TASK_CAP);
     }
 
     /** What the build reports for an ordinary project: one enabled bare task per source set. */

@@ -7,8 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.resolve;
 
+import org.elasticsearch.gradle.internal.flakiness.FlakinessJson;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessLayout;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessResolvePlugin;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -63,17 +70,6 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 
     public static final String TASK_NAME = "flakinessResolveProject";
 
-    /**
-     * Directory, relative to the repo (settings) root, where every project drops its share of the answer as
-     * {@code <projectPath>.json} (its resolved targets, plus its {@code classDirs}).
-     *
-     * <p>It is deliberately <em>one shared directory</em> rather than each project's own build directory:
-     * {@code flakinessScan} must discover the files without knowing the project set, and globbing
-     * {@code **}{@code /build/flakiness/*.json} across the repo would mean walking every build output
-     * directory in the tree. Each project writes its own uniquely named file, so the tasks never overlap.
-     */
-    public static final String TARGETS_DIR = "build/flakiness/project-targets";
-
     /** Where each project dumps the model it captured, for inspection only. */
     public static final String MODEL_FILE = "flakiness/project-model.json";
 
@@ -92,7 +88,7 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
         Provider<String> refsJson = refsPath.flatMap(path -> providers.fileContents(repoRoot.file(path)).getAsText());
         Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project)));
 
-        String base = TARGETS_DIR + "/" + fileBaseName(project.getPath());
+        String base = FlakinessLayout.TARGETS_DIR + "/" + fileBaseName(project.getPath());
         project.getTasks().register(TASK_NAME, FlakinessResolveProjectTask.class, t -> {
             t.setGroup("flakiness");
             t.setDescription("Resolve flakiness-refs.json against this project's own model (configuration-cache compatible)");

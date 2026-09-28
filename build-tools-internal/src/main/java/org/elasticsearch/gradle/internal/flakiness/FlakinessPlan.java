@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.scan.CommandBuilder;
+import org.elasticsearch.gradle.internal.flakiness.scan.PlanBuilder;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
+import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
+import org.elasticsearch.gradle.internal.flakiness.scan.PlanBuilder;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;

@@ -7,8 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.resolve;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -85,7 +92,7 @@ public final class RefResolver {
      * @param repoRoot  the repo root against which refs are resolved
      * @param project   the one project to resolve against
      * @param testTasks that project's post-configuration {@code Test} tasks
-     * @param taskCap   max tasks a single target may fan out to (see {@link TestTaskSelector#DEFAULT_TASK_CAP})
+     * @param taskCap   max tasks a single target may fan out to (see {@link FlakinessProperties#DEFAULT_TASK_CAP})
      */
     public RefResolver(Path repoRoot, ProjectInfo project, List<TestTaskInfo> testTasks, int taskCap) {
         this.repoRoot = repoRoot.toAbsolutePath().normalize();

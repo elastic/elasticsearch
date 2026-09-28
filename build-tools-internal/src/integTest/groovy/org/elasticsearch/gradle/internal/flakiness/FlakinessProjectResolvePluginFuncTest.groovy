@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.flakiness
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
@@ -43,7 +44,7 @@ class FlakinessProjectResolvePluginFuncTest extends AbstractGradleInternalPlugin
         // Exactly how ElasticsearchTestBasePlugin brings the plugin in: applied unconditionally, gated inside.
         def applyPlugin = """
             plugins { id 'java' }
-            pluginManager.apply(org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolvePlugin)
+            pluginManager.apply(org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin)
         """
 
         subProject(":owner") << applyPlugin
@@ -114,7 +115,7 @@ class FlakinessProjectResolvePluginFuncTest extends AbstractGradleInternalPlugin
     }
 
     private Object projectTargets(String project) {
-        new JsonSlurper().parse(file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.json"))
+        new JsonSlurper().parse(file("${FlakinessLayout.TARGETS_DIR}/${project}.json"))
     }
 
     private Object projectModel(String project) {

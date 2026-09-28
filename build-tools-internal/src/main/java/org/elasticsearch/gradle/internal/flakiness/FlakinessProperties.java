@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 
@@ -20,7 +21,18 @@ import org.gradle.api.provider.Provider;
  * project and {@link FlakinessProjectResolvePlugin} on every test project - need overlapping subsets of the
  * same options.
  */
-final class FlakinessProperties {
+public final class FlakinessProperties {
+
+    /** Default limit on concrete subclasses selected from an abstract base. */
+    public static final int DEFAULT_SUBCLASS_CAP = 5;
+
+    /**
+     * Default limit on alternative test tasks selected for a target. A bwc project can register dozens of
+     * {@code v<version>#bwcTest} tasks (67 in one rolling-upgrade project at the time of writing), each
+     * booting a multi-node cluster; an uncapped fan-out would swamp the pipeline. Overridable with
+     * {@code -Pflakiness.taskCap}.
+     */
+    public static final int DEFAULT_TASK_CAP = 2;
 
     /**
      * The master gate. Both plugins are inert unless it is set, so a normal build pays nothing for having them
@@ -43,12 +55,12 @@ final class FlakinessProperties {
     private FlakinessProperties() {}
 
     /** Whether flakiness resolution was requested at all. */
-    static boolean enabled(Project project) {
+    public static boolean enabled(Project project) {
         return project.getProviders().gradleProperty(ENABLE).isPresent();
     }
 
     /** Path to {@code flakiness-refs.json} (contract 1), relative to the repo root. */
-    static Provider<String> refsPath(Project project) {
+    public static Provider<String> refsPath(Project project) {
         return string(project, REFS, DEFAULT_REFS);
     }
 
@@ -59,12 +71,12 @@ final class FlakinessProperties {
 
     /** How many concrete subclasses of an abstract base to run. */
     static Provider<Integer> subclassCap(Project project) {
-        return integer(project, SUBCLASS_CAP, PlanBuilder.DEFAULT_SUBCLASS_CAP);
+        return integer(project, SUBCLASS_CAP, DEFAULT_SUBCLASS_CAP);
     }
 
     /** How many candidate {@code Test} tasks one target may fan out to. */
-    static Provider<Integer> taskCap(Project project) {
-        return integer(project, TASK_CAP, TestTaskSelector.DEFAULT_TASK_CAP);
+    public static Provider<Integer> taskCap(Project project) {
+        return integer(project, TASK_CAP, DEFAULT_TASK_CAP);
     }
 
     /**

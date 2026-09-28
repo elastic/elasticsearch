@@ -7,8 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.resolve;
 
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
+import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,15 +38,6 @@ import java.util.List;
  * 0, and the analyzer record a bogus {@code hang}. Emitting the real tasks makes bwc tests genuinely re-runnable.
  */
 public final class TestTaskSelector {
-
-    /**
-     * How many candidate tasks a single target may fan out to. A bwc project registers one
-     * {@code v<version>#bwcTest} task per wire-compatible version - 67 of them for
-     * {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} at the time of writing - and each one boots a real
-     * multi-node cluster, so an uncapped fan-out would swamp the pipeline. Overridable with
-     * {@code -Pflakiness.taskCap}.
-     */
-    public static final int DEFAULT_TASK_CAP = 2;
 
     /** Skip reason: the source set has no enabled {@code Test} task at all, so there is nothing to re-run. */
     public static final String REASON_NO_RUNNABLE_TASK = "no-runnable-task";
@@ -104,7 +97,7 @@ public final class TestTaskSelector {
     /**
      * Select the tasks that re-run a target.
      *
-     * <h2>Known limitation: per-task class filters are not consulted</h2>
+     * <h4>Known limitation: per-task class filters are not consulted</h4>
      * Selection is based on {@code testClassesDirs} overlap, which answers "could this task run classes from
      * that source set" but not "would it run <em>this</em> class". A {@code Test} task can also carry
      * {@code PatternFilterable} include/exclude patterns, and those are invisible here, so a class that the
@@ -125,7 +118,7 @@ public final class TestTaskSelector {
      *                     name ({@code test}/{@code internalClusterTest}/{@code javaRestTest}/{@code yamlRestTest})
      * @param outputDir    the compiled-output directory of the owning source set
      * @param testTasks    every {@code Test} task of the owning project, post-configuration
-     * @param cap          max tasks to select (see {@link #DEFAULT_TASK_CAP})
+     * @param cap          max tasks to select (see {@link FlakinessProperties#DEFAULT_TASK_CAP})
      */
     public static Selection select(String bareTaskName, Path outputDir, List<TestTaskInfo> testTasks, int cap) {
         List<TestTaskInfo> candidates = new ArrayList<>();

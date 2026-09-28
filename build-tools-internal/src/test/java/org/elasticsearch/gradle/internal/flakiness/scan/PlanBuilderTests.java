@@ -7,9 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.scan;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;

@@ -7,9 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.scan;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessJson;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessLayout;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessResolveProjectTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -66,7 +73,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
     /**
      * The per-project {@code <project>.json} files written by {@code flakinessResolveProject}, collected from
-     * {@link FlakinessProjectResolvePlugin#TARGETS_DIR}.
+     * {@link FlakinessLayout#TARGETS_DIR}.
      */
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -128,7 +135,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
             // here would produce a green build that silently re-runs no tests at all.
             throw new GradleException(
                 "No per-project resolve output found under "
-                    + FlakinessProjectResolvePlugin.TARGETS_DIR
+                    + FlakinessLayout.TARGETS_DIR
                     + " but there are "
                     + refs.size()
                     + " refs to resolve. Run `flakinessResolveProject` (unqualified, with -Pflakiness.resolve) "

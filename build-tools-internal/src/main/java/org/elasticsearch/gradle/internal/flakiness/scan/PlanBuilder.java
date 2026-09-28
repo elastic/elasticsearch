@@ -7,12 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.scan;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Expansion;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.TaskSelection;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Unresolved;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,76 +28,22 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Assembles the final {@link FlakinessPlan} from resolved {@link BaseTarget}s and bytecode enrichment. Pure:
- * no Gradle, no I/O beyond what the {@link ClassHierarchyScanner} already did.
- *
- * <p>Rules (contract 2):
- * <ul>
- *   <li>target with a {@code skipReason} (no enabled task, or only packaging-host tasks) -&gt; single
- *       {@code skip} entry carrying that reason (downstream {@code not_applicable}).</li>
- *   <li>yaml kinds (no fqcn, or a specific parameterised case) -&gt; pass through as {@code run}; bytecode
- *       enrichment is a no-op for them.</li>
- *   <li>Java kind with an fqcn -&gt; {@link ClassHierarchyScanner#expand} it. Concrete (or never scanned):
- *       a single {@code run} for the class itself. Abstract: a {@code run} for <b>each</b> concrete subclass
- *       the cap selected (sorted by FQCN, at most {@code subclassCap}, default
- *       {@value #DEFAULT_SUBCLASS_CAP}), every one stamped with {@code expandedFrom}, plus exactly one
- *       {@link Expansion} report record for the base. A chosen subclass that is not a runnable test class -
- *       an inner or anonymous subclass, a helper - becomes a {@code skip} with {@code not-a-test-class}
- *       instead. Abstract with zero concrete subclasses anywhere in the scan set: surfaced as
- *       {@code unresolved}, never emitted as itself.</li>
- *   <li>An expanded subclass compiled <em>outside</em> the abstract base's own source-set output -&gt; re-homed
- *       onto the source set that really owns it. See below.</li>
- * </ul>
- *
- * <p>Every {@code run} entry carries {@code runnableTasks} through to the plan, so {@link CommandBuilder} can
- * build the invocation from real task paths.
- *
- * <h2>Subclasses outside the target's own output</h2>
- * The scan covers the whole repo, so expanding an abstract base routinely turns up concrete subclasses compiled
- * into a different source-set output - another project's, or another source set of the same project. Finding
- * them is the point of compiling everything.
- *
- * <p>They cannot simply inherit the base target's {@code runnableTasks}: those were chosen by
- * {@link TestTaskSelector} by intersecting each {@code Test} task's {@code testClassesDirs} with the base's
- * <em>own</em> output directory, so emitting {@code :app:test --tests com.downstream.DownstreamTests} would
- * match nothing, run zero tests, and be indistinguishable downstream from a hang.
- *
- * <p>Instead each such subclass is <b>re-homed</b>: the scanner reports which directory its bytecode came from,
- * {@link FlakinessTargets#dispositionsByClassDir} maps that directory to the owning project and source set, and
- * the entry is emitted with that project's path, source set, kind and real task paths. It runs under
- * {@code :downstream:test}, which is what actually executes it. This works because <em>every</em> project
- * reports a {@link SourceSetDisposition} per test source set, whether or not it owned a ref.
- *
- * <p>If the owning source set has nothing runnable (bwc-only, packaging host), its own {@code skipReason} is
- * carried through rather than a new one invented. A directory no project claimed falls back to
- * {@value #REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT}.
- *
- * <p>Since <em>every</em> candidate source set now reports a {@link SourceSetDisposition} (see
- * {@code FlakinessResolveProjectTask#dispositionsOf}), {@code main} is the only scanned directory left that
- * has none - it is in the scan set because abstract bases live there, but refs never resolve into it. So the
- * fallback survives only for a concrete subclass compiled into a {@code main} output, which cannot happen: a
- * {@code main} source set cannot depend on a test source set. Audited over the whole repo: zero of 532
- * abstract bases have a descendant in a {@code main} output.
- *
- * <p>That argument is about {@code main} and nothing else, so it is only sound while the disposition set and
- * the scan set agree, and it is load-bearing: a source set that is scanned without reporting a disposition
- * makes every subclass found there unattributable. {@code yamlRestTest} is the worked example - leave it out
- * of the disposition set and a ref on {@code AbstractXPackRestTest}, whose subclasses are all yaml runners,
- * yields five of these skips and no runnable work at all.
- *
- * <p>The comparison is on the compiled-output directory rather than the Gradle project path on purpose: a base
- * in {@code :p}'s {@code test} source set and a subclass in {@code :p}'s {@code internalClusterTest} source set
- * share a project but not a {@code Test} task, so comparing projects would wrongly reuse the base's tasks.
+ * Assembles the final {@link FlakinessPlan} from resolved {@link BaseTarget}s and bytecode enrichment.
+ * Pure: no Gradle access or I/O beyond what the {@link ClassHierarchyScanner} already performed.
+ * See the {@link org.elasticsearch.gradle.internal.flakiness.scan package description} for the phase boundary.
  */
 public final class PlanBuilder {
-
-    public static final int DEFAULT_SUBCLASS_CAP = 5;
 
     /**
      * A compiled-output directory that no project claimed a source set for, so the subclass found in it cannot
      * be attributed to any {@code Test} task. Kept as a genuine fallback rather than an assertion: {@code main}
-     * outputs are scanned but carry no disposition, and it is the only such directory (see the class javadoc
-     * for why that makes it unreachable in practice, and for the yamlRestTest case where it was not).
+     * outputs are scanned because abstract bases live there, but refs never resolve into {@code main}.
+     * A concrete subclass in {@code main} cannot depend on a test source set, so this fallback should not
+     * arise while every scanned test source set reports a disposition.
+     * That reasoning only holds while the scan and disposition sets agree:
+     * omitting {@code yamlRestTest} dispositions, for example, makes its subclasses unattributable. A ref on
+     * {@code AbstractXPackRestTest}, whose subclasses are yaml runners, then produces five of these skips
+     * instead of runnable work.
      */
     public static final String REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT = "subclass-outside-target-output";
 
@@ -106,6 +58,13 @@ public final class PlanBuilder {
     private PlanBuilder() {}
 
     /**
+     * A skipped target produces one skip entry; yaml targets pass through; concrete Java targets produce one
+     * run entry. Abstract Java targets expand into at most {@code subclassCap} runnable subclasses
+     * (default {@value FlakinessProperties#DEFAULT_SUBCLASS_CAP}, ordered by FQCN), each stamped with
+     * {@code expandedFrom}, plus one {@link Expansion} report. Non-test descendants become reported skips,
+     * and an abstract base with no concrete descendants is unresolved rather than emitted as a runnable class.
+     * Every run entry retains the selected task paths for {@link CommandBuilder}.
+     *
      * @param dispositionOfClassDir maps a compiled-output directory to the project + source set that owns it
      *                              (see {@link FlakinessTargets#dispositionsByClassDir}), so an expanded
      *                              subclass found outside the base target's own output can be run by the tasks
@@ -158,7 +117,8 @@ public final class PlanBuilder {
                 expansions.add(new Expansion(t.fqcn(), ex.classesToRun().size(), ex.totalRunnable(), subclassCap));
                 // The base's runnableTasks were selected by intersecting each Test task's testClassesDirs with
                 // the base's OWN source-set output, so they only run classes compiled into that same directory.
-                // A subclass from anywhere else is re-homed onto its own source set's tasks.
+                // A subclass from anywhere else is re-homed onto its own source set's tasks. Compare directories,
+                // not projects: :p's test and internalClusterTest source sets share a project but not a Test task.
                 Path baseDir = scanner.originDir(t.fqcn());
                 for (String concrete : ex.classesToRun()) {
                     Path dir = scanner.originDir(concrete);
@@ -191,7 +151,12 @@ public final class PlanBuilder {
     /**
      * A concrete subclass whose bytecode was compiled somewhere other than the base target's own source-set
      * output, re-homed onto the source set that really owns it: the owning project's path, source set, kind and
-     * real {@code Test} tasks, rather than the base target's (which do not run it).
+     * real {@code Test} tasks, rather than the base target's (which do not run it). The scan uses the bytecode
+     * origin directory and {@link FlakinessTargets#dispositionsByClassDir} to find the owning source set.
+     * For example, {@code :app:test --tests com.downstream.DownstreamTests} would match no tests if that class
+     * was compiled in {@code :downstream}; re-homing runs it under {@code :downstream:test} instead. Without
+     * this, a zero-test invocation could be misreported as a hang.
+     * If that source set has no runnable tasks, carry its own skip reason instead of inventing another one.
      *
      * @param owner the disposition reported by whichever project owns that output directory, or {@code null}
      *              if no project claimed it - which should not happen once every project reports its source

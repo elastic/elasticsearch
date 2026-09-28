@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessScanTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -29,7 +31,7 @@ import org.gradle.api.provider.ProviderFactory;
  * <p>Three Gradle invocations use these:
  * <ol>
  *   <li>{@code flakinessResolveProject}, <b>unqualified</b> - refs + each project's own model -> one
- *       {@code <project>.json} per project under {@link FlakinessProjectResolvePlugin#TARGETS_DIR};</li>
+ *       {@code <project>.json} per project under {@link FlakinessLayout#TARGETS_DIR};</li>
  *   <li>a plain, <b>unqualified</b> compile of the four {@code compile<Ss>;Java} lifecycle tasks (no
  *       plugin involvement, and nothing read back from step 1) - its exit code is the sole
  *       {@code build_failed} signal;</li>
@@ -65,7 +67,7 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
             // The per-project resolve outputs live in ONE shared directory precisely so this collection is a
             // cheap, flat glob rather than a walk of every project's build directory.
             t.getProjectTargetsFiles()
-                .from(project.fileTree(project.getLayout().getProjectDirectory().dir(FlakinessProjectResolvePlugin.TARGETS_DIR), tree -> {
+                .from(project.fileTree(project.getLayout().getProjectDirectory().dir(FlakinessLayout.TARGETS_DIR), tree -> {
                     tree.include("*.json");
                 }));
             t.getRefsJson().set(refsJson);

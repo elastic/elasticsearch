@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.flakiness
 
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
@@ -68,7 +69,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         // below that omit the property (the plain compile) simply never see the task.
         def register = """
             plugins { id 'java' }
-            pluginManager.apply(org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolvePlugin)
+            pluginManager.apply(org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin)
         """
 
         subProject(":app") << register
@@ -409,7 +410,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
     }
 
     private Object projectTargets(String project) {
-        new JsonSlurper().parse(file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.json"))
+        new JsonSlurper().parse(file("${FlakinessLayout.TARGETS_DIR}/${project}.json"))
     }
 
     private List<String> classDirsOf(String project) {
@@ -418,7 +419,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
 
     /** What the scan step does: union every project's class dirs, owners and non-owners alike. */
     private List<String> allClassDirs() {
-        file(FlakinessProjectResolvePlugin.TARGETS_DIR).listFiles()
+        file(FlakinessLayout.TARGETS_DIR).listFiles()
             .findAll { it.name.endsWith(".json") }
             .collectMany { new JsonSlurper().parse(it).classDirs.collect { d -> (d as String).replace('\\', '/') } }
             .unique()

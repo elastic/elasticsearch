@@ -170,7 +170,7 @@ export const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
 export const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
 export const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 // Where each project drops its share of the resolve answer. Keep in sync with
-// FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
+// FlakinessLayout.TARGETS_DIR on the Java side.
 export const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
 export const FLAKINESS_TARGETS_ARCHIVE = "flakiness-project-targets.tgz";
 

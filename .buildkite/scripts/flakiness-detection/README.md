@@ -279,12 +279,11 @@ flakiness-detection/
     analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation
 
 build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
-  FlakinessResolvePlugin / FlakinessScanTask           root plugin + the scan task
-  FlakinessProjectResolve / FlakinessResolveProjectTask per-project self-selecting resolve
-  RefResolver / ClassHierarchyScanner / PlanBuilder    pure core (refs→targets, ASM enrichment, plan)
-  FlakinessTargets                                     pure fold of the per-project answers
-  FlakinessRef / BaseTarget / FlakinessPlan / Kinds    records + wire constants
-  FlakinessJson                                        Jackson (de)serialization of the contracts
+  FlakinessResolvePlugin             root plugin registering the scan task
+  FlakinessLayout / FlakinessJson    shared paths + JSON contracts
+  FlakinessRef / BaseTarget / FlakinessPlan / Kinds    shared records + wire constants
+  resolve/                           per-project ref ownership and task selection
+  scan/                              repo-wide bytecode enrichment, plan, commands
 ```
 
-Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && npx vitest run scripts/flakiness-detection`. The Java resolver's unit tests are in `build-tools-internal`, one test class per production class: `./gradlew :build-tools-internal:test --tests "org.elasticsearch.gradle.internal.flakiness.*"`.
+Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && npx vitest run scripts/flakiness-detection`. The Java resolver's unit tests are in `build-tools-internal`: `./gradlew :build-tools-internal:test --tests "org.elasticsearch.gradle.internal.flakiness.*"`.

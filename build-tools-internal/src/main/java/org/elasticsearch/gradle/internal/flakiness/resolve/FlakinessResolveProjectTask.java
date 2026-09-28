@@ -7,8 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.resolve;
 
+import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessJson;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessLayout;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessScanTask;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessTargets;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
@@ -45,7 +54,7 @@ import java.util.List;
  * here even though every ref pointed elsewhere, and that needs this project's own {@code Test} tasks.
  *
  * <h2>Output</h2>
- * One file under the shared {@link FlakinessProjectResolvePlugin#TARGETS_DIR}, named after this project:
+ * One file under the shared {@link FlakinessLayout#TARGETS_DIR}, named after this project:
  * {@code <project>.json}, a {@link FlakinessJson.ProjectTargetsFile} carrying
  * <ul>
  *   <li>each resolved target together with the <em>index</em> of the ref that produced it. The index is what

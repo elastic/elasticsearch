@@ -120,9 +120,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final TransportVersion DATAFEED_CLOUD_INTERNAL_CREDENTIAL = TransportVersion.fromName(
         "datafeed_cloud_internal_credential"
     );
-    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES = TransportVersion.fromName(
-        "datafeed_max_consecutive_extraction_failures"
-    );
 
     /**
      * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
@@ -173,7 +170,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
-    public static final ParseField MAX_CONSECUTIVE_EXTRACTION_FAILURES = new ParseField("max_consecutive_extraction_failures");
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
     public static final ParseField CLOUD_INTERNAL_CREDENTIAL = new ParseField("cloud_internal_credential");
@@ -276,7 +272,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             DELAYED_DATA_CHECK_CONFIG
         );
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
-        parser.declareInt(Builder::setMaxConsecutiveExtractionFailures, MAX_CONSECUTIVE_EXTRACTION_FAILURES);
         parser.declareObject(
             Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
@@ -309,7 +304,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
-    private final Integer maxConsecutiveExtractionFailures;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
     @Nullable
@@ -331,7 +325,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Map<String, String> headers,
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
-        Integer maxConsecutiveExtractionFailures,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
         String projectRouting,
@@ -350,7 +343,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
-        this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
         this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
         this.projectRouting = projectRouting;
@@ -393,11 +385,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
         } else {
             this.cloudInternalCredential = null;
-        }
-        if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
-            this.maxConsecutiveExtractionFailures = in.readOptionalInt();
-        } else {
-            this.maxConsecutiveExtractionFailures = null;
         }
     }
 
@@ -663,15 +650,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return maxEmptySearches;
     }
 
-    /**
-     * The number of consecutive extraction failures after which the datafeed stops itself, or {@code null} to use
-     * the default (a value proportional to the datafeed frequency, i.e. roughly one day's worth of searches). A value
-     * of {@code -1} disables the behaviour so the datafeed retries indefinitely.
-     */
-    public Integer getMaxConsecutiveExtractionFailures() {
-        return maxConsecutiveExtractionFailures;
-    }
-
     public IndicesOptions getIndicesOptions() {
         return indicesOptions;
     }
@@ -738,9 +716,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
             out.writeOptionalWriteable(cloudInternalCredential);
         }
-        if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
-            out.writeOptionalInt(maxConsecutiveExtractionFailures);
-        }
     }
 
     @Override
@@ -806,9 +781,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
-        }
-        if (maxConsecutiveExtractionFailures != null) {
-            builder.field(MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(), maxConsecutiveExtractionFailures);
         }
         if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
@@ -879,7 +851,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.headers, that.headers)
             && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
-            && Objects.equals(this.maxConsecutiveExtractionFailures, that.maxConsecutiveExtractionFailures)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings)
             && Objects.equals(this.projectRouting, that.projectRouting)
@@ -902,7 +873,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             headers,
             delayedDataCheckConfig,
             maxEmptySearches,
-            maxConsecutiveExtractionFailures,
             indicesOptions,
             runtimeMappings,
             projectRouting,
@@ -978,7 +948,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
-        private Integer maxConsecutiveExtractionFailures;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings = Collections.emptyMap();
         private String projectRouting;
@@ -1006,7 +975,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.headers = new HashMap<>(config.headers);
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
-            this.maxConsecutiveExtractionFailures = config.getMaxConsecutiveExtractionFailures();
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = new HashMap<>(config.runtimeMappings);
             this.projectRouting = config.projectRouting;
@@ -1047,9 +1015,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
                 cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
-            }
-            if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
-                maxConsecutiveExtractionFailures = in.readOptionalInt();
             }
         }
 
@@ -1093,9 +1058,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
                 out.writeOptionalWriteable(cloudInternalCredential);
             }
-            if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
-                out.writeOptionalInt(maxConsecutiveExtractionFailures);
-            }
         }
 
         @Override
@@ -1116,7 +1078,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(headers, builder.headers)
                 && Objects.equals(delayedDataCheckConfig, builder.delayedDataCheckConfig)
                 && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
-                && Objects.equals(maxConsecutiveExtractionFailures, builder.maxConsecutiveExtractionFailures)
                 && Objects.equals(indicesOptions, builder.indicesOptions)
                 && Objects.equals(runtimeMappings, builder.runtimeMappings)
                 && Objects.equals(projectRouting, builder.projectRouting)
@@ -1139,7 +1100,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 headers,
                 delayedDataCheckConfig,
                 maxEmptySearches,
-                maxConsecutiveExtractionFailures,
                 indicesOptions,
                 runtimeMappings,
                 projectRouting,
@@ -1269,27 +1229,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return this;
         }
 
-        /**
-         * Sets the number of consecutive extraction failures after which the datafeed stops itself. A value of
-         * {@code -1} disables the behaviour (indefinite retries). Any other non-positive value is rejected. A
-         * {@code null} value clears the setting so the default, which is proportional to the datafeed frequency,
-         * applies.
-         */
-        public Builder setMaxConsecutiveExtractionFailures(Integer maxConsecutiveExtractionFailures) {
-            if (maxConsecutiveExtractionFailures != null
-                && maxConsecutiveExtractionFailures != -1
-                && maxConsecutiveExtractionFailures <= 0) {
-                String msg = getMessage(
-                    DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                    DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
-                    maxConsecutiveExtractionFailures
-                );
-                throw ExceptionsHelper.badRequestException(msg);
-            }
-            this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
-            return this;
-        }
-
         public Builder setIndicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
@@ -1376,7 +1315,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 headers,
                 delayedDataCheckConfig,
                 maxEmptySearches,
-                maxConsecutiveExtractionFailures,
                 indicesOptions,
                 runtimeMappings,
                 projectRouting,

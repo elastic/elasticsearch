@@ -10,6 +10,8 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.Nullable;
@@ -123,6 +125,18 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         return docs == null ? ord : docs.ordToDoc(ord);
     }
 
+    /**
+     * Hints the preferred access pattern for subsequent reads of the backing vector data. When the
+     * values are backed by an on-disk file this forwards to {@link IndexInput#updateIOContext} so the
+     * OS read-ahead policy can be matched to the caller's access pattern (for example switching to
+     * {@link DataAccessHint#RANDOM} for a phase that reads vectors in a scattered order and back to
+     * {@link DataAccessHint#SEQUENTIAL} afterwards). It is a no-op when the values are already resident
+     * in memory.
+     */
+    public void updateReadAdvice(DataAccessHint hint) throws IOException {
+        vectors.updateReadAdvice(hint);
+    }
+
     private sealed interface VectorSupplier permits OffHeapVectorSupplier, OnHeapVectorSupplier, FloatVectorValuesSupplier {
 
         float[] vector(int ord) throws IOException;
@@ -130,6 +144,12 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         int dims();
 
         VectorSupplier copy() throws IOException;
+
+        /**
+         * Adjusts the read-advice hint on the backing storage. Only meaningful for file-backed
+         * suppliers; in-memory suppliers leave this as a no-op.
+         */
+        default void updateReadAdvice(DataAccessHint hint) throws IOException {}
     }
 
     private record OnHeapVectorSupplier(List<float[]> vectors, int dims) implements VectorSupplier {
@@ -162,6 +182,11 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         @Override
         public int dims() {
             return vector.length;
+        }
+
+        @Override
+        public void updateReadAdvice(DataAccessHint hint) throws IOException {
+            vectors.updateIOContext(IOContext.DEFAULT.withHints(hint));
         }
 
         @Override

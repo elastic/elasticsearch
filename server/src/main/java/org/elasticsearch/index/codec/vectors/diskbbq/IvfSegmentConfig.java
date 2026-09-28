@@ -68,6 +68,22 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_TRAINING_FACTOR = 10;
 
         /**
+         * Training-sample factor used on the flush path only. Flush segments are transient and are
+         * re-trained at merge, so W is learned on a smaller sample there (cheaper training, smaller
+         * temporary allocations) while keeping the recall-critical PCA subspace. Merge uses the full
+         * {@link #trainingFactor()}.
+         */
+        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 5;
+
+        /**
+         * Returns the training-sample factor to use when learning W at flush time (a reduced,
+         * cheap-learned profile). Merge uses {@link #trainingFactor()}.
+         */
+        public int flushTrainingFactor() {
+            return DEFAULT_FLUSH_TRAINING_FACTOR;
+        }
+
+        /**
          * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.
          */
         public static boolean isValidBitsPerDim(int bits) {

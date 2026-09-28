@@ -61,6 +61,16 @@ public final class AsymmetricHashingQuantizer {
     private final AshSphericalScalarQuantizer quantizer;
 
     /**
+     * Absolute cap on the number of vectors sampled for training W, independent of dimensionality.
+     * {@code trainingFactor} scales the sample with {@code originalDim} (e.g. factor 10 at 3072 dims
+     * would sample 30,720 vectors), which makes the training matrices — and their temporary
+     * allocations during PCA/SVD — grow with dimension and pressure the heap. This cap bounds that
+     * footprint for high-dimensional inputs; the projection subspace is well-estimated from a few
+     * thousand samples, so the cap has negligible quality impact.
+     */
+    static final int MAX_TRAINING_SAMPLES = 8192;
+
+    /**
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
@@ -104,46 +114,135 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
+     * Random-access provider of the segment's vectors by ordinal. Lets training read vectors directly
+     * from the backing {@code FloatVectorValues} — on-heap at flush, or streamed from the off-heap temp
+     * file at merge — without a full-corpus heap clone. Implementations may return a shared/live buffer,
+     * so callers must consume each returned array before requesting the next ordinal.
+     */
+    @FunctionalInterface
+    interface VectorProvider {
+        float[] get(int ord) throws IOException;
+    }
+
+    /**
+     * Result of training a projection matrix: the transposed matrix W^T together with whether it was
+     * genuinely learned (PCA + Procrustes) or a random orthonormal fallback. The quantizer is the sole
+     * owner of this distinction, so callers must not re-derive it. A random (non-learned) matrix must
+     * not be inherited/warm-started at merge time.
+     *
+     * @param wT      the transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
+     * @param learned {@code true} if W was learned; {@code false} if it is a random orthonormal fallback
+     */
+    record TrainedProjection(float[] wT, boolean learned) {}
+
+    /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
      * <p>
      * This method consumes draws from a per-call RNG seeded with the instance's seed, so
      * successive calls on the same instance will produce identical results.
      *
-     * @param vectors all vectors in the segment, shape (nVectors, originalDim)
+     * @param vectors random-access provider of the segment's vectors by ordinal
+     * @param count number of vectors in the segment
+     * @param originalDim vector dimensionality
      * @param centroids cluster centroids, fetched by vector ordinal
-     * @return the transposed learned projection matrix W^T in row-major order, shape (nDims, originalDim)
+     * @return the trained projection (W^T plus whether it was learned or a random fallback)
      */
-    public float[] train(float[][] vectors, CheckedIntFunction<float[], IOException> centroids) throws IOException {
-        int originalDim = vectors[0].length;
+    TrainedProjection train(VectorProvider vectors, int count, int originalDim, CheckedIntFunction<float[], IOException> centroids)
+        throws IOException {
         int nDims = nDims(originalDim);
 
         if (method == Method.RANDOM) {
-            return randomOrthogonal(originalDim, nDims);
+            return new TrainedProjection(randomOrthogonal(originalDim, nDims), false);
         }
 
         // Too few vectors for meaningful PCA training; fall back to random projection
-        if (method == Method.LEARNED && vectors.length < nDims * 2) {
-            return randomOrthogonal(originalDim, nDims);
+        if (method == Method.LEARNED && count < nDims * 2) {
+            return new TrainedProjection(randomOrthogonal(originalDim, nDims), false);
         }
 
-        int trainingSize = Math.min(originalDim * trainingFactor, vectors.length);
-        int[] sampleIndices = sampleIndices(vectors.length, trainingSize);
+        int trainingSize = Math.min(Math.min(originalDim * trainingFactor, count), MAX_TRAINING_SAMPLES);
+        float[] xTraining = buildTrainingMatrix(vectors, count, centroids, originalDim, trainingSize);
 
-        // Center and normalize the sampled vectors into a fresh flat array. We must not mutate
-        // `vectors` in place -- the writer reuses it for per-posting-list encoding later.
+        // LEARNED: PCA init + Procrustes
+        float[] wT = ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
+        return new TrainedProjection(wT, true);
+    }
+
+    /**
+     * Warm-started training: refines an inherited projection matrix instead of learning W from
+     * scratch. The supplied {@code inheritedWT} (transposed, shape {@code (nDims, originalDim)}) is
+     * used directly as the orthonormal basis, skipping the expensive PCA / power-iteration
+     * initialization, and a small number of Procrustes refinement iterations are run against the
+     * current (merged) training data to re-fit the rotation.
+     * <p>
+     * Used at merge time to recover the recall of a freshly-trained W while retaining most of the
+     * cost saving of reusing an input segment's matrix.
+     *
+     * @param vectors       random-access provider of the segment's vectors by ordinal
+     * @param count         number of vectors in the segment
+     * @param originalDim   vector dimensionality
+     * @param centroids     cluster centroids, fetched by vector ordinal
+     * @param inheritedWT   the inherited transposed projection matrix, shape (nDims, originalDim)
+     * @param refineIterations number of Procrustes refinement iterations to run
+     * @return the refined projection (W^T plus {@code learned=true}), or the inherited matrix unchanged
+     *         if there are too few vectors to refine. The inherited matrix is always a learned matrix
+     *         (the caller only warm-starts from learned inputs), so the result is always learned.
+     */
+    TrainedProjection trainWarmStart(
+        VectorProvider vectors,
+        int count,
+        int originalDim,
+        CheckedIntFunction<float[], IOException> centroids,
+        float[] inheritedWT,
+        int refineIterations
+    ) throws IOException {
+        assert inheritedWT != null : "trainWarmStart requires a non-null inherited matrix to fall back to";
+        int nDims = nDims(originalDim);
+
+        if (method != Method.LEARNED
+            || inheritedWT == null
+            || inheritedWT.length != originalDim * nDims
+            || count < nDims * 2
+            || refineIterations <= 0) {
+            // Not refinable — return the inherited matrix as-is (caller already validated compatibility).
+            return new TrainedProjection(inheritedWT, true);
+        }
+
+        int trainingSize = Math.min(Math.min(originalDim * trainingFactor, count), MAX_TRAINING_SAMPLES);
+        float[] xTraining = buildTrainingMatrix(vectors, count, centroids, originalDim, trainingSize);
+
+        // The basis P is the (originalDim x nDims) form of the inherited W^T.
+        float[] p = ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim);
+        float[] w = learnedTrainingFromBasis(xTraining, p, trainingSize, originalDim, nDims, refineIterations);
+        return new TrainedProjection(ESVectorUtil.transposeMatrix(w, originalDim, nDims), true);
+    }
+
+    /**
+     * Samples {@code trainingSize} vectors, centers each by its cluster centroid, L2-normalizes it,
+     * and returns them as a flat row-major {@code (trainingSize, originalDim)} array. Reads each
+     * sampled vector once from {@code vectors} and copies it out, so it is safe with providers that
+     * return a shared/live buffer.
+     */
+    private float[] buildTrainingMatrix(
+        VectorProvider vectors,
+        int count,
+        CheckedIntFunction<float[], IOException> centroids,
+        int originalDim,
+        int trainingSize
+    ) throws IOException {
+        int[] sampleIndices = sampleIndices(count, trainingSize);
         float[] xTraining = new float[trainingSize * originalDim];
         for (int i = 0; i < trainingSize; i++) {
             int srcIdx = sampleIndices[i];
             float[] centroid = centroids.apply(srcIdx);
+            float[] vector = vectors.get(srcIdx);
             int base = i * originalDim;
             for (int d = 0; d < originalDim; d++) {
-                xTraining[base + d] = vectors[srcIdx][d] - centroid[d];
+                xTraining[base + d] = vector[d] - centroid[d];
             }
             ESVectorUtil.l2Normalize(xTraining, base, originalDim);
         }
-
-        // LEARNED: PCA init + Procrustes
-        return ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
+        return xTraining;
     }
 
     /**
@@ -246,7 +345,18 @@ public final class AsymmetricHashingQuantizer {
         // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
         // This is much faster than full SVD when nDims << originalDim
         float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
+        return learnedTrainingFromBasis(xTraining, p, nTraining, originalDim, nDims, nTrainingIterations);
+    }
 
+    /**
+     * Runs the iterative Procrustes refinement starting from a given orthonormal basis {@code p}
+     * (shape {@code (originalDim, nDims)}), returning the learned projection matrix W = P @ R.
+     * <p>
+     * Factored out of {@link #learnedTraining} so a warm-started training can supply an inherited
+     * projection matrix as the basis (skipping the expensive PCA / power-iteration initialization)
+     * and run a small number of refinement iterations against the current training data.
+     */
+    private float[] learnedTrainingFromBasis(float[] xTraining, float[] p, int nTraining, int originalDim, int nDims, int nIterations) {
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
         float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
 
@@ -261,11 +371,11 @@ public final class AsymmetricHashingQuantizer {
         float[] xTransformed = new float[nTraining * nDims];
         AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(nTraining, nDims);
 
-        for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
+        for (int epoch = 0; epoch <= nIterations; epoch++) {
             // R = procrustes(M)
             AshUtils.procrustes(m, nDims, r);
 
-            if (epoch < nTrainingIterations) {
+            if (epoch < nIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
                 ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
                 // Quantize

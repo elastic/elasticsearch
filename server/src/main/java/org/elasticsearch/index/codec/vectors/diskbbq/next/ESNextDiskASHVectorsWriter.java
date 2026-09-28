@@ -173,7 +173,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            ivfSegmentConfig
+            ivfSegmentConfig,
+            null,
+            true // isFlush: vectors are on-heap, use cheap-learned training and skip the corpus clone
         );
     }
 
@@ -189,6 +191,10 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
+        // Reuse an already-trained projection matrix from one of the segments being merged instead of
+        // re-learning W from scratch. W is a global orthonormal projection of centered/normalized
+        // vectors and is effectively centroid-independent, so it can be carried across a merge.
+        final float[] inheritedWT = inheritProjectionMatrix(fieldInfo, mergeState);
         return buildAndWriteAshPostingsLists(
             fieldInfo,
             centroidSupplier,
@@ -197,8 +203,54 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            ivfSegmentConfig
+            ivfSegmentConfig,
+            inheritedWT,
+            false // isFlush=false: merge streams vectors off-heap by ordinal and uses full training
         );
+    }
+
+    /**
+     * Finds a trained ASH projection matrix W among the segments being merged, returning its
+     * transposed form W^T (row-major, shape {@code (nDims, originalDim)}) or {@code null} if none is
+     * available. Prefers the input segment with the most vectors so W is seeded from the best-trained
+     * source. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the
+     * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
+     */
+    private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+        float[] best = null;
+        int bestSize = -1;
+        for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
+            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+            if (reader == null) {
+                continue;
+            }
+            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                reader = fieldsReader.getFieldReader(fieldInfo.name);
+            }
+            if (reader instanceof ESNextDiskASHVectorsReader ashReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
+                AshProjectionMatrix matrix = ashReader.getProjectionMatrix(fieldInfo);
+                if (matrix == null || matrix.isLearned() == false || matrix.originalDim() != fieldInfo.getVectorDimension()) {
+                    // Skip missing matrices and random (non-learned) projections from transient flush
+                    // segments — inheriting a random rotation would carry it into the merged segment.
+                    continue;
+                }
+                int size = 0;
+                try {
+                    FloatVectorValues values = ashReader.getFloatVectorValues(fieldInfo.name);
+                    if (values != null) {
+                        size = values.size();
+                    }
+                } catch (IOException e) {
+                    // Fall back to using the matrix without a size preference if the count is unavailable.
+                    size = 0;
+                }
+                if (size > bestSize) {
+                    bestSize = size;
+                    best = matrix.wT();
+                }
+            }
+        }
+        return best;
     }
 
     private CentroidOffsetAndLength buildAndWriteAshPostingsLists(
@@ -209,7 +261,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         long fileOffset,
         int[] assignments,
         OverspillAssignments overspillAssignments,
-        IvfSegmentConfig segmentConfig
+        IvfSegmentConfig segmentConfig,
+        float[] pretrainedWT,
+        boolean isFlush
     ) throws IOException {
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
@@ -228,7 +282,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             segmentConfig.ashConfig(),
             fieldInfo.getVectorSimilarityFunction(),
-            skipDocIds
+            skipDocIds,
+            pretrainedWT,
+            isFlush
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());

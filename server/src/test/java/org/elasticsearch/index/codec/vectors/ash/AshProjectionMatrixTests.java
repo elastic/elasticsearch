@@ -56,8 +56,26 @@ public class AshProjectionMatrixTests extends ESTestCase {
             pm.write(out);
         }
 
-        long expectedSize = Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
+        long expectedSize = Integer.BYTES * 2L + Byte.BYTES + (long) originalDim * nDims * Float.BYTES;
         assertEquals(expectedSize, pm.byteSize());
+        assertEquals(pm.byteSize(), dataOut.size());
+    }
+
+    public void testLearnedFlagRoundTrips() throws IOException {
+        int originalDim = randomIntBetween(4, 50);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+
+        for (boolean learned : new boolean[] { true, false }) {
+            AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, learned);
+            assertEquals(learned, original.isLearned());
+            AshProjectionMatrix restored = writeAndRead(original);
+            assertEquals(learned, restored.isLearned());
+            assertArrayEquals(wT, restored.wT(), 0f);
+        }
+
+        // The single-arg constructor defaults to learned.
+        assertTrue(new AshProjectionMatrix(wT, originalDim, nDims).isLearned());
     }
 
     public void testEmptyMatrix() throws IOException {

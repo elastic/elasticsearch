@@ -674,7 +674,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private static Predicate<NodeFeature> clusterHasFeature(ClusterService clusterService, FeatureService featureService) {
         return f -> {
             ClusterState state = clusterService.state();
-            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+            assert state.clusterRecovered() : "Cluster state should always be recovered when clusterHasFeature is called";
+            return featureService.clusterHasFeature(state, f);
         };
     }
 

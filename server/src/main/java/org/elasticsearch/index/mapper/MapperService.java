@@ -292,6 +292,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             clusterTransportVersion,
+            // Cluster state isn't available in MAPPING_RECOVERY, so we can't check if the cluster actually supports a feature.
+            // Assume all features are supported. If an unsupported feature is in use by a mapper, which would indicate an invalid mapping,
+            // parsing will fail downstream. However, we should never reach this state because the cluster feature check should prevent
+            // invalid mappings from being written to (and therefore recovered from) cluster state.
             reason == MergeReason.MAPPING_RECOVERY ? f -> true : clusterSupportsFeature,
             searchExecutionContextSupplier,
             scriptCompiler,

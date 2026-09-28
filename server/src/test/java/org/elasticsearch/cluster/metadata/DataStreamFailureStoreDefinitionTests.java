@@ -56,6 +56,7 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.availableModes()))
             .put(randomSetting, randomAlphaOfLength(10));
 
+        // We expect no changes
         expectedBuilder = Settings.builder().put(builder.build());
         assertThat(
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().size(),

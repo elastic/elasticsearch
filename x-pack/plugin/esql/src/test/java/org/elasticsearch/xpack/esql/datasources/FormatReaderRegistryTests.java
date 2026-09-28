@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import com.github.luben.zstd.ZstdOutputStream;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
@@ -105,6 +107,7 @@ public class FormatReaderRegistryTests extends ESTestCase {
      * The registry picks the ratio by codec and reads it live, so a dynamic setting update reaches
      * existing readers. Verified behaviorally: drive {@code metadata()} with a small highly-compressed
      * object; after tightening the limit the guard fires, after disabling it the read succeeds.
+     * Zstd uses {@code max_decompression_ratio.zstd}, not the generic ratio.
      */
     public void testDecompressionRatioFollowsCodecAndLiveUpdates() throws Exception {
         // Build a ~130 KB gzip that expands ~515:1 (64 MiB of repeated text)
@@ -115,11 +118,24 @@ public class FormatReaderRegistryTests extends ESTestCase {
                 gz2.write(line);
             }
         }
-        byte[] compressed = baos.toByteArray();
+        byte[] gzipCompressed = baos.toByteArray();
 
-        StorageObject highlyCompressible = mock(StorageObject.class);
-        when(highlyCompressible.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(compressed));
-        when(highlyCompressible.knownLength()).thenReturn((long) compressed.length);
+        ByteArrayOutputStream zstdBaos = new ByteArrayOutputStream();
+        try (ZstdOutputStream zstdOut = new ZstdOutputStream(zstdBaos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                zstdOut.write(line);
+            }
+        }
+        byte[] zstdCompressed = zstdBaos.toByteArray();
+
+        StorageObject highlyCompressibleGzip = mock(StorageObject.class);
+        when(highlyCompressibleGzip.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(gzipCompressed));
+        when(highlyCompressibleGzip.knownLength()).thenReturn((long) gzipCompressed.length);
+
+        StorageObject highlyCompressibleZstd = mock(StorageObject.class);
+        when(highlyCompressibleZstd.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(zstdCompressed));
+        when(highlyCompressibleZstd.knownLength()).thenReturn((long) zstdCompressed.length);
 
         DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
         codecs.register(new GzipDecompressionCodec());
@@ -137,14 +153,25 @@ public class FormatReaderRegistryTests extends ESTestCase {
         });
 
         FormatReader gz = registry.wrapForObject(csv, "data.csv.gz");
+        FormatReader zst = registry.wrapForObject(csv, "data.csv.zst");
 
         // ratio=200: input is ~515:1 so the guard must fire
         registry.setMaxDecompressionRatio(200);
-        expectThrows(ExternalClientException.class, () -> gz.metadata(highlyCompressible));
+        expectThrows(ExternalClientException.class, () -> gz.metadata(highlyCompressibleGzip));
 
         // Disable the guard: same object must pass
         registry.setMaxDecompressionRatio(0);
-        gz.metadata(highlyCompressible); // must not throw
+        gz.metadata(highlyCompressibleGzip); // must not throw
+
+        // Zstd ignores the generic ratio: low generic + disabled zstd ratio still passes
+        registry.setMaxDecompressionRatio(200);
+        registry.setMaxDecompressionRatioZstd(0);
+        zst.metadata(highlyCompressibleZstd); // must not throw
+
+        // Tight zstd ratio refuses the same object, even when the generic ratio is disabled
+        registry.setMaxDecompressionRatio(0);
+        registry.setMaxDecompressionRatioZstd(200);
+        expectThrows(ExternalClientException.class, () -> zst.metadata(highlyCompressibleZstd));
     }
 
     /**

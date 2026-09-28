@@ -300,6 +300,17 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         });
     }
 
+    public void testMaxDecompressionRatioUpperBound() {
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.get(settings);
+        });
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.get(settings);
+        });
+    }
+
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
         assertEquals(17, ExternalSourceSettings.settings().size());

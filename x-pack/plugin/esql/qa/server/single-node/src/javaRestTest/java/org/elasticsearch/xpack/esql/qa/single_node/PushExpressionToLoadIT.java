@@ -1484,7 +1484,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
             ),
-            null
+            null,
+            new AssertWarnings.NoWarnings()
         );
     }
 
@@ -1560,7 +1561,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         AssertWarnings assertWarnings
     ) throws IOException {
         indexValue(mapping, doc, indexMode);
-        assertPushdown(query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas);
+        assertPushdown(query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas, assertWarnings);
     }
 
     /**
@@ -1572,7 +1573,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Matcher<?> columnMatcher,
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig,
-        Settings pragmas
+        Settings pragmas,
+        AssertWarnings assertWarnings
     ) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {

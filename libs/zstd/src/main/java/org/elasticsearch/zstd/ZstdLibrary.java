@@ -81,6 +81,53 @@ interface ZstdLibrary {
     long decompressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
 
     /**
+     * Allocate an explicit decompression context ({@code ZSTD_DCtx}). Returns {@code NULL} (i.e. a zero
+     * address) on allocation failure. The returned segment must be released with {@link #freeDCtx(MemorySegment)}.
+     *
+     * <p>{@code ZSTD_DStream} is a typedef of {@code ZSTD_DCtx} and {@link #createDStream()} allocates the
+     * identical struct, but the two are kept as distinct bindings here: this one backs repeated one-shot
+     * {@link #decompressDCtxHeap} calls (no streaming state, no window-size parameter), while
+     * {@link #createDStream()} is paired with {@link #dctxSetParameter} and {@link #decompressStream}.
+     *
+     * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_createDCtx</a>
+     */
+    @Function("ZSTD_createDCtx")
+    MemorySegment createDCtx();
+
+    /**
+     * Release a decompression context previously obtained from {@link #createDCtx()}. Accepts a
+     * {@code NULL} address as a no-op.
+     *
+     * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_freeDCtx</a>
+     */
+    @Function("ZSTD_freeDCtx")
+    long freeDCtx(MemorySegment dctx);
+
+    /**
+     * Decompress one or more complete zstd frames in {@code src} into {@code dst} using the explicit
+     * context {@code dctx}, rather than an internally allocated one. Same contract as {@link #decompress}
+     * otherwise. Reusing one context across many calls (one per caller-defined chunk, say) avoids the
+     * {@code ZSTD_createDCtx} / {@code ZSTD_freeDCtx} pair that the one-shot {@link #decompress} /
+     * {@link #decompressHeap} bindings pay internally on every single call.
+     *
+     * @return the number of bytes written into {@code dst} (≤ {@code dstCap}), or an error code testable
+     *         with {@link #isError(long)}.
+     * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_decompressDCtx</a>
+     */
+    @Function("ZSTD_decompressDCtx")
+    long decompressDCtx(MemorySegment dctx, MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
+
+    /**
+     * Heap-friendly variant of {@link #decompressDCtx}: same C symbol bound with the {@code critical}
+     * linker option so on-heap {@link MemorySegment} arguments avoid a JNI copy. On JDK 21 the critical
+     * linker option is unavailable, so the binding is wrapped by {@link ZstdHeapFallback#decompressDCtxHeap}
+     * which stages the heap segments off-heap before the libzstd call.
+     */
+    @Function("ZSTD_decompressDCtx")
+    @Critical(fallbackAdapter = ZstdHeapFallback.class)
+    long decompressDCtxHeap(MemorySegment dctx, MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
+
+    /**
      * Tests whether a {@code size_t} return value from the one-shot or streaming APIs encodes an error.
      *
      * @see <a href="https://facebook.github.io/zstd/zstd_manual.html">ZSTD_isError</a>

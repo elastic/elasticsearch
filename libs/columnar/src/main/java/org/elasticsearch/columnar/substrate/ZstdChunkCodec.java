@@ -29,6 +29,11 @@ import java.lang.foreign.MemorySegment;
  * either end; inputs that cannot (a compound file wrapper, an evicted blob-cache region) fall back to
  * reading the chunk into a buffer.
  *
+ * <p>{@link Decompressor} decodes through a {@link Zstd.DCtx} it holds for its own lifetime rather than
+ * libzstd's parameterless one-shot decompress, so the many chunks one reader decodes over its lifetime
+ * reuse a single native context instead of paying libzstd's implicit alloc/free of a fresh one on every
+ * chunk. See {@link Zstd.DCtx} for why that context does not need an explicit close from this class.
+ *
  * <p>The binding itself is thread-safe for decompression and is shared. The buffers are not, so each
  * compressor and decompressor holds its own and belongs to a single writer or reader.
  */
@@ -57,6 +62,12 @@ final class ZstdChunkCodec {
     static final class Decompressor implements ChunkDecompressor {
 
         private byte[] scratch = new byte[0];
+        // Reused across every chunk this decompressor ever reads, instead of libzstd allocating and
+        // freeing a fresh ZSTD_DCtx on every single decompress call (see Zstd.DCtx's javadoc). Needs no
+        // explicit close: ChunkDecompressor has no close lifecycle of its own (a Decompressor is created
+        // fresh per reader, and readers are created fresh per Lucene getBinary() call with nothing further
+        // up that chain ever explicitly closed either), so this relies on Zstd.DCtx's own GC-driven release.
+        private final Zstd.DCtx dctx = ZSTD.newDCtx();
 
         @Override
         public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
@@ -65,7 +76,7 @@ final class ZstdChunkCodec {
             int decompressed = -1;
             if (IndexInputUtils.canUseSegmentSlices(in)) {
                 try {
-                    decompressed = IndexInputUtils.withSlice(in, storedLength, this::scratch, src -> ZSTD.decompress(target, src));
+                    decompressed = IndexInputUtils.withSlice(in, storedLength, this::scratch, src -> dctx.decompress(target, src));
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
                     // The region backing the slice was evicted mid-read; rewind and take the copying path.
                     in.seek(start);
@@ -74,7 +85,7 @@ final class ZstdChunkCodec {
             if (decompressed < 0) {
                 scratch = ArrayUtil.growNoCopy(scratch, storedLength);
                 in.readBytes(scratch, 0, storedLength);
-                decompressed = ZSTD.decompress(target, MemorySegment.ofArray(scratch).asSlice(0, storedLength));
+                decompressed = dctx.decompress(target, MemorySegment.ofArray(scratch).asSlice(0, storedLength));
             }
             if (decompressed != uncompressedLength) {
                 throw new IOException("chunk decompressed to " + decompressed + " bytes, expected " + uncompressedLength);

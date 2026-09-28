@@ -493,12 +493,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    // Nothing to check for a plain call: counter/gauge type mismatches are coerced during translation.
-                    // Ordering is injected above the collapsed result, so only the outermost function's ordering can
-                    // reach the rows the client sees. Prometheus instead preserves a nested ordering through
-                    // order-preserving functions, so this is a current limitation rather than a deliberate difference;
-                    // rejecting surfaces it instead of silently returning unordered series.
-                    // TODO: Apply an ordering requested below the outermost function.
                     if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
                         failures.add(
                             fail(

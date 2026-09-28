@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -60,12 +61,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -183,6 +186,111 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
         }
+    }
+
+    public void testResultArrivingAfterCloseIsDiscarded() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                2,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            QuerySearchResult early = queryResultWithAggs(0);
+            consumer.consumeResult(early, () -> {});
+            early.decRef();
+            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
+
+            // a failed phase closes the consumer while its shard requests are still in flight
+            consumer.close();
+            assertEquals(0L, circuitBreaker.getUsed());
+            assertFalse(early.hasReferences());
+
+            // this result arrives too late to be buffered into state doClose released, or charged to a breaker that
+            // nothing will credit back
+            QuerySearchResult late = queryResultWithAggs(1);
+            AtomicBoolean nextRan = new AtomicBoolean();
+            consumer.consumeResult(late, () -> nextRan.set(true));
+
+            assertTrue("the shard still has to be counted down", nextRan.get());
+            assertEquals("a discarded result must not charge the breaker", 0L, circuitBreaker.getUsed());
+            assertNull("a discarded result must release its aggregations", late.aggregations());
+            late.decRef();
+            assertFalse("the caller's reference must be the last one", late.hasReferences());
+        }
+    }
+
+    public void testConcurrentConsumeAndCloseDiscardsLateResults() {
+        // repeated because a single round usually misses the window below
+        for (int round = 0; round < 50; round++) {
+            int numShards = randomIntBetween(2, 8);
+            SearchRequest searchRequest = new SearchRequest("index");
+            searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+            CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+
+            // One expected result per shard, so batchReduceSize is numShards and no partial merge is ever queued.
+            // A merge still running at close is a separate, pre-existing problem.
+            List<QuerySearchResult> shardResults = new ArrayList<>(numShards);
+            for (int i = 0; i < numShards; i++) {
+                shardResults.add(queryResultWithAggs(i));
+            }
+
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            );
+
+            // the check inside consume's lock only matters when a close lands between the unlocked check and the
+            // lock, where the consume charges the breaker and then hits the buffer doClose already released
+            startInParallel(numShards + 1, i -> {
+                if (i == numShards) {
+                    consumer.close();
+                } else {
+                    consumer.consumeResult(shardResults.get(i), () -> {});
+                }
+            });
+
+            assertEquals("nothing may stay charged to the breaker", 0L, circuitBreaker.getUsed());
+            for (QuerySearchResult result : shardResults) {
+                assertNull("every result must have released its aggregations", result.aggregations());
+                result.decRef();
+                assertFalse(result.hasReferences());
+            }
+        }
+    }
+
+    private static QuerySearchResult queryResultWithAggs(int shardIndex) {
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId("", shardIndex),
+            new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null),
+            null
+        );
+        result.topDocs(
+            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+            new DocValueFormat[0]
+        );
+        result.aggregations(InternalAggregations.from(List.of(new Sum("test", 1.0D, DocValueFormat.RAW, Map.of()))));
+        result.setShardIndex(shardIndex);
+        return result;
     }
 
     /**

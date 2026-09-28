@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -689,12 +690,23 @@ public final class EsqlTestUtils {
         );
     }
 
+    /**
+     * Constructor for tests.
+     */
+    public static LogicalOptimizerContext logicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion
+    ) {
+        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
+    }
+
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
-        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
+        return logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext(TransportVersion minimumVersion) {
-        return new LogicalOptimizerContext(
+        return logicalOptimizerContext(
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
             TransportVersionUtils.randomVersionSupporting(minimumVersion)

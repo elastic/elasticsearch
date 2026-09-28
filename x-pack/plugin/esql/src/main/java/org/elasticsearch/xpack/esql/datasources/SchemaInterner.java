@@ -21,11 +21,11 @@ import java.util.Map;
 /**
  * Shares file-schema objects inside one path resolve.
  * <p>
- * {@code toAttributes()} mints a fresh {@link Attribute} per column per file, and reconciliation used to wrap each
- * of those in its own {@link ExternalSchema} and {@link ColumnMapping}. The listing credit
- * ({@code SCHEMA_MAP_BYTES_PER_FILE} per file) is already held until query close; this interner keeps one instance
+ * {@code toAttributes()} mints a fresh {@link Attribute} per column per file; this interner keeps one instance
  * of each distinct column, shape, mapping, and file schema, and charges the breaker only for the overflow above
- * that credit. Nothing here is written back into the schema cache, and nothing is shared across queries.
+ * the listing credit ({@code SCHEMA_MAP_BYTES_PER_FILE} per file), which is already held until query close.
+ * A later pin, shadowed mapping, or overlay does not refund what it replaced. Nothing here is written
+ * back into the schema cache, and nothing is shared across queries.
  * <p>
  * The metadata fan-out invokes {@link #canonicalize} from up to {@code metadataReadConcurrency} callbacks at once,
  * so every method takes the instance lock. Call {@link #setAllowance} before the first canonicalize when the file
@@ -174,7 +174,7 @@ public final class SchemaInterner {
     /**
      * Charges the overflow of {@code cost} above {@link #allowance} against the running retained total, then
      * records the cost. {@code chargeQuery} runs before the caller publishes, and a throw leaves both the maps
-     * and this total unchanged.
+     * and this total unchanged. Replaced objects stay in the total until query close.
      */
     private void retain(long cost) {
         // No listing credit was taken. Overflow stays 0; do not subtract from Long.MAX_VALUE.

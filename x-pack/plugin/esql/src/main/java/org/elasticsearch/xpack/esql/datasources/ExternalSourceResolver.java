@@ -2029,10 +2029,10 @@ public class ExternalSourceResolver {
     ) {
         long startNanos = System.nanoTime();
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
-        // Each file's private toAttributes() list stays reachable through the gather wrapper until this
-        // listener returns. Charge those copies on a run. queryHeld keeps the listing credit and the
-        // unique-schema overflow until query close. Stats gathers, first-file-wins, and declared strict
-        // do not open a run.
+        // Each file's private toAttributes() list stays reachable until gatherPerFile's completion drops
+        // its list. That is after this listener returns, so overlay and the next path's listing still run
+        // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query
+        // close. Stats gathers, first-file-wins, and declared strict do not open a run.
         ExternalPlanningReservation.Run privateLists = planningReservation == null ? null : planningReservation.openRun();
         readAllFileMetadata(fileList, config, cacheable, schemaInterner, privateLists, new ActionListener<>() {
             @Override
@@ -2149,12 +2149,9 @@ public class ExternalSourceResolver {
                     resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
                 } catch (Exception e) {
                     failure = e;
-                } finally {
-                    // Drop the per-file map before releasing the run. The resolved source may keep the first
-                    // file's metadata, which is the canonical attribute set. It must not keep every private list.
-                    allMetadata = null;
-                    closePrivateSchemaLists(privateLists);
                 }
+                // The private lists are still on the gather frame that called us. That frame closes the run
+                // after we return, once overlay and the next path's listing have finished.
                 if (failure != null) {
                     listener.onFailure(failure);
                 } else {
@@ -2164,11 +2161,7 @@ public class ExternalSourceResolver {
 
             @Override
             public void onFailure(Exception e) {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    closePrivateSchemaLists(privateLists);
-                }
+                listener.onFailure(e);
             }
         });
     }
@@ -2295,9 +2288,9 @@ public class ExternalSourceResolver {
             }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
                 // Reconcile path only. Stats gathers pass a null interner and a null run: those lists are
-                // transient and must not be charged. Charge the raw list before wrapping. Canonicalize so the
-                // array does not keep a private attribute list as schema(), though the wrapper still references
-                // the original metadata until the reconcile listener drops it.
+                // transient and must not be charged. Charge the raw list before wrapping. Canonicalize so
+                // schema() is the shared list; the wrapper still references the original metadata until the
+                // gather completion drops the file list.
                 if (privateLists != null) {
                     List<Attribute> rawSchema = meta.schema();
                     privateLists.charge(SchemaInterner.privateListBytes(rawSchema.size()));
@@ -2331,16 +2324,28 @@ public class ExternalSourceResolver {
                 itemListener.onFailure(e);
             }
         }, metadataReadConcurrency, () -> {
-            Exception e = failure.get();
-            if (e != null) {
-                listener.onFailure(e);
-                return;
+            // This frame owns the file list. Closing earlier, in the reconcile listener, releases the run
+            // while this frame and readAllFileMetadata's map still hold every private list — and while
+            // overlay and the next path's listing are still running on this stack.
+            List<SourceMetadata> out = null;
+            try {
+                Exception e = failure.get();
+                if (e != null) {
+                    listener.onFailure(e);
+                    return;
+                }
+                out = new ArrayList<>(fileCount);
+                for (int i = 0; i < fileCount; i++) {
+                    out.add(results.get(i));
+                }
+                listener.onResponse(out);
+            } finally {
+                out = null;
+                for (int i = 0; i < fileCount; i++) {
+                    results.set(i, null);
+                }
+                closePrivateSchemaLists(privateLists);
             }
-            List<SourceMetadata> out = new ArrayList<>(fileCount);
-            for (int i = 0; i < fileCount; i++) {
-                out.add(results.get(i));
-            }
-            listener.onResponse(out);
         }, executor, e -> {
             // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the
             // failure rather than returning a partially-populated result.

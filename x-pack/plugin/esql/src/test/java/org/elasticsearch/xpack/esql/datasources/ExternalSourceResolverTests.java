@@ -5787,9 +5787,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Reconcile gather holds each file's private attribute list until the metadata listener returns.
-     * That window is a run: both duplicate lists are held while it is open, queryHeld stays at the listing
-     * credit when the unique shape fits, and close drops only the run.
+     * Reconcile gather holds each file's private attribute list until its completion drops that list.
+     * The run stays open through the caller notification, so overlay and the next listing are still charged.
+     * queryHeld stays at the listing credit when the unique shape fits, and close drops only the run.
      */
     public void testPrivateSchemaListsChargeTheGatherRunAndReleaseOnClose() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5824,10 +5824,22 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        long[] expectedHolder = new long[1];
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
+            // Still inside the gather completion. An earlier close would already have released the run.
+            FileList listing = resolution.resolvedSource(glob).fileList();
+            long expectedNow = listing.planningBytes() + listing.fileCount() * 760L;
+            expectedHolder[0] = expectedNow;
+            assertNotNull(openRun[0]);
+            assertEquals(bothLists, openRun[0].held());
+            assertEquals(expectedNow, reservation.queryHeld());
+            assertEquals(baseline + expectedNow + bothLists, wide.getUsed());
+            future.onResponse(resolution);
+        }, future::onFailure));
         ExternalSourceResolution resolution = future.actionGet();
+        long expected = expectedHolder[0];
         FileList listing = resolution.resolvedSource(glob).fileList();
-        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        assertEquals(expected, listing.planningBytes() + listing.fileCount() * 760L);
 
         assertEquals(bothLists, whileOpen[0]);
         assertEquals(expected, whileOpen[1]);
@@ -5849,8 +5861,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalPlanningReservation.Run[] trippedRun = new ExternalPlanningReservation.Run[1];
         tripped.schemaGatherRunProbe = run -> trippedRun[0] = run;
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
-        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), trippedFuture);
+        long[] heldDuringFailure = new long[1];
+        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(trippedFuture::onResponse, e -> {
+            // The failure notification runs before the gather completion releases the run.
+            assertNotNull(trippedRun[0]);
+            heldDuringFailure[0] = trippedRun[0].held();
+            trippedFuture.onFailure(e);
+        }));
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
+        assertEquals(oneList, heldDuringFailure[0]);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertNotNull(trippedRun[0]);
         assertEquals(0L, trippedRun[0].held());

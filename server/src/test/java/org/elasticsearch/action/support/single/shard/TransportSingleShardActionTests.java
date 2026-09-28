@@ -32,8 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -67,7 +65,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -231,22 +228,15 @@ public class TransportSingleShardActionTests extends ESTestCase {
         assertThrows(StaleRequestException.class, () -> result.actionGet(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
     }
 
-    public void testRoutingWithoutNodeId() {
+    public void testEmptyPrimaryShardIterator() {
         var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver) {
             @Override
             protected ShardsIterator shards(
                 ProjectState state,
                 TransportSingleShardAction<TestRequest, TestResponse>.InternalRequest request
             ) {
-                final var shardRouting = ShardRouting.newUnassigned(
-                    new ShardId("index", "uuid", 0),
-                    true,
-                    RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-                    buildUnassignedInfo("unassigned"),
-                    ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNKNOWN
-                );
-                return new PlainShardsIterator(List.of(shardRouting));
+                // See IndexShardRoutingTable#primaryShardIt().
+                return new PlainShardsIterator(List.of());
             }
         };
 

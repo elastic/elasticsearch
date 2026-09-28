@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import java.util.Map;
 public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase {
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final EnumSet<Stage> ANALYSIS_AND_LOCAL_PHYSICAL = EnumSet.of(Stage.ANALYSIS, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -767,7 +769,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // Outer-only reference over a union of an index branch and a ROW branch: does_not_exist loads from _source into the employees
-    // EsRelation, while the ROW branch (can't load) is null-filled by resolveFork alignment. #142033
+    // EsRelation, while the ROW branch (can't load) is null-filled by resolveMergePlan alignment. #142033
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -826,7 +828,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist1 is referenced inside both language branches (loaded there, in-branch scope) and again in the outer WHERE (resolves
-    // via the union output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
+    // via the merge output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
     public void testSubquerysWithMainAndSameOptional() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -1388,7 +1390,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist is in-branch (loaded in the languages branch, null-filled in employees); emp_no/language_code each exist in one
-    // branch and null-fill in the other through the union output. Decision A, #142033.
+    // branch and null-fill in the other through the merge output. Decision A, #142033.
     public void testSubquery() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runInNullifyAndLoadModes("""
@@ -1420,6 +1422,69 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
                    (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
             """);
+    }
+
+    /**
+     * Coordinator-side LOOKUP JOIN under LOAD_ALL mode. The join runs on the coordinator, so the
+     * data-node fragment must include {@code $$unmapped_fields} in the exchange output for the
+     * coordinator to attach unmapped source fields to each joined row.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinCoordinator() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            """).run();
+    }
+
+    /**
+     * Data-node-side LOOKUP JOIN under LOAD_ALL mode. A {@code SORT} on a lookup-added field
+     * ({@code language_name}) forces the join to execute on data nodes rather than on the
+     * coordinator, exercising the alternative plan shape and confirming that {@code $$unmapped_fields}
+     * is still present in the plan after the join.
+     * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
+     */
+    public void testLoadAllLookupJoinDataNode() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM partial_mapping_sample_data
+            | EVAL lc = language_code::integer
+            | DROP language_code
+            | LOOKUP JOIN languages_lookup ON lc == language_code
+            | SORT language_name
+            """).run();
+    }
+
+    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    public void testLoadAllForkEveryBranchLoadsExtras() {
+        loadAll("""
+            FROM employees
+            | FORK (WHERE emp_no > 10)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    /**
+     * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
+     * with a null {@code $$unmapped_fields} to match its sibling.
+     */
+    public void testLoadAllForkPatternLessKeepInOneBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no, first_name)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    public void testLoadAllForkPatternLessKeepInEveryBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no)
+                   (KEEP first_name)
+            """).run();
     }
 
 }

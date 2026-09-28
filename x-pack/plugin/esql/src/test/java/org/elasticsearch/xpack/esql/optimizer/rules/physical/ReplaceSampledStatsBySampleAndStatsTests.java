@@ -210,7 +210,7 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
     }
 
     private static PhysicalPlan applyRule(SampledAggregateExec sampledAgg) {
-        return new ReplaceSampledStatsBySampleAndStats().apply(sampledAgg);
+        return new ReplaceSampledStatsBySampleAndStats(() -> {}).apply(sampledAgg);
     }
 
     private static AggregateExec assertAggregate(PhysicalPlan plan, SampledAggregateExec sampledAgg) {

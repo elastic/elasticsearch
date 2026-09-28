@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -29,6 +31,8 @@ public record SnapshotMetrics(
     LongCounter shardsCompletedCounter,
     DoubleHistogram shardsDurationHistogram,
     DoubleHistogram shardsQueueTimeHistogram,
+    LongCounter shardsUnsuccessfulCounter,
+    LongHistogram shardsUnsuccessfulHistogram,
     LongCounter blobsUploadedCounter,
     LongCounter bytesUploadedCounter,
     LongCounter uploadDurationCounter,
@@ -50,6 +54,8 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_SHARDS_BY_STATE = "es.repositories.snapshots.shards.by_state.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
     public static final String SNAPSHOT_SHARDS_QUEUE_TIME = "es.repositories.snapshots.shards.queue_time.histogram";
+    public static final String SNAPSHOT_SHARDS_UNSUCCESSFUL = "es.repositories.snapshots.shards.unsuccessful.total";
+    public static final String SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM = "es.repositories.snapshots.shards.unsuccessful.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
     public static final String SNAPSHOT_UPLOAD_DURATION = "es.repositories.snapshots.upload.upload_time.total";
@@ -70,6 +76,19 @@ public record SnapshotMetrics(
             // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
             meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
             meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_QUEUE_TIME, "shard snapshots queue time", "s"),
+            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_UNSUCCESSFUL, "unsuccessful shard snapshots", "unit"),
+            meterRegistry.registerLongHistogram(
+                SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+                "unsuccessful shard snapshots per snapshot",
+                "unit",
+                // Boundaries are chosen to:
+                // - give 0 its own bucket so clean snapshots are trivially separated from affected ones;
+                // - provide fine granularity at low counts (1–10) where individual shard failures are actionable;
+                // - extend well past the default per-index shard limit (1 024) because a snapshot can include many
+                // indices, so the total unsuccessful count is bounded only by the cluster-wide shard count
+                // (cluster.max_shards_per_node × data nodes, default 1 000/node).
+                List.of(0L, 1L, 2L, 5L, 10L, 25L, 50L, 100L, 250L, 500L, 1000L, 2500L, 5000L, 10_000L, 50_000L)
+            ),
             meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms"),

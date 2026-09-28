@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services.llama.completion;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 
 /**
  * Handles non-streaming completion responses for Llama models, extending the OpenAI completion response handler.
  * This class is specifically designed to handle Llama's error response format.
  */
-public class LlamaCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class LlamaCompletionResponseHandler extends OpenAiCompletionResponseHandler {
 
     /**
      * Constructs a LlamaCompletionResponseHandler with the specified request type and response parser.

@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
@@ -250,6 +251,19 @@ public abstract class DataSourceConfiguration {
     public String get(String key) {
         Object v = values.get(key);
         return v != null ? v.toString() : null;
+    }
+
+    /**
+     * Returns the names of fields marked {@link DataSourceConfigDefinition#secret()} in the given definitions map.
+     * Call this from a subclass static {@code secretFieldNames()} method to derive the set from the authoritative
+     * field definitions rather than hardcoding it, so any new {@code secret(...)} field is included automatically.
+     */
+    protected static Set<String> secretFieldNamesFrom(Map<String, DataSourceConfigDefinition> fieldDefs) {
+        return fieldDefs.values()
+            .stream()
+            .filter(DataSourceConfigDefinition::secret)
+            .map(DataSourceConfigDefinition::name)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /** Returns validated settings as a map from field name to {@link DataSourceSetting}. */

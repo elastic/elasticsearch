@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
@@ -62,13 +60,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SERVICE_SETTINGS.toString(),
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
-        return parser;
+        return CohereCommonServiceSettings.buildCommonParser(ignoreUnknownFields, context, Builder::new);
     }
 
     /**
@@ -189,11 +181,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     private static class Update extends CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = CohereCommonServiceSettings.buildCommonUpdateParser(Update::new);
 
         public CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
             return new CohereCompletionServiceSettings(existing.commonSettings().update(this));

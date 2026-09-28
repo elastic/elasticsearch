@@ -13,18 +13,22 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /** Pins {@link NdJsonFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
@@ -133,6 +137,76 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         }
     }
 
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeNdJsonFormat() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec spec = plugin.formatSpecs().iterator().next();
+        FormatSpec.FormatConfigValidator validator = spec.configValidator();
+        assertNotNull("ndjson FormatSpec must have a configValidator", validator);
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : List.of(
+            Map.entry("segment_size", (Object) "2mb"),
+            Map.entry("datetime_format", (Object) "yyyy-MM-dd")
+        )) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);
+            newReader().withConfigTrackingConsumedKeys(config);
+        }
+
+        // Bad values — both must throw with identical messages.
+        for (Map.Entry<String, Object> bad : badNdJsonValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Bad NdJson config values that both validator and reader must reject with the same message.
+     * {@code schema_sample_size} is deliberately absent: it is a base dataset field that
+     * {@code FileDataSourceValidator} bounds itself and never forwards to the format validator,
+     * so validator/reader parity does not apply to it (see
+     * {@link #testSchemaSampleSizeIgnoredByValidatorButRejectedByReader()}).
+     */
+    private static List<Map.Entry<String, Object>> badNdJsonValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("segment_size", (Object) "1kb"));              // below MIN_SEGMENT_SIZE (64kb)
+        list.add(Map.entry("datetime_format", (Object) "not-a-format"));  // unrecognized pattern
+        return list;
+    }
+
+    /**
+     * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
+     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * ignore it rather than duplicate the check with a second message. The reader still rejects a
+     * non-positive value on the query path, where the WITH config arrives unfiltered.
+     */
+    public void testSchemaSampleSizeIgnoredByValidatorButRejectedByReader() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec.FormatConfigValidator validator = plugin.formatSpecs().iterator().next().configValidator();
+        for (Object bad : List.of(0, -1)) {
+            Map<String, Object> config = Map.of("schema_sample_size", bad);
+            validator.validate(config); // no throw: base field, never forwarded here at PUT
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        }
+    }
+
     private NdJsonFormatReader newReader() {
         return new NdJsonFormatReader(Settings.EMPTY, NOOP_BLOCK_FACTORY, null);
     }
@@ -144,5 +218,41 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
+    }
+
+    /**
+     * Every key the reader consumes must either participate in the cache identity
+     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification.
+     * <ul>
+     *   <li>{@code segment_size} — read segmentation only. The split-alignment protocol (leading partial record
+     *       dropped, trailing partial record finished) makes the surviving record set, and therefore every
+     *       statistic over it, independent of where segments fall.</li>
+     * </ul>
+     */
+    private static final Set<String> IDENTITY_INERT_KEYS = Set.of(NdJsonFormatReader.CONFIG_SEGMENT_SIZE);
+
+    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
+        for (String key : NdJsonFormatReader.RECOGNIZED_KEYS) {
+            boolean affects = SchemaCacheKey.affectsIdentity(key);
+            boolean inert = IDENTITY_INERT_KEYS.contains(key);
+            assertTrue(
+                "key ["
+                    + key
+                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
+                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
+                    + "a justification that it cannot change which rows survive or what values they hold",
+                affects || inert
+            );
+            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
+        }
+    }
+
+    public void testDeclaredInertKeysAreStillRecognized() {
+        for (String key : IDENTITY_INERT_KEYS) {
+            assertTrue(
+                "stale IDENTITY_INERT_KEYS entry [" + key + "]: the reader no longer consumes it",
+                NdJsonFormatReader.RECOGNIZED_KEYS.contains(key)
+            );
+        }
     }
 }

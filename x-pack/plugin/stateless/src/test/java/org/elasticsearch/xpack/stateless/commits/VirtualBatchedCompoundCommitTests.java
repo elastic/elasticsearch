@@ -381,23 +381,32 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             }, "TEST-appendThread");
             appendThread.start();
 
+            record VbccRangeRead(int offset, int length, BytesRef expected) {}
+            var performedReads = new ArrayList<VbccRangeRead>();
+
             while (appendThread.isAlive()) {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
-                    try (BytesStreamOutput output = new BytesStreamOutput()) {
-                        // Workaround to serialize VBCC without freezing for testing
-                        try (
-                            var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(
-                                virtualBatchedCompoundCommit
-                            )
-                        ) {
-                            Streams.copy(vbccInputStream, output, false);
-                        }
-
-                        var serializedBatchedCompoundCommit = output.bytes();
-                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length() - 1);
-                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                    // Workaround to serialize VBCC without freezing for testing
+                    try (
+                        var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(virtualBatchedCompoundCommit)
+                    ) {
+                        // At this point a commit is concurrently appended to this vbcc by `appendThread`.
+                        // Appending a commit first changes `internalDataReadersByOffset` and then advances `currentOffset`.
+                        // `vbcc#getInputStreamForUpload()` returns a stream that contains all files in `internalDataReadersByOffset`
+                        // but some of the files are not ready to be read at this point because `currentOffset` is not advanced yet.
+                        // Doing that causes an assertion failure in `getBytesByRange()`.
+                        // By clamping the commit to `getTotalSizeInBytes()` we ensure we only read files once they are fully appended.
+                        // Note that this is not a problem in production code since 1) commit appends and freeze/uploads are synchronized
+                        // in the caller, 2) callers also clamp the vbcc stream using `getTotalSizeInBytes()`.
+                        // This test is still valuable because we want to verify that concurrent appends do not impact
+                        // reading previously appended commit data (the race explained above only impacts currently appended commit files).
+                        var serializedBatchedCompoundCommit = vbccInputStream.readNBytes(
+                            (int) virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                        );
+                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length - 1);
+                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length - randomOffset);
                         var serializedBatchedCompoundCommitBytesRef = new BytesRef(
-                            serializedBatchedCompoundCommit.toBytesRef().bytes,
+                            serializedBatchedCompoundCommit,
                             randomOffset,
                             randomBytesToRead
                         );
@@ -408,10 +417,20 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                             BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef).bytes,
                             BytesRef.deepCopyOf(bytesStreamOutput.bytes().toBytesRef()).bytes
                         );
+                        performedReads.add(
+                            new VbccRangeRead(randomOffset, randomBytesToRead, BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef))
+                        );
                     } catch (Exception e) {
                         assert false : "Unexpected exception: " + e.getMessage();
                     }
                 }
+            }
+
+            virtualBatchedCompoundCommit.freeze();
+            var bytesToUpload = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload().readAllBytes();
+            for (var read : performedReads) {
+                var actualRangeData = new BytesRef(bytesToUpload, read.offset, read.length);
+                assertTrue(actualRangeData.bytesEquals(read.expected));
             }
 
             virtualBatchedCompoundCommit.close();

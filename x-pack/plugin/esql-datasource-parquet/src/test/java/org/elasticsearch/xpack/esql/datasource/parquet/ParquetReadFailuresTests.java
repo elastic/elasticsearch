@@ -15,11 +15,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
@@ -99,6 +102,52 @@ public class ParquetReadFailuresTests extends ESTestCase {
         RuntimeException wrapped = ParquetReadFailures.wrap(invalid, "ctx");
         assertSame(invalid, wrapped);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    public void testCredentialsExpiredIdentityAnd400() {
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        RuntimeException wrapped = ParquetReadFailures.wrap(expired, "ctx");
+        assertSame(expired, wrapped);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    public void testCredentialsExpiredUnderCompletionException() {
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        RuntimeException wrapped = ParquetReadFailures.wrap(new CompletionException(expired), "Prefetch failed");
+        assertSame(expired, wrapped);
+        assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(wrapped));
+    }
+
+    public void testIsCredentialsExpiredWalksCauseChain() {
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(expired));
+        assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(new CompletionException(expired)));
+        assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(new RuntimeException(new IOException(expired))));
+        assertFalse(OptimizedParquetColumnIterator.isCredentialsExpired(new IOException("HTTP 400 ExpiredToken")));
+        assertFalse(OptimizedParquetColumnIterator.isCredentialsExpired(new IllegalStateException("no")));
+    }
+
+    public void testBareExpiredCredentialsIsNotSyncFallback() {
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        assertFalse(OptimizedParquetColumnIterator.isTransientPrefetchFailure(expired));
+        assertFalse(OptimizedParquetColumnIterator.isTransientPrefetchFailure(new CompletionException(expired)));
+        assertTrue(OptimizedParquetColumnIterator.isTransientPrefetchFailure(new CompletionException(new IOException("reset"))));
+    }
+
+    public void testAbortExpiredPrefetchesCancelsRemainingAndThrows() {
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> later = new CompletableFuture<>();
+        ArrayDeque<OptimizedParquetColumnIterator.PendingPrefetch> remaining = new ArrayDeque<>();
+        remaining.add(new OptimizedParquetColumnIterator.PendingPrefetch(2, later));
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+
+        ExternalCredentialsExpiredException thrown = expectThrows(
+            ExternalCredentialsExpiredException.class,
+            () -> OptimizedParquetColumnIterator.abortExpiredPrefetches(expired, remaining)
+        );
+
+        assertSame(expired, thrown);
+        assertTrue("later row-group prefetch must be cancelled, not drained for fetchSync", later.isCancelled());
+        assertTrue(remaining.isEmpty());
     }
 
     public void testErrorIsRethrown() {

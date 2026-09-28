@@ -220,6 +220,15 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
+    protected boolean supportsColumnarIgnoreMalformed() {
+        // GeoShapeParser calls MalformedValueHandler#notify(Exception) without an XContentBuilder, so
+        // AbstractGeometryFieldMapper#onMalformedValue only records the field name in _ignored and nothing reaches
+        // the ._on_failure column. Capturing the raw value requires CopyingXContentParser plumbing analogous to
+        // GeoPointFieldMapper, which is out of scope for this PR.
+        return false;
+    }
+
+    @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
             exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),

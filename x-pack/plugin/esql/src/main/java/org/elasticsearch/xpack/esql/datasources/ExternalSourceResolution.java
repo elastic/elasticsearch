@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,10 +19,20 @@ import java.util.Map;
  * {@code schemaMap} of per-file planner-resolved schemas (one entry per discovered file —
  * single-file gets an identity-mapped one-entry map; multi-file modes get FFW/STRICT/UBN
  * shaped maps from {@link SchemaReconciliation}).
+ *
+ * @param warnings raw Hive-partition shadow-column warning bodies collected during this resolve.
+ *                 Coordinator-only; {@code EsqlSession} merges them into {@code DriverCompletionInfo}
+ *                 so {@code TransportEsqlQueryAction#toResponse} can emit them as client {@code Warning}
+ *                 headers. Empty when nothing was shadowed.
  */
-public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
+public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, List<String> warnings) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
+
+    /** Compact overload defaulting {@link #warnings} to empty. */
+    public ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
+        this(resolved, List.of());
+    }
 
     public record ResolvedSource(
         ExternalSourceMetadata metadata,
@@ -48,6 +59,7 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
         if (resolved == null) {
             throw new IllegalArgumentException("resolved metadata map must not be null");
         }
+        warnings = warnings == null || warnings.isEmpty() ? List.of() : List.copyOf(warnings);
     }
 
     public ResolvedSource resolvedSource(String path) {

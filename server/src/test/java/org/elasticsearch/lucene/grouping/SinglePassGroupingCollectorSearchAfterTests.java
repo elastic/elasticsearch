@@ -160,9 +160,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.LONG, reversed);
-                sortField.setMissingValue(reversed ? Long.MIN_VALUE : Long.MAX_VALUE);
-                return sortField;
+                return new SortField("field", SortField.Type.LONG, reversed, reversed ? Long.MIN_VALUE : Long.MAX_VALUE);
             }
         };
         assertSearchCollapse(producer, true);
@@ -182,9 +180,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.INT, reversed);
-                sortField.setMissingValue(reversed ? Integer.MIN_VALUE : Integer.MAX_VALUE);
-                return sortField;
+                return new SortField("field", SortField.Type.INT, reversed, reversed ? Integer.MIN_VALUE : Integer.MAX_VALUE);
             }
         };
         assertSearchCollapse(producer, true);
@@ -204,9 +200,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.FLOAT, reversed);
-                sortField.setMissingValue(reversed ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY);
-                return sortField;
+                return new SortField("field", SortField.Type.FLOAT, reversed, reversed ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY);
             }
         };
         assertSearchCollapse(producer, true);
@@ -226,9 +220,12 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.DOUBLE, reversed);
-                sortField.setMissingValue(reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
-                return sortField;
+                return new SortField(
+                    "field",
+                    SortField.Type.DOUBLE,
+                    reversed,
+                    reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY
+                );
             }
         };
         assertSearchCollapse(producer, true);
@@ -248,9 +245,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.STRING, reversed);
-                sortField.setMissingValue(reversed ? SortField.STRING_FIRST : SortField.STRING_LAST);
-                return sortField;
+                return new SortField("field", SortField.Type.STRING, reversed, reversed ? SortField.STRING_FIRST : SortField.STRING_LAST);
             }
         };
         assertSearchCollapse(producer, false);

@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.rest.datafeeds.MlDatafeedRestCapabilities;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -51,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assume.assumeTrue;
@@ -124,6 +129,29 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
         DatafeedConfig retrievedDatafeed = getResponseHolder.get().build();
         assertThat(retrievedDatafeed.getProjectRouting(), equalTo(expectedProjectRouting));
+    }
+
+    public void testNodesCapabilitiesReportsMlCrossProjectSearch() {
+        NodesCapabilitiesResponse putResponse = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.PUT)
+                .path("/_ml/datafeeds/probe")
+                .capabilities(MlDatafeedRestCapabilities.ML_CROSS_PROJECT_SEARCH)
+        ).actionGet();
+        assertThat(putResponse.isSupported(), isPresentWith(true));
+
+        NodesCapabilitiesResponse updateResponse = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
+                .path("/_ml/datafeeds/probe/_update")
+                .capabilities(MlDatafeedRestCapabilities.ML_CROSS_PROJECT_SEARCH)
+        ).actionGet();
+        assertThat(updateResponse.isSupported(), isPresentWith(true));
+
+        NodesCapabilitiesResponse previewResponse = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.GET)
+                .path("/_ml/datafeeds/probe/_preview")
+                .capabilities(MlDatafeedRestCapabilities.ML_CROSS_PROJECT_SEARCH)
+        ).actionGet();
+        assertThat(previewResponse.isSupported(), isPresentWith(true));
     }
 
     public void testStartWithoutCredentialShouldProcessOriginData() throws Exception {

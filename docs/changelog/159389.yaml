@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159389
+summary: "[Native] Accumulate BBQ popcounts with UDOT on SVE"
+type: enhancement

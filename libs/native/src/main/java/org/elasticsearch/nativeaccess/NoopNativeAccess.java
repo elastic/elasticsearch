@@ -14,7 +14,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 
 class NoopNativeAccess implements NativeAccess {
@@ -73,19 +72,9 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public Zstd getZstd() {
-        logger.warn("cannot compress with zstd because native access is not available");
-        return null;
-    }
-
-    @Override
     public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
         logger.warn("cannot map because native access is not available");
         return null;
     }
 
-    @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.empty();
-    }
 }

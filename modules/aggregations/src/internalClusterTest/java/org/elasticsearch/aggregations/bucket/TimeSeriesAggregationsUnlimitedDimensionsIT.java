@@ -67,7 +67,9 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
         BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertFalse(bulkIndexResponse.hasFailures());
+        if (bulkIndexResponse.hasFailures()) {
+            fail("Bulk failures: " + bulkIndexResponse.buildFailureMessage());
+        }
         assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
     }
 

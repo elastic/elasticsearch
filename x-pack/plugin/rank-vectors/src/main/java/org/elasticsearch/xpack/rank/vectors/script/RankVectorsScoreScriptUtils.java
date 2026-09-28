@@ -12,6 +12,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
+import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 
 import java.io.IOException;
 import java.util.HexFormat;
@@ -38,6 +39,18 @@ public class RankVectorsScoreScriptUtils {
                 throw new IllegalArgumentException("A document doesn't have a value for a multi-vector field!");
             }
         }
+
+        static void checkQueryVectorCount(int count) {
+            if (count > RankVectorsFieldMapper.MAX_VECTORS) {
+                throw new IllegalArgumentException(
+                    "The query vector contains ["
+                        + count
+                        + "] vectors, which exceeds the maximum of ["
+                        + RankVectorsFieldMapper.MAX_VECTORS
+                        + "]."
+                );
+            }
+        }
     }
 
     public static class ByteRankVectorsFunction extends RankVectorsFunction {
@@ -55,9 +68,9 @@ public class RankVectorsScoreScriptUtils {
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
             }
+            checkQueryVectorCount(queryVector.size());
             field.getElement().checkDimensions(field.get().getDims(), queryVector.get(0).size());
             this.queryVector = new byte[queryVector.size()][queryVector.get(0).size()];
-            float[] validateValues = new float[queryVector.size()];
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
@@ -66,11 +79,12 @@ public class RankVectorsScoreScriptUtils {
                     );
                 }
                 lastSize = queryVector.get(i).size();
-                for (int j = 0; j < queryVector.get(i).size(); j++) {
+                // Every dimension of the inner vector must be validated, so collect them all before checking the bounds.
+                float[] validateValues = new float[lastSize];
+                for (int j = 0; j < lastSize; j++) {
                     final Number number = queryVector.get(i).get(j);
-                    byte value = number.byteValue();
-                    this.queryVector[i][j] = value;
-                    validateValues[i] = number.floatValue();
+                    this.queryVector[i][j] = number.byteValue();
+                    validateValues[j] = number.floatValue();
                 }
                 field.getElement().checkVectorBounds(validateValues);
             }
@@ -85,6 +99,7 @@ public class RankVectorsScoreScriptUtils {
          */
         public ByteRankVectorsFunction(ScoreScript scoreScript, RankVectorsDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field);
+            checkQueryVectorCount(queryVector.length);
             this.queryVector = queryVector;
         }
     }
@@ -104,6 +119,7 @@ public class RankVectorsScoreScriptUtils {
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
             }
+            checkQueryVectorCount(queryVector.size());
             DenseVector.checkDimensions(field.get().getDims(), queryVector.get(0).size());
 
             this.queryVector = new float[queryVector.size()][queryVector.get(0).size()];
@@ -153,6 +169,7 @@ public class RankVectorsScoreScriptUtils {
             if (((List<?>) queryVector).get(0) instanceof List) {
                 return new BytesOrList(null, ((List<List<Number>>) queryVector));
             } else if (((List<?>) queryVector).get(0) instanceof String) {
+                RankVectorsFunction.checkQueryVectorCount(((List<?>) queryVector).size());
                 byte[][] parsedQueryVector = new byte[((List<?>) queryVector).size()][];
                 int lastSize = -1;
                 for (int i = 0; i < ((List<?>) queryVector).size(); i++) {
@@ -210,15 +227,17 @@ public class RankVectorsScoreScriptUtils {
             if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
                 throw new IllegalArgumentException("Cannot calculate bit dot product for non-bit vectors");
             }
+            checkQueryVectorCount(queryVector.length);
             int fieldDims = field.get().getDims();
-            if (fieldDims != queryVector.length * Byte.SIZE && fieldDims != queryVector.length) {
+            // the dimensions of each query vector are checked here, not how many query vectors were provided
+            if (fieldDims != queryVector[0].length * Byte.SIZE && fieldDims != queryVector[0].length) {
                 throw new IllegalArgumentException(
                     "The query vector has an incorrect number of dimensions. Must be ["
                         + fieldDims / 8
                         + "] for bitwise operations, or ["
                         + fieldDims
                         + "] for byte wise operations: provided ["
-                        + queryVector.length
+                        + queryVector[0].length
                         + "]."
                 );
             }
@@ -234,6 +253,7 @@ public class RankVectorsScoreScriptUtils {
             if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
                 throw new IllegalArgumentException("cannot calculate bit dot product for non-bit vectors");
             }
+            checkQueryVectorCount(queryVector.size());
             float[][] floatQueryVector = new float[queryVector.size()][];
             byte[][] byteQueryVector = new byte[queryVector.size()][];
             boolean isFloat = false;

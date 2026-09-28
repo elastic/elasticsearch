@@ -189,6 +189,7 @@ class HardcodedEntitlements {
                     new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ)))
                 )
             ),
+            new Scope("org.elasticsearch.simdjson", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.elasticsearch.simdvec", List.of(new LoadNativeLibrariesEntitlement()))
         );
 

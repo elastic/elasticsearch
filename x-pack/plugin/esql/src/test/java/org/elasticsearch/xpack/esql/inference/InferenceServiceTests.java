@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -127,6 +128,93 @@ public class InferenceServiceTests extends ESTestCase {
         });
     }
 
+    public void testDenseVectorBatchSizeUpdatesWhileRunning() {
+        RunningInference running = runningInference();
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+
+        int updatedBatchSize = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        applyBatchSize(running.clusterSettings(), updatedBatchSize);
+
+        assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(updatedBatchSize));
+    }
+
+    /**
+     * Removing the override falls back to the default: the batch size starts at the default, changes to a custom value, then
+     * returns to the default once the override is cleared (equivalent to setting it to {@code null}).
+     */
+    public void testDenseVectorBatchSizeRevertsToDefault() {
+        RunningInference running = runningInference();
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+
+        int customBatchSize = randomValueOtherThan(
+            InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+            () -> between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE)
+        );
+        applyBatchSize(running.clusterSettings(), customBatchSize);
+        assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(customBatchSize));
+
+        running.clusterSettings().applySettings(Settings.EMPTY);
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+    }
+
+    /**
+     * Consecutive updates each take effect. Every value differs from the previous one, so the running service reflects the latest
+     * value after each update.
+     */
+    public void testDenseVectorBatchSizeUpdatesRepeatedly() {
+        RunningInference running = runningInference();
+
+        int previousBatchSize = InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE;
+        int iterations = between(3, 6);
+        for (int i = 0; i < iterations; i++) {
+            int nextBatchSize = randomValueOtherThan(previousBatchSize, () -> between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE));
+            applyBatchSize(running.clusterSettings(), nextBatchSize);
+            assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(nextBatchSize));
+            previousBatchSize = nextBatchSize;
+        }
+    }
+
+    /**
+     * A live update to an out-of-range value is rejected, and the value already in effect is left unchanged.
+     */
+    public void testDenseVectorBatchSizeRejectsOutOfRangeUpdate() {
+        RunningInference running = runningInference();
+
+        assertOutOfRangeUpdateRejected(running.clusterSettings(), 0, "must be >= 1");
+        assertOutOfRangeUpdateRejected(running.clusterSettings(), -1, "must be >= 1");
+        assertOutOfRangeUpdateRejected(
+            running.clusterSettings(),
+            InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE + between(1, 100),
+            "must be <= " + InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE
+        );
+
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+    }
+
+    private static void applyBatchSize(ClusterSettings clusterSettings, int batchSize) {
+        clusterSettings.applySettings(
+            Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), batchSize).build()
+        );
+    }
+
+    private static void assertOutOfRangeUpdateRejected(ClusterSettings clusterSettings, int batchSize, String boundMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> applyBatchSize(clusterSettings, batchSize));
+        assertThat(e.getMessage(), containsString(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey()));
+        assertThat(e.getMessage(), containsString(boundMessage));
+    }
+
     @SuppressWarnings("unchecked")
     private Client mockClient() {
         Client client = mock(Client.class);
@@ -172,12 +260,22 @@ public class InferenceServiceTests extends ESTestCase {
     }
 
     private InferenceService inferenceService() {
+        return runningInference().service();
+    }
+
+    /**
+     * An {@link InferenceService} wired to a live {@link ClusterSettings}, so tests can apply setting updates and observe the
+     * service react to them.
+     */
+    private record RunningInference(InferenceService service, ClusterSettings clusterSettings) {}
+
+    private RunningInference runningInference() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(InferenceSettings.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
-        return new InferenceService(mockClient(), clusterService);
+        return new RunningInference(new InferenceService(mockClient(), clusterService), clusterSettings);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

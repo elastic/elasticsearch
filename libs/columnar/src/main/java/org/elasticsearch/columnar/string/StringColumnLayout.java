@@ -19,8 +19,15 @@ package org.elasticsearch.columnar.string;
  */
 public enum StringColumnLayout {
 
-    /** The values themselves, in written order, in one {@link ValueStream}. */
-    PLAIN((byte) 0);
+    /** The values themselves, in written order, and a column of their lengths beside them. */
+    PLAIN((byte) 0),
+
+    /**
+     * An ordinal per value into a sorted dictionary of the terms the column repeats. The terms are held in
+     * their own {@link ValueStream}, read by ordinal and so left uncompressed; the ordinals are a numeric
+     * column, packed to the width the dictionary actually needs.
+     */
+    DICTIONARY((byte) 1);
 
     private final byte id;
 

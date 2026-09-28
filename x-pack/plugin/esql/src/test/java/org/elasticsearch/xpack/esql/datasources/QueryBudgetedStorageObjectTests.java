@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -126,11 +127,13 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
         DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
+        // Decorators call startReadBytesAsync. Mockito mocks skip interface defaults,
+        // so stubbing readBytesAsync never completes the listener.
         doAnswer(inv -> {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
-            return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -153,8 +156,8 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         doAnswer(inv -> {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
-            return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);

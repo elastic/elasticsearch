@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,8 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
-        ToAggregator {
+        ToAggregator,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
         .ternary(SumOverTime::new)
         .name("sum_over_time");
@@ -79,11 +81,11 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public SumOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public SumOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
@@ -93,13 +95,8 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public SumOverTime withFilter(Expression filter) {
-        return new SumOverTime(source(), field(), filter, window(), timestamp);
-    }
-
-    @Override
     protected NodeInfo<SumOverTime> info() {
-        return NodeInfo.create(this, SumOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, SumOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -125,7 +122,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM);
         }
         return null;

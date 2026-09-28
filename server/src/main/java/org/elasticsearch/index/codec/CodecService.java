@@ -15,9 +15,6 @@ import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
-import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,31 +43,34 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
-
-        var bestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
-        if (useSyntheticId) {
-            // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
-            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));
-        } else {
-            codecs.put(DEFAULT_CODEC, bestSpeedCodec);
-        }
-        // We can't remove this now
-        codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
-
-        PerFieldMapperCodec bestCompressionCodec = new PerFieldMapperCodec(
-            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+        var bestSpeedCodec = new PerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
             threadPool
         );
-        if (useSyntheticId) {
-            codecs.put(BEST_COMPRESSION_CODEC, new ES94TSDBBestCompressionLucene104Codec(bestCompressionCodec));
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
-        }
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
+        codecs.put(DEFAULT_CODEC, bestSpeedCodec);
+        // We can't remove this now
+        codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
+
+        // best_compression compresses stored fields with Zstd and leaves the rest of the Lucene codec on its default settings.
+        // legacy_best_compression is what the name meant before Zstd: Lucene's own high compression stored fields.
+        var bestCompressionCodec = new PerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+            // Segments named Elasticsearch96 that record no mode were written with Lucene stored fields.
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
+        codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
+        Codec legacyBestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
             threadPool
@@ -82,15 +82,18 @@ public class CodecService implements CodecProvider {
             codecs.put(codec, Codec.forName(codec));
         }
 
-        this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            return codec;
-        }));
+        // A codec that does not share field infos gets a wrapper that does, under the codec's own name. Freshly written
+        // segments are read back through the instance that wrote them, so this reaches those reads.
+        this.codecs = codecs.entrySet()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat
+                        ? e.getValue()
+                        : new SharedFieldInfosCodec(e.getValue())
+                )
+            );
     }
 
     public Codec codec(String name) {
@@ -109,29 +112,21 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
-    public static class DeduplicateFieldInfosCodec extends FilterCodec {
+    /** Adds field infos sharing to a codec that does not provide it, keeping that codec's name. */
+    private static final class SharedFieldInfosCodec extends FilterCodec {
 
         private final FieldInfosFormat fieldInfosFormat;
 
         @SuppressWarnings("this-escape")
-        protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
-            super(name, delegate);
-            // When the per-Directory FieldInfo cache is enabled, use the variant that interns whole FieldInfo instances
-            // against the FieldInfoCachingDirectory wrapping the shard's Store. Otherwise, keep the legacy behavior that
-            // only interns names and attribute maps via static caches.
-            this.fieldInfosFormat = org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
-                ? new CachingFieldInfosFormat(super.fieldInfosFormat())
-                : new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+        SharedFieldInfosCodec(Codec delegate) {
+            super(delegate.getName(), delegate);
+            this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         }
 
         @Override
-        public final FieldInfosFormat fieldInfosFormat() {
+        public FieldInfosFormat fieldInfosFormat() {
             return fieldInfosFormat;
         }
-
-        public final Codec delegate() {
-            return delegate;
-        }
-
     }
+
 }

@@ -208,16 +208,30 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API, or {@code null} if the field
-     * cannot produce embeddings of the requested type. Fields that expose no embeddings at all always return {@code null}, whatever type
-     * is requested.
+     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API.
      *
      * @param vectorType the type of vector the caller requires, or {@code null} if the caller accepts any vector type.
-     * @return the embeddings field-and-format, or {@code null} if this field cannot produce embeddings of the requested type.
+     * @return the embeddings field-and-format.
+     * @throws IllegalArgumentException if this field cannot produce embeddings of the requested type. Fields that expose no embeddings at
+     *                                  all always throw, whatever type is requested.
      */
-    @Nullable
     public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
-        return null;
+        throw unsupportedEmbeddings(vectorType);
+    }
+
+    /**
+     * Builds the exception to throw when this field cannot produce embeddings of the type
+     * {@link #embeddingsFieldAndFormat(VectorType)} was asked for.
+     */
+    protected final IllegalArgumentException unsupportedEmbeddings(@Nullable VectorType vectorType) {
+        return new IllegalArgumentException(
+            "Field ["
+                + name()
+                + "] of type ["
+                + typeName()
+                + "] does not support "
+                + (vectorType == null ? "embeddings" : "[" + vectorType + "] embeddings")
+        );
     }
 
     /**

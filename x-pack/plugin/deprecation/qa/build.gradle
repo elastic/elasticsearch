@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:deprecation:qa:common')
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 
   clusterModules project(':x-pack:plugin:deprecation:qa::early-deprecation-plugin')

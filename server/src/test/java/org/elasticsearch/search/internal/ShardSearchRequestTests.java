@@ -86,7 +86,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             final String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(2, 10);
             searchRequest.searchSlice(slice);
-            searchRequest.routing(SliceIndexing.SLICE_ALL.equals(slice) ? null : slice);
         }
         return createShardSearchRequest(searchRequest);
     }

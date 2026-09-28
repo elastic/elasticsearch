@@ -14,8 +14,10 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Result of {@link StorageObject#readBytesAsync(long, long, DirectBufferFactory, java.util.concurrent.Executor,
@@ -29,10 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * buffer is not required to be direct. The caller must invoke {@link #close()} once the bytes
  * have been consumed.
  *
- * <p>Using {@link #buffer()} after {@link #close()} is undefined: a heap array may still be
- * reachable, but an Arrow-backed view reads dangling memory that may have been recycled.
+ * <p>{@link #close()} drops this owner's reference to the backing buffer. Any aliases obtained
+ * from {@link #buffer()} before close remain the consumer's responsibility and are not tracked by
+ * this owner. Calling {@link #buffer()} after close always throws {@link IllegalStateException}.
  *
- * <h2>Use-after-free / double-free detection (assertions only)</h2>
+ * <h2>Use-after-free / double-free detection</h2>
  * <p>When the buffer is a detached {@link ByteBuffer} view of an {@link ArrowBuf} (the
  * {@link DirectBufferFactory#forAllocator(BufferAllocator)} path), reads through that view
  * <em>bypass Arrow's reference-count tracking entirely</em> — the Arrow debug allocator can
@@ -42,36 +45,33 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * slice handed out before close is read after the backing {@link ArrowBuf} was returned to the
  * allocator and recycled.
  *
- * <p>To make that class of bug deterministic and self-locating, when assertions are enabled this
- * type:
+ * <p>Detachment and rejection of post-close {@link #buffer()} access are production behavior.
+ * When debug tracking is on (default under {@code -ea}) this type additionally:
  * <ul>
  *   <li>captures the <b>allocation</b> stack trace at construction and the <b>free</b> stack trace
- *       at {@link #close()} ("who deallocated this"),</li>
- *   <li>throws on a second {@link #close()} (double-free) and on any {@link #buffer()} access after
- *       close (use-after-free), attaching both stack traces, and</li>
+ *       at {@link #close()} ("who deallocated this") and attaches both to the post-close
+ *       {@link IllegalStateException},</li>
+ *   <li>throws {@link AssertionError} on a second {@link #close()} (double-free), and</li>
  *   <li><b>poisons</b> direct memory with a recognizable pattern immediately before releasing it,
  *       so any surviving alias that reads the freed region fails the same way on every run instead
  *       of occasionally seeing still-intact bytes. Heap buffers skip poisoning ({@link
  *       DirectMemoryDebug#poison(ByteBuffer)} is a no-op when {@code isDirect()} is false).</li>
  * </ul>
- * All of this compiles out (no allocation, no poisoning) when assertions are disabled, so the
- * production read path is unchanged.
  */
 public final class DirectReadBuffer implements Releasable {
 
     private static final String STORAGE_READ_BREAKER_LABEL = "storage read buffer";
 
-    private final ByteBuffer buffer;
-    private final Releasable release;
+    private final AtomicReference<ByteBuffer> buffer;
+    private final Releasable onClose;
 
-    // Lifecycle tracking; gated by es.arrow.debug_buffers (defaults to -ea). All null/false when off.
+    // Lifecycle tracking; gated by es.arrow.debug_buffers (defaults to -ea). Both are null when off.
     private final Throwable allocSite;
-    private volatile boolean released;
     private volatile Throwable freeSite;
 
-    public DirectReadBuffer(ByteBuffer buffer, Releasable release) {
-        this.buffer = buffer;
-        this.release = release;
+    public DirectReadBuffer(ByteBuffer buffer, Releasable onClose) {
+        this.buffer = new AtomicReference<>(buffer);
+        this.onClose = onClose;
         this.allocSite = DirectMemoryDebug.trackingEnabled() ? new Throwable("DirectReadBuffer allocated here") : null;
     }
 
@@ -143,42 +143,73 @@ public final class DirectReadBuffer implements Releasable {
     }
 
     /**
-     * The bytes. Must not be accessed after {@link #close()}; doing so is undefined for Arrow-backed
-     * buffers (freed, possibly recycled native memory). When {@code es.arrow.debug_buffers} is on,
-     * a post-close access throws with the allocation and free stack traces attached.
+     * Constrains this owner's buffer to a writable window of {@code length} bytes starting at
+     * position 0. {@link DirectBufferFactory#allocate(int)} may return a larger or oddly-limited
+     * buffer; callers that fill by {@code remaining()} must invoke this before I/O so they cannot
+     * read past the requested length.
+     *
+     * <p>Deliberately not public: this is an allocation-time normalization for
+     * {@link DirectBufferFactory#allocateWritableWindow(int)}. Applying it to a buffer that has
+     * already been filled would widen the window back to the requested length and expose the
+     * uninitialized tail of a short read.
+     *
+     * @throws IOException if the buffer is read-only or {@code capacity() < length}
      */
-    public ByteBuffer buffer() {
-        if (DirectMemoryDebug.trackingEnabled() && released) {
-            throw useAfterFree();
+    void requireWritableWindow(int length) throws IOException {
+        ByteBuffer destination = buffer();
+        if (destination.isReadOnly()) {
+            throw new IOException("DirectBufferFactory returned a read-only buffer for requested length [" + length + "]");
         }
-        return buffer;
+        if (destination.capacity() < length) {
+            throw new IOException(
+                "DirectBufferFactory returned buffer capacity [" + destination.capacity() + "] for requested length [" + length + "]"
+            );
+        }
+        // Copies and channel reads use remaining() / relative puts, so restore the complete
+        // requested window even if a custom factory returned a buffer with a smaller limit.
+        destination.position(0).limit(length);
     }
 
-    /** The underlying {@link Releasable}. Prefer {@link #close()}, which adds lifecycle checks. */
-    public Releasable release() {
-        return release;
+    /**
+     * The bytes. Must not be accessed after {@link #close()}. A post-close access throws an
+     * {@link IllegalStateException}. When {@code es.arrow.debug_buffers} is on, the allocation
+     * and free stack traces are attached as suppressed exceptions.
+     */
+    public ByteBuffer buffer() {
+        ByteBuffer current = buffer.get();
+        if (current == null) {
+            throw useAfterFree();
+        }
+        return current;
     }
 
     @Override
     public void close() {
-        if (DirectMemoryDebug.trackingEnabled()) {
+        ByteBuffer toRelease = buffer.getAndSet(null);
+        if (toRelease == null) {
             // A second close would double-free an ArrowBuf or double-release a breaker charge.
             // Surface it here with both stacks rather than letting the backing store throw a
             // context-free exception.
-            if (released) {
+            if (DirectMemoryDebug.trackingEnabled()) {
                 throw doubleFree();
             }
-            freeSite = new Throwable("DirectReadBuffer freed here");
-            released = true;
+            return;
         }
-        // Poison before releasing (self-gated by es.arrow.* knobs; no-op for heap buffers) so any
-        // surviving alias that reads this region after free fails deterministically instead of flakily.
-        DirectMemoryDebug.poison(buffer);
-        release.close();
+        if (DirectMemoryDebug.trackingEnabled()) {
+            freeSite = new Throwable("DirectReadBuffer freed here");
+        }
+        try {
+            // Poison before releasing (self-gated by es.arrow.* knobs; no-op for heap buffers) so any
+            // surviving alias that reads this region after free fails deterministically instead of flakily.
+            DirectMemoryDebug.poison(toRelease);
+        } finally {
+            // Unconditional: a buffer this owner cannot poison is still a charge it must refund.
+            onClose.close();
+        }
     }
 
-    private AssertionError useAfterFree() {
-        AssertionError e = new AssertionError("DirectReadBuffer.buffer() accessed after close() (use-after-free)");
+    private IllegalStateException useAfterFree() {
+        IllegalStateException e = new IllegalStateException("DirectReadBuffer buffer was closed");
         if (allocSite != null) {
             e.addSuppressed(allocSite);
         }

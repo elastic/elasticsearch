@@ -149,6 +149,10 @@ Typically, `::exponential_histogram` is the right choice, unless you know that y
 You can use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) to inspect
 the field type.
 
+For the full list of supported aggregation functions, casting between histogram types, and
+using `FROM` with histogram fields, refer to
+[](/reference/query-languages/esql/esql-histogram-fields.md).
+
 ## Grouping time series [grouping-time-series]
 
 When the first `STATS` after `TS` uses a bare

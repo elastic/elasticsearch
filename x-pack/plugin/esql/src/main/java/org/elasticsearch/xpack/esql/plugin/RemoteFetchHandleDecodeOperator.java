@@ -29,6 +29,8 @@ import java.io.UncheckedIOException;
  * <p>
  * This is a strict one-to-one page mapping: each input page produces exactly one output page, so the operator never
  * accumulates pages. Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.
+ * The same handle may appear more than once when a row-multiplying operator such as {@code MV_EXPAND} copied it
+ * before the coordinator TopN.
  * Output pages contain:
  * <ul>
  *     <li>channel 0: doc block (shard, segment, doc)</li>
@@ -119,7 +121,10 @@ final class RemoteFetchHandleDecodeOperator extends AbstractPageMappingOperator 
                     positionBuilder.appendInt(position);
                 }
             }
-            Block docBlock = docBuilder.build(DocVector.config()).asBlock();
+            // MV_EXPAND (and similar row-multiplying operators) can copy the same handle onto
+            // several surviving TopN rows. Those rows still name one Lucene doc; the values
+            // reader loads that doc once per row.
+            Block docBlock = docBuilder.build(DocVector.config().mayContainDuplicates()).asBlock();
             if (positionBuilder == null) {
                 return new Page(docBlock);
             }

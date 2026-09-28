@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+- 159602
+pr: 159610
+summary: Fix TS queries with TBUCKET or TSTEP returning no columns instead of an error when timestamp bounds are missing
+type: bug

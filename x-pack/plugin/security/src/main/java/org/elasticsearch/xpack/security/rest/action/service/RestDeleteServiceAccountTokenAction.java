@@ -18,6 +18,8 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -44,8 +46,9 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final String namespace = request.param("namespace");
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
-            request.param("namespace"),
+            namespace,
             request.param("service"),
             request.param("name")
         );
@@ -53,8 +56,14 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
         if (refreshPolicy != null) {
             deleteServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
+        // One route serves both kinds of account, and the reserved namespace is what tells them apart. Selecting the
+        // action here, ahead of authorization, is what lets the privilege check judge the kind the caller asked for;
+        // nothing downstream of that check may infer the kind from the namespace again.
+        final var action = ServiceAccountSettings.BUILTIN_NAMESPACE.equalsIgnoreCase(namespace)
+            ? DeleteServiceAccountTokenAction.INSTANCE
+            : DeleteUserManagedServiceAccountTokenAction.INSTANCE;
         return channel -> client.execute(
-            DeleteServiceAccountTokenAction.INSTANCE,
+            action,
             deleteServiceAccountTokenRequest,
             new RestToXContentListener<>(channel, r -> r.found() ? RestStatus.OK : RestStatus.NOT_FOUND)
         );

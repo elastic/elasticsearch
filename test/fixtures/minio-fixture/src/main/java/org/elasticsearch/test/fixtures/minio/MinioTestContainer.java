@@ -26,8 +26,11 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
      * [= 2025-05-24                ] known issue https://github.com/minio/minio/issues/21377; no workaround
      * [> 2025-05-24 && < 2025-09-07] known issue https://github.com/minio/minio/issues/21456; workaround in #131815
      * [>= 2025-09-07               ] no known issues (yet)
+     *
+     * The image is pulled from Chainguard because the previously used quay.io image disappeared from public
+     * access, see https://github.com/elastic/elasticsearch/issues/159137.
      */
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z";
+    public static final String DOCKER_BASE_IMAGE = "chainguard/minio:latest";
 
     private static final int servicePort = 9000;
     private final boolean enabled;
@@ -53,6 +56,11 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
         try {
             dataFolder.create();
             bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
+            // Chainguard's image runs as a non-root user, so the bind-mounted data path must be writable by arbitrary UIDs.
+            makeWritableByContainerUser(dataFolder.getRoot());
+            makeWritableByContainerUser(bucketFolder.getParentFile().getParentFile());
+            makeWritableByContainerUser(bucketFolder.getParentFile());
+            makeWritableByContainerUser(bucketFolder);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -97,5 +105,13 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public String getAddress() {
         return "http://127.0.0.1:" + getMappedPort(servicePort);
+    }
+
+    private static void makeWritableByContainerUser(File directory) throws IOException {
+        if (directory.setReadable(true, false) == false
+            || directory.setWritable(true, false) == false
+            || directory.setExecutable(true, false) == false) {
+            throw new IOException("failed to make directory writable by container user: " + directory);
+        }
     }
 }

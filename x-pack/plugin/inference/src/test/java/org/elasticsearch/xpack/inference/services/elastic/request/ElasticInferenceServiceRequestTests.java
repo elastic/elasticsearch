@@ -11,6 +11,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceProductContextTests;
@@ -26,6 +28,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.net.URI;
 import java.util.List;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
@@ -61,17 +66,51 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         assertThat(productOriginHeader.getValue(), equalTo(productOrigin));
     }
 
-    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductUseCase() {
+    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAttributionHeaders() {
+        record Case(InferenceProductContext context, String headerName, String expectedValue) {}
+
         var productUseCase = "ai assistant";
+        var productSolution = "security";
+        var productFeature = "attack_discovery";
+        var interactionId = "interaction-id";
+
+        for (var testCase : List.of(
+            new Case(new InferenceProductContext(productUseCase, null), X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase),
+            new Case(
+                new InferenceProductContext(null, null, productSolution, null, null),
+                X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                productSolution
+            ),
+            new Case(
+                new InferenceProductContext(null, null, null, productFeature, null),
+                X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                productFeature
+            ),
+            new Case(
+                new InferenceProductContext(null, null, null, null, interactionId),
+                X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                interactionId
+            )
+        )) {
+            var httpRequest = RequestTests.getHttpRequestSync(
+                getDummyElasticInferenceServiceRequest(new ElasticInferenceServiceRequestMetadata(testCase.context(), null))
+            );
+            var header = httpRequest.httpRequestBase().getFirstHeader(testCase.headerName());
+
+            assertThat(httpRequest.httpRequestBase().getHeaders(testCase.headerName()).length, equalTo(1));
+            assertThat(header.getValue(), equalTo(testCase.expectedValue()));
+        }
+    }
+
+    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithoutOptionalAttributionHeaders() {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(productUseCase, null), null)
+            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext("", null, "", "", ""), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
-        var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
 
-        // Make sure the product use case header only exists once
-        assertThat(httpRequest.httpRequestBase().getHeaders(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER).length, equalTo(1));
-        assertThat(productUseCaseHeader.getValue(), equalTo(productUseCase));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithEsVersion() {
@@ -177,5 +216,33 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             InferenceProductContextTests.randomInferenceProductContext(),
             randomFrom(randomAlphaOfLength(10), null)
         );
+    }
+
+    public void testExtractRequestMetadataFromThreadContext() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        var productUseCase = randomAlphaOfLength(10);
+        var productOrigin = randomAlphaOfLength(10);
+        var productSolution = randomAlphaOfLength(10);
+        var productFeature = randomAlphaOfLength(10);
+        var interactionId = randomAlphaOfLength(10);
+        threadContext.putHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
+        threadContext.putHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
+        threadContext.putHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
+        threadContext.putHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
+
+        var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
+
+        assertThat(
+            metadata.context(),
+            equalTo(new InferenceProductContext(productUseCase, productOrigin, productSolution, productFeature, interactionId))
+        );
+        assertNotNull(metadata.esVersion());
+    }
+
+    public void testExtractRequestMetadataFromThreadContextWithoutOptionalHeaders() {
+        var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(new ThreadContext(Settings.EMPTY));
+
+        assertThat(metadata.context(), equalTo(InferenceProductContext.EMPTY));
     }
 }

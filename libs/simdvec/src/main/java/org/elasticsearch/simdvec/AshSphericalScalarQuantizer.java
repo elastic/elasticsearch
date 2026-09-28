@@ -42,7 +42,11 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
-    public record QuantizeResult(float[] centeredCodes, float[] codeNorms) {}
+    public record QuantizeResult(float[] centeredCodes, float[] codeNorms) {
+        public QuantizeResult(int n, int nDims) {
+            this(new float[n * nDims], new float[n]);
+        }
+    }
 
     /**
      * Creates a spherical scalar quantizer with the given bit width.
@@ -68,15 +72,14 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * @param n number of vectors
      * @param nDims components per vector
      */
-    public QuantizeResult encode(float[] x, int n, int nDims) {
-        float[] centeredCodes = new float[n * nDims];
-        float[] codeNorms = new float[n];
+    public void encode(float[] x, int n, int nDims, QuantizeResult result) {
+        assert result.centeredCodes.length == n * nDims;
+        assert result.codeNorms.length == n;
 
         for (int i = 0; i < n; i++) {
             int base = i * nDims;
-            codeNorms[i] = quantizeExact(x, base, centeredCodes, base, nDims);
+            result.codeNorms[i] = quantizeExact(x, base, result.centeredCodes, base, nDims);
         }
-        return new QuantizeResult(centeredCodes, codeNorms);
     }
 
     public SingleQuantizeResult encodeOne(float[] xLatent) {
@@ -149,6 +152,19 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
         }
     }
 
+    private static final ThreadLocal<int[]> ABSZF_ARRAY = new ThreadLocal<>();
+
+    private static int[] getAbsZFArray(int dims) {
+        // cache this array, as it's the only large allocation on the quantize* paths,
+        // and it's generally used in a tight loop with the same dimensions
+        int[] absZF = ABSZF_ARRAY.get();
+        if (absZF == null || absZF.length != dims) {
+            absZF = new int[dims];
+            ABSZF_ARRAY.set(absZF);
+        }
+        return absZF;
+    }
+
     /**
      * Specialized fast path for 2-bit quantization (nSteps=1).
      * <p>
@@ -158,7 +174,8 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * The selected set is recovered via a threshold on |z_j| rather than by tracking indices.
      */
     protected float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
-        int[] absZF = new int[d];
+        int[] absZF = getAbsZFArray(d);
+
         double dot = calculateBaseLevel(z, zOffset, absZF);
 
         // Sorted ascending; the iteration is then done backwards
@@ -241,7 +258,8 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * which is why only magnitudes need sorting and not the dimension indices alongside them.
      */
     protected float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
-        int[] absZF = new int[d];
+        int[] absZF = getAbsZFArray(d);
+
         double baseDot = calculateBaseLevel(z, zOffset, absZF);
 
         // Sorted ascending; the iteration is then done backwards

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -45,6 +46,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Exact-stat validation for the CSV reader's orthogonal per-stripe stats path, mirroring
@@ -165,6 +169,27 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         frags.addAll(captureRaw(slice(full, cut, full.length), cut, false, true, 1000, stripe, true, schema));
 
         assertFoldsTo(frags, total);
+    }
+
+    /**
+     * BOM regression: a leading UTF-8 BOM (EF BB BF) must NOT disable stripe capture. Before the fix the
+     * BOM bytes were consumed before {@link org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream},
+     * so {@code byteCounter.getBytesRead()} returned N-3 while {@code recordReader.bytesRead()} returned N;
+     * the tripwire saw N != N-3 and set {@code stripeCaptureDisabled = true}, causing every warm COUNT(*) to
+     * re-read the file.
+     *
+     * <p>This asserts stripe fragments ARE emitted and form a complete cover of ALL N file bytes (BOM + data)
+     * — verifying that both the tripwire invariant and the byte-range geometry are correct.
+     */
+    public void testLeadingBomDoesNotDisableStripeCapture() throws Exception {
+        byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+        int total = 8;
+        byte[] data = asciiCsv(0, total);
+        byte[] full = concat(bom, data);
+        long stripe = 7;
+
+        List<Frag> frags = captureStripes(full, 0, true, true, 1000, stripe);
+        assertDenseFileFinalCover(frags, total, full.length);
     }
 
     // ---- Stripe-boundary page geometry (mirrors NdJsonStripeStatsCaptureTests) ----------------------
@@ -304,6 +329,59 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             assertNull("one fragment per stripe ordinal per path", byOrdinal.put(ordinal, payload));
         }
         return byOrdinal;
+    }
+
+    /**
+     * The read-configuration stamp is what keeps one read's statistics from being served to a read configured differently, and it
+     * is carried by a wither the reader could silently drop while still compiling. Pin both directions: a configured
+     * shape reaches every harvested contribution, and an unconfigured one stamps no key at all — absence is how a
+     * consumer tells "shape unknown" from a real read configuration.
+     */
+    public void testReadConfigIsStampedOnHarvestedContributions() throws Exception {
+        byte[] bytes = "n\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);
+
+        List<Map<String, Object>> stamped = captureWithReadConfig(bytes, 64L, "config-A");
+        assertThat("the read must harvest something to stamp", stamped, not(empty()));
+        for (Map<String, Object> contribution : stamped) {
+            assertEquals("config-A", contribution.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+        }
+
+        List<Map<String, Object>> unstamped = captureWithReadConfig(bytes, 64L, null);
+        assertThat(unstamped, not(empty()));
+        for (Map<String, Object> contribution : unstamped) {
+            assertFalse(
+                "an unknown read configuration must leave the key absent, not empty",
+                contribution.containsKey(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
+        }
+    }
+
+    private List<Map<String, Object>> captureWithReadConfig(byte[] bytes, long stripeSize, String readConfig) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+        );
+        if (readConfig != null) {
+            reader = reader.withReadConfig(readConfig);
+        }
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
     }
 
     /** Bulk Jackson path: plain single column, no _rowPosition, direct-to-block DISABLED so the read routes onto convertRowsToPage. */
@@ -733,8 +811,10 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         int badRow = total / 2;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            // brackets column `tags`; the mid-file row has a non-integer id -> dropped under skip_row.
-            sb.append(i == badRow ? "notanint" : Integer.toString(i)).append(",[a,b]\n");
+            // brackets column `tags`; the mid-file row carries an extra column -> wrong-width structural drop
+            // under skip_row. Structural rather than a coercion failure on purpose: a coercion drop is
+            // projection-dependent and suppresses the publish outright, which would leave nothing to align.
+            sb.append(Integer.toString(i)).append(",[a,b]").append(i == badRow ? ",zzz" : "").append("\n");
         }
         byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
         long stripe = 8; // small grid -> many stripes across the file

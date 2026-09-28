@@ -314,7 +314,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot data purpose — the destination should receive the configured data access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
 
         asserAccessTier(dataAccessTier, destBlobName);
     }
@@ -332,7 +332,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot metadata purpose — the destination should receive the configured metadata access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         asserAccessTier(metadataAccessTier, destBlobName);
     }

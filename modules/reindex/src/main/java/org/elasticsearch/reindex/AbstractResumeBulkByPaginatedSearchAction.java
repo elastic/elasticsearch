@@ -68,7 +68,7 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
 
         var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
-        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), responseListener);
+        Task delegateTask = nodeClient.executeAndReturnTask(delegateAction, request.getDelegate(), responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
         logger.info(

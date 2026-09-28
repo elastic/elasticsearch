@@ -51,11 +51,12 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
+| Test a data source connection | `cluster.manage` | Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 
 Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.
 
-The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md).
+The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 
 `superuser` has full access to data sources and datasets. Data source management is reached through the cluster `manage` (or `all`) privilege, or through a role explicitly granted `global.data_source` for fine-grained control.
 

@@ -89,6 +89,19 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("request does not support [slice]"));
     }
 
+    public void testToSearchSlice() {
+        assertNull(SliceIndexing.toSearchSlice("r1", false));
+        assertNull(SliceIndexing.toSearchSlice(null, false));
+        assertThat(SliceIndexing.toSearchSlice("s1", true), equalTo("s1"));
+        assertThat(SliceIndexing.toSearchSlice(null, true), equalTo(SliceIndexing.SLICE_ALL));
+    }
+
+    public void testSliceToRouting() {
+        assertThat(SliceIndexing.sliceToRouting("s1"), equalTo("s1"));
+        assertThat(SliceIndexing.sliceToRouting("s1,s2"), equalTo("s1,s2"));
+        assertNull(SliceIndexing.sliceToRouting(SliceIndexing.SLICE_ALL));
+    }
+
     private static void assertInvalid(String value) {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SliceIndexing.validateUserSliceValue(value));
         assertThat(ex.getMessage(), containsString("invalid [slice] value"));

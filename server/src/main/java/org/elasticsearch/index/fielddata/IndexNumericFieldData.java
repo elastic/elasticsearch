@@ -102,7 +102,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
-        return buildSortField(targetNumericType, missingValue, sortMode, nested, reverse, false, requiresCustomComparator == false);
+        return buildSortField(targetNumericType, missingValue, sortMode, nested, reverse, false, requiresCustomComparator == false, null);
     }
 
     private SortField buildSortField(
@@ -112,7 +112,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested,
         boolean reverse,
         boolean useNativeSortField,
-        boolean optimizeSortWithPoints
+        boolean optimizeSortWithPoints,
+        IndexVersion indexCreatedVersion
     ) {
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
         if (useNativeSortField == false || sortRequiresCustomComparator()) {
@@ -126,8 +127,24 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
-        SortField sortField = new SortedNumericSortField(getFieldName(), targetNumericType.sortFieldType, reverse, selectorType);
-        sortField.setMissingValue(source.missingObject(missingValue, reverse));
+        Object missingObject = source.missingObject(missingValue, reverse);
+        if (getNumericType() == NumericType.DATE_NANOSECONDS
+            && indexCreatedVersion != null
+            && indexCreatedVersion.before(IndexVersions.V_7_14_0)
+            && missingValue.equals("_last")
+            && Long.valueOf(0L).equals(missingObject)) {
+            // 7.14 changed the default missing value of sort on date_nanos, from Long.MIN_VALUE
+            // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to
+            // open the index.
+            missingObject = Long.MIN_VALUE;
+        }
+        SortField sortField = new SortedNumericSortField(
+            getFieldName(),
+            targetNumericType.sortFieldType,
+            reverse,
+            selectorType,
+            missingObject
+        );
         sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
         return sortField;
     }
@@ -178,26 +195,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         NumericType targetNumericType = useBwcLongSort ? NumericType.LONG : getNumericType();
         boolean hasNativeSelector = nested == null && (sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX);
         boolean useNativeSortField = hasNativeSelector && (indexSort || useBwcLongSort);
-        SortField sortField = buildSortField(
+        return buildSortField(
             targetNumericType,
             missingValue,
             sortMode,
             nested,
             reverse,
             useNativeSortField,
-            useBwcLongSort == false && hasNativeSelector
+            useBwcLongSort == false && hasNativeSelector,
+            indexCreatedVersion
         );
-
-        if (getNumericType() == NumericType.DATE_NANOSECONDS
-            && indexCreatedVersion.before(IndexVersions.V_7_14_0)
-            && missingValue.equals("_last")
-            && Long.valueOf(0L).equals(sortField.getMissingValue())) {
-            // 7.14 changed the default missing value of sort on date_nanos, from Long.MIN_VALUE
-            // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to
-            // open the index.
-            sortField.setMissingValue(Long.MIN_VALUE);
-        }
-        return sortField;
     }
 
     /**

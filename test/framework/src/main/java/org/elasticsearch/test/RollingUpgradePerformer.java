@@ -135,7 +135,7 @@ public class RollingUpgradePerformer {
             for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
-                        String newClusterVersion = System.getProperty("tests.new_cluster_version", CURRENT_ES_VERSION);
+                        String newClusterVersion = getNewClusterVersion();
                         logger.info("Upgrading node {} to version {}", n, newClusterVersion);
                         clusterAndClients.cluster().upgradeNodeToVersion(n, Version.fromString(newClusterVersion));
                     } catch (Exception e) {
@@ -181,6 +181,10 @@ public class RollingUpgradePerformer {
      */
     public static String getOldClusterVersion() {
         return System.getProperty("tests.bwc.main.version", System.getProperty("tests.old_cluster_version"));
+    }
+
+    public static String getNewClusterVersion() {
+        return System.getProperty("tests.new_cluster_version", CURRENT_ES_VERSION);
     }
 
     /**

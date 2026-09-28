@@ -45,7 +45,10 @@ class ProblemTracker {
     private volatile boolean hasProblems;
     private volatile boolean hadProblems;
     private volatile String previousProblem;
+    private volatile int consecutiveSameProblemCount;
     private volatile int emptyDataCount;
+    private volatile int consecutiveExtractionFailureCount;
+    private volatile boolean extractionProblemThisReport;
     private final long numberOfSearchesInADay;
 
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
@@ -64,11 +67,15 @@ class ProblemTracker {
     }
 
     /**
-     * Reports as extraction problem if it is different than the last seen problem
+     * Reports as extraction problem if it is different than the last seen problem, and tracks the number of
+     * consecutive real-time cycles that have failed extraction.
      *
      * @param error the exception
+     * @return the number of consecutive extraction failures including this one
      */
-    public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+    public int reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+        extractionProblemThisReport = true;
+        consecutiveExtractionFailureCount++;
         CircuitBreakingException parentCircuitBreaker = findParentCircuitBreaker(error);
         if (parentCircuitBreaker != null) {
             String problemMessage = Messages.getMessage(
@@ -82,6 +89,25 @@ class ProblemTracker {
                 ExceptionsHelper.findSearchExceptionRootCause(error).getMessage()
             );
         }
+        return consecutiveExtractionFailureCount;
+    }
+
+    /**
+     * @return the number of consecutive real-time cycles that have failed extraction, reset to zero whenever a
+     * cycle completes without an extraction failure
+     */
+    public int getConsecutiveExtractionFailureCount() {
+        return consecutiveExtractionFailureCount;
+    }
+
+    /**
+     * Resets the consecutive extraction failure tracking. This is called at the lookback-to-real-time boundary so
+     * that extraction failures encountered during lookback do not count towards the real-time stop threshold, which
+     * is defined in terms of consecutive <em>real-time</em> extraction failures.
+     */
+    public void resetConsecutiveExtractionFailureCount() {
+        consecutiveExtractionFailureCount = 0;
+        extractionProblemThisReport = false;
     }
 
     /**
@@ -95,7 +121,15 @@ class ProblemTracker {
 
     private void reportProblem(String template, String problemMessage, String dedupKey) {
         hasProblems = true;
-        if (Objects.equals(previousProblem, dedupKey) == false) {
+        if (Objects.equals(previousProblem, dedupKey)) {
+            // Same problem repeating: increment counter and re-audit periodically so a persistent
+            // failure doesn't become permanently invisible after the first dedup suppression.
+            consecutiveSameProblemCount++;
+            if (consecutiveSameProblemCount % numberOfSearchesInADay == 0) {
+                auditor.error(jobId, Messages.getMessage(template, problemMessage));
+            }
+        } else {
+            consecutiveSameProblemCount = 1;
             previousProblem = dedupKey;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
@@ -162,7 +196,15 @@ class ProblemTracker {
         if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
             previousProblem = null;
+            consecutiveSameProblemCount = 0;
         }
+
+        // Reset the consecutive extraction failure counter whenever a cycle completes without hitting an
+        // extraction problem, so only genuinely consecutive failures accumulate towards the stop threshold.
+        if (extractionProblemThisReport == false) {
+            consecutiveExtractionFailureCount = 0;
+        }
+        extractionProblemThisReport = false;
 
         hadProblems = hasProblems;
         hasProblems = false;

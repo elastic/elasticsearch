@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
@@ -263,7 +262,6 @@ public class Aggregate extends UnaryPlan
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
             || e.dataType() == DATE_PERIOD
             || e.dataType() == DATE_RANGE
-            || e.dataType() == DOUBLE_RANGE
             || e.dataType() == EXPONENTIAL_HISTOGRAM
             || e.dataType() == PARTIAL_AGG
             || e.dataType() == TDIGEST
@@ -333,11 +331,10 @@ public class Aggregate extends UnaryPlan
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
-        Holder<Boolean> hasScoringAggs = new Holder<>();
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
-                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
-                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                for (Expression field : aggregateFunction.fields()) {
+                    if (field instanceof MetadataAttribute metadataAttribute && MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }
@@ -473,7 +470,7 @@ public class Aggregate extends UnaryPlan
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });
-            checkNested.accept(af.field());
+            af.fields().forEach(checkNested);
             af.parameters().forEach(checkNested);
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer

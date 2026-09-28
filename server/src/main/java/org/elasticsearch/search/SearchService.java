@@ -50,7 +50,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -60,6 +59,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -82,7 +82,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -341,11 +340,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.NodeScope
     );
 
-    public static final FeatureFlag PIT_RELOCATION_FEATURE_FLAG = new FeatureFlag("pit_relocation_feature");
-
     public static final Setting<Boolean> PIT_RELOCATION_ENABLED = Setting.boolSetting(
         "search.pit_relocation_enabled",
-        PIT_RELOCATION_FEATURE_FLAG.isEnabled(),
+        true,
         Property.OperatorDynamic,
         Property.NodeScope
     );
@@ -508,11 +505,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
         prewarmingMaxPoolFactorThreshold = PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE.get(settings);
 
-        if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
-            pitRelocationEnabled = PIT_RELOCATION_ENABLED.get(settings);
-        } else {
-            pitRelocationEnabled = false;
-        }
+        pitRelocationEnabled = PIT_RELOCATION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PIT_RELOCATION_ENABLED, pitRelocationEnabled -> this.pitRelocationEnabled = pitRelocationEnabled);
     }
@@ -1096,9 +1089,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-            ? indicesService.directoryMetricsDelta()
-            : indicesService.cacheMetricsDelta();
+        return indicesService.directoryMetricsDelta();
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
@@ -1134,7 +1125,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds, null);
-                RankFeatureShardPhase.processFetch(searchContext);
+                try {
+                    RankFeatureShardPhase.processFetch(searchContext);
+                } finally {
+                    searchContext.fetchResult().releaseCircuitBreakerBytes();
+                }
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 setDirectoryMetrics(rankFeatureResult, metricsDelta, searchContext);
@@ -1929,6 +1924,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return freeReaderContext(contextId, "explicit free request");
     }
 
+    /**
+     * Marks the reader context for the given {@code contextId} as relocating, so the background
+     * Reaper will expire it gracefully once all in-flight {@code markAsUsed} references are
+     * released (plus a short grace period). This avoids the race where an immediate
+     * {@link #freeReaderContext} call closes underlying resources in the phase-transition gap
+     * between search phases when no reference is held.
+     *
+     * @return {@code true} if a context was found and marked, {@code false} if no active context
+     *         exists for the given id (already freed or never created on this node)
+     */
+    public boolean markContextAsRelocating(ShardSearchContextId contextId) {
+        final ReaderContext context = activeReaders.get(contextId);
+        if (context == null) {
+            return false;
+        }
+        context.relocate();
+        return true;
+    }
+
     private boolean freeReaderContext(ShardSearchContextId contextId, String reason) {
         try (ReaderContext context = removeReaderContext(contextId, reason)) {
             return context != null;
@@ -1993,8 +2007,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is sent.
      * The fetchResultExtractor function extracts the FetchSearchResult from the response type.
+     * Visible for testing.
      */
-    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
+    static <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
@@ -2009,7 +2024,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // can observe them and free the reader context via processFailure.
                     FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
                     if (fetchResult != null) {
-                        fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                        fetchResult.releaseCircuitBreakerBytes();
                     }
                 }
             }
@@ -2105,6 +2120,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) throws IOException {
         // nothing to parse...
         if (source == null) {
@@ -2200,7 +2216,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
-            } catch (StackOverflowError e) {
+            } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
                 throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }
@@ -2245,12 +2261,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                FieldAndFormat fieldAndFormat = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
-                if (fieldAndFormat == null) {
-                    // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
-                    continue;
-                }
-                fields.add(fieldAndFormat);
+                fields.add(fieldType.embeddingsFieldAndFormat(embeddingsField.getValue()));
             }
 
             if (fields.isEmpty() == false) {

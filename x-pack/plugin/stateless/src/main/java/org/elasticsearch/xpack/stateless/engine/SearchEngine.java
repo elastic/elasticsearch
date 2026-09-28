@@ -348,6 +348,17 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            readerManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (didRefresh) {
+                        warmReaderCacheAfterResharding();
+                    }
+                }
+            });
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
@@ -360,6 +371,7 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
+            warmReaderCacheAfterResharding();
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -507,7 +519,6 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
         searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
@@ -517,6 +528,11 @@ public class SearchEngine extends Engine {
             // cache space and requests.
             .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
             .<Void>andThen(l -> {
+                // Update the tracker only after the foreground prefetch completes so that
+                // isUploaded=true is never observable before the shared blob cache is populated.
+                // For background prefetch this andThen fires almost immediately (the prefetch is
+                // async), so the window is negligible; for foreground prefetch it closes entirely.
+                searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
                 if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
                     commitNotifications.add(notification);
                     if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -553,6 +569,7 @@ public class SearchEngine extends Engine {
     private void processCommitNotifications() {
         AbstractRunnable processCommitNotification = new AbstractRunnable() {
             private final RefCounted finish = AbstractRefCounted.of(this::finish);
+            NewCommitNotification latestNotification;
             int batchSize = 0;
 
             @Override
@@ -563,19 +580,19 @@ public class SearchEngine extends Engine {
 
                 assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
                 final SegmentInfos current = segmentInfosAndCommit.segmentInfos();
-                NewCommitNotification latestNotification = findLatestNotification(current);
+                latestNotification = findLatestNotification(current);
                 if (latestNotification == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
                     return;
                 }
-                StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 if (searchDirectory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
                     return;
                 }
 
+                final var latestCommit = latestNotification.compoundCommit();
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
                 if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
@@ -653,7 +670,11 @@ public class SearchEngine extends Engine {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof AlreadyClosedException == false) {
-                    failEngine("failed to refresh segments", e);
+                    var reason = "failed to refresh segments";
+                    if (latestNotification != null) {
+                        reason += " from commit notification " + latestNotification.toShortDescription();
+                    }
+                    failEngine(reason, e);
                 } else {
                     logger.debug("failed to process commit notification, engine is closed", e);
                 }
@@ -1049,6 +1070,16 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throw unsupportedException();
+    }
+
+    @Override
     protected void onSearcherCreation(String source, SearcherScope scope) {
         super.onSearcherCreation(source, scope);
         if (source.equals(CAN_MATCH_SEARCH_SOURCE) || source.equals(SEARCH_SOURCE)) {
@@ -1114,6 +1145,19 @@ public class SearchEngine extends Engine {
     @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
+    }
+
+    /**
+     * Schedules warming of the current reader's resharding unowned-document bitsets when this shard is in an active split.
+     */
+    public void warmReaderCacheAfterResharding() {
+        reshardSearchFilters.warmReaderCacheAfterResharding(
+            shardId,
+            engineConfig.getIndexSettings().getIndexMetadata(),
+            engineConfig.getMapperService(),
+            engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER),
+            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)
+        );
     }
 
     @Override
@@ -1689,7 +1733,7 @@ public class SearchEngine extends Engine {
     private class RelocatedPITReaderTracker implements Closeable {
 
         private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
-        private boolean closed = false;
+        private boolean trackerClosed = false;
 
         RelocatedPITReaderTracker() {}
 
@@ -1702,17 +1746,30 @@ public class SearchEngine extends Engine {
                 // waiting for the shard to transition to STARTED. If the shard is never started
                 // (e.g. recovery fails), no searcher is ever acquired.
                 private SearcherSupplier delegate = null;
-                private boolean closed = false;
+                private boolean supplierClosed = false;
 
                 @Override
                 protected synchronized void doClose() {
-                    closed = true;
-                    IOUtils.closeWhileHandlingException(delegate);
+                    supplierClosed = true;
+                    if (delegate != null) {
+                        IOUtils.closeWhileHandlingException(delegate);
+                    } else {
+                        // The lazy delegate (the real searcher) was never acquired.
+                        // Its storeRef and PITCommitHandle are still owned by the RelocatedPITReader
+                        // in trackedReaders — remove and close it now so those resources are not
+                        // held until engine close.
+                        synchronized (RelocatedPITReaderTracker.this) {
+                            if (trackerClosed == false) {
+                                trackedReaders.remove(relocatedPITReader);
+                                IOUtils.closeWhileHandlingException(relocatedPITReader);
+                            }
+                        }
+                    }
                 }
 
                 @Override
                 protected synchronized Searcher acquireSearcherInternal(String source) {
-                    if (closed) {
+                    if (supplierClosed) {
                         throw new AlreadyClosedException("SearcherSupplier was closed");
                     }
 
@@ -1770,17 +1827,17 @@ public class SearchEngine extends Engine {
 
         private void ensureOpen() {
             assert Thread.holdsLock(this);
-            if (closed) {
+            if (trackerClosed) {
                 throw new AlreadyClosedException("RelocatedPITReaderTracker is closed");
             }
         }
 
         @Override
         public synchronized void close() {
-            if (closed) {
+            if (trackerClosed) {
                 return;
             }
-            closed = true;
+            trackerClosed = true;
             IOUtils.closeWhileHandlingException(trackedReaders);
         }
     }

@@ -119,6 +119,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                 .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
                 .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry(
                     "profile",

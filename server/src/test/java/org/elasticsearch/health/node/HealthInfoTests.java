@@ -9,16 +9,22 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo> {
     @Override
@@ -34,7 +40,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             diskInfoByNode,
             randomBoolean() ? randomDslHealthInfo() : null,
             repositoriesInfoByNode,
-            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
+            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE),
+            randomBoolean() ? randomDlmFrozenTransitionsHealthInfo() : null
         );
     }
 
@@ -48,7 +55,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var dslHealth = originalHealthInfo.dslHealthInfo();
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
         var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
-        switch (randomInt(3)) {
+        var dlmFrozenTransitionsHealth = originalHealthInfo.dlmFrozenTransitionsHealthInfo();
+        switch (randomInt(4)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -61,8 +69,26 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 HealthInfoTests::randomRepoHealthInfo
             );
             case 3 -> fsHealth = mutateFileSettingsHealthInfo(fsHealth);
+            case 4 -> dlmFrozenTransitionsHealth = randomValueOtherThan(
+                dlmFrozenTransitionsHealth,
+                HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
+            );
+            default -> throw new IllegalStateException("unexpected random value");
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth, dlmFrozenTransitionsHealth);
+    }
+
+    public void testOlderTransportVersionOmitsDlmFrozenTransitionsHealthInfo() throws IOException {
+        FileSettingsHealthInfo distinctFileSettingsInfo = mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE);
+        HealthInfo original = new HealthInfo(Map.of(), null, Map.of(), distinctFileSettingsInfo, randomDlmFrozenTransitionsHealthInfo());
+        // Use a version that supports file_settings_health_info but not dlm_frozen_transitions_health_info,
+        // verifying only the DLM frozen field is dropped and the file settings field is still round-tripped.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("dlm_frozen_transitions_health_info")
+        );
+        HealthInfo copy = copyInstance(original, oldVersion);
+        assertThat(copy.dlmFrozenTransitionsHealthInfo(), nullValue());
+        assertThat(copy.fileSettingsHealthInfo(), equalTo(distinctFileSettingsInfo));
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {
@@ -80,6 +106,31 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     public static RepositoriesHealthInfo randomRepoHealthInfo() {
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    public static DlmFrozenTransitionsHealthInfo randomDlmFrozenTransitionsHealthInfo() {
+        return new DlmFrozenTransitionsHealthInfo(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomOverdueIndices(),
+            // generated independently of overdueIndices' size so a swapped read/write order would be caught
+            // by the wire round-trip test.
+            randomIntBetween(0, 200),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+    }
+
+    public static Map<ProjectId, Map<String, DlmFrozenTransitionsHealthInfo.TransitionState>> randomOverdueIndices() {
+        return randomMap(
+            0,
+            3,
+            () -> tuple(
+                randomProjectIdOrDefault(),
+                randomMap(0, 5, () -> tuple(randomAlphaOfLength(10), randomFrom(DlmFrozenTransitionsHealthInfo.TransitionState.values())))
+            )
+        );
     }
 
     static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {

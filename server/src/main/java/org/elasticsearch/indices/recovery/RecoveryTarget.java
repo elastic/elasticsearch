@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -258,7 +260,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
                 cancellableThreads.cancel(reason);
-                listener.onRecoveryAborted();
+                listener.onRecoveryFailure(new RecoveryFailedException(state(), "recovery canceled", null), ABORT);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
@@ -269,13 +271,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /**
      * fail the recovery and call listener
      *
-     * @param e                exception that encapsulating the failure
-     * @param sendShardFailure indicates whether to notify the master of the shard failure
+     * @param e               exception that encapsulating the failure
+     * @param failureStrategy failure strategy decides if master should be notified
      */
-    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
+    public void fail(RecoveryFailedException e, FailureStrategy failureStrategy) {
         if (finished.compareAndSet(false, true)) {
             try {
-                listener.onRecoveryFailure(e, sendShardFailure);
+                listener.onRecoveryFailure(e, failureStrategy);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
@@ -300,7 +302,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
+                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), FAIL_SEND);
                 }
             }, this::decRef));
         }
@@ -515,11 +517,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     ex.addSuppressed(e);
                 }
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-                fail(rfe, true);
+                fail(rfe, FAIL_SEND);
                 throw rfe;
             } catch (Exception ex) {
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-                fail(rfe, true);
+                fail(rfe, FAIL_SEND);
                 throw rfe;
             }
             return null;

@@ -511,7 +511,13 @@ public class MetadataDataStreamsService {
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
         CompressedXContent effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
         MetadataIndexTemplateService.validateTemplate(
-            addSettingsFromIndexSettingProviders(dataStreamName, effectiveMappings, projectMetadata, mergedEffectiveSettings),
+            addSettingsFromIndexSettingProviders(
+                dataStreamName,
+                template.isRegistryInstalled(),
+                effectiveMappings,
+                projectMetadata,
+                mergedEffectiveSettings
+            ),
             effectiveMappings,
             indicesService,
             dataStreamName
@@ -522,6 +528,7 @@ public class MetadataDataStreamsService {
 
     private Settings addSettingsFromIndexSettingProviders(
         String dataStreamName,
+        boolean registryInstalledTemplate,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
         Settings settings
@@ -535,6 +542,7 @@ public class MetadataDataStreamsService {
                 dataStreamName,
                 dataStreamName,
                 indexMode,
+                registryInstalledTemplate,
                 projectMetadata,
                 Instant.now(),
                 settings,
@@ -625,6 +633,7 @@ public class MetadataDataStreamsService {
         );
         return addSettingsFromIndexSettingProviders(
             dataStream.getName(),
+            template.isRegistryInstalled(),
             effectiveMappings,
             projectMetadata,
             templateSettings.merge(dataStream.getSettings())

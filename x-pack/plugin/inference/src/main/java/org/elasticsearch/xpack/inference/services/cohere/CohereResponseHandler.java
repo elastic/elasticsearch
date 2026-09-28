@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -45,7 +45,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
         var cohereProcessor = new CohereStreamingProcessor();
         flow.subscribe(ndProcessor);
         ndProcessor.subscribe(cohereProcessor);
-        return new StreamingChatCompletionResults(cohereProcessor);
+        return new StreamingCompletionResults(cohereProcessor);
     }
 
     /**

@@ -18,16 +18,21 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -40,9 +45,14 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         R apply(T t, U u, V v);
     }
 
+    @FunctionalInterface
+    protected interface QuadFunction<T, U, V, W, R> {
+        R apply(T t, U u, V v, W w);
+    }
+
     /**
-     * All spatial grid functions have one license requirement in common, and that is that they are licensed aty PLATINUM level
-     * oif the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
+     * All spatial grid functions have one license requirement in common, and that is that they are licensed at PLATINUM level
+     * if the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
      * of the spatial aggregations.
      * @param fieldTypes (null for the function itself, otherwise a map of field named to types)
      * @return The license requirement for the function with that type signature
@@ -66,41 +76,58 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         return testClassName.replace("Tests", "");
     }
 
+    /**
+     * Adds test case suppliers for a spatial grid function.
+     *
+     * <p>The {@code expectedValue} and {@code expectedValueWithBounds} functions accept a
+     * {@link Consumer}{@code <String>} that receives any truncation-warning messages produced
+     * when the shape intersects more than {@link SpatialGridFunction#MAX_GRID_CELLS} cells.
+     * Pass a collecting consumer (e.g. {@code warnings::add}) to capture warnings and verify
+     * them in the resulting test case.
+     */
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
         DataType gridType,
-        BiFunction<BytesRef, Integer, Long> expectedValue,
-        TriFunction<BytesRef, Integer, GeoBoundingBox, Long> expectedValueWithBounds
+        TriFunction<BytesRef, Integer, Consumer<String>, Object> expectedValue,
+        QuadFunction<BytesRef, Integer, GeoBoundingBox, Consumer<String>, Object> expectedValueWithBounds
     ) {
         for (DataType spatialType : dataTypes) {
-            TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, true);
+            TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, false);
+            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries
+            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 8;
             for (boolean literalPrecision : List.of(true)) {
                 // TODO: add 'false' case once we support non-literal precision
                 String testName = spatialType.typeName() + (literalPrecision ? " with literal precision" : " with precision");
                 suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, INTEGER), () -> {
                     TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
                     BytesRef geometry = (BytesRef) geoTypedData.data();
-                    int precision = between(1, 8);
+                    int precision = between(1, maxPrecision);
                     TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
                     String evaluatorName = "FromFieldAndLiteralEvaluator[in=Attribute[channel=0], precision=Attribute[channel=1]";
                     if (literalPrecision) {
                         precisionData = precisionData.forceLiteral();
                         evaluatorName = "FromFieldAndLiteralEvaluator[wkbBlock=Attribute[channel=0], precision=" + precision + "]";
                     }
-                    return new TestCaseSupplier.TestCase(
+                    List<String> warnings = new ArrayList<>();
+                    Object expected = expectedValue.apply(geometry, precision, warnings::add);
+                    TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData),
                         getFunctionClassName() + evaluatorName,
                         gridType,
-                        equalTo(expectedValue.apply(geometry, precision))
+                        equalTo(expected)
                     );
+                    if (warnings.isEmpty() == false) {
+                        tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
+                    }
+                    return tc;
                 }));
                 // Test with bounds
                 String boundsTestName = testName + " and bounds";
                 suppliers.add(new TestCaseSupplier(boundsTestName, List.of(spatialType, INTEGER, GEO_SHAPE), () -> {
                     TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
                     BytesRef geometry = (BytesRef) geoTypedData.data();
-                    int precision = between(1, 8);
+                    int precision = between(1, maxPrecision);
                     TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
                     String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
                     if (literalPrecision) {
@@ -108,16 +135,24 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0]";
                     }
                     var boundsData = randomBoundsData();
-                    return new TestCaseSupplier.TestCase(
+                    List<String> warnings = new ArrayList<>();
+                    Object boundedExpected = expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox(), warnings::add);
+                    TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
                         gridType,
-                        equalTo(expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox()))
+                        equalTo(boundedExpected)
                     );
+                    if (warnings.isEmpty() == false) {
+                        tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
+                    }
+                    return tc;
                 }));
             }
         }
     }
+
+    private static final FunctionAppliesTo geoShapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
@@ -129,9 +164,9 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         } else {
             return switch (dataType) {
                 case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
+                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst().withAppliesTo(geoShapeAppliesTo);
                 case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst().withAppliesTo(geoShapeAppliesTo);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }
@@ -156,7 +191,17 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         );
     }
 
-    protected Long process(int precision, BiFunction<BytesRef, Integer, Long> expectedValue) {
+    /**
+     * Runs the function evaluator for the given precision and returns the result, comparing it
+     * against the expected value computed by {@code expectedValue}.
+     *
+     * <p>The no-op consumer {@code w -> {}} is passed to {@code expectedValue} because this method
+     * is only used in precision-validation tests ({@code testInvalidPrecision}) where the evaluator
+     * throws before any shape-cell computation — so truncation warnings cannot occur. Evaluator
+     * warnings that do arise from normal computation land in the driver context, not through
+     * the consumer, and are asserted separately by the framework.
+     */
+    protected Object process(int precision, TriFunction<BytesRef, Integer, Consumer<String>, Object> expectedValue) {
         Object spatialObj = this.testCase.getDataValues().getFirst();
         assumeNotNull(spatialObj);
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
@@ -167,7 +212,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, precision)))
         ) {
-            return block.isNull(0) ? null : expectedValue.apply(wkb, precision);
+            return block.isNull(0) ? null : expectedValue.apply(wkb, precision, w -> {});
         }
     }
 

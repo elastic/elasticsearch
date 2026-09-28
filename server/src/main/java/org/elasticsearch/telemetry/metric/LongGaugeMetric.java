@@ -12,15 +12,15 @@ package org.elasticsearch.telemetry.metric;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This wrapper allow us to record metric with APM (via {@link LongGauge}) while also access its current state via {@link AtomicLong}
+ * This wrapper allow us to record metric with APM (via {@link LongAsyncGauge}) while also access its current state via {@link AtomicLong}
  */
-public record LongGaugeMetric(AtomicLong value, LongGauge gauge) {
+public record LongGaugeMetric(AtomicLong value, LongAsyncGauge gauge) {
 
     public static LongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit) {
         final AtomicLong value = new AtomicLong();
         return new LongGaugeMetric(
             value,
-            meterRegistry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(value.get()))
+            meterRegistry.registerLongAsyncGauge(name, description, unit, () -> new LongWithAttributes(value.get()))
         );
     }
 

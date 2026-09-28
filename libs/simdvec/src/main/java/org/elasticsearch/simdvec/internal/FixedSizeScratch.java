@@ -11,15 +11,18 @@ package org.elasticsearch.simdvec.internal;
 
 import org.elasticsearch.core.Strings;
 
-class FixedSizeScratch {
+import java.util.function.IntFunction;
+
+public class FixedSizeScratch implements IntFunction<byte[]> {
     private final int size;
     private byte[] scratch;
 
-    FixedSizeScratch(int size) {
+    public FixedSizeScratch(int size) {
         this.size = size;
     }
 
-    byte[] getScratch(int len) {
+    @Override
+    public byte[] apply(int len) {
         if (len != size) {
             throw new IllegalArgumentException(Strings.format("Illegal size: FixedSizeScratch has a size of %d, requested %d", size, len));
         }

@@ -415,31 +415,8 @@ public final class MappingLookup {
     }
 
     void checkLimits(IndexSettings settings) {
-        checkFieldLimit(settings.getMappingTotalFieldsLimit());
-        checkObjectDepthLimit(settings.getMappingDepthLimit());
-        checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
-        checkNestedFieldsLimit(settings.getMappingNestedFieldsLimit());
         checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
-    }
-
-    private void checkFieldLimit(long limit) {
-        checkFieldLimit(limit, 0);
-    }
-
-    void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (exceedsLimit(limit, additionalFieldsToAdd)) {
-            throw new IllegalArgumentException(
-                "Limit of total fields ["
-                    + limit
-                    + "] has been exceeded"
-                    + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
-            );
-        }
-    }
-
-    boolean exceedsLimit(long limit, int additionalFieldsToAdd) {
-        return remainingFieldsUntilLimit(limit) < additionalFieldsToAdd;
     }
 
     long remainingFieldsUntilLimit(long mappingTotalFieldsLimit) {
@@ -449,47 +426,6 @@ public final class MappingLookup {
     private void checkDimensionFieldLimit(long limit) {
         if (dimensionFieldMappers.size() > limit) {
             throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
-        }
-    }
-
-    private void checkObjectDepthLimit(long limit) {
-        for (String objectPath : objectMappers.keySet()) {
-            checkObjectDepthLimit(limit, objectPath);
-        }
-    }
-
-    static void checkObjectDepthLimit(long limit, String objectPath) {
-        int numDots = 0;
-        for (int i = 0; i < objectPath.length(); ++i) {
-            if (objectPath.charAt(i) == '.') {
-                numDots += 1;
-            }
-        }
-        final int depth = numDots + 2;
-        if (depth > limit) {
-            throw new IllegalArgumentException(
-                "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
-            );
-        }
-    }
-
-    void checkFieldNameLengthLimit(long limit) {
-        validateMapperNameIn(objectMappers.values(), limit);
-        validateMapperNameIn(fieldMappers.values(), limit);
-    }
-
-    private static void validateMapperNameIn(Collection<? extends Mapper> mappers, long limit) {
-        for (Mapper mapper : mappers) {
-            String name = mapper.leafName();
-            if (name.length() > limit) {
-                throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
-            }
-        }
-    }
-
-    private void checkNestedFieldsLimit(long limit) {
-        if (nestedLookup.getNestedMappers().size() > limit) {
-            throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
         }
     }
 
@@ -516,6 +452,89 @@ public final class MappingLookup {
      */
     public Map<String, InferenceFieldMetadata> inferenceFields() {
         return inferenceFields;
+    }
+
+    /**
+     * Loader that restores the vector fields excluded from {@code _source}, or {@code null} when there are none to restore. Built from
+     * {@link #syntheticVectorFields()} rather than by walking the mapping. Only nested objects take part: plain objects would just
+     * aggregate their children, and excluding a path already excludes everything below it.
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
+        if (syntheticVectorFields.isEmpty()) {
+            return null;
+        }
+        // Grouped by the innermost nested object each field sits under, or "" for those under none.
+        Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent = new LinkedHashMap<>();
+        for (String field : syntheticVectorFields) {
+            if (filter != null && filter.isPathFiltered(field, false)) {
+                continue;
+            }
+            if (getMapper(field) instanceof FieldMapper fieldMapper) {
+                var loader = fieldMapper.syntheticVectorsLoader();
+                if (loader != null) {
+                    groupUnder(byNestedParent, nestedLookup.getNestedParent(field), loader);
+                }
+            }
+        }
+        // Innermost first, so each nested object is wrapped before folding into its own parent's group.
+        for (var nested = deepestNested(byNestedParent); nested != null; nested = deepestNested(byNestedParent)) {
+            var nestedMapper = nestedLookup.getNestedMappers().get(nested);
+            assert nestedMapper != null : "no nested mapper for [" + nested + "]";
+            var inner = combine(byNestedParent.remove(nested));
+            groupUnder(byNestedParent, nestedLookup.getNestedParent(nested), nestedMapper.wrapSyntheticVectorsLoader(inner));
+        }
+        return combine(byNestedParent.get(""));
+    }
+
+    private static void groupUnder(
+        Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent,
+        @Nullable String nestedParent,
+        SourceLoader.SyntheticVectorsLoader loader
+    ) {
+        byNestedParent.computeIfAbsent(nestedParent == null ? "" : nestedParent, k -> new ArrayList<>()).add(loader);
+    }
+
+    /** The deepest nested path present, or {@code null} once only the ungrouped entries remain. */
+    private static String deepestNested(Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent) {
+        String deepest = null;
+        int deepestDepth = -1;
+        for (String path : byNestedParent.keySet()) {
+            if (path.isEmpty()) {
+                continue;
+            }
+            int depth = (int) path.chars().filter(c -> c == '.').count();
+            if (depth > deepestDepth) {
+                deepestDepth = depth;
+                deepest = path;
+            }
+        }
+        return deepest;
+    }
+
+    private static SourceLoader.SyntheticVectorsLoader combine(@Nullable List<SourceLoader.SyntheticVectorsLoader> loaders) {
+        if (loaders == null || loaders.isEmpty()) {
+            return null;
+        }
+        if (loaders.size() == 1) {
+            return loaders.get(0);
+        }
+        return context -> {
+            final List<SourceLoader.SyntheticVectorsLoader.Leaf> leaves = new ArrayList<>();
+            for (var loader : loaders) {
+                var leaf = loader.leaf(context);
+                if (leaf != null) {
+                    leaves.add(leaf);
+                }
+            }
+            if (leaves.isEmpty()) {
+                return null;
+            }
+            return (doc, acc) -> {
+                for (var leaf : leaves) {
+                    leaf.load(doc, acc);
+                }
+            };
+        };
     }
 
     public Set<String> syntheticVectorFields() {
@@ -664,14 +683,18 @@ public final class MappingLookup {
         @Nullable NestedDocuments nestedDocuments
     ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
-            return new SourceLoader.Synthetic(
+            SourceLoader loader = new SourceLoader.Synthetic(
                 filter,
                 () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
                 metrics,
                 mapping.ignoredSourceFormat()
             );
+            // columnar_stored leaves vectors out of its blob, so they are patched back in from the vector index or doc values.
+            // A synthetic _source has no patch loader: the loader above already rebuilds them.
+            var patchLoader = syntheticVectorsLoader(filter);
+            return patchLoader == null ? loader : new SourceLoader.SyntheticVectors(loader, patchLoader);
         }
-        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+        var syntheticVectorsLoader = syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
         }

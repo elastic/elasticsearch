@@ -25,6 +25,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
         assertEquals(Duration.ofSeconds(30), config.connectTimeout());
         assertEquals(Duration.ofMinutes(5), config.requestTimeout());
+        assertEquals(Duration.ofSeconds(30), config.idleTimeout());
         assertTrue(config.followRedirects());
         assertTrue(config.customHeaders().isEmpty());
         assertEquals(3, config.maxRetries());
@@ -34,6 +35,7 @@ public class HttpStorageProviderTests extends ESTestCase {
         HttpConfiguration config = HttpConfiguration.builder()
             .connectTimeout(Duration.ofSeconds(15))
             .requestTimeout(Duration.ofMinutes(3))
+            .idleTimeout(Duration.ofSeconds(10))
             .followRedirects(false)
             .customHeaders(Map.of("Authorization", "Bearer token"))
             .maxRetries(2)
@@ -41,6 +43,7 @@ public class HttpStorageProviderTests extends ESTestCase {
 
         assertEquals(Duration.ofSeconds(15), config.connectTimeout());
         assertEquals(Duration.ofMinutes(3), config.requestTimeout());
+        assertEquals(Duration.ofSeconds(10), config.idleTimeout());
         assertFalse(config.followRedirects());
         assertEquals("Bearer token", config.customHeaders().get("Authorization"));
         assertEquals(2, config.maxRetries());
@@ -76,6 +79,19 @@ public class HttpStorageProviderTests extends ESTestCase {
             () -> { HttpConfiguration.builder().customHeaders(null); }
         );
         assertTrue(e.getMessage().contains("customHeaders"));
+    }
+
+    public void testConfigurationBuilderNullIdleTimeout() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { HttpConfiguration.builder().idleTimeout(null); });
+        assertTrue(e.getMessage().contains("idleTimeout"));
+    }
+
+    public void testConfigurationBuilderNegativeIdleTimeout() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpConfiguration.builder().idleTimeout(Duration.ofSeconds(-1))
+        );
+        assertTrue(e.getMessage().contains("idleTimeout"));
     }
 
     public void testStoragePathParsing() {

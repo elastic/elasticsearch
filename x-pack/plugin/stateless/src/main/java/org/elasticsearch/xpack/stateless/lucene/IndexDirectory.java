@@ -30,6 +30,7 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
@@ -77,6 +78,17 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 public class IndexDirectory extends ByteSizeDirectory {
 
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
+
+    /**
+     * An {@link IOContext.FileOpenHint} that instructs {@link #openInput} to prefer reading from local disk even for files that have
+     * already been uploaded to the object store. Passed by
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from the
+     * indexing node's local disk during the search-tier notification window.
+     * We should not rely on the cache having this filled, the indexing node's cache is for indexing, not for serving VBCCs to search.
+     */
+    public enum PreferLocalHint implements IOContext.FileOpenHint {
+        INSTANCE
+    }
 
     /**
      * Directory used to access files stored in the object store through the shared cache. Once a commit is uploaded to the object store,
@@ -237,15 +249,25 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        context = maybeAddStatelessAdviceHint(name, context);
+        boolean preferLocal = context.hints().contains(PreferLocalHint.INSTANCE);
+        if (preferLocal == false) {
+            context = maybeAddStatelessAdviceHint(name, context);
+        }
 
-        if (cacheDirectory.containsFile(name) == false) {
+        // Enter the local-disk path if the file has not yet been uploaded (normal path) or if the caller
+        // explicitly requests local disk via PreferLocalHint (e.g. VirtualBatchedCompoundCommit serving BCC
+        // chunk requests during the search-tier notification window, where even uploaded files must be read
+        // from local disk instead of the blob-store cache).
+        if (preferLocal || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRefNotUploaded()) {
+            if (localFile != null && (preferLocal ? localFile.tryIncRef() : localFile.tryIncRefNotUploaded())) {
                 try {
+                    if (preferLocal) {
+                        return super.openInput(name, context);
+                    }
                     // Index inputs opened with READONCE IO context are expected to be read and closed within the same thread
                     // (see https://github.com/apache/lucene/pull/13535). This is not the case for ReopeningIndexInput that can be closed
                     // by the uploading thread.
@@ -267,6 +289,23 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Acquires a reference to a local file via {@link LocalFileRef#tryIncRef()}, keeping it on disk even after
+     * {@link LocalFileRef#markAsUploaded()} has been called. Returns a no-op {@link Releasable} if the file is not locally available
+     * (e.g. it was from an older BCC and has already been freed from disk). The caller must close the returned {@link Releasable} when
+     * the local file is no longer needed.
+     */
+    public Releasable tryAcquireLocalFileRef(String name) {
+        LocalFileRef ref;
+        try (var ignored = readLock.acquire()) {
+            ref = localFiles.get(name);
+        }
+        if (ref != null && ref.tryIncRef()) {
+            return ref::decRef;
+        }
+        return () -> {};
     }
 
     /**

@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -19,6 +20,7 @@ import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -111,8 +113,28 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingDoubleGauge extends CallbackRecordingInstrument implements DoubleGauge {
-        public RecordingDoubleGauge(String name, Supplier<Collection<DoubleWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
+    public static class RecordingDoubleGauge extends RecordingInstrument implements DoubleGauge {
+        public RecordingDoubleGauge(String name, MetricRecorder<Instrument> recorder) {
+            super(name, recorder);
+        }
+
+        @Override
+        public void set(double value) {
+            set(value, Collections.emptyMap());
+        }
+
+        @Override
+        public void set(double value, Map<String, Object> attributes) {
+            call(value, attributes);
+        }
+    }
+
+    public static class RecordingDoubleAsyncGauge extends CallbackRecordingInstrument implements DoubleAsyncGauge {
+        public RecordingDoubleAsyncGauge(
+            String name,
+            Supplier<Collection<DoubleWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
                 return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
@@ -203,9 +225,29 @@ public class RecordingInstruments {
 
     }
 
-    public static class RecordingLongGauge extends CallbackRecordingInstrument implements LongGauge {
+    public static class RecordingLongGauge extends RecordingInstrument implements LongGauge {
+        public RecordingLongGauge(String name, MetricRecorder<Instrument> recorder) {
+            super(name, recorder);
+        }
 
-        public RecordingLongGauge(String name, Supplier<Collection<LongWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
+        @Override
+        public void set(long value) {
+            set(value, Collections.emptyMap());
+        }
+
+        @Override
+        public void set(long value, Map<String, Object> attributes) {
+            call(value, attributes);
+        }
+    }
+
+    public static class RecordingLongAsyncGauge extends CallbackRecordingInstrument implements LongAsyncGauge {
+
+        public RecordingLongAsyncGauge(
+            String name,
+            Supplier<Collection<LongWithAttributes>> observer,
+            MetricRecorder<Instrument> recorder
+        ) {
             super(name, () -> {
                 var observation = observer.get();
                 return observation.stream().filter(Objects::nonNull).map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();

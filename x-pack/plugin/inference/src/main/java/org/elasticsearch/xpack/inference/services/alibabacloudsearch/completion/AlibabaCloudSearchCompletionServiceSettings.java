@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -44,13 +43,7 @@ public class AlibabaCloudSearchCompletionServiceSettings implements ServiceSetti
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        AlibabaCloudSearchServiceSettings.declareCommonFields(parser);
-        return parser;
+        return AlibabaCloudSearchServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     public static AlibabaCloudSearchCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -104,11 +97,7 @@ public class AlibabaCloudSearchCompletionServiceSettings implements ServiceSetti
      */
     private static class Update extends AlibabaCloudSearchServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            AlibabaCloudSearchServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = AlibabaCloudSearchServiceSettings.buildCommonUpdateParser(Update::new);
 
         public AlibabaCloudSearchCompletionServiceSettings mergeInto(AlibabaCloudSearchCompletionServiceSettings existing) {
             return new AlibabaCloudSearchCompletionServiceSettings(mergedCommonSettings(existing.getCommonSettings()));

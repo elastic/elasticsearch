@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
@@ -28,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -43,6 +48,25 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * Obvious choices are: StGeohash, StGeotile and StGeohex.
  */
 public abstract class SpatialGridFunction extends SpatialDocValuesFunction implements OptionalArgument, LicenseAware {
+    /**
+     * Maximum number of grid cells that a single geo_shape value may intersect. When a shape intersects more
+     * cells than this limit the result is silently truncated to a partial list; the evaluator additionally
+     * emits an ES|QL warning so the user knows the output is incomplete. Mirrors the
+     * 10 000-document convention used elsewhere in Elasticsearch to give operators a familiar threshold.
+     * <p>
+     * TODO: for the common pattern {@code BY ST_GEOHEX(shape, precision)} the query planner could rewrite
+     *       the scalar function to a dedicated geo-grid aggregator (like the spatial plugin's
+     *       {@code GeoHexGridAggregationBuilder}) that processes one document at a time and accumulates
+     *       per-bucket counters rather than materialising all cells for an entire page at once.
+     *       This would eliminate the per-page memory explosion without needing a hard cell limit.
+     * </p>
+     * <p>
+     * TODO: for {@code WHERE ST_GEOHEX(shape, precision) == cell_id} the predicate could be pushed down
+     *       to Lucene as a geo-grid query (analogous to the Query DSL {@code geo_grid} query), avoiding
+     *       the need to enumerate cells at all and dramatically reducing both CPU and memory usage.
+     * </p>
+     */
+    public static final int MAX_GRID_CELLS = 10_000;
     protected final Expression spatialField;
     protected final Expression parameter;
     protected final Expression bounds;
@@ -96,7 +120,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isGeoPoint(spatialField(), sourceText());
+        TypeResolution resolution = isGeoPointOrShape(spatialField(), sourceText());
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -116,8 +140,20 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    protected static final GeoShapeIndexer GEO_SHAPE_INDEXER = new GeoShapeIndexer(Orientation.CCW, "esql-geo-grid");
+
     protected static Expression.TypeResolution isGeoPoint(Expression e, String operationName) {
         return isType(e, t -> t.equals(GEO_POINT), operationName, FIRST, GEO_POINT.typeName());
+    }
+
+    protected static Expression.TypeResolution isGeoPointOrShape(Expression e, String operationName) {
+        return isType(
+            e,
+            t -> t.equals(GEO_POINT) || t.equals(GEO_SHAPE),
+            operationName,
+            FIRST,
+            GEO_POINT.typeName() + " or " + GEO_SHAPE.typeName()
+        );
     }
 
     protected static Expression.TypeResolution isGeoshape(Expression e, String operationName) {
@@ -193,6 +229,32 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         }
     }
 
+    /**
+     * Creates a {@link Consumer}{@code <String>} for use in the constant-folding path that emits
+     * truncation warnings to HTTP response headers (the plan-time warning channel). This produces
+     * the same formatted string as
+     * {@link org.elasticsearch.compute.operator.Warnings#registerWarning(String)} so that test
+     * assertions expressed as {@code withWarning(...)} cover both the fold and the evaluator paths.
+     */
+    protected Consumer<String> foldWarningConsumer() {
+        Source src = source();
+        return msg -> HeaderWarning.addWarning("Line " + src.lineNumber() + ":" + src.columnNumber() + " [" + src.text() + "]: " + msg);
+    }
+
+    /**
+     * Converts a {@link List}{@code <Long>} of cell IDs to the fold-result format: {@code null} for empty,
+     * a single {@link Long} for one cell, or a {@link List}{@code <Long>} for multiple cells.
+     */
+    protected static Object foldMultiValue(List<Long> cells) {
+        if (cells.isEmpty()) {
+            return null;
+        } else if (cells.size() == 1) {
+            return cells.get(0);
+        } else {
+            return cells;
+        }
+    }
+
     /** Public for use in integration tests */
     public interface UnboundedGrid {
         long calculateGridId(Point point, int precision);
@@ -204,31 +266,76 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         int precision();
     }
 
+    /**
+     * Computes grid cell IDs for a geo_shape WKB; replaces the spatial plugin's GeoGridTiler.
+     * Implementations should return all cell IDs that intersect the given shape.
+     */
+    @FunctionalInterface
+    protected interface GeoShapeCellsComputer {
+        List<Long> compute(BytesRef wkb) throws IOException;
+    }
+
     protected static void fromWKB(
         LongBlock.Builder results,
         int position,
         BytesRefBlock wkbBlock,
         int precision,
-        UnboundedGrid unboundedGrid
+        UnboundedGrid unboundedGrid,
+        GeoShapeCellsComputer cellsComputer
     ) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
+            return;
+        }
+        final BytesRef scratch = new BytesRef();
+        final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+        if (valueCount == 1) {
+            addGridIdsFromWkb(results, wkbBlock.getBytesRef(firstValueIndex, scratch), precision, unboundedGrid, cellsComputer);
         } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                results.appendLong(
-                    unboundedGrid.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision)
-                );
-            } else {
-                results.beginPositionEntry();
-                for (int i = 0; i < valueCount; i++) {
-                    results.appendLong(
-                        unboundedGrid.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision)
-                    );
-                }
-                results.endPositionEntry();
+            // multi-valued field — flatten all grid ids from all values
+            List<Long> gridIds = new ArrayList<>();
+            for (int i = 0; i < valueCount; i++) {
+                appendGridIds(gridIds, wkbBlock.getBytesRef(firstValueIndex + i, scratch), precision, unboundedGrid, cellsComputer);
+            }
+            addGrids(results, gridIds);
+        }
+    }
+
+    private static void addGridIdsFromWkb(
+        LongBlock.Builder results,
+        BytesRef wkb,
+        int precision,
+        UnboundedGrid unboundedGrid,
+        GeoShapeCellsComputer cellsComputer
+    ) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            results.appendLong(unboundedGrid.calculateGridId(point, precision));
+        } else {
+            try {
+                addGrids(results, cellsComputer.compute(wkb));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
+            }
+        }
+    }
+
+    private static void appendGridIds(
+        List<Long> gridIds,
+        BytesRef wkb,
+        int precision,
+        UnboundedGrid unboundedGrid,
+        GeoShapeCellsComputer cellsComputer
+    ) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            gridIds.add(unboundedGrid.calculateGridId(point, precision));
+        } else {
+            try {
+                gridIds.addAll(cellsComputer.compute(wkb));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }
         }
     }
@@ -257,29 +364,67 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         }
     }
 
-    protected static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, BoundedGrid bounds) {
+    protected static void fromWKB(
+        LongBlock.Builder results,
+        int position,
+        BytesRefBlock wkbBlock,
+        BoundedGrid bounds,
+        GeoShapeCellsComputer cellsComputer
+    ) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
+            return;
+        }
+        final BytesRef scratch = new BytesRef();
+        final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+        if (valueCount == 1) {
+            addBoundedGridIdsFromWkb(results, wkbBlock.getBytesRef(firstValueIndex, scratch), bounds, cellsComputer);
         } else {
-            final BytesRef scratch = new BytesRef();
-            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
-            if (valueCount == 1) {
-                long grid = bounds.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)));
-                if (grid < 0) {
-                    results.appendNull();
-                } else {
-                    results.appendLong(grid);
-                }
+            var gridIds = new ArrayList<Long>();
+            for (int i = 0; i < valueCount; i++) {
+                appendBoundedGridIds(gridIds, wkbBlock.getBytesRef(firstValueIndex + i, scratch), bounds, cellsComputer);
+            }
+            addGrids(results, gridIds);
+        }
+    }
+
+    private static void addBoundedGridIdsFromWkb(
+        LongBlock.Builder results,
+        BytesRef wkb,
+        BoundedGrid bounds,
+        GeoShapeCellsComputer cellsComputer
+    ) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            long grid = bounds.calculateGridId(point);
+            if (grid < 0) {
+                results.appendNull();
             } else {
-                var gridIds = new ArrayList<Long>(valueCount);
-                for (int i = 0; i < valueCount; i++) {
-                    var grid = bounds.calculateGridId(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)));
-                    if (grid >= 0) {
-                        gridIds.add(grid);
-                    }
-                }
-                addGrids(results, gridIds);
+                results.appendLong(grid);
+            }
+        } else {
+            // bounded cellsComputer already filters out-of-bounds cells
+            try {
+                addGrids(results, cellsComputer.compute(wkb));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
+            }
+        }
+    }
+
+    private static void appendBoundedGridIds(List<Long> gridIds, BytesRef wkb, BoundedGrid bounds, GeoShapeCellsComputer cellsComputer) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            long grid = bounds.calculateGridId(point);
+            if (grid >= 0) {
+                gridIds.add(grid);
+            }
+        } else {
+            try {
+                gridIds.addAll(cellsComputer.compute(wkb));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }
         }
     }

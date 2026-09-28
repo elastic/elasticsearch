@@ -62,12 +62,16 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
         // rather than reading only the immediate cause. Absent a StorageException, a mid-read transport fault is
         // still transient, just not throttling.
         boolean throttling = false;
+        long retryAfterMs = 0L;
         for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
             if (c instanceof StorageException se) {
                 throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                if (throttling) {
+                    retryAfterMs = GcsStorageObject.retryAfterMsFromChain(se);
+                }
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
     }
 }

@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 155534
+summary: Support `geo_shape` in ES|QL spatial grid functions
+type: enhancement

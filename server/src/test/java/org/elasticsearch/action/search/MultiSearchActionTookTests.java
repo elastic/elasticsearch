@@ -23,7 +23,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +37,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -91,7 +93,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
+        CancellableTask task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
+        action.doExecute(task, multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {

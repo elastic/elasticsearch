@@ -143,6 +143,8 @@ public final class IndexModule {
             // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
             // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
             // a circular static initialization that results in a NullPointerException at boot time.
+            // vectordb_columnar is intentionally excluded from the columnar family here: unlike the other columnar
+            // modes it keeps the query cache enabled, since filtered vector search relies on it to cache the filter bitset.
             String mode = settings.get("index.mode");
             return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
         },

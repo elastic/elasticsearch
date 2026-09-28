@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -27,21 +25,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Regression test for the direct-memory leak fixed in esql-planning#851: every
+ * Regression test: every
  * {@link StorageObject#readBytesAsync(long, long, DirectBufferFactory, java.util.concurrent.Executor, ActionListener)}
- * call must allocate through the supplied {@link DirectBufferFactory} (which is backed by a
- * {@link BufferAllocator}) so the caller can release the memory
- * deterministically.
+ * call must allocate through the supplied {@link DirectBufferFactory} so the caller can release
+ * the memory deterministically.
  *
  * <p>The checks below pin the contract from both sides:
  * <ul>
- *   <li>When the caller closes the returned {@link DirectReadBuffer}, the parent allocator's
- *       {@code getAllocatedMemory()} drops back to baseline — proving the reference count
- *       reaches zero and memory is returned.</li>
- *   <li>When the caller does <b>not</b> close the {@link DirectReadBuffer}, the parent
- *       allocator's {@code getAllocatedMemory()} grows monotonically — proving that the
- *       memory was routed through the allocator (not a hidden {@code allocateDirect}), and
- *       that closing the allocator alone is not what releases it.</li>
+ *   <li>When the caller closes the returned {@link DirectReadBuffer}, the circuit breaker drops
+ *       back to baseline — proving the charge is released.</li>
+ *   <li>When the caller does <b>not</b> close the {@link DirectReadBuffer}, the breaker grows
+ *       monotonically — proving that the memory was routed through the factory (not a hidden
+ *       {@code allocateDirect}).</li>
  * </ul>
  *
  * <p>The storage backend is a trivial in-memory stub that exercises the default
@@ -53,31 +48,26 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
     private static final int PAYLOAD_SIZE = 8 * 1024;
     private static final int CYCLES = 256;
 
-    public void testReadBytesAsyncReleasesAllocatorMemoryOnClose() throws Exception {
+    public void testReadBytesAsyncReleasesBreakerOnClose() throws Exception {
         byte[] payload = randomByteArrayOfLength(PAYLOAD_SIZE);
         StorageObject storage = new InMemoryStorageObject(payload);
 
-        try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
-            assertEquals("RootAllocator starts empty", 0L, root.getAllocatedMemory());
-            DirectBufferFactory factory = DirectBufferFactory.forAllocator(root);
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        assertEquals("breaker starts empty", 0L, breaker.getUsed());
 
-            for (int i = 0; i < CYCLES; i++) {
-                PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-                storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
-                DirectReadBuffer result = future.actionGet();
-                try {
-                    assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
-                    assertTrue("readBytesAsync must return a direct buffer", result.buffer().isDirect());
-                    assertEquals("RootAllocator must hold exactly the in-flight payload", PAYLOAD_SIZE, root.getAllocatedMemory());
-                } finally {
-                    result.close();
-                }
-                assertEquals(
-                    "RootAllocator must be empty after each cycle once the DirectReadBuffer is closed",
-                    0L,
-                    root.getAllocatedMemory()
-                );
+        for (int i = 0; i < CYCLES; i++) {
+            PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+            storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
+            DirectReadBuffer result = future.actionGet();
+            try {
+                assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
+                assertFalse("readBytesAsync must return a heap buffer", result.buffer().isDirect());
+                assertEquals("breaker must hold exactly the in-flight payload", PAYLOAD_SIZE, breaker.getUsed());
+            } finally {
+                result.close();
             }
+            assertEquals("breaker must be empty after each cycle once the DirectReadBuffer is closed", 0L, breaker.getUsed());
         }
     }
 
@@ -86,78 +76,44 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
         StorageObject storage = new InMemoryStorageObject(payload);
 
         // We deliberately do NOT close the DirectReadBuffers within the loop — the test asserts
-        // that direct memory is actually routed through the allocator (and therefore visible as
-        // an outstanding allocation), as opposed to being allocated behind the allocator's back
-        // via ByteBuffer.allocateDirect (which is what the original bug did). The DirectReadBuffers
-        // are closed in the finally block so the RootAllocator can shut down cleanly.
-        try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
-            DirectBufferFactory factory = DirectBufferFactory.forAllocator(root);
-            int cyclesBeforeLeakCheck = 16;
-            List<DirectReadBuffer> kept = new ArrayList<>(cyclesBeforeLeakCheck);
-            try {
-                long previous = 0L;
-                for (int i = 0; i < cyclesBeforeLeakCheck; i++) {
-                    PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-                    storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
-                    DirectReadBuffer result = future.actionGet();
-                    kept.add(result);
-                    assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
-
-                    long current = root.getAllocatedMemory();
-                    assertTrue(
-                        "Allocation must grow with each cycle when nothing is released; previous=" + previous + ", current=" + current,
-                        current > previous
-                    );
-                    previous = current;
-                }
-                assertTrue(
-                    "Total outstanding memory must be at least cycles * payload size",
-                    root.getAllocatedMemory() >= (long) cyclesBeforeLeakCheck * PAYLOAD_SIZE
-                );
-            } finally {
-                for (DirectReadBuffer r : kept) {
-                    r.close();
-                }
-            }
-        }
-    }
-
-    /**
-     * Sanity check that the production {@link BlockFactory#arrowAllocator()} also routes the
-     * allocation correctly — production code paths use this allocator rather than a bare
-     * {@link RootAllocator}.
-     */
-    public void testReadBytesAsyncThroughBlockFactoryAllocator() throws Exception {
-        byte[] payload = randomByteArrayOfLength(PAYLOAD_SIZE);
-        StorageObject storage = new InMemoryStorageObject(payload);
-
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        BufferAllocator allocator = blockFactory.arrowAllocator();
-        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
-        long baseline = allocator.getAllocatedMemory();
-
-        for (int i = 0; i < CYCLES; i++) {
-            PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-            storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
-            DirectReadBuffer result = future.actionGet();
-            try {
+        // that bytes are actually routed through the factory (and therefore visible as an
+        // outstanding breaker charge), as opposed to being allocated behind the factory's back
+        // via ByteBuffer.allocateDirect. The DirectReadBuffers are closed in the finally block.
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        int cyclesBeforeLeakCheck = 16;
+        List<DirectReadBuffer> kept = new ArrayList<>(cyclesBeforeLeakCheck);
+        try {
+            long previous = 0L;
+            for (int i = 0; i < cyclesBeforeLeakCheck; i++) {
+                PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+                storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
+                DirectReadBuffer result = future.actionGet();
+                kept.add(result);
                 assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
-                assertTrue(result.buffer().isDirect());
-            } finally {
-                result.close();
+
+                long current = breaker.getUsed();
+                assertTrue(
+                    "Charge must grow with each cycle when nothing is released; previous=" + previous + ", current=" + current,
+                    current > previous
+                );
+                previous = current;
             }
-            assertEquals(
-                "BlockFactory's arrow allocator must be back at baseline after each cycle",
-                baseline,
-                allocator.getAllocatedMemory()
+            assertTrue(
+                "Total outstanding charge must be at least cycles * payload size",
+                breaker.getUsed() >= (long) cyclesBeforeLeakCheck * PAYLOAD_SIZE
             );
+        } finally {
+            for (DirectReadBuffer r : kept) {
+                r.close();
+            }
+            assertEquals("breaker must be empty after closing kept buffers", 0L, breaker.getUsed());
         }
     }
 
     /**
      * In-memory {@link StorageObject} that uses the default {@code readBytesAsync} implementation
-     * supplied by {@link StorageObject}. The default impl is the one that allocates through the
-     * supplied {@link BufferAllocator}; this stub deliberately does not override it so the test
+     * supplied by {@link StorageObject}. This stub deliberately does not override it so the test
      * exercises exactly that code path.
      */
     private static final class InMemoryStorageObject implements StorageObject {

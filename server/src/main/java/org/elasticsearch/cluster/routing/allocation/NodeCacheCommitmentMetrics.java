@@ -51,13 +51,13 @@ public class NodeCacheCommitmentMetrics {
 
     public NodeCacheCommitmentMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         this.clusterService = clusterService;
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             BOOSTED_CACHE_COMMITMENT_METRIC_NAME,
             "Boosted cache commitment as a fraction of total cache size per node",
             "1",
             this::getBoostedCommitmentMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             TOTAL_CACHE_COMMITMENT_METRIC_NAME,
             "Total cache commitment (boosted + unboosted) as a fraction of total cache size per node",
             "1",

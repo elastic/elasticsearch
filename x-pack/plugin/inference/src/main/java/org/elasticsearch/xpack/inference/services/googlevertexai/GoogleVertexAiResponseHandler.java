@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
@@ -69,6 +69,6 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(googleVertexAiProcessor);
-        return new StreamingChatCompletionResults(googleVertexAiProcessor);
+        return new StreamingCompletionResults(googleVertexAiProcessor);
     }
 }

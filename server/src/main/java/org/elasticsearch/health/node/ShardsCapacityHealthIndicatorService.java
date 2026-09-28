@@ -39,11 +39,13 @@ import java.util.Map;
  * The indicator will report:
  * <ul>
  * <li> {@code RED} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.red} (default 5) shards
- * (either data or frozen nodes)</li>
+ * on any applicable node type</li>
  * <li> {@code YELLOW} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.yellow} (default 10)
- * shards (either data or frozen nodes)</li>
+ * shards on any applicable node type</li>
  * <li> {@code GREEN} otherwise</li>
  * </ul>
+ *
+ * Applicable node types are data (non-frozen) and frozen nodes in stateful clusters, or index and search nodes in stateless clusters.
  *
  *  Although the `max_shard_per_node(.frozen)?` information is scoped by Node, we use the information from master because there is where
  *  the available room for new shards is checked before creating new indices.
@@ -181,11 +183,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(state);
-        if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
+        var shardLimitsMetadata = healthMetadata == null ? null : healthMetadata.getShardLimitsMetadata();
+        if (shardLimitsMetadata == null) {
             return unknownIndicator();
         }
 
-        var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
         final List<StatusResult> statusResults = shardLimitGroups.stream()
             .map(
                 limitGroup -> calculateFrom(
@@ -199,10 +201,10 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             )
             .toList();
 
-        return mergeIndicators(verbose, statusResults, healthMetadata);
+        return mergeIndicators(verbose, statusResults);
     }
 
-    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults, HealthMetadata healthMetadata) {
+    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults) {
         var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
         var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
@@ -211,14 +213,14 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             symptomBuilder.append("The cluster has enough room to add new shards.");
         }
 
-        // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *data (non-frozen) and
-        // frozen* nodes, so we have to check each of the groups in order of provide the right message.
+        // RED and YELLOW status indicates that the cluster might have issues. finalStatus is the worst across groups (data/frozen or
+        // index/search), so we inspect each group to build the symptom and diagnoses.
         if (finalStatus.indicatesHealthProblem()) {
             symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
             final var nodeTypeNames = new ArrayList<String>();
             for (var statusResult : statusResults) {
                 if (statusResult.status.indicatesHealthProblem()) {
-                    nodeTypeNames.add(nodeTypeFroLimitGroup(statusResult.result.group()));
+                    nodeTypeNames.add(nodeTypeForLimitGroup(statusResult.result.group()));
                     diagnoses.add(diagnosisForLimitGroup(statusResult.result.group()));
                 }
             }
@@ -274,7 +276,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
-                builder.startObject(nodeTypeFroLimitGroup(result.group()));
+                builder.startObject(nodeTypeForLimitGroup(result.group()));
                 builder.field("max_shards_in_cluster", result.maxShardsInCluster());
                 if (result.currentUsedShards().isPresent()) {
                     builder.field("current_used_shards", result.currentUsedShards().get());
@@ -296,7 +298,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         );
     }
 
-    private static String nodeTypeFroLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
+    private static String nodeTypeForLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
         return switch (limitGroup) {
             case NORMAL -> "data";
             case FROZEN -> "frozen";

@@ -69,7 +69,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         writeSingleColumnIdParquet(root.resolve("p=b"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
-        String dataset = registerDataset("hive_parquet_values", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_parquet_values", glob, Map.of("partition_detection", "hive"));
         assertStringPartitionGroups(dataset);
     }
 
@@ -83,7 +83,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         writeIdCsv(root.resolve("p=b"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_csv_values", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_csv_values", glob, Map.of("partition_detection", "hive"));
         assertStringPartitionGroups(dataset);
     }
 
@@ -100,7 +100,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         writeSingleColumnIdParquet(root.resolve("n=2"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
-        String dataset = registerDataset("hive_int_values", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_int_values", glob, Map.of("partition_detection", "hive"));
 
         Map<Object, Long> countByPartition = runDistributedStatsByPartition(dataset, "n");
         // Every group key must be a boxed Integer (not a String): a type degrade on the data node would surface the

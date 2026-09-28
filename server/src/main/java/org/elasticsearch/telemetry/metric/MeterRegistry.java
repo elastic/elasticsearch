@@ -41,6 +41,15 @@ public interface MeterRegistry {
 
     /**
      * Register a {@link DoubleGauge}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    DoubleGauge registerDoubleGauge(String name, String description, String unit);
+
+    /**
+     * Register a {@link DoubleAsyncGauge}.  The returned object may be reused.
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
@@ -48,12 +57,17 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    default DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
-        return registerDoublesGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+    default DoubleAsyncGauge registerDoubleAsyncGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleWithAttributes> observer
+    ) {
+        return registerDoublesAsyncGauge(name, description, unit, () -> Collections.singleton(observer.get()));
     }
 
     /**
-     * Register a {@link DoubleGauge}.  The returned object may be reused.
+     * Register a {@link DoubleAsyncGauge}.  The returned object may be reused.
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
@@ -61,7 +75,12 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleGauge registerDoublesGauge(String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer);
+    DoubleAsyncGauge registerDoublesAsyncGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    );
 
     /**
      * Register a {@link DoubleHistogram}.  The returned object may be reused.
@@ -159,6 +178,15 @@ public interface MeterRegistry {
 
     /**
      * Register a {@link LongGauge}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    LongGauge registerLongGauge(String name, String description, String unit);
+
+    /**
+     * Register a {@link LongAsyncGauge}.  The returned object may be reused.
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
@@ -166,12 +194,12 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    default LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongsGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+    default LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        return registerLongsAsyncGauge(name, description, unit, () -> Collections.singleton(observer.get()));
     }
 
     /**
-     * Register a {@link LongGauge}.  The returned object may be reused.
+     * Register a {@link LongAsyncGauge}.  The returned object may be reused.
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
@@ -179,7 +207,7 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer);
+    LongAsyncGauge registerLongsAsyncGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer);
 
     /**
      * Register a {@link LongHistogram}.  The returned object may be reused.
@@ -216,13 +244,18 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleGauge registerDoublesGauge(
+        public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+            return DoubleGauge.NOOP;
+        }
+
+        @Override
+        public DoubleAsyncGauge registerDoublesAsyncGauge(
             String name,
             String description,
             String unit,
             Supplier<Collection<DoubleWithAttributes>> observer
         ) {
-            return DoubleGauge.NOOP;
+            return DoubleAsyncGauge.NOOP;
         }
 
         @Override
@@ -266,13 +299,18 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongGauge registerLongsGauge(
+        public LongGauge registerLongGauge(String name, String description, String unit) {
+            return LongGauge.NOOP;
+        }
+
+        @Override
+        public LongAsyncGauge registerLongsAsyncGauge(
             String name,
             String description,
             String unit,
             Supplier<Collection<LongWithAttributes>> observer
         ) {
-            return LongGauge.NOOP;
+            return LongAsyncGauge.NOOP;
         }
 
         @Override

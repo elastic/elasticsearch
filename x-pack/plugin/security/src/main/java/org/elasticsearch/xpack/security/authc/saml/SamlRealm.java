@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
-import net.shibboleth.utilities.java.support.resolver.ResolverException;
+import net.shibboleth.shared.component.ComponentInitializationException;
+import net.shibboleth.shared.resolver.CriteriaSet;
+import net.shibboleth.shared.resolver.ResolverException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

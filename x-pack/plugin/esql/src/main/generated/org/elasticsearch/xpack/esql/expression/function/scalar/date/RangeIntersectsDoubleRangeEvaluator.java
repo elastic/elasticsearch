@@ -66,10 +66,11 @@ public final class RangeIntersectsDoubleRangeEvaluator implements ExpressionEval
       DoubleRangeBlockBuilder.DoubleRange aScratch = new DoubleRangeBlockBuilder.DoubleRange();
       DoubleRangeBlockBuilder.DoubleRange bScratch = new DoubleRangeBlockBuilder.DoubleRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (aBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (aBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -77,10 +78,11 @@ public final class RangeIntersectsDoubleRangeEvaluator implements ExpressionEval
               result.appendNull();
               continue position;
         }
+        if (bBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (bBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

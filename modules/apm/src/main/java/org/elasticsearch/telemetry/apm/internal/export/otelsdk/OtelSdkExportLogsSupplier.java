@@ -15,6 +15,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
+import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryLogEventFilter;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -79,19 +81,26 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private final Settings settings;
     private final Path configDir;
     private final Collection<TelemetryLoggingFilterProvider> filterProviders;
+    private final String serviceName;
     private volatile SdkLoggerProvider loggerProvider;
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
     private final List<ElasticsearchOtelAppender> appenders = new ArrayList<>();
 
-    public OtelSdkExportLogsSupplier(Settings settings, Path configDir, Collection<TelemetryLoggingFilterProvider> filterProviders) {
+    public OtelSdkExportLogsSupplier(
+        Settings settings,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
+    ) {
         this.settings = settings;
         this.configDir = configDir;
         this.filterProviders = filterProviders;
+        this.serviceName = logResourceProvider.serviceName();
     }
 
-    // for tests and contexts with no filter providers
-    public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
-        this(settings, configDir, List.of());
+    // for tests
+    OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
+        this(settings, configDir, List.of(), new TelemetryLogResourceProvider.Default());
     }
 
     @Nullable
@@ -282,9 +291,13 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         return SdkLoggerProvider.builder()
-            .setResource(OtelSdkResource.get(settings))
+            .setResource(logDeliveryResource(serviceName))
             .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).setMaxQueueSize(maxQueueSize).build())
             .build();
+    }
+
+    static Resource logDeliveryResource(String serviceName) {
+        return Resource.builder().put("service.name", serviceName).put("service.type", "elasticsearch").build();
     }
 
     /**

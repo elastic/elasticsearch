@@ -34,7 +34,26 @@ public class RLikeListTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final Function<String, String> escapeString = str -> {
-            for (String syntax : new String[] { "\\", ".", "?", "+", "*", "|", "{", "}", "[", "]", "(", ")", "\"", "<", ">", "#", "&" }) {
+            for (String syntax : new String[] {
+                "\\",
+                ".",
+                "?",
+                "+",
+                "*",
+                "|",
+                "{",
+                "}",
+                "[",
+                "]",
+                "(",
+                ")",
+                "\"",
+                "<",
+                ">",
+                "#",
+                "&",
+                "~",
+                "@" }) {
                 str = str.replace(syntax, "\\" + syntax);
             }
             return str;

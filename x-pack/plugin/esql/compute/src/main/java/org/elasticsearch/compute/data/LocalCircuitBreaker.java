@@ -98,6 +98,18 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return breaker;
     }
 
+    /**
+     * Breaker that is safe to charge from I/O / generic threads.
+     * {@link LocalCircuitBreaker} is pinned to the driver thread; HTTP/S3 completion callbacks
+     * must charge its {@link #parentBreaker()} instead. Identity for any other breaker.
+     */
+    public static CircuitBreaker forAsyncIo(CircuitBreaker breaker) {
+        if (breaker instanceof LocalCircuitBreaker local) {
+            return local.parentBreaker();
+        }
+        return breaker;
+    }
+
     @Override
     public long getUsed() {
         return breaker.getUsed();

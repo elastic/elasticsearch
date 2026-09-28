@@ -59,8 +59,14 @@ These provide optimized shorthand expressions for common operations.
 * [`MV_CONTAINS`](./mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_contains.md
   :::
-* [`MV_INTERSECTS`](./mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`MV_GREATER`](./mv-functions/mv_greater.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_greater.md
+  :::
+* [`MV_INTERSECTS`](./mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_intersects.md
+  :::
+* [`MV_LESS`](./mv-functions/mv_less.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_less.md
   :::
 
 :::{note}

@@ -41,6 +41,10 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
+    // Left at the shipping default on purpose. The multi-node GenerativeIT opts in, so wildcard-reached datasets
+    // still get generative coverage; keeping this suite at the default means exactPatterns, the off-branch of
+    // anyPatternCouldMatchDataset and resolve's retainAll -- the paths every production query takes -- see generated
+    // queries too. Opting both suites in would fuzz only the non-default mode.
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 

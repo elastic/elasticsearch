@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -55,6 +56,11 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        return delegate.listChildren(prefix, limit);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         return delegate.exists(path);
     }
@@ -65,8 +71,8 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     /**
-     * Closes the per-query budget only; the delegate provider is shared (registry-owned) and
-     * intentionally not closed here.
+     * Closes the per-query budget only; the delegate provider is pooled (or registry-owned)
+     * and is returned via a sibling {@code onClose} on the operator factory, not here.
      */
     @Override
     public void close() throws IOException {

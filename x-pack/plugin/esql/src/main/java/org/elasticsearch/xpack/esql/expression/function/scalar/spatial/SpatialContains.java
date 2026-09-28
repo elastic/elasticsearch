@@ -99,7 +99,7 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (right.getValueCount(position) < 1) {
+            if (right.isNull(position)) {
                 builder.appendNull();
             } else {
                 processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
@@ -135,7 +135,7 @@ public class SpatialContains extends SpatialRelatesFunction {
 
         private void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D[] right)
             throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -149,7 +149,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             LongBlock left,
             @Fixed Component2D[] right
         ) throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;
@@ -90,16 +90,15 @@ public class LinuxNativeAccess extends PosixNativeAccess {
     private final LinuxCLibrary linuxLibc;
     private final Systemd systemd;
 
-    LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64));
-        this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
+    LinuxNativeAccess() {
+        super("Linux", new PosixConstants(-1L, 9, 1, 8, 64));
+        this.linuxLibc = LibraryProvider.lookupLibrary(LinuxCLibrary.class);
         String socketPath = System.getenv("NOTIFY_SOCKET");
         if (socketPath == null) {
             this.systemd = null; // not running under systemd
         } else {
             logger.debug("Systemd socket path: {}", socketPath);
-            var buffer = newSharedBuffer(64);
-            this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath, buffer);
+            this.systemd = new Systemd(LibraryProvider.lookupLibrary(PosixCLibrary.class), socketPath);
         }
     }
 

@@ -12,7 +12,7 @@ import software.amazon.awssdk.core.SdkBytes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -71,7 +71,7 @@ public class ElasticCompletionPayloadTests extends ElasticPayloadTestCase<Elasti
 
     public void testChatCompletionRequest() throws Exception {
         var message = new Message(new ContentString("Hello, world!"), "user", null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(message),
             "i am ignored",
             10L,

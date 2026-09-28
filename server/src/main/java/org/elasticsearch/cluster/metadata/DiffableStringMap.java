@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +29,9 @@ import java.util.Set;
  * This is a {@code Map<String, String>} that implements AbstractDiffable so it
  * can be used for cluster state purposes
  */
-public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
+public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap>, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DiffableStringMap.class);
 
     public static final DiffableStringMap EMPTY = new DiffableStringMap(Collections.emptyMap());
 
@@ -56,6 +60,15 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     @Override
     public boolean containsKey(Object key) {
         return innerMap.containsKey(key);
+    }
+
+    /**
+     * Estimates heap used by this map and its retained string keys/values. The wrapped {@link #innerMap} is sized via
+     * {@link RamUsageEstimator#sizeOfMap(Map)}, which walks string entries rather than stopping at the map shell.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOfMap(innerMap);
     }
 
     @Override

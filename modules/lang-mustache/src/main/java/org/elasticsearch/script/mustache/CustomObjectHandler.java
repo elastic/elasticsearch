@@ -336,7 +336,7 @@ final class CustomObjectHandler extends AbstractObjectHandler {
         if (object instanceof String string) {
             return string; // if object is already a string, we can just return it
         } else {
-            CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
+            CollectionUtils.ensureNoSelfReferences(object, "CustomObjectHandler stringify");
             return super.stringify(object);
         }
     }

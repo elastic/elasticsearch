@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -17,10 +18,10 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -31,25 +32,37 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -60,7 +73,11 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
+        plugins.add(MockRepository.Plugin.class);
+        return List.copyOf(plugins);
     }
 
     public void testMergeWhileRelocationCausesCorruption() throws Exception {
@@ -458,6 +475,152 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
             assertEquals(2000, searchResponse.getHits().getTotalHits().value());
+        });
+    }
+
+    /// A force-merge commit created while the primary is in `PRE_RELOCATING` (bound installed, not yet pinned) must
+    /// wait for `markRelocating` before being advertised. That commit is frozen into pending upload and included in the
+    /// pinned bound, so once the bound is known the notification is sent.
+    public void testNewCommitNotificationWaitsForUploadBoundDuringPreRelocating() throws Exception {
+        final Settings indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .build();
+
+        final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
+        final var searchNode = startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, 100);
+        flush(indexName);
+        indexDocs(indexName, 100);
+        flush(indexName);
+        refresh(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var sourceShard = findIndexShard(index, 0, oldIndexNode);
+        final var sourceCommitService = (TestStatelessCommitService) ((IndexEngine) sourceShard.getEngineOrNull())
+            .getStatelessCommitService();
+
+        // Non-uploaded new-commit notifications are what wait on the upload bound. Uploaded notifications can still
+        // fire during PRE_RELOCATING once the force-merge flush finishes uploading, so track them separately.
+        final Set<Long> notifiedNonUploadGenerations = ConcurrentHashMap.newKeySet();
+        final Set<Long> notifiedGenerations = ConcurrentHashMap.newKeySet();
+        final AtomicReference<CountDownLatch> commitNotificationReceived = new AtomicReference<>(new CountDownLatch(0));
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                if (request instanceof NewCommitNotificationRequest notificationRequest) {
+                    final long generation = notificationRequest.getCompoundCommit().generation();
+                    notifiedGenerations.add(generation);
+                    commitNotificationReceived.get().countDown();
+                    if (notificationRequest.isUploaded() == false) {
+                        notifiedNonUploadGenerations.add(generation);
+                    }
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        final var isPreRelocating = new CountDownLatch(1);
+        final var resumeMarkRelocating = new CountDownLatch(1);
+        sourceCommitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public void markRelocating(Runnable original, ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
+                isPreRelocating.countDown();
+                safeAwait(resumeMarkRelocating);
+                original.run();
+            }
+        });
+
+        // Hold the handoff so the source stays open long enough for the deferred new-commit notification
+        // to reach the search node after the bound is pinned.
+        final var pauseHandoff = new CountDownLatch(1);
+        final var resumeHandoff = new CountDownLatch(1);
+        final var newIndexNode = startIndexNode(indexNodeSettings);
+        MockTransportService.getInstance(newIndexNode)
+            .addRequestHandlingBehavior(
+                PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task)
+            );
+
+        logger.info("--> moving index shard from {} to {}", oldIndexNode, newIndexNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, oldIndexNode, newIndexNode));
+
+        final AtomicLong mergeGeneration = new AtomicLong(-1L);
+        try {
+            logger.info("--> waiting for PRE_RELOCATING (markRelocating about to run)");
+            safeAwait(isPreRelocating);
+            assertThat(
+                "bound is installed but not yet pinned",
+                sourceCommitService.getMaxGenerationToUpload(sourceShard.shardId()),
+                equalTo(Long.MAX_VALUE)
+            );
+
+            final long generationBeforeMerge = sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+            logger.info("--> force merging on the old node during PRE_RELOCATING, generationBeforeMerge=[{}]", generationBeforeMerge);
+            client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            mergeGeneration.set(sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration());
+            assertThat(mergeGeneration.get(), greaterThan(generationBeforeMerge));
+
+            assertThat(
+                "non-uploaded new-commit notification waits for the upload bound during PRE_RELOCATING",
+                notifiedNonUploadGenerations,
+                not(hasItem(mergeGeneration.get()))
+            );
+
+            // Drop anything observed so far so the post-resume assertion only passes if the deferred new-commit path
+            // fires after the bound is pinned.
+            notifiedGenerations.clear();
+            notifiedNonUploadGenerations.clear();
+
+            final var searchShardReceivedNotification = new CountDownLatch(1);
+            commitNotificationReceived.set(searchShardReceivedNotification);
+
+            logger.info("--> resuming markRelocating; merge generation=[{}]", mergeGeneration.get());
+            resumeMarkRelocating.countDown();
+
+            safeAwait(pauseHandoff);
+            assertThat(
+                "force-merge flush includes the merge in the pinned bound",
+                sourceCommitService.getMaxGenerationToUpload(sourceShard.shardId()),
+                greaterThanOrEqualTo(mergeGeneration.get())
+            );
+            safeAwait(searchShardReceivedNotification);
+            assertThat("merge is notified once the bound is known", notifiedGenerations, hasItem(mergeGeneration.get()));
+        } finally {
+            resumeMarkRelocating.countDown();
+            resumeHandoff.countDown();
+        }
+
+        ensureGreen(indexName);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(200, searchResponse.getHits().getTotalHits().value());
         });
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Field attribute for {@code _timeseries} field
@@ -22,7 +23,21 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
     private final Set<String> excludedFields;
 
     public TimeSeriesMetadataAttribute(Source source, Set<String> excludedFields) {
-        this(source, null, null, MetadataAttribute.TIMESERIES, timeSeriesField(), Nullability.TRUE, null, false, excludedFields);
+        this(source, null, null, nameFor(excludedFields), timeSeriesField(), Nullability.TRUE, null, false, excludedFields);
+    }
+
+    /**
+     * The attribute name of the {@code _timeseries} packing that excludes {@code excludedFields}: {@code _timeseries} when nothing
+     * is excluded, otherwise {@code _timeseries$a$b} over the sorted exclusions. Distinct exclusions give distinct names, so one
+     * relation can carry several packings side by side; {@link MetadataAttribute#isTimeSeriesAttributeName} recognizes them all.
+     * Escape the separator and the escape character in names: a single field {@code a$b} must not collide with
+     * two fields {@code a} and {@code b}. An empty name has its own marker, distinct from no exclusions.
+     */
+    public static String nameFor(Set<String> excludedFields) {
+        var suffix = new TreeSet<>(excludedFields).stream()
+            .map(name -> name.isEmpty() ? "%" : name.replace("%", "%25").replace(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR, "%24"))
+            .collect(java.util.stream.Collectors.joining(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR));
+        return MetadataAttribute.TIMESERIES + (suffix.isEmpty() ? suffix : SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + suffix);
     }
 
     public TimeSeriesMetadataAttribute(

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -63,8 +62,8 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
     }
 
     @Override
-    public TranslationContext.IntermediateResult translate(TranslationContext translation) {
-        throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", this);
+    public TranslationResult translate(TranslationContext translation) {
+        throw new IllegalStateException("unresolved PromQL function [" + functionName + "] reached translation");
     }
 
     public String functionName() {

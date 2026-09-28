@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 
 import java.io.IOException;
@@ -100,7 +100,7 @@ public class Subquery extends UnaryPlan implements PromqlPlan {
 
     /** Subqueries are rewritten before translation; one reaching it is a planning bug. */
     @Override
-    public IntermediateResult translate(TranslationContext translation) {
+    public TranslationResult translate(TranslationContext translation) {
         throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", this);
     }
 }

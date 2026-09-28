@@ -15,26 +15,27 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult.Kind;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.find;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
+import java.util.Set;
 
 /**
  * Base class representing a PromQL vector selector.
@@ -85,6 +86,69 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
         return evaluation;
     }
 
+    /**
+     * The scan: concrete label reads plus, when needed, one complete current-label record loaded by {@link TimeSeriesMetadataAttribute}. Exclusions are applied by expressions above the scan. The label matchers lower to a pending filter
+     * predicate the enclosing translation pushes down to the relation.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        PromqlCommand cmd = translation.cmd();
+        LogicalPlan input = cmd.child();
+        if (PromqlLogicalPlanBuilder.tryFoldRelation(cmd, input) != null) {
+            // no matching index: an empty compile-time relation
+            var empty = new LocalRelation(cmd.source(), List.of(cmd.valueAttribute(), cmd.stepAttribute()), EmptyLocalSupplier.EMPTY);
+            return new TranslationResult(empty, Map.of(), Literal.NULL, cmd.stepAttribute(), null, Kind.CONSTANT);
+        }
+        Expression matcherPredicate = labelMatchers.predicate(source(), labels, translation.configuration());
+
+        // Dimension fields define series identity; non-metric, non-packed fields are available as labels too. Non-dimension
+        // keyword fields (e.g. k8s.pod.name in a TSDB index that lacks it as a dimension) must still be bindable as keys.
+        List<Attribute> labelFields = input.output()
+            .stream()
+            .filter(
+                attr -> attr instanceof FieldAttribute field
+                    && field.isMetric() == false
+                    && attr instanceof TimeSeriesMetadataAttribute == false
+            )
+            .toList();
+        // A named-only query retains ordinary columnar execution. Open requirements share one complete record.
+        TranslationConstraint required = translation.required();
+        var labels = new LinkedHashMap<String, Attribute>();
+        Attribute packed = null;
+        if (required.isOpen()) {
+            packed = input.output()
+                .stream()
+                .filter(a -> a instanceof TimeSeriesMetadataAttribute metadata && metadata.excludedFields().isEmpty())
+                .findFirst()
+                .orElse(null);
+            if (packed == null) {
+                packed = new TimeSeriesMetadataAttribute(source(), Set.of());
+                Attribute metadata = packed;
+                input = input.transformUp(EsRelation.class, relation -> relation.withAdditionalAttributes(List.of(metadata)));
+            }
+        }
+        for (String name : required.names()) {
+            Attribute field = PromqlLabels.find(labelFields, name);
+            if (field != null) {
+                labels.put(name, field);
+            }
+        }
+        return new TranslationResult(
+            input,
+            labels,
+            packed,
+            sample(translation.time()),
+            translation.stepAttr(),
+            matcherPredicate,
+            Kind.BEFORE_INITIAL_AGGREGATE
+        );
+    }
+
+    /** The per-series sample: the series itself for a range vector; an instant vector overrides with its latest value. */
+    protected Expression sample(Expression time) {
+        return series;
+    }
+
     @Override
     public boolean expressionsResolved() {
         return (series == null || series.resolved()) && Resolvables.resolved(labels);
@@ -115,44 +179,5 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("should not serialize");
-    }
-
-    /** Translates a selector (instant, range, or literal); label matchers lower to a pending filter predicate. */
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        LogicalPlan input = context.cmd().child();
-        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(context.cmd(), input);
-        Expression matcher = labelMatchers().predicate(source(), labels(), context.configuration());
-
-        if (this instanceof LiteralSelector literalSelector) {
-            Expression literal = literalSelector.literal();
-            if (foldedPlan != null) {
-                // a compile-time relation carries its own step column
-                Attribute foldedStep = find(foldedPlan.output(), context.cmd().stepColumnName());
-                return new IntermediateResult(foldedPlan, Header.EMPTY, literal, foldedStep, matcher, Kind.CONSTANT);
-            }
-            return new IntermediateResult(input, Header.EMPTY, literal, context.stepAttr(), matcher);
-        }
-        if (foldedPlan != null) {
-            var empty = new LocalRelation(
-                context.cmd().source(),
-                List.of(context.cmd().valueAttribute(), context.cmd().stepAttribute()),
-                EmptyLocalSupplier.EMPTY
-            );
-            return new IntermediateResult(empty, Header.EMPTY, Literal.NULL, context.cmd().stepAttribute(), null, Kind.CONSTANT);
-        }
-
-        // An instant selector maps to LastOverTime to get the latest sample per time series.
-        Expression expr = this instanceof InstantSelector
-            ? new LastOverTime(source(), series(), AggregateFunction.NO_WINDOW, context.time())
-            : series();
-        List<Attribute> dimensions = input.output()
-            .stream()
-            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
-            .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
-            .toList();
-        // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
-        Header header = context.required().project(mapFinite(dimensions));
-        return new IntermediateResult(input, header, expr, context.stepAttr(), matcher);
     }
 }

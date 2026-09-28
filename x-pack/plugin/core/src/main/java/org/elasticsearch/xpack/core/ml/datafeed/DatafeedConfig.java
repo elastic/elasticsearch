@@ -110,6 +110,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static final String DOC_COUNT = "doc_count";
 
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures"
+    );
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures_removed"
+    );
+
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
@@ -300,6 +307,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         runtimeMappings = in.readGenericMap();
+        if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // max_consecutive_extraction_failures was removed (#158426); drain the value sent by not-yet-reverted peers
+            in.readOptionalInt();
+        }
     }
 
     /**
@@ -540,6 +552,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
         out.writeGenericMap(runtimeMappings);
+        if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // keep the wire format aligned for not-yet-reverted peers that still read this field
+            out.writeOptionalInt(null);
+        }
     }
 
     @Override
@@ -817,6 +834,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
             runtimeMappings = in.readGenericMap();
+            if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+                && in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+                // max_consecutive_extraction_failures was removed (#158426); drain the value sent by not-yet-reverted peers
+                in.readOptionalInt();
+            }
         }
 
         @Override
@@ -853,6 +875,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions.writeIndicesOptions(out);
             }
             out.writeGenericMap(runtimeMappings);
+            if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+                && out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+                // keep the wire format aligned for not-yet-reverted peers that still read this field
+                out.writeOptionalInt(null);
+            }
         }
 
         @Override

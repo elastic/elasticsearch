@@ -9,11 +9,11 @@
 
 package org.elasticsearch.gradle.internal.flakiness.scan;
 
-import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
-import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetDisposition;
 import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
 import org.junit.Rule;
 import org.junit.Test;

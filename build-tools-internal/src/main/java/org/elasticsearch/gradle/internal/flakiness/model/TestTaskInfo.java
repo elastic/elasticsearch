@@ -7,10 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.model;
 
 import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectModel;
 import org.elasticsearch.gradle.internal.flakiness.resolve.TestTaskSelector;
+
 import java.nio.file.Path;
 import java.util.List;
 

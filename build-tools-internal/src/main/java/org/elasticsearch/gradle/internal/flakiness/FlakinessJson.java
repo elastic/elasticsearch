@@ -9,12 +9,18 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
-import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectModel;
-import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
-import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessTargets;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.TestTaskInfo;
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectModel;
+import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
+import org.elasticsearch.gradle.internal.flakiness.scan.FlakinessTargets;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

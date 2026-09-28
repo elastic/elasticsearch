@@ -9,13 +9,13 @@
 
 package org.elasticsearch.gradle.internal.flakiness.scan;
 
-import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessJson;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessLayout;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
 import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessResolveProjectTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;

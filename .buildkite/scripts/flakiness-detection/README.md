@@ -281,7 +281,7 @@ flakiness-detection/
 build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
   FlakinessResolvePlugin             root plugin registering the scan task
   FlakinessLayout / FlakinessJson    shared paths + JSON contracts
-  FlakinessRef / BaseTarget / FlakinessPlan / Kinds    shared records + wire constants
+  model/                             shared snapshots, handoff records, plan + wire constants
   resolve/                           per-project ref ownership and task selection
   scan/                              repo-wide bytecode enrichment, plan, commands
 ```

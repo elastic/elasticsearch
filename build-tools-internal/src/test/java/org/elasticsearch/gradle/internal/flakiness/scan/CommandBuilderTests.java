@@ -9,10 +9,9 @@
 
 package org.elasticsearch.gradle.internal.flakiness.scan;
 
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
-import org.elasticsearch.gradle.internal.flakiness.PlanCommand;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.PlanCommand;
 import org.junit.Test;
 
 import java.util.List;

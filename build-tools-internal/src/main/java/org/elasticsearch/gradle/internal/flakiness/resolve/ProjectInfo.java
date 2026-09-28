@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.flakiness.resolve;
 
-import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetInfo;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;

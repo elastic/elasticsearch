@@ -9,9 +9,9 @@
 
 package org.elasticsearch.gradle.internal.flakiness.resolve;
 
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
-import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
-import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.TestTaskInfo;
 import org.elasticsearch.gradle.internal.flakiness.scan.ClassHierarchyScanner;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginExtension;

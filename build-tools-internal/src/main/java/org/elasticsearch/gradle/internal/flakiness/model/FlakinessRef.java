@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.flakiness;
+package org.elasticsearch.gradle.internal.flakiness.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

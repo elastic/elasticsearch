@@ -10,10 +10,10 @@
 package org.elasticsearch.gradle.internal.flakiness.resolve;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessJson;
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
-import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
-import org.elasticsearch.gradle.internal.flakiness.SourceSetInfo;
-import org.elasticsearch.gradle.internal.flakiness.TestTaskInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.TestTaskInfo;
 import org.junit.Test;
 
 import java.nio.file.Path;

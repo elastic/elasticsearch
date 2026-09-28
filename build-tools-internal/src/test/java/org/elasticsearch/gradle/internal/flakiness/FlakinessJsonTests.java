@@ -9,6 +9,10 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetInfo;
+import org.elasticsearch.gradle.internal.flakiness.model.TestTaskInfo;
 import org.junit.Test;
 
 import java.nio.file.Path;

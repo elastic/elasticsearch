@@ -9,16 +9,16 @@
 
 package org.elasticsearch.gradle.internal.flakiness.scan;
 
-import org.elasticsearch.gradle.internal.flakiness.BaseTarget;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Expansion;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.TaskSelection;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Unresolved;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessProperties;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessRef;
-import org.elasticsearch.gradle.internal.flakiness.Kinds;
-import org.elasticsearch.gradle.internal.flakiness.SourceSetDisposition;
+import org.elasticsearch.gradle.internal.flakiness.model.BaseTarget;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.Expansion;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.TaskSelection;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessPlan.Unresolved;
+import org.elasticsearch.gradle.internal.flakiness.model.FlakinessRef;
+import org.elasticsearch.gradle.internal.flakiness.model.Kinds;
+import org.elasticsearch.gradle.internal.flakiness.model.SourceSetDisposition;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

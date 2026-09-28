@@ -122,10 +122,15 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
         );
     }
 
-    /** A random URL-format {@link InferenceString} for a non-text data type. */
+    /** A random URL-format {@link InferenceString} for a non-text data type, whose path may contain non-ASCII characters. */
     private static InferenceString randomUrlInferenceString() {
         DataType dataType = randomFrom(DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF);
-        return new InferenceString(dataType, DataFormat.URL, "https://example.com/" + randomAlphaOfLength(10));
+        // Keep letters and digits only: java.net.URI accepts non-ASCII letters in a path but rejects or re-parses ASCII punctuation
+        String path = randomRealisticUnicodeOfCodepointLengthBetween(1, 20).codePoints()
+            .filter(Character::isLetterOrDigit)
+            .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+            .toString();
+        return new InferenceString(dataType, DataFormat.URL, "https://example.com/" + path);
     }
 
     private static String decode(BytesRef encoded) throws IOException {

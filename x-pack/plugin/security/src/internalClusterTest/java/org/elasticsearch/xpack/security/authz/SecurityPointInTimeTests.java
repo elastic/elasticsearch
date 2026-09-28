@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -134,10 +133,6 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
             .password(password, getFastStoredHashAlgoForTests())
             .roles("pit_public")
             .get();
-        new PutUserRequestBuilder(client()).username("pit_public_reader")
-            .password(password, getFastStoredHashAlgoForTests())
-            .roles("pit_public")
-            .get();
         new PutUserRequestBuilder(client()).username("pit_private_user")
             .password(password, getFastStoredHashAlgoForTests())
             .roles("pit_private")
@@ -166,7 +161,7 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
         BytesReference privatePit = openPointInTime("pit_private_user", password, TimeValue.timeValueMinutes(2), "pit-private");
         try {
             assertHitCount(
-                client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("pit_public_reader", password)))
+                client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("pit_public_user", password)))
                     .prepareSearch()
                     .setPointInTime(new PointInTimeBuilder(publicPit)),
                 1
@@ -196,7 +191,7 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
             assertThat(failure, not(instanceOf(ElasticsearchSecurityException.class)));
             Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
             assertThat(cause, instanceOf(IllegalArgumentException.class));
-            assertThat(cause.getMessage(), equalTo("point in time id is not valid"));
+            assertThat(cause.getMessage(), equalTo("search context id is not valid"));
             assertThat(failure.toString(), not(containsString("pit-private")));
             assertThat(failure.toString(), not(containsString("private-canary")));
         } finally {
@@ -236,7 +231,9 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @After

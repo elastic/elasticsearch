@@ -135,7 +135,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertThat(failure.shardFailures().length, equalTo(1));
             Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
             assertThat(cause, instanceOf(IllegalArgumentException.class));
-            assertThat(cause.getMessage(), equalTo("point in time id is not valid"));
+            assertThat(cause.getMessage(), equalTo("search context id is not valid"));
             assertThat(failure.toString(), not(containsString(index2)));
             assertThat(failure.toString(), not(containsString("doc-2")));
 

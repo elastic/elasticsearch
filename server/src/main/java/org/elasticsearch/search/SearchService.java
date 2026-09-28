@@ -1537,14 +1537,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         // The context-id must resolve to a reader for the expected shard.
         // If these don't match it's a sign that the input (e.g. supplied PIT id) was corrupted or tampered with.
-        if (expectedShard != null && expectedShard.equals(reader.indexShard().shardId()) == false) {
-            logger.info(
-                "Rejecting point in time id because shard {} resolves to reader context {} on shard {}",
-                expectedShard,
-                id,
-                reader.indexShard().shardId()
-            );
-            throw new IllegalArgumentException("point in time id is not valid");
+        if (expectedShard != null) {
+            ensureReaderContextMatchesShard(id, reader, expectedShard);
         }
 
         try {
@@ -1554,6 +1548,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw exc;
         }
         return reader;
+    }
+
+    private void ensureReaderContextMatchesShard(ShardSearchContextId id, ReaderContext reader, ShardId expectedShard) {
+        if (expectedShard.equals(reader.indexShard().shardId()) == false) {
+            logger.info(
+                "Rejecting search context id {} because it does not match expected shard {}; reader context is on shard {}",
+                id,
+                expectedShard,
+                reader.indexShard().shardId()
+            );
+            throw new IllegalArgumentException("search context id is not valid");
+        }
     }
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, Task task) {
@@ -1708,11 +1714,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // Check that we don't already have a relocation mapping for this context id
             final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
             if (previous != null) {
-                // another thread beat us creating the relocation mapping, clean up the context we just put and reuse the previous mapping
+                // Another thread already mapped this context id. The map is not shard-specific, so do not reuse that reader
+                // when it belongs to a different shard than the one this call is relocating onto.
                 ReaderContext removed = removeReaderContext(new ShardSearchContextId(sessionId, newKey));
                 removed.close();
                 readerContext = null;
-                return activeReaders.get(contextId);
+                final ReaderContext existing = activeReaders.get(contextId);
+                if (existing != null) {
+                    ensureReaderContextMatchesShard(contextId, existing, shard.shardId());
+                }
+                return existing;
             }
             readerContext = null;
             return finalReaderContext;

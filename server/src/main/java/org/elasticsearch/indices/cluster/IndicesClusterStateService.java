@@ -169,7 +169,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
     /// Short-lived handoff markers for local recovery retry. Marked on [FailureStrategy#RETRY] path in ([handleRecoveryFailure]).
     /// While present after [updateRetryingShards] / [updateRetryHandoff], cluster state application must not create the shard —
-    /// the retry path owns recreate.
+    /// the retry path owns recreate. Package private for testing
     final ConcurrentMap<ShardId, ShardRouting> retryingShards = ConcurrentCollections.newConcurrentMap();
     private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
     private final RepositoriesService repositoriesService;

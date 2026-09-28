@@ -38,7 +38,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
-import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -60,25 +59,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
-    /**
-     * Custom headers are the only per-data-source credential HTTP sends, so they scope the footer cache.
-     * Held as a SHA-256 digest: headers typically carry {@code Authorization} values, and records print
-     * their fields in {@code toString}.
-     */
-    private record HttpConfigIdentity(String customHeadersDigest) implements StorageIdentity {
-        static HttpConfigIdentity of(HttpConfiguration config) {
-            // NUL cannot appear in an HTTP header name or value, so it separates entries unambiguously.
-            StringBuilder canonical = new StringBuilder();
-            new TreeMap<>(config.customHeaders()).forEach((name, value) -> canonical.append(name).append('\0').append(value).append('\0'));
-            return new HttpConfigIdentity(StorageIdentity.digestSecret(canonical.toString()));
-        }
-    }
-
     private final HttpClient client;
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
-    private final HttpConfigIdentity storageIdentity;
+    private final StorageIdentity storageIdentity;
     /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
     private final ScheduledExecutorService idleScheduler;
 
@@ -93,10 +78,22 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
-        this(client, path, config, null);
+        this(HttpConfigIdentity.of(config), client, path, config, null);
     }
 
-    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, ScheduledExecutorService idleScheduler) {
+    /**
+     * Provider constructor: {@code storageIdentity} is computed once per provider rather than per object.
+     */
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        ScheduledExecutorService idleScheduler
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -110,7 +107,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
-        this.storageIdentity = HttpConfigIdentity.of(config);
+        this.storageIdentity = storageIdentity;
         this.idleScheduler = idleScheduler;
     }
 
@@ -118,11 +115,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config, length, (ScheduledExecutorService) null);
+        this(HttpConfigIdentity.of(config), client, path, config, length, null);
     }
 
-    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, ScheduledExecutorService idleScheduler) {
-        this(client, path, config, idleScheduler);
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        ScheduledExecutorService idleScheduler
+    ) {
+        this(storageIdentity, client, path, config, idleScheduler);
         this.cachedLength = length;
     }
 
@@ -130,10 +134,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length, lastModified, null);
+        this(HttpConfigIdentity.of(config), client, path, config, length, lastModified, null);
     }
 
     HttpStorageObject(
+        StorageIdentity storageIdentity,
         HttpClient client,
         StoragePath path,
         HttpConfiguration config,
@@ -141,7 +146,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         Instant lastModified,
         ScheduledExecutorService idleScheduler
     ) {
-        this(client, path, config, length, idleScheduler);
+        this(storageIdentity, client, path, config, length, idleScheduler);
         this.cachedLastModified = lastModified;
     }
 

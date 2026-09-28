@@ -36,6 +36,11 @@ public class FooterByteCacheTests extends ESTestCase {
         cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
     }
 
+    public void testKeyRejectsNullIdentity() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new FooterByteCache.Key(null, "file.parquet", 1000));
+        assertThat(e.getMessage(), containsString("storageIdentity"));
+    }
+
     public void testGetReturnsNullOnMiss() {
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         assertNull(cache.get(key));

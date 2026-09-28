@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -79,6 +80,14 @@ public class FooterByteCache {
      * jitter in {@code StorageObject.lastModified()}.
      */
     public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
+
+        /**
+         * Rejects a null identity: {@link StorageIdentity} is a plugin SPI, and a {@code null} from any
+         * implementation would put all of its objects in one shared scope instead of failing.
+         */
+        public Key {
+            Objects.requireNonNull(storageIdentity, "storageIdentity must not be null");
+        }
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},

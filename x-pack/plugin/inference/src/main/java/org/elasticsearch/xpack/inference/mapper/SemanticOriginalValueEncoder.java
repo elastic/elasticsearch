@@ -62,8 +62,8 @@ final class SemanticOriginalValueEncoder {
             return switch (inferenceString.dataFormat()) {
                 case BASE64 -> encodeBinary(inferenceString);
                 case URL -> encodeVerbatim(inferenceString);
-                default -> throw new IllegalArgumentException(
-                    "Unsupported data format [" + inferenceString.dataFormat() + "] for non-text InferenceString encoding"
+                case TEXT -> throw new IllegalStateException(
+                    "Non-text InferenceStrings cannot use data format [" + inferenceString.dataFormat() + "]"
                 );
             };
         }

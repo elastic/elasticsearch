@@ -128,7 +128,6 @@ public class DatafeedJobBuilder {
                 currentTimeSupplier,
                 delayedDataDetector,
                 datafeedConfig.getMaxEmptySearches(),
-                datafeedConfig.getMaxConsecutiveExtractionFailures(),
                 latestFinalBucketEndMs,
                 latestRecordTimeMs,
                 context.restartTimeInfo().haveSeenDataPreviously(),

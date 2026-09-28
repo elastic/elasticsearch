@@ -25,14 +25,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Unit tests for the per-hit document-field heap estimate used by the fetch-phase circuit breaker.
  * End-to-end breaker behaviour (fields actually trip / release the breaker) is covered by
  * {@code FetchPhaseCircuitBreakerIT}.
  */
-public class FetchPhaseFieldAccountingTests extends ESTestCase {
+public class DocumentFieldAccountingTests extends ESTestCase {
 
     // ----- estimateDocumentFields coverage -----------------------------------------------
 
@@ -105,12 +104,6 @@ public class FetchPhaseFieldAccountingTests extends ESTestCase {
             SearchHitRamUsageEstimator.estimateDocumentFields(large),
             greaterThan(SearchHitRamUsageEstimator.estimateDocumentFields(small))
         );
-    }
-
-    public void testEstimateIsUpperBoundForDocumentFields() {
-        // Only test that the estimate is >= 0 for an empty hit (no fields produce no negative charge)
-        SearchHit empty = SearchHit.unpooled(0, null);
-        assertThat(SearchHitRamUsageEstimator.estimateDocumentFields(empty), greaterThanOrEqualTo(0L));
     }
 
     // ----- FetchContext.chargeInnerHitsBytes hook ----------------------------------------

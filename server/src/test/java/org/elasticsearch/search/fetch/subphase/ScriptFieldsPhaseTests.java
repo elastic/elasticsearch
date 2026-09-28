@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Circuit-breaker accounting for script fields is now done by {@code FetchPhase#nextDoc} after all
  * sub-phases have run, using {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}.
  * The byte-level accounting assertions formerly in this class have moved to
- * {@code FetchPhaseFieldAccountingTests}.
+ * {@code DocumentFieldAccountingTests}.
  */
 public class ScriptFieldsPhaseTests extends ESTestCase {
 

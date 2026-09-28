@@ -8,9 +8,13 @@ package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,16 +84,34 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-        final SearchResponse response = ClientHelper.executeWithHeaders(
+        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
+        // Use SubscribableListener so that if actionGet(timeout) times out, a cleanup
+        // listener can be added after the fact to decRef any late-arriving response.
+        SubscribableListener<SearchResponse> subscribable = new SubscribableListener<>();
+        ClientHelper.executeWithHeadersAsync(
             ctx.watch().status().getHeaders(),
             ClientHelper.WATCHER_ORIGIN,
             client,
-            () -> client.search(searchRequest).actionGet(timeout)
+            TransportSearchAction.TYPE,
+            searchRequest,
+            ActionListener.runAfter(ActionListener.wrap(r -> {
+                // mustIncRef because the transport uses respondAndRelease, which decRefs after onResponse returns.
+                r.mustIncRef();
+                subscribable.onResponse(r);
+            }, subscribable::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
         );
+        PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        subscribable.addListener(future);
+        final SearchResponse response;
         try {
-
+            response = future.actionGet(timeout);
+        } catch (Exception e) {
+            subscribable.addListener(ActionListener.wrap(SearchResponse::decRef, ignore -> {}));
+            if (searchRequest.source() != null) searchRequest.source().close();
+            throw e;
+        }
+        try {
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value());
             }

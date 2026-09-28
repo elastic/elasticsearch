@@ -31,4 +31,14 @@ public interface QueryVectorBuilder extends VersionedNamedWriteable, ToXContentO
      * @param listener listener to accept the created vector
      */
     void buildVector(Client client, ActionListener<float[]> listener);
+
+    /**
+     * Returns a parse-time heap estimate for the input text retained by this builder.
+     * Called by the parent query builder when {@code query_vector} is absent and this
+     * builder holds the input text. Implementations should account for all string fields
+     * retained at parse time (model/inference ID, query text, etc.).
+     */
+    default long parseTimeBreakerEstimate() {
+        return 0L;
+    }
 }

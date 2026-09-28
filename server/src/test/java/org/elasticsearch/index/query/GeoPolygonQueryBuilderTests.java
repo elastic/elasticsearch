@@ -291,4 +291,32 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));
         assertDeprecationWarning();
     }
+
+    public void testPolygonPointsBreakerEstimate() throws IOException {
+        // GeoPolygonQueryBuilder charges BASELINE + fieldName + shell.size() * 40.
+        // The constructor auto-closes open polygons (appends the first point), so
+        // 3 open distinct points → shell.size() = 4.
+        List<GeoPoint> smallPoints = new ArrayList<>();
+        smallPoints.add(new GeoPoint(0, 0));
+        smallPoints.add(new GeoPoint(1, 0));
+        smallPoints.add(new GeoPoint(1, 1));
+        // 3 open points → constructor auto-closes → shell.size() = 4
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + GEO_POINT_FIELD_NAME.length() * 2L + 64L + 4L * 40L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        GeoPolygonQueryBuilder small = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, smallPoints);
+        // 50 open points → shell.size() = 51 → cost = 256 + fieldName + 51*40
+        List<GeoPoint> largePoints = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            largePoints.add(new GeoPoint(i * 0.1, i * 0.1));
+        }
+        GeoPolygonQueryBuilder large = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, largePoints);
+        assertParseTimeBreaker(limit, small, large);
+        assertDeprecationWarning();
+    }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // geo_polygon emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
+    }
 }

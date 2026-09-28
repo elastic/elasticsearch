@@ -81,8 +81,16 @@ public class WatcherSearchTemplateService {
                     XContentHelper.xContentType(source)
                 )
             ) {
-                sourceBuilder.parseXContent(parser, true, clusterSupportsFeature);
-                searchRequest.source(sourceBuilder);
+                boolean success = false;
+                try {
+                    sourceBuilder.parseXContent(parser, true, clusterSupportsFeature);
+                    searchRequest.source(sourceBuilder);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        sourceBuilder.close();
+                    }
+                }
             }
         }
         return searchRequest;

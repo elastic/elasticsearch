@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1241,5 +1242,182 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
         assertEquals("Either [gte] or [gt], one of them must be provided", exc.getCause().getMessage());
+    }
+
+    public void testScriptFilterParamsBreakerEstimate() throws IOException {
+        // IntervalFilter.estimateBytes() must charge estimateValue(script.getParams()) in addition
+        // to the script source. An empty params map incurs only the 32-byte Map header; a map with
+        // one large string value must push the total well above the small-params limit.
+        //
+        // Small: Match("hi") + script filter with empty params.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): field cost = 13*2+64 = 90.
+        // query "hi": 2*2+64 = 68.
+        // filter: type="script"(6) → 6*2+64=76; source "interval.start > 3"(18) → 18*2+64=100;
+        // params Map.of() → estimateValue = 32; lang "painless"(8) → 8*2+64=80. filter total = 76+100+32+80 = 288.
+        // small total = 256+90+68+288 = 702.
+        String scriptSource = "interval.start > 3";
+        Script smallScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of());
+        IntervalsSourceProvider.IntervalFilter smallFilter = new IntervalsSourceProvider.IntervalFilter(smallScript);
+        IntervalsSourceProvider smallSource = new IntervalsSourceProvider.Match("hi", -1, true, null, smallFilter, null);
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 13 * 2L + 64L   // field
+            + 2 * 2L + 64L    // query "hi"
+            + 6 * 2L + 64L    // type "script"
+            + scriptSource.length() * 2L + 64L  // idOrCode
+            + 32L             // empty params map header
+            + 8 * 2L + 64L;   // lang "painless"
+        long limit = smallCost;
+        Script largeScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of("k", "x".repeat(500)));
+        IntervalsSourceProvider largeSource = new IntervalsSourceProvider.Match(
+            "hi",
+            -1,
+            true,
+            null,
+            new IntervalsSourceProvider.IntervalFilter(largeScript),
+            null
+        );
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSource),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, largeSource)
+        );
+    }
+
+    public void testMatchSourceBreakerEstimate() throws IOException {
+        // IntervalQueryBuilder charges BASELINE + field.length()*2+64 + sourceProvider.estimateBytes().
+        // For Match with no analyzer/filter/useField: source cost = query.length()*2+64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): field cost = 13*2+64 = 90.
+        // Short query "hi": 2*2+64 = 68; total = 256+90+68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortQuery = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortQuery.length() * 2L + 64L;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, new IntervalsSourceProvider.Match(shortQuery, -1, true, null, null, null)),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null))
+        );
+    }
+
+    public void testDisjunctionSourceBreakerEstimate() throws IOException {
+        // Disjunction.estimateBytes() = 32 + subSources.size()*8 + Σ s.estimateBytes().
+        // Small: any_of of Match("hi") and Match("lo").
+        // Match("hi"): 2*2+64=68; Match("lo"): 2*2+64=68.
+        // Disjunction: 32+2*8+68+68=184.
+        // IntervalQueryBuilder: 256 + (13*2+64) + 184 = 530.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L; // TEXT_FIELD_NAME = "mapped_string", 13 chars
+        long matchHi = 2 * 2L + 64L;    // "hi"
+        long matchLo = 2 * 2L + 64L;    // "lo"
+        long disjSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long smallCost = baseline + fieldCost + disjSmall;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Disjunction(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                    ),
+                    null
+                )
+            ),
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Disjunction(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                    ),
+                    null
+                )
+            )
+        );
+    }
+
+    public void testCombineSourceBreakerEstimate() throws IOException {
+        // Combine.estimateBytes() = 32 + subSources.size()*8 + Σ s.estimateBytes().
+        // Small: all_of of Match("hi") and Match("lo") — same arithmetic as Disjunction.
+        // Combine: 32+2*8+68+68=184. Total: 256+(13*2+64)+184=530.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L;
+        long matchHi = 2 * 2L + 64L;
+        long matchLo = 2 * 2L + 64L;
+        long combineSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long smallCost = baseline + fieldCost + combineSmall;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Combine(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                    ),
+                    false,
+                    0,
+                    null
+                )
+            ),
+            new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Combine(
+                    List.of(
+                        new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                        new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                    ),
+                    false,
+                    0,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testNestedDisjunctionBreakerEstimate() throws IOException {
+        // Verifies recursive accumulation: an outer any_of containing an inner any_of.
+        // Small: outer Disjunction of [inner Disjunction(Match("hi"), Match("lo")), Match("ok")].
+        // inner: 32+2*8+68+68=184. outer: 32+2*8+(184+68)=300.
+        // Total: 256+(13*2+64)+300=646.
+        // Large: inner gets Match("x".repeat(500)) replacing Match("lo"):
+        // inner: 32+16+68+1064=1180. outer: 32+16+1180+68=1296. Total: 1642 → trips.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L;
+        long matchHi = 2 * 2L + 64L;
+        long matchLo = 2 * 2L + 64L;
+        long matchOk = 2 * 2L + 64L;
+        long innerSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long outerSmall = 32L + 2 * 8L + innerSmall + matchOk;
+        long smallCost = baseline + fieldCost + outerSmall;
+        long limit = smallCost;
+        IntervalsSourceProvider innerSmallSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(
+                new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+            ),
+            null
+        );
+        IntervalsSourceProvider smallSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(innerSmallSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+            null
+        );
+        IntervalsSourceProvider innerLargeSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(
+                new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+            ),
+            null
+        );
+        IntervalsSourceProvider bigSrc = new IntervalsSourceProvider.Disjunction(
+            List.of(innerLargeSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+            null
+        );
+        assertParseTimeBreaker(
+            limit,
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSrc),
+            new IntervalQueryBuilder(TEXT_FIELD_NAME, bigSrc)
+        );
     }
 }

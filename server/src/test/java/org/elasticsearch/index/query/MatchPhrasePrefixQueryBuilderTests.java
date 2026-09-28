@@ -198,4 +198,17 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // MatchPhrasePrefixQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → estimateValue = 2*2+64 = 68. Small cost = BASELINE + 90 + 68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
+        long limit = smallCost;
+        MatchPhrasePrefixQueryBuilder small = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, shortValue);
+        MatchPhrasePrefixQueryBuilder big = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
+        assertParseTimeBreaker(limit, small, big);
+    }
 }

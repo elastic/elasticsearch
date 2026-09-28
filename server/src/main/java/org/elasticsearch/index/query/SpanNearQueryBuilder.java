@@ -261,6 +261,11 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + clauses.size() * 8L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(clauses, slop, inOrder);
     }
@@ -289,7 +294,7 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
      * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
      * yet to enforce this restriction.
      */
-    public static class SpanGapQueryBuilder implements SpanQueryBuilder {
+    public static class SpanGapQueryBuilder implements SpanQueryBuilder, ParseTimeBreakerEstimatable {
         public static final String NAME = "span_gap";
 
         /** Name of field to match against. */
@@ -413,6 +418,11 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
             }
             SpanGapQueryBuilder result = new SpanGapQueryBuilder(fieldName, width);
             return result;
+        }
+
+        @Override
+        public long parseTimeBreakerEstimate() {
+            return AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
         }
 
         @Override

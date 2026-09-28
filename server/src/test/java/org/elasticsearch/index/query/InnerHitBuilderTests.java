@@ -438,6 +438,34 @@ public class InnerHitBuilderTests extends ESTestCase {
             }"""));
     }
 
+    public void testParseTimeBreakerEstimate() {
+        InnerHitBuilder empty = new InnerHitBuilder();
+        long base = empty.parseTimeBreakerEstimate();
+        assertTrue("base estimate must be positive", base > 0L);
+
+        // name contributes its char length
+        InnerHitBuilder withName = new InnerHitBuilder("myname");
+        long withNameEstimate = withName.parseTimeBreakerEstimate();
+        assertEquals(base + "myname".length() * 2L + 64L, withNameEstimate);
+
+        // stored field names
+        InnerHitBuilder withStoredFields = new InnerHitBuilder();
+        withStoredFields.setStoredFieldNames(List.of("field1", "field2"));
+        long storedFieldsExtra = "field1".length() * 2L + 64L + "field2".length() * 2L + 64L;
+        assertEquals(base + storedFieldsExtra, withStoredFields.parseTimeBreakerEstimate());
+
+        // fetch fields
+        InnerHitBuilder withFetchFields = new InnerHitBuilder();
+        withFetchFields.setFetchFields(List.of(new FieldAndFormat("f1", null), new FieldAndFormat("f2", null)));
+        long fetchExtra = "f1".length() * 2L + 64L + "f2".length() * 2L + 64L;
+        assertEquals(base + fetchExtra, withFetchFields.parseTimeBreakerEstimate());
+
+        // one sort adds 256L
+        InnerHitBuilder withSort = new InnerHitBuilder();
+        withSort.addSort(org.elasticsearch.search.sort.SortBuilders.fieldSort("x"));
+        assertEquals(base + 256L, withSort.parseTimeBreakerEstimate());
+    }
+
     private InnerHitBuilder parse(String json) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             return InnerHitBuilder.fromXContent(parser);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -235,6 +236,20 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testPinnedIdsBreakerEstimate() throws IOException {
+        // cost = BASELINE + id.length() * 2 + 64 (per id)
+        // namedObject also charges the organic query (MatchAll = 256) before PinnedQueryBuilder itself.
+        // "a" (1 char): 256 (organic) + 256 + 2 + 64 = 578; limit = 578 (equal → does not trip)
+        String smallId = "a";
+        long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallId.length() * 2L + 64L;
+        assertParseTimeBreaker(
+            limit,
+            new PinnedQueryBuilder(new MatchAllQueryBuilder(), smallId),
+            new PinnedQueryBuilder(new MatchAllQueryBuilder(), "x".repeat(500))
+        );
     }
 
     public void testIdInsertionOrderRetained() {

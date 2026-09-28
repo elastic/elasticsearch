@@ -71,6 +71,15 @@ public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
         return this;
     }
 
+    @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        for (String id : ids) {
+            estimate += id.length() * 2L + 64L;
+        }
+        return estimate;
+    }
+
     /**
      * Returns the ids for the query.
      */

@@ -162,6 +162,11 @@ public class FieldMaskingSpanQueryBuilder extends LeafQueryBuilder<FieldMaskingS
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(queryBuilder, fieldName);
     }

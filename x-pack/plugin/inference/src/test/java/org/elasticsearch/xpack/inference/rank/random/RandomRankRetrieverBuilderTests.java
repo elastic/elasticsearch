@@ -52,7 +52,7 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
     protected RandomRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (RandomRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), Predicates.never())
+            new RetrieverParserContext(new SearchUsage(), Predicates.never(), null)
         );
     }
 

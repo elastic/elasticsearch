@@ -20,9 +20,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -232,5 +235,28 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
     protected Map<String, String> getObjectsHoldingArbitraryContent() {
         // shape field can accept any element but expects a type
         return Collections.singletonMap("shape", "Required [type]");
+    }
+
+    public void testPolygonShapeBreakerEstimate() throws IOException {
+        // Formula: BASELINE + fieldName.length()*2+64 + point_count*24 + node_count*32,
+        // where point_count = ring.length() and node_count = 2 (Polygon + outer LinearRing, no holes).
+        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + fieldNameCost + 4*24 + 2*32
+        LinearRing smallRing = new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 });
+        String fieldName = getFieldName();
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + 4 * 24L + 2 * 32L;
+        // Large: 100 unique vertices + 1 closing point = 101 coords → 256 + fieldNameCost + 101*24, exceeds small limit
+        double[] lons = new double[101];
+        double[] lats = new double[101];
+        for (int i = 0; i < 100; i++) {
+            lons[i] = i * 0.1;
+            lats[i] = 0;
+        }
+        lons[100] = lons[0];
+        lats[100] = lats[0];
+        assertParseTimeBreaker(
+            limit,
+            new GeoShapeQueryBuilder(fieldName, new Polygon(smallRing)),
+            new GeoShapeQueryBuilder(fieldName, new Polygon(new LinearRing(lons, lats)))
+        );
     }
 }

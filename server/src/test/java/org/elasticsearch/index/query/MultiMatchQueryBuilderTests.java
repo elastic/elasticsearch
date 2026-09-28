@@ -487,4 +487,17 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             () -> new MultiMatchQueryBuilder("abc", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).fuzziness(Fuzziness.ONE).prefixLength(3)
         );
     }
+
+    public void testQueryValueBreakerEstimate() throws IOException {
+        // BASELINE + estimateValue(value) + estimateValue(fieldsBoosts)
+        // value="hi" (String): 2*2+64=68. fieldsBoosts={"mapped_string":1.0f}: 32+1*48+(13*2+64)+8=178.
+        // small: 256+68+178=502. large: value="x"×500 → 1064; total=1498.
+        long fieldsCost = 32L + 48L + 13 * 2L + 64L + 8L; // TEXT_FIELD_NAME = "mapped_string" (13 chars) + Float 8
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (2 * 2L + 64L) + fieldsCost;
+        assertParseTimeBreaker(
+            limit,
+            new MultiMatchQueryBuilder("hi", TEXT_FIELD_NAME),
+            new MultiMatchQueryBuilder("x".repeat(500), TEXT_FIELD_NAME)
+        );
+    }
 }

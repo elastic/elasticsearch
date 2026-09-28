@@ -51,20 +51,36 @@ public abstract class AbstractBulkByQueryRestHandler<
 
         SearchRequest searchRequest = internal.getSearchRequest();
 
-        try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, size -> failOnSizeSpecified());
-        }
+        // Guard covers parsing AND all subsequent setters: if any step throws after charging the
+        // breaker, the SSB's parse-time charges are released. SearchSourceBuilder.close() is idempotent.
+        boolean parseOk = false;
+        try {
+            try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
+                RestSearchAction.parseSearchRequest(
+                    searchRequest,
+                    restRequest,
+                    parser,
+                    clusterSupportsFeature,
+                    size -> failOnSizeSpecified()
+                );
+            }
 
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
+            searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
-        String conflicts = restRequest.param("conflicts");
-        if (conflicts != null) {
-            internal.setConflicts(conflicts);
-        }
+            String conflicts = restRequest.param("conflicts");
+            if (conflicts != null) {
+                internal.setConflicts(conflicts);
+            }
 
-        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
-        if (restRequest.hasParam("search_timeout")) {
-            searchRequest.source().timeout(restRequest.paramAsTime("search_timeout", null));
+            // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
+            if (restRequest.hasParam("search_timeout")) {
+                searchRequest.source().timeout(restRequest.paramAsTime("search_timeout", null));
+            }
+            parseOk = true;
+        } finally {
+            if (parseOk == false) {
+                if (searchRequest.source() != null) searchRequest.source().close();
+            }
         }
     }
 

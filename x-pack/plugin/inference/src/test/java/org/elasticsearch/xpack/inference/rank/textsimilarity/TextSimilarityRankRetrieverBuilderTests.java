@@ -72,7 +72,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
     protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (TextSimilarityRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), Predicates.never())
+            new RetrieverParserContext(new SearchUsage(), Predicates.never(), null)
         );
     }
 
@@ -117,7 +117,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             TextSimilarityRankRetrieverBuilder parsed = TextSimilarityRankRetrieverBuilder.PARSER.parse(
                 parser,
-                new RetrieverParserContext(new SearchUsage(), nf -> true)
+                new RetrieverParserContext(new SearchUsage(), nf -> true, null)
             );
             assertThat(parsed.rankWindowSize(), equalTo(DEFAULT_RANK_WINDOW_SIZE));
             assertThat(parsed.inferenceId(), equalTo(DEFAULT_RERANK_ID));

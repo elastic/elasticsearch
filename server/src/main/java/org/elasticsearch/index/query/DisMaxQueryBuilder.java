@@ -203,6 +203,11 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queries.size() * 8L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(queries, tieBreaker);
     }

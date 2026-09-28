@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
@@ -466,5 +467,25 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     protected String[] shuffleProtectedFields() {
         return new String[] { TOKENS_FIELD.getPreferredName() };
+    }
+
+    public void testTokenListBreakerEstimate() throws IOException {
+        // Short token: BASELINE + fieldName ("field" = 5 chars = 74) + 1*8 (slot) + 1 token*(2*2+80)
+        String shortToken = "hi";
+        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "field".length() * 2L + 64L + 1 * 8L + shortToken.length()
+            * 2L + 80L;
+        long limit = shortCost;
+        assertParseTimeBreaker(
+            limit,
+            new WeightedTokensQueryBuilder("field", List.of(new WeightedToken(shortToken, 1.0f))),
+            new WeightedTokensQueryBuilder("field", List.of(new WeightedToken("x".repeat(500), 1.0f)))
+        );
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // weighted_tokens emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
     }
 }

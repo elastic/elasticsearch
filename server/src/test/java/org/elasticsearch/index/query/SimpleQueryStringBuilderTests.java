@@ -778,4 +778,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query.lenient(true);
         assertThat(query.toQuery(context), instanceOf(MatchNoDocsQuery.class));
     }
+
+    public void testQueryTextBreakerEstimate() throws IOException {
+        // BASELINE + estimateValue(queryText) + estimateValue(fieldsAndWeights)
+        // estimateValue(String s) = s.length()*2 + 64; fieldsAndWeights defaults to empty map → estimateValue = 32.
+        // "hi" (2 chars): 256 + (2*2+64) + 32 = 356; "x"×500: 256 + (500*2+64) + 32 = 1352.
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (2 * 2L + 64L) + 32L;
+        assertParseTimeBreaker(limit, new SimpleQueryStringBuilder("hi"), new SimpleQueryStringBuilder("x".repeat(500)));
+    }
 }

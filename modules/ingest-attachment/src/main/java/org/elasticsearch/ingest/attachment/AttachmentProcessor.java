@@ -11,7 +11,8 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.lucene.util.SetOnce;
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.langdetect.tika.LanguageIdentifier;
+import org.apache.tika.langdetect.charsoup.CharSoupLanguageDetector;
+import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -50,6 +51,20 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AttachmentProcessor.class);
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
+    // CharSoup emits ISO 639-3; the language field has always been ISO 639-1 where one exists
+    private static final Map<String, String> ISO3_TO_ISO1 = buildIso3ToIso1();
+
+    private static Map<String, String> buildIso3ToIso1() {
+        Map<String, String> map = new HashMap<>();
+        for (String iso1 : Locale.getISOLanguages()) {
+            try {
+                map.putIfAbsent(Locale.of(iso1).getISO3Language(), iso1);
+            } catch (java.util.MissingResourceException e) {
+                // no 3-letter code for this language
+            }
+        }
+        return Map.copyOf(map);
+    }
 
     public static final String TYPE = "attachment";
 
@@ -238,22 +253,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
-            additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+            String language = new CharSoupLanguageDetector().detect(parsedContent).getLanguage();
+            if (Strings.hasLength(language)) {
+                additionalFields.put(Property.LANGUAGE.toLowerCase(), ISO3_TO_ISO1.getOrDefault(language, language));
+            }
         }
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
         addAdditionalField(additionalFields, Property.TITLE, metadata.get(TikaCoreProperties.TITLE));
-        // These two were supposedly removed in tika 2, but some parsers seem to still generate them:
-        addAdditionalField(additionalFields, Property.AUTHOR, metadata.get("Author"));
-        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
         addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get(TikaCoreProperties.SUBJECT));
-        addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
+        addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(HttpHeaders.CONTENT_TYPE));
 
         if (properties.contains(Property.CONTENT_LENGTH)) {
-            String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
+            String contentLength = metadata.get(HttpHeaders.CONTENT_LENGTH);
             long length;
             if (Strings.hasLength(contentLength)) {
                 length = Long.parseLong(contentLength);

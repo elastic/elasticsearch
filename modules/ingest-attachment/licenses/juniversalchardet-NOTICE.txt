@@ -1,1 +1,0 @@
-Original MPL-covered source can be found here: https://github.com/albfernandez/juniversalchardet/tree/v1.0.3

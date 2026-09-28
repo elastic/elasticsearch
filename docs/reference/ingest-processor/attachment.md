@@ -130,6 +130,9 @@ The fields which might be extracted from a document are:
 * `rating`,
 * `comments`
 
+The date fields (`date`, `modified`, `print_date`, `metadata_date`) are normalized to UTC in the
+form `yyyy-MM-dd'T'HH:mm:ss'Z'`. A value without a timezone is assumed to be UTC.
+
 To extract only certain `attachment` fields, specify the `properties` array:
 
 ```console
@@ -420,7 +423,7 @@ Returns this:
       {
         "filename" : "ipsum.txt",
         "attachment" : {
-          "content_type" : "text/plain; charset=ISO-8859-1",
+          "content_type" : "text/plain; charset=windows-1252",
           "language" : "en",
           "content" : "this is\njust some text",
           "content_length" : 24
@@ -429,7 +432,7 @@ Returns this:
       {
         "filename" : "test.txt",
         "attachment" : {
-          "content_type" : "text/plain; charset=ISO-8859-1",
+          "content_type" : "text/plain; charset=windows-1252",
           "language" : "en",
           "content" : "This is a test",
           "content_length" : 16

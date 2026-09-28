@@ -1141,7 +1141,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         // Lenient's happy path: a text query that converts to the numeric field type matches.
         var query = """
             FROM test
-            | EVAL new_id = to_long(id)
+            | EVAL new_id = id
             | WHERE match(new_id, "1", {"lenient": true})
             | KEEP id
             """;

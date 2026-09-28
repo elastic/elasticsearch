@@ -2718,6 +2718,16 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * getter/setter method on a type, or a getter/setter for a Map or List.
      * Checks: type validation, method resolution, field resolution
      */
+    /** Whether some allowlisted class has a {@code @script_aware} getter for the shortcut {@code name}. */
+    static boolean hasScriptAwareGetter(PainlessLookup painlessLookup, String name) {
+        if (name.isEmpty()) {
+            return false;
+        }
+        String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "get" + suffix, 0)
+            || painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "is" + suffix, 0);
+    }
+
     @Override
     public void visitDot(EDot userDotNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userDotNode, Read.class);
@@ -2838,6 +2848,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     if (write) {
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
                     }
+
+                    // A def load may resolve to a @script_aware getter, which needs the script instance.
+                    if (read && hasScriptAwareGetter(scriptScope.getPainlessLookup(), index)) {
+                        semanticScope.setUsesInstanceMethod();
+                    }
                 } else {
                     Class<?> prefixType;
                     String prefixCanonicalTypeName;
@@ -2922,6 +2937,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                             if (getter != null) {
                                 semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+
+                                if (getter.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                                    semanticScope.setUsesInstanceMethod();
+                                }
                             }
 
                             if (setter != null) {

@@ -28,8 +28,8 @@ class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
-  ByteBuffer get(ByteBuffer) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="binaryByteBufferBytes"]
-  ByteBuffer get(int, ByteBuffer) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="binaryByteBufferBytes"]
+  ByteBuffer org.elasticsearch.painless.api.Augmentation get(ByteBuffer) @script_aware
+  ByteBuffer org.elasticsearch.painless.api.Augmentation get(int, ByteBuffer) @script_aware
 }
 
 class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
@@ -94,8 +94,8 @@ class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.BaseKeywordDocValuesField @dynamic_type {
-  String get(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="keywordStringBytes"]
-  String get(int, String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="keywordStringBytes"]
+  String org.elasticsearch.painless.api.Augmentation get(String) @script_aware
+  String org.elasticsearch.painless.api.Augmentation get(int, String) @script_aware
 }
 
 # subclass of BaseKeywordDocValuesField

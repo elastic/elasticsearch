@@ -13,8 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.ScriptTermStats;
-import org.elasticsearch.script.field.BaseKeywordDocValuesField;
-import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.script.field.IpDocValuesField;
@@ -24,7 +22,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.nio.ByteBuffer;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Deque;
@@ -665,7 +662,8 @@ public final class AllocationEstimators {
     }
 
     // ---- Doc-value reads. A keyword, binary or ip read copies the stored bytes out of the field's buffer and decodes them,
-    // ---- so it costs in proportion to the value.
+    // ---- so it costs in proportion to the value. The keyword, BytesRef and binary reads are charged after the call by the
+    // ---- Augmentation wrappers, which see the real result; the sizing helpers below are public for them.
 
     /** A {@link BytesRef} without its array: header, one reference, offset and length. */
     private static final long BYTES_REF_SHELL_BYTES = AllocSizes.pad8(
@@ -675,77 +673,30 @@ public final class AllocationEstimators {
     /** The {@code HeapByteBuffer} from {@code ByteBuffer.wrap}. It shares the array it is given. */
     private static final long BYTE_BUFFER_SHELL_BYTES = 48;
 
-    /** Byte length assumed when the supplier cannot report one, which it signals with {@code -1}. */
-    private static final long UNKNOWN_TERM_LENGTH = 256;
-
     /** Decoding one ip value: the copied bytes, the {@code InetAddress} and the {@code IPAddress} wrapper. */
     private static final long IP_DECODE_BYTES = 160;
 
     /** Longest text form of an ip address: IPv6 with an IPv4 suffix and a scope id. */
     private static final long IP_STRING_CHARS = 45;
 
-    /** The reported length, or {@link #UNKNOWN_TERM_LENGTH} when it is {@code -1}. */
-    private static long termLength(int reportedLength) {
-        return reportedLength < 0 ? UNKNOWN_TERM_LENGTH : reportedLength;
-    }
-
     /** {@code BytesRefBuilder.toBytesRef()}: a copy of the bytes plus the {@link BytesRef}. */
-    private static long termCopyBytes(long length) {
+    public static long termCopyBytes(long length) {
         return AllocSizes.addSat(AllocSizes.arrayBytes(length, 1), BYTES_REF_SHELL_BYTES);
     }
 
     /** {@code toBytesRef().utf8ToString()}: the byte copy plus a String of at most one char per byte. */
-    private static long termStringBytes(long length) {
+    public static long termStringBytes(long length) {
         return AllocSizes.addSat(termCopyBytes(length), newStringBytes(length));
+    }
+
+    /** A binary read: the byte copy plus the buffer that wraps it. */
+    public static long byteBufferBytes(long length) {
+        return AllocSizes.addSat(termCopyBytes(length), BYTE_BUFFER_SHELL_BYTES);
     }
 
     /** An {@code ArrayList} of {@code size} elements. */
     private static long listBytes(long size) {
         return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(size, AllocSizes.REFERENCE_SIZE));
-    }
-
-    /** {@code ScriptDocValues.Strings.get(index)}: the term bytes copied and decoded into a new String. */
-    public static long docValuesStringBytes(ScriptDocValues.Strings receiver, int index) {
-        return termStringBytes(receiver == null ? UNKNOWN_TERM_LENGTH : termLength(receiver.getInternalByteLength(index)));
-    }
-
-    /** {@code ScriptDocValues.Strings.getValue()}, which is {@code get(0)}. */
-    public static long docValuesStringBytes(ScriptDocValues.Strings receiver) {
-        return docValuesStringBytes(receiver, 0);
-    }
-
-    /** {@code ScriptDocValues.BytesRefs.get(index)}: a copy of the bytes plus the {@link BytesRef}. No String. */
-    public static long docValuesBytesRefBytes(ScriptDocValues.BytesRefs receiver, int index) {
-        return termCopyBytes(receiver == null ? UNKNOWN_TERM_LENGTH : termLength(receiver.getInternalByteLength(index)));
-    }
-
-    /** {@code ScriptDocValues.BytesRefs.getValue()}, which is {@code get(0)}. */
-    public static long docValuesBytesRefBytes(ScriptDocValues.BytesRefs receiver) {
-        return docValuesBytesRefBytes(receiver, 0);
-    }
-
-    /**
-     * {@code BaseKeywordDocValuesField.get(index, defaultValue)}: same as a Strings read. A miss reports {@code -1} and gets
-     * the allowance.
-     */
-    public static long keywordStringBytes(BaseKeywordDocValuesField receiver, int index, String defaultValue) {
-        return termStringBytes(receiver == null ? UNKNOWN_TERM_LENGTH : termLength(receiver.getInternalByteLength(index)));
-    }
-
-    /** {@code BaseKeywordDocValuesField.get(defaultValue)}, which reads index 0. */
-    public static long keywordStringBytes(BaseKeywordDocValuesField receiver, String defaultValue) {
-        return keywordStringBytes(receiver, 0, defaultValue);
-    }
-
-    /** {@code BinaryDocValuesField.get(index, defaultValue)}: a copy of the bytes plus the buffer that wraps it. */
-    public static long binaryByteBufferBytes(BinaryDocValuesField receiver, int index, ByteBuffer defaultValue) {
-        long length = receiver == null ? UNKNOWN_TERM_LENGTH : termLength(receiver.getInternalByteLength(index));
-        return AllocSizes.addSat(termCopyBytes(length), BYTE_BUFFER_SHELL_BYTES);
-    }
-
-    /** {@code BinaryDocValuesField.get(defaultValue)}, which reads index 0. */
-    public static long binaryByteBufferBytes(BinaryDocValuesField receiver, ByteBuffer defaultValue) {
-        return binaryByteBufferBytes(receiver, 0, defaultValue);
     }
 
     /** {@code IpDocValuesField.get(index, defaultValue)}: a decoded address in an {@code IPAddress}. */

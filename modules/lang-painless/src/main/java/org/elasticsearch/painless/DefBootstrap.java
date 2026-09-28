@@ -169,7 +169,7 @@ public final class DefBootstrap {
                     nameValue,
                     args
                 );
-                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue);
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue, args.length > 0 && ((int) args[0]) != 0);
                 case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
                 case ARRAY_LOAD -> Def.lookupArrayLoad(receiver);
                 case ARRAY_STORE -> Def.lookupArrayStore(receiver);
@@ -538,7 +538,14 @@ public final class DefBootstrap {
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
-            case LOAD, STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
+            case LOAD -> {
+                // an optional int flag says the script instance follows the receiver, for a @script_aware getter
+                if (args.length > 1 || (args.length == 1 && args[0] instanceof Integer == false)) {
+                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
+                }
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
+            case STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }

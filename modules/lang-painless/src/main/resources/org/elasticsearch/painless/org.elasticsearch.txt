@@ -63,8 +63,8 @@ class org.elasticsearch.common.geo.GeoBoundingBox {
 
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
-  String get(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="docValuesStringBytes"]
-  String getValue() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="docValuesStringBytes"]
+  String org.elasticsearch.painless.api.Augmentation get(int) @script_aware
+  String org.elasticsearch.painless.api.Augmentation getValue() @script_aware
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
@@ -114,8 +114,8 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
-  BytesRef get(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="docValuesBytesRefBytes"]
-  BytesRef getValue() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="docValuesBytesRefBytes"]
+  BytesRef org.elasticsearch.painless.api.Augmentation get(int) @script_aware
+  BytesRef org.elasticsearch.painless.api.Augmentation getValue() @script_aware
 }
 
 class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {

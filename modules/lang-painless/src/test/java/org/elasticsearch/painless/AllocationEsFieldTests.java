@@ -12,10 +12,10 @@ package org.elasticsearch.painless;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -29,16 +29,13 @@ import java.util.Map;
  * {@code GeoPoints.getLats/getLons} (whose receivers come from doc values and so are exercised directly — the whitelist
  * loading in the end-to-end tests confirms their annotations resolve).
  *
- * <p>Also covers the doc-value read estimators: a keyword read sized from the term length, the allowance when no length is
- * known, and the list builders sized from the value count. The keyword read is also run through a script.
+ * <p>Also covers the doc-value reads: keyword, BytesRef and binary reads charged after the call from the real result, a miss
+ * that charges nothing, and the list builders sized from the value count.
  */
 public class AllocationEsFieldTests extends AllocationTestCase {
 
     /** Reading the five-byte term {@code hello}. */
     private static final long KEYWORD_HELLO_BYTES = 24L + 32L + (32L + 2L * 5L);
-
-    /** A read whose term length is unknown: the 256-byte allowance. */
-    private static final long UNKNOWN_TERM_BYTES = 272L + 32L + (32L + 2L * 256L);
 
     public void testGeoPointConstructorCharged() {
         assertEquals(32L, allocatedBytes("new GeoPoint(1.0, 2.0); return \"x\";"));
@@ -57,17 +54,19 @@ public class AllocationEsFieldTests extends AllocationTestCase {
 
     /** A keyword read: the byte copy, the {@link BytesRef}, and the new String. Five bytes is 24 + 32 + (32 + 2 * 5) = 98. */
     public void testKeywordReadChargedFromTermLength() throws IOException {
-        KeywordDocValuesField field = keywordField("hello");
+        assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.termStringBytes(5));
 
-        assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.keywordStringBytes(field, ""));
-        assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.keywordStringBytes(field, 0, ""));
-
-        ScriptDocValues.Strings strings = (ScriptDocValues.Strings) field.toScriptDocValues();
-        assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.docValuesStringBytes(strings));
-        assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.docValuesStringBytes(strings, 0));
+        Map<String, Object> params = Map.of("field", keywordField("hello").toScriptDocValues());
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.value", params));
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.get(0)", params));
+        // With the static type known the wrapper is called directly rather than through def.
+        assertEquals(
+            KEYWORD_HELLO_BYTES,
+            allocatedBytes("ScriptDocValues.Strings f = (ScriptDocValues.Strings) params.field; f.value", params)
+        );
     }
 
-    /** The same read through a script charges exactly the estimate. */
+    /** The same read through the fields API. */
     public void testKeywordReadChargedInScript() throws IOException {
         Map<String, Object> params = Map.of("field", keywordField("hello"));
 
@@ -75,23 +74,48 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.get('')", params));
     }
 
-    public void testKeywordReadTripsLimit() throws IOException {
-        assertTripsLimit("params.field.get(0, '')", "1b", Map.of("field", keywordField("hello")));
+    /** A read inside a lambda still reaches the script, typed or through def. The read alone is past a 60 byte limit. */
+    public void testKeywordReadChargedInsideLambda() throws IOException {
+        Map<String, Object> params = Map.of("field", keywordField("hello").toScriptDocValues());
+        assertTripsLimit("Optional.empty().orElseGet(() -> params.field.value)", "60b", params);
+        assertTripsLimit(
+            "ScriptDocValues.Strings f = (ScriptDocValues.Strings) params.field; Optional.empty().orElseGet(() -> f.value)",
+            "60b",
+            params
+        );
     }
 
-    /** No length known, so the 256-byte allowance: 272 + 32 + (32 + 2 * 256) = 848. A miss takes the same path. */
-    public void testUnknownTermLengthFallsBackToFlatAllowance() throws IOException {
-        KeywordDocValuesField field = keywordField("hello");
-        assertEquals(-1, field.getInternalByteLength(1));
-        assertEquals(UNKNOWN_TERM_BYTES, AllocationEstimators.keywordStringBytes(field, 1, ""));
-        assertEquals(UNKNOWN_TERM_BYTES, AllocationEstimators.keywordStringBytes(null, ""));
+    /** A miss returns the default and allocates nothing. */
+    public void testMissingKeywordChargesNothing() throws IOException {
+        assertEquals(0L, allocatedBytes("params.field.get(1, '')", Map.of("field", keywordField("hello"))));
+    }
 
-        // An ip field formats its strings on read, so it never reports a length.
+    /** An ip field formats its string on read. The charge follows the string it made. */
+    public void testFormattedStringReadChargedFromResult() throws IOException {
         IpDocValuesField ipField = new IpDocValuesField(ipDocValues("192.168.0.1"), "test");
         ipField.setNextDocId(0);
-        ScriptDocValues.Strings strings = (ScriptDocValues.Strings) ipField.toScriptDocValues();
-        assertEquals(-1, strings.getInternalByteLength(0));
-        assertEquals(UNKNOWN_TERM_BYTES, AllocationEstimators.docValuesStringBytes(strings, 0));
+        Map<String, Object> params = Map.of("field", ipField.toScriptDocValues());
+
+        assertEquals(AllocationEstimators.termStringBytes("192.168.0.1".length()), allocatedBytes("params.field.value", params));
+    }
+
+    /** A BytesRef read is the byte copy and the BytesRef. A binary read adds the buffer that wraps the copy. */
+    public void testBytesReadsCharged() throws IOException {
+        BinaryDocValuesField field = new BinaryDocValuesField(binaryDocValues("hello"), "test");
+        field.setNextDocId(0);
+        Map<String, Object> params = Map.of("field", field, "refs", field.toScriptDocValues());
+
+        assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.value", params));
+        assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.get(0)", params));
+        assertEquals(
+            AllocationEstimators.byteBufferBytes(5),
+            allocatedBytes("BinaryDocValuesField f = (BinaryDocValuesField) params.field; f.get(null)", params)
+        );
+        assertEquals(0L, allocatedBytes("BinaryDocValuesField f = (BinaryDocValuesField) params.field; f.get(1, null)", params));
+    }
+
+    public void testKeywordReadTripsLimit() throws IOException {
+        assertTripsLimit("params.field.get(0, '')", "1b", Map.of("field", keywordField("hello")));
     }
 
     /** {@code asDoubles()}: a list of boxed doubles, 40 + 40 + 3 * 24 = 152. */

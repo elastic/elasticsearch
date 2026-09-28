@@ -1765,6 +1765,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     LoadDotDefNode irLoadDotDefNode = new LoadDotDefNode(location);
                     irLoadDotDefNode.attachDecoration(new IRDExpressionType(valueType));
                     irLoadDotDefNode.attachDecoration(new IRDValue(userDotNode.getIndex()));
+                    // Push the script when the name may resolve to a @script_aware getter; the bootstrap places or drops it.
+                    if (DefaultSemanticAnalysisPhase.hasScriptAwareGetter(scriptScope.getPainlessLookup(), userDotNode.getIndex())) {
+                        irLoadDotDefNode.attachCondition(IRCScriptAware.class);
+                    }
                     irLoadNode = irLoadDotDefNode;
                 }
 

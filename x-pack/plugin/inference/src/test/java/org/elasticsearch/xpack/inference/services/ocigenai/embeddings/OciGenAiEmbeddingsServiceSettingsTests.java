@@ -9,19 +9,21 @@ package org.elasticsearch.xpack.inference.services.ocigenai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiChatApiFormat;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUt
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.ENDPOINT_ID_VALUE;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.REGION_VALUE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -46,17 +49,8 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     private static final String MODEL_ID_VALUE = "cohere.embed-v4.0";
 
     public static OciGenAiEmbeddingsServiceSettings createRandom() {
-        var useUrl = randomBoolean();
-        var common = new OciGenAiServiceSettings.CommonSettings(
-            useUrl && randomBoolean() ? null : randomAlphaOfLength(8),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            useUrl ? URI.create("https://" + randomAlphaOfLength(8) + ".example.com") : null,
-            RateLimitSettingsTests.createRandom()
-        );
         return new OciGenAiEmbeddingsServiceSettings(
-            common,
+            OciGenAiTestUtils.randomCommonSettings(),
             randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024),
             randomBoolean() ? null : randomIntBetween(1, 512),
@@ -66,6 +60,7 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     public void testFromMap_Request_ParsesAllFields() {
         var map = OciGenAiTestUtils.serviceSettingsMap(REGION_VALUE, COMPARTMENT_ID, MODEL_ID_VALUE, ENDPOINT_ID_VALUE, null);
+        map.put(OciGenAiServiceFields.API_VERSION, "20260101");
         map.put(DIMENSIONS, 512);
         map.put(MAX_INPUT_TOKENS, 128);
         map.put(SIMILARITY, "cosine");
@@ -79,13 +74,13 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         assertThat(settings.endpointId(), is(ENDPOINT_ID_VALUE));
         assertTrue(settings.isDedicated());
         assertThat(settings.uri(), nullValue());
+        assertThat(settings.apiVersion(), is("20260101"));
         assertThat(settings.dimensions(), is(512));
         assertTrue(settings.dimensionsSetByUser());
         assertThat(settings.maxInputTokens(), is(128));
         assertThat(settings.similarity(), is(SimilarityMeasure.COSINE));
         assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(42)));
         assertThat(settings.apiFormat(), is(OciGenAiChatApiFormat.COHERE));
-        assertTrue(map.isEmpty());
     }
 
     public void testFromMap_Request_MinimalSettings_UsesDefaults() {
@@ -100,6 +95,7 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         assertThat(settings.similarity(), nullValue());
         assertThat(settings.endpointId(), nullValue());
         assertFalse(settings.isDedicated());
+        assertThat(settings.apiVersion(), is(OciGenAiUtils.DEFAULT_API_VERSION));
         assertThat(settings.rateLimitSettings(), is(OciGenAiServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
     }
 
@@ -113,40 +109,99 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         assertThat(settings.uri(), is(URI.create("https://private.example.com")));
     }
 
+    public void testFromMap_Request_IgnoresTheSigningKeyFields() {
+        var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
+        map.putAll(OciGenAiTestUtils.secretSettingsMap());
+
+        var settings = OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(settings.modelId(), is(MODEL_ID_VALUE));
+    }
+
+    public void testFromMap_Request_ThrowsOnUnknownField() {
+        var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
+        map.put("extra_key", "value");
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), containsString("[service_settings] unknown field [extra_key]"));
+    }
+
     public void testFromMap_Request_ThrowsWhenNeitherRegionNorUrlProvided() {
         var map = OciGenAiTestUtils.serviceSettingsMap(null, COMPARTMENT_ID, MODEL_ID_VALUE, null, null);
 
         var exception = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getMessage(), containsString("[service_settings] must contain either the [region] or the [url] setting"));
+        assertThat(exception.getMessage(), is("[service_settings] must contain either the [region] or the [url] setting"));
     }
 
     public void testFromMap_Request_ThrowsWhenRegionIsInvalid() {
         var map = OciGenAiTestUtils.serviceSettingsMap("US Chicago", COMPARTMENT_ID, MODEL_ID_VALUE, null, null);
 
         var exception = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getMessage(), containsString("Invalid value [US Chicago] for [region]"));
+        assertThat(
+            exception.getMessage(),
+            is("[service_settings] Invalid value [US Chicago] for [region]. It must be an OCI region identifier such as [us-chicago-1]")
+        );
+    }
+
+    public void testFromMap_Request_ThrowsWhenUrlIsInvalid() {
+        var map = OciGenAiTestUtils.serviceSettingsMap(null, COMPARTMENT_ID, MODEL_ID_VALUE, null, "^^^");
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), containsString("unable to parse url [^^^]"));
     }
 
     public void testFromMap_Request_ThrowsWhenCompartmentIdIsMissing() {
         var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
-        map.remove(
-            OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE).keySet().stream().filter("compartment_id"::equals).findFirst().get()
-        );
+        map.remove(OciGenAiServiceFields.COMPARTMENT_ID);
 
         var exception = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getMessage(), containsString("[service_settings] does not contain the required setting [compartment_id]"));
+        assertThat(exception.getMessage(), is("[service_settings] does not contain the required setting [compartment_id]"));
+    }
+
+    public void testFromMap_Request_ThrowsWhenDimensionsIsNotPositive() {
+        var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
+        map.put(DIMENSIONS, 0);
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), endsWith("[service_settings] failed to parse field [dimensions]"));
+        assertThat(exception.getCause().getMessage(), is("[service_settings] Invalid value [0]. [dimensions] must be a positive integer"));
+    }
+
+    public void testFromMap_Request_ThrowsWhenSimilarityIsInvalid() {
+        var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
+        map.put(SIMILARITY, "euclidean");
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), endsWith("[service_settings] failed to parse field [similarity]"));
+        assertThat(exception.getCause().getMessage(), containsString("Invalid value [euclidean]"));
     }
 
     public void testFromMap_Request_ThrowsWhenDimensionsSetByUserIsProvided() {
@@ -154,31 +209,29 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         map.put(ServiceFields.DIMENSIONS_SET_BY_USER, true);
 
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getMessage(), containsString("[service_settings] does not allow the setting [dimensions_set_by_user]"));
+        assertThat(exception.getMessage(), containsString("[service_settings] unknown field [dimensions_set_by_user]"));
     }
 
     public void testFromMap_Persistent_ThrowsWhenDimensionsSetByUserIsMissing() {
         var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
 
         var exception = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT)
         );
 
-        assertThat(
-            exception.getMessage(),
-            containsString("[service_settings] does not contain the required setting [dimensions_set_by_user]")
-        );
+        assertThat(exception.getMessage(), is("[service_settings] does not contain the required setting [dimensions_set_by_user]"));
     }
 
-    public void testFromMap_Persistent_ParsesDimensionsSetByUser() {
+    public void testFromMap_Persistent_ParsesDimensionsSetByUser_AndIgnoresUnknownFields() {
         var map = OciGenAiTestUtils.serviceSettingsMap(MODEL_ID_VALUE);
         map.put(DIMENSIONS, 1536);
         map.put(ServiceFields.DIMENSIONS_SET_BY_USER, false);
+        map.put("field_from_a_future_version", "value");
 
         var settings = OciGenAiEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
@@ -197,6 +250,7 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 "region": "us-chicago-1",
                 "compartment_id": "%s",
                 "model_id": "cohere.embed-v4.0",
+                "api_version": "20231130",
                 "rate_limit": { "requests_per_minute": 3 },
                 "dimensions": 1024,
                 "max_input_tokens": 256,
@@ -218,6 +272,7 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 "model_id": "cohere.embed-v4.0",
                 "endpoint_id": "%s",
                 "url": "https://private.example.com",
+                "api_version": "20231130",
                 "rate_limit": { "requests_per_minute": 3 }
             }
             """, COMPARTMENT_ID, ENDPOINT_ID_VALUE))));
@@ -235,6 +290,52 @@ public class OciGenAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         assertThat(updated.dimensions(), is(1024));
         assertThat(updated.similarity(), is(SimilarityMeasure.COSINE));
         assertThat(updated.common().withRateLimitSettings(new RateLimitSettings(3)), is(settings.common()));
+    }
+
+    public void testUpdateServiceSettings_OmittedFieldsAreKept() {
+        var settings = createSettings(REGION_VALUE, null, 1024, true, 256, SimilarityMeasure.COSINE, new RateLimitSettings(3));
+
+        var updated = settings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updated, is(settings));
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullClearsMaxInputTokens() {
+        var settings = createSettings(REGION_VALUE, null, 1024, true, 256, SimilarityMeasure.COSINE, new RateLimitSettings(3));
+
+        var update = new HashMap<String, Object>();
+        update.put(MAX_INPUT_TOKENS, null);
+
+        var updated = settings.updateServiceSettings(update);
+
+        assertThat(updated.maxInputTokens(), nullValue());
+        assertThat(updated.rateLimitSettings(), is(new RateLimitSettings(3)));
+    }
+
+    public void testUpdateServiceSettings_ThrowsWhenMaxInputTokensIsNotPositive() {
+        var settings = createSettings(REGION_VALUE, null, 1024, true, 256, SimilarityMeasure.COSINE, new RateLimitSettings(3));
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> settings.updateServiceSettings(new HashMap<>(Map.of(MAX_INPUT_TOKENS, -1)))
+        );
+
+        assertThat(exception.getMessage(), endsWith("[service_settings] failed to parse field [max_input_tokens]"));
+        assertThat(
+            exception.getCause().getMessage(),
+            is("[service_settings] Invalid value [-1]. [max_input_tokens] must be a positive integer")
+        );
+    }
+
+    public void testUpdateServiceSettings_RejectsImmutableFields() {
+        var settings = createSettings(REGION_VALUE, null, 1024, true, 256, SimilarityMeasure.COSINE, new RateLimitSettings(3));
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> settings.updateServiceSettings(new HashMap<>(Map.of(DIMENSIONS, 512)))
+        );
+
+        assertThat(exception.getMessage(), containsString("[service_settings] unknown field [dimensions]"));
     }
 
     private static OciGenAiEmbeddingsServiceSettings createSettings(

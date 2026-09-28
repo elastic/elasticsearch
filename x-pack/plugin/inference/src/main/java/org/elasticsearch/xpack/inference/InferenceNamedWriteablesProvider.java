@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankServiceSettings;
@@ -740,6 +741,13 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 OciGenAiChatCompletionServiceSettings.NAME,
                 OciGenAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                OciGenAiChatCompletionTaskSettings.NAME,
+                OciGenAiChatCompletionTaskSettings::new
             )
         );
         namedWriteables.add(

@@ -18,6 +18,11 @@ public final class OciGenAiServiceFields {
     public static final String COMPARTMENT_ID = "compartment_id";
     /** Optional OCID of a dedicated AI cluster endpoint. When set, requests use the {@code DEDICATED} serving mode. */
     public static final String ENDPOINT_ID = "endpoint_id";
+    /**
+     * Optional version of the OCI Generative AI inference API, the first path segment of every action URL (for example
+     * {@code 20231130}). Defaults to {@link OciGenAiUtils#DEFAULT_API_VERSION}.
+     */
+    public static final String API_VERSION = "api_version";
 
     /** Embeddings task setting: the OCI input type to embed for (search document, search query, classification, clustering). */
     public static final String INPUT_TYPE = "input_type";

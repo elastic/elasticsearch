@@ -56,7 +56,7 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
         super(configurations, secrets);
         var serviceSettings = (OciGenAiServiceSettings) configurations.getServiceSettings();
         this.uri = urlOverride == null
-            ? OciGenAiUtils.buildUri(serviceSettings.uri(), serviceSettings.region(), action)
+            ? OciGenAiUtils.buildUri(serviceSettings.uri(), serviceSettings.region(), serviceSettings.apiVersion(), action)
             : URI.create(urlOverride);
         this.requestSigner = Objects.requireNonNull(requestSigner);
     }

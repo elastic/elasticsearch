@@ -103,9 +103,36 @@ public class SchemaInternerTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> interner.canonicalize(List.of(rejected)));
         assertThat(reservation.queryHeld(), equalTo(0L));
 
+        // A published "b" would make this a shape-only charge of 8 bytes (retained 168 + 40 - 200), under the
+        // 40-byte limit. The throw means the rejected instance was not put.
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> interner.canonicalize(List.of(attribute("b", DataType.LONG, Nullability.FALSE, false)))
+        );
+        assertThat(reservation.queryHeld(), equalTo(0L));
+
         List<Attribute> followUp = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
         assertSame(kept, followUp);
         assertNotSame(rejected, followUp.get(0));
+    }
+
+    public void testMaxAllowanceChargesNothing() {
+        CircuitBreaker breaker = requestBreaker("1mb");
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        SchemaInterner interner = new SchemaInterner(reservation, 0);
+        interner.ensureAllowance(Long.MAX_VALUE);
+        List<Attribute> wide = List.of(
+            attribute("c0", DataType.INTEGER, Nullability.FALSE, false),
+            attribute("c1", DataType.INTEGER, Nullability.FALSE, false),
+            attribute("c2", DataType.INTEGER, Nullability.FALSE, false),
+            attribute("c3", DataType.INTEGER, Nullability.FALSE, false),
+            attribute("c4", DataType.INTEGER, Nullability.FALSE, false),
+            attribute("c5", DataType.INTEGER, Nullability.FALSE, false)
+        );
+        interner.canonicalize(wide);
+        interner.intern(new ColumnMapping(new int[] { 0, 1, 2, 3, 4, 5 }, null));
+        interner.intern(interner.canonicalize(wide));
+        assertThat(reservation.queryHeld(), equalTo(0L));
     }
 
     private static Attribute attribute(String name, DataType type, Nullability nullability, boolean synthetic) {

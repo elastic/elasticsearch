@@ -448,6 +448,8 @@ public final class SchemaReconciliation {
                     // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
                     // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
                     // safe-miss rather than fold a stale count/extremum.
+                    // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
+                    // That extra charge is not refunded.
                     inferredTypes = typeMap(prePin);
                 }
             }

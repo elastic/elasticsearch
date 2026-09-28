@@ -1295,6 +1295,26 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertNotSame(infoA, infoC);
     }
 
+    public void testStrictSharesFileSchemasAcrossFiles() {
+        SchemaInterner interner = new SchemaInterner(null, 0);
+        List<Attribute> schemaA = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        List<Attribute> schemaB = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        assertNotSame(schemaA.get(0), schemaB.get(0));
+
+        StoragePath a = path("s3://b/a.parquet");
+        StoragePath b = path("s3://b/b.parquet");
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(
+            a,
+            orderedMap(a, meta(schemaA), b, meta(schemaB)),
+            interner
+        );
+        SchemaReconciliation.FileSchemaInfo infoA = result.perFileInfo().get(a);
+        SchemaReconciliation.FileSchemaInfo infoB = result.perFileInfo().get(b);
+        assertSame(infoA.fileSchema().attributes(), infoB.fileSchema().attributes());
+        assertSame(infoA.mapping(), infoB.mapping());
+        assertNotSame(infoA, infoB);
+    }
+
     /**
      * File schemas share attribute instances across files, so {@link Attribute#equals(Object)} (which includes
      * {@code NameId}) no longer matches the per-file inputs. Compare name, type, nullability, and synthetic.

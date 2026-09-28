@@ -82,13 +82,21 @@ public final class SchemaInterner {
     }
 
     /**
-     * Credits {@code allowance} when this resolve has not already set one. Single-file resolves never
-     * charge the per-file schema credit, and sharing that one file must not open a new breaker charge.
+     * Credits {@code allowance} when this resolve has not already set one. A resolve that never took the
+     * per-file listing credit passes {@link Long#MAX_VALUE}, so sharing does not open a queryHeld charge.
      */
     public synchronized void ensureAllowance(long allowance) {
         if (this.allowance == 0L) {
             this.allowance = allowance;
         }
+    }
+
+    /**
+     * Bytes of one file's private attribute list: one column allowance per column, plus the list shell.
+     * Charged on a resolve-scoped run for the gather, not on {@code queryHeld}. Not a measured deep size.
+     */
+    static long privateListBytes(int columns) {
+        return COLUMN_BYTES * columns + SHAPE_BASE_BYTES + SHAPE_PER_COLUMN_BYTES * columns;
     }
 
     /**
@@ -169,6 +177,11 @@ public final class SchemaInterner {
      * and this total unchanged.
      */
     private void retain(long cost) {
+        // No listing credit was taken. Overflow stays 0; do not subtract from Long.MAX_VALUE.
+        if (allowance == Long.MAX_VALUE) {
+            retained += cost;
+            return;
+        }
         long charge = Math.max(0L, retained + cost - allowance) - extraCharged;
         if (reservation != null && charge > 0) {
             reservation.chargeQuery(charge);

@@ -343,7 +343,7 @@ This configuration is appropriate when full source fidelity is required, such as
 
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
-The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
+The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn/approximate-knn.md) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
 - [`int8`](#dense-vector-quantization-int8)
 - [`int4`](#dense-vector-quantization-int4)
 - [`bbq`](#dense-vector-quantization-bbq), available as:
@@ -371,7 +371,7 @@ PUT my-bbq-disk-index
 }
 ```
 
-Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
+Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
 ::::{note}
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
@@ -604,7 +604,7 @@ $$$dense-vector-index-options$$$
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   For `bbq_disk` fields with `auto_calibrate: true`, mapping `oversample` is a fallback when a segment has no calibrated value. When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
-    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`

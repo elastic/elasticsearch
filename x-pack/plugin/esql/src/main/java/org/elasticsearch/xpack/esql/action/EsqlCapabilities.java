@@ -1523,6 +1523,15 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
         /**
+         * Fix for a conversion function above a {@code UnionAll} that resolves on a later analyzer pass than an equal one already
+         * pushed down into the branches, e.g. because an unmapped field under {@code unmapped_fields} delays its resolution.
+         * {@code ResolveUnionTypesInUnionAll} must reuse the existing synthetic {@code $$<field>$converted_to$<type>} union output
+         * instead of pushing another same-named alias on every pass, which made the Resolution batch loop until the rule
+         * execution limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
+
+        /**
          * Support nested non-correlated subqueries in the FROM command.
          */
         NESTED_SUBQUERY_IN_FROM_COMMAND,
@@ -4118,6 +4127,16 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/159033">#159033</a>.
          */
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
+
+        /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps declared columns absent from the inferred
+         * schema when the schema is sample-derived (NDJSON, headerless CSV/TSV), instead of rejecting them with
+         * "declared columns not found in the source". The reader then looks them up by name and null-fills records that
+         * do not carry the field. Gates tests that exercise this behaviour so they are skipped against old coordinators
+         * that still throw on sparse declared columns.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/159997">#159997</a>.
+         */
+        FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
 
         /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.

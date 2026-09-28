@@ -66,6 +66,7 @@ public class KibanaWorkflowsImplicitPrivilegesProvider implements ImplicitPrivil
         "stepId",
         "createdBy",
         "executedBy",
+        "effectiveIdentity.*",
         "startedAt",
         "finishedAt",
         "duration",

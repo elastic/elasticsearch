@@ -40,9 +40,11 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -483,9 +485,10 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             // Check for simple "match all expressions e.g. .*
-            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton a = regExp.toAutomaton();
-            a = Operations.determinize(a, maxDeterminizedStates);
+            CircuitBreaker breaker = context.getCircuitBreaker();
+            Automaton a = breaker == null
+                ? Operations.determinize(new RegExp(value, syntaxFlags, matchFlags).toAutomaton(), maxDeterminizedStates)
+                : AutomatonQueries.toRegexpAutomaton(new Term(name(), value), syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }

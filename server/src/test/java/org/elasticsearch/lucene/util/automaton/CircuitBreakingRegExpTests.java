@@ -116,7 +116,10 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         assertThat(checked, greaterThanOrEqualTo(100));
     }
 
-    /** Every cost bounds the states and transitions of what the Lucene operation actually builds. */
+    /**
+     * Every cost bounds the states and transitions of the automaton the Lucene operation returns. Operations trim dead states
+     * before returning, so this checks the result rather than what was built on the way to it.
+     */
     public void testCostsBoundTheBuiltAutomaton() {
         for (int i = 0; i < 300; i++) {
             Automaton a = AutomatonTestUtil.randomAutomaton(random());
@@ -191,6 +194,34 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         assertTripsSmallAndReleases("[ab]{200}&~((a|b)*b(a|b){10})", ByteSizeValue.ofMb(2));
     }
 
+    /**
+     * With enough breaker for its bookkeeping, an empty-language repeat is still refused for the time its copies take.
+     * Sized so that without the per-copy work the build would still finish in well under a second.
+     */
+    public void testRepeatOfEmptyLanguageCountsItsCopiesAsWork() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> new CircuitBreakingRegExp("#{0,20000000}", FLAGS, 0).toAutomaton(breaker, "test")
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * An intersection's size is only known once it is built, so it is refused as soon as it outgrows the work left, even
+     * when the breaker would let it continue. The limit is lowered to keep the refused product small.
+     */
+    public void testIntersectionIsBoundedByTheWorkLeft() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> new CircuitBreakingRegExp("(x?){100}&(x?){100}", FLAGS, 0).toAutomaton(breaker, "test", 10_000_000)
+        );
+        assertEquals(0L, breaker.getUsed());
+        new CircuitBreakingRegExp("(x?){10}&(x?){10}", FLAGS, 0).toAutomaton(breaker, "test", 10_000_000);
+        assertEquals(0L, breaker.getUsed());
+    }
+
     /** Repeating an empty language builds nothing, but Lucene still allocates per copy. */
     public void testRepeatOfEmptyLanguageIsCharged() {
         for (String pattern : List.of("#{200000000}", "#{200000000,}", "#{0,2000000000}")) {
@@ -233,7 +264,15 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
 
     public void testOrdinaryBoundedRepeatsFitTheWorkLimit() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
-        for (String pattern : List.of("[a-z]{1,64}", ".{0,2000}", "(foo|bar){0,50}", "[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
+        for (String pattern : List.of(
+            "[a-z]{1,64}",
+            ".{0,2000}",
+            "(foo|bar){0,50}",
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}",
+            ".{0,10000}",
+            "[a-z]{0,12000}",
+            "(x?){1000}"
+        )) {
             new CircuitBreakingRegExp(pattern, FLAGS, 0).toAutomaton(breaker, "test");
             assertEquals(0L, breaker.getUsed());
         }

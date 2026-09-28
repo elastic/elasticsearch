@@ -125,7 +125,18 @@ public class AutomatonQueries {
         CircuitBreaker circuitBreaker
     ) {
         Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
-        return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+        return determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+    }
+
+    /** Determinizes {@code nfa} with the DFA charged as it grows, holding the NFA itself on the breaker until it is done. */
+    private static Automaton determinizeHoldingNfa(Automaton nfa, int maxDeterminizedStates, CircuitBreaker circuitBreaker, String label) {
+        long held = nfa.ramBytesUsed();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(held, label);
+        try {
+            return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, label);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-held, label);
+        }
     }
 
     /**
@@ -147,12 +158,7 @@ public class AutomatonQueries {
             return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
         }
 
-        Automaton dfa = CircuitBreakingOperations.determinize(
-            nfa,
-            maxDeterminizedStates,
-            circuitBreaker,
-            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
-        );
+        Automaton dfa = determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
         circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         try {

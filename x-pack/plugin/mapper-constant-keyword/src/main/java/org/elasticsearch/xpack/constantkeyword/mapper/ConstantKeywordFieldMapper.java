@@ -352,10 +352,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return Queries.NO_DOCS_INSTANCE;
             }
 
-            final Automaton automaton = Operations.determinize(
-                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
-                maxDeterminizedStates
-            );
+            CircuitBreaker breaker = context == null ? null : context.getCircuitBreaker();
+            final Automaton automaton = breaker == null
+                ? Operations.determinize(new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(), maxDeterminizedStates)
+                : AutomatonQueries.toRegexpAutomaton(new Term(name(), regexp), syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return Queries.ALL_DOCS_INSTANCE;

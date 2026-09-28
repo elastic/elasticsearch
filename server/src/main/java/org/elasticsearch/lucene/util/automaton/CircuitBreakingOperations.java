@@ -99,6 +99,13 @@ public final class CircuitBreakingOperations {
     static final long MAX_RESERVATION = 1L << 60;
 
     /**
+     * Most states and transitions {@link #minus} may build: as many as {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT} allows
+     * any one build of a regular expression.
+     */
+    static final long DEFAULT_MAX_PRODUCT_ITEMS = CircuitBreakingRegExp.DEFAULT_WORK_LIMIT
+        / CircuitBreakingRegExp.WORK_PER_BUILT_STATE_OR_TRANSITION;
+
+    /**
      * Determinizes the given automaton, periodically checking the provided circuit breaker.
      * <p>
      * This is functionally equivalent to {@link Operations#determinize(Automaton, int)} but adds
@@ -305,14 +312,18 @@ public final class CircuitBreakingOperations {
         Automaton complement = complement(excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
         long held = reserve(circuitBreaker, complement.ramBytesUsed(), label);
         try {
-            return intersection(a, complement, circuitBreaker, label);
+            return intersection(a, complement, circuitBreaker, label, DEFAULT_MAX_PRODUCT_ITEMS);
         } finally {
             circuitBreaker.addWithoutBreaking(-held, label);
         }
     }
 
-    /** {@link Operations#intersection(Automaton, Automaton)}, charging each product state and transition as it is created. */
-    static Automaton intersection(Automaton a1, Automaton a2, CircuitBreaker circuitBreaker, String label) {
+    /**
+     * {@link Operations#intersection(Automaton, Automaton)}, charging each product state and transition as it is created,
+     * and refusing the product with a {@link TooComplexToDeterminizeException} once it holds more than {@code maxItems}
+     * states and transitions together: the memory charge alone would let a large breaker spend seconds on it.
+     */
+    static Automaton intersection(Automaton a1, Automaton a2, CircuitBreaker circuitBreaker, String label, long maxItems) {
         if (a1 == a2) {
             return a1;
         }
@@ -358,6 +369,12 @@ public final class CircuitBreakingOperations {
                                 pending += PRODUCT_STATE_BYTES;
                             }
                             c.addTransition(p[0], r, Math.max(t1[n1].min, t2[n2].min), Math.min(t1[n1].max, t2[n2].max));
+                            if ((long) c.getNumStates() + c.getNumTransitions() > maxItems) {
+                                throw new TooComplexToDeterminizeException(
+                                    Automata.makeEmpty(),
+                                    (int) Math.min(maxItems, Integer.MAX_VALUE)
+                                );
+                            }
                             pending += PRODUCT_TRANSITION_BYTES;
                             if (pending >= CHARGE_STEP) {
                                 circuitBreaker.addEstimateBytesAndMaybeBreak(pending, label);

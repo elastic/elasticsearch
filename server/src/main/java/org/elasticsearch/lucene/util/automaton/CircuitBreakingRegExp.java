@@ -54,13 +54,17 @@ public final class CircuitBreakingRegExp {
     /**
      * Upper bound on the work of building one automaton. Scanning an entry costs one unit; building a state or a transition
      * costs {@link #WORK_PER_BUILT_STATE_OR_TRANSITION}, because Lucene sorts and trims what it builds, which takes far longer
-     * per item than a scan. Ordinary patterns use at most a few million units; the limit allows a fraction of a second of
-     * either kind of work.
+     * per item than a scan; each optional copy of a bounded repeat costs {@link #WORK_PER_OPTIONAL_COPY} for Lucene's
+     * bookkeeping around it. Ordinary patterns use at most a few million units, and patterns such as {@code .{0,10000}}
+     * about a hundred million; the limit allows a fraction of a second of any kind of work.
      */
-    public static final int DEFAULT_WORK_LIMIT = 100_000_000;
+    public static final int DEFAULT_WORK_LIMIT = 250_000_000;
 
     /** Work units per state or transition an operation builds, against one unit per entry it scans. */
     static final long WORK_PER_BUILT_STATE_OR_TRANSITION = 64L;
+
+    /** Work units per optional copy of a bounded repeat: the set of accept states and the iteration Lucene allocates for it. */
+    static final long WORK_PER_OPTIONAL_COPY = 32L;
 
     /** Bytes per entry of the operand list and per-copy bookkeeping in Lucene's repeat operations. */
     private static final long REPEAT_BYTES_PER_COPY = 16L;
@@ -202,15 +206,14 @@ public final class CircuitBreakingRegExp {
             RegExp re = node.regExp;
             Automaton[] in = node.built;
             return switch (re.kind) {
-                case REGEXP_UNION -> guarded(unionCost(in), in, () -> Operations.union(Arrays.asList(in)));
-                case REGEXP_CONCATENATION -> guarded(concatenateCost(in), in, () -> Operations.concatenate(Arrays.asList(in)));
-                case REGEXP_INTERSECTION -> CircuitBreakingOperations.intersection(in[0], in[1], breaker, label);
-                case REGEXP_OPTIONAL -> guarded(optionalCost(Shape.of(in[0])), in, () -> Operations.optional(in[0]));
-                case REGEXP_REPEAT -> guarded(starCost(Shape.of(in[0])), in, () -> Operations.repeat(in[0]));
-                case REGEXP_REPEAT_MIN -> guarded(repeatCost(Shape.of(in[0]), re.min), in, () -> Operations.repeat(in[0], re.min));
+                case REGEXP_UNION -> guarded(unionCost(in), () -> Operations.union(Arrays.asList(in)));
+                case REGEXP_CONCATENATION -> guarded(concatenateCost(in), () -> Operations.concatenate(Arrays.asList(in)));
+                case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
+                case REGEXP_OPTIONAL -> guarded(optionalCost(Shape.of(in[0])), () -> Operations.optional(in[0]));
+                case REGEXP_REPEAT -> guarded(starCost(Shape.of(in[0])), () -> Operations.repeat(in[0]));
+                case REGEXP_REPEAT_MIN -> guarded(repeatCost(Shape.of(in[0]), re.min), () -> Operations.repeat(in[0], re.min));
                 case REGEXP_REPEAT_MINMAX -> guarded(
                     repeatCost(Shape.of(in[0]), re.min, re.max),
-                    in,
                     () -> Operations.repeat(in[0], re.min, re.max)
                 );
                 // Lucene complements a negated character class with no work limit, and any other complement with the default
@@ -234,20 +237,39 @@ public final class CircuitBreakingRegExp {
         }
 
         /** Runs {@code build} with its peak memory reserved, after checking that its work fits in what is left. */
-        private Automaton guarded(Cost cost, Automaton[] operands, Supplier<Automaton> build) {
+        private Automaton guarded(Cost cost, Supplier<Automaton> build) {
             long reserved = CircuitBreakingOperations.reserve(breaker, cost.bytes(), label);
             try {
                 work = addSaturating(work, cost.work());
                 if (work > workLimit) {
-                    throw new TooComplexToDeterminizeException(
-                        regExp,
-                        new TooComplexToDeterminizeException(operands.length > 0 ? operands[0] : Automata.makeEmpty(), workLimit)
-                    );
+                    throw tooComplex();
                 }
                 return build.get();
             } finally {
                 breaker.addWithoutBreaking(-reserved, label);
             }
+        }
+
+        /**
+         * The product of two automata, charged as it grows like any other and, since its size is only known once built,
+         * refused as soon as it holds more states and transitions than the work left allows.
+         */
+        private Automaton intersection(Automaton a1, Automaton a2) {
+            long itemsLeft = Math.max(0, workLimit - work) / WORK_PER_BUILT_STATE_OR_TRANSITION;
+            Automaton product;
+            try {
+                product = CircuitBreakingOperations.intersection(a1, a2, breaker, label, itemsLeft);
+            } catch (TooComplexToDeterminizeException e) {
+                throw tooComplex();
+            }
+            long built = (long) product.getNumStates() + product.getNumTransitions();
+            work = addSaturating(work, multiplySaturating(built, WORK_PER_BUILT_STATE_OR_TRANSITION));
+            return product;
+        }
+
+        /** Refers to no operand, so the exception keeps nothing large alive once the breaker has released it. */
+        private TooComplexToDeterminizeException tooComplex() {
+            return new TooComplexToDeterminizeException(regExp, new TooComplexToDeterminizeException(Automata.makeEmpty(), workLimit));
         }
 
         private long hold(Automaton a) {
@@ -498,7 +520,7 @@ public final class CircuitBreakingRegExp {
         );
         long work = addSaturating(
             addSaturating(multiplySaturating(addSaturating(states, transitions), WORK_PER_BUILT_STATE_OR_TRANSITION), bWork),
-            addSaturating(scanWork, multiplySaturating(optionalCopies, addSaturating(a.accepts(), 1)))
+            addSaturating(scanWork, multiplySaturating(optionalCopies, addSaturating(a.accepts(), WORK_PER_OPTIONAL_COPY)))
         );
         return new Cost(states, transitions, Math.max(bBytes, builderStage), work);
     }

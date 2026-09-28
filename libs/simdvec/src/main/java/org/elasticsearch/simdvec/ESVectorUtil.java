@@ -18,6 +18,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -150,11 +152,26 @@ public class ESVectorUtil {
      * @return the squared normalization factor
      */
     public static float l2Normalize(float[] v, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, v.length);
         if (length <= 0) {
             return 0;
         }
-        Objects.checkFromIndexSize(offset, length, v.length);
         return IMPL.l2Normalize(v, offset, length);
+    }
+
+    /**
+     * L2-normalizes the floats in {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    public static float l2NormalizeFloat(MemorySegment v, int offset, int length) {
+        if ((v.byteSize() & 0x3) != 0) {
+            throw new IllegalArgumentException("MemorySegment size needs to be a multiple of Float.BYTES");
+        }
+        Objects.checkFromIndexSize(offset, length, v.byteSize() / Float.BYTES);
+        if (length <= 0) {
+            return 0;
+        }
+        return IMPL.l2NormalizeFloat(v, offset, length);
     }
 
     /**
@@ -1092,30 +1109,122 @@ public class ESVectorUtil {
     }
 
     /**
-     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
-     * Result C is (m x n).
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @param result output matrix in row-major order, length cols*rows
      */
-    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] result = new float[m * n];
-        matrixMultiply(a, b, m, k, n, result);
+    public static void transposeMatrix(float[] m, int rows, int cols, MemorySegment result) {
+        if (result.byteSize() != (long) cols * rows * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid segment size [" + result.byteSize() + "] for matrix transposition");
+        }
+
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        result.setAtIndex(ValueLayout.JAVA_FLOAT, (long) j * rows + i, m[mBase + j]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Transposes a row-major matrix of floats from (rows x cols) to (cols x rows) as a float[].
+     *
+     * @param m    input matrix in row-major order, length rows*cols*4
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return     output matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeFloatMatrix(MemorySegment m, int rows, int cols, float[] result) {
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        result[j * rows + i] = m.getAtIndex(ValueLayout.JAVA_FLOAT, mBase + j);
+                    }
+                }
+            }
+        }
+
         return result;
+    }
+
+    /**
+     * Transposes a row-major matrix of floats from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols*4
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @param result output matrix in row-major order, length cols*rows*4
+     */
+    public static void transposeFloatMatrix(MemorySegment m, int rows, int cols, MemorySegment result) {
+        if (result.byteSize() != (long) cols * rows * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid segment size [" + result.byteSize() + "] for matrix transposition");
+        }
+
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                long jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    long mBase = (long) i * cols;
+                    for (long j = jj; j < jMax; j++) {
+                        result.setAtIndex(ValueLayout.JAVA_FLOAT, j * rows + i, m.getAtIndex(ValueLayout.JAVA_FLOAT, mBase + j));
+                    }
+                }
+            }
+        }
     }
 
     /**
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
-        if (a.length != m * k) {
-            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+    public static void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
+        /*
+         * only native segments can be used here - using a heap segment pins the GC,
+         * and matrix multiply can run for several hundred ms
+         */
+        assert a.isNative();
+        assert b.isNative();
+        assert result.isNative();
+
+        if (a.byteSize() != (long) m * k * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.byteSize() + "] for matrix multiplication");
         }
-        if (b.length != k * n) {
-            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        if (b.byteSize() != (long) k * n * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.byteSize() + "] for matrix multiplication");
         }
-        if (result.length != m * n) {
-            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        if (result.byteSize() != (long) m * n * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.byteSize() + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result);
+        IMPL.matrixMultiplyFloat(a, b, m, k, n, result);
     }
 
     /**

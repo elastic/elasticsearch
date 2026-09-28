@@ -19,6 +19,9 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
 
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteOrder;
+
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.D2F;
 import static jdk.incubator.vector.VectorOperators.D2I;
@@ -40,7 +43,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
     }
 
     @Override
-    protected float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    protected float quantizeExact1Bit(MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
         // on smaller vector sizes, the JVM is better at auto-vectorizing the scalar impl
         // On AVX512, the vector code + mask gets us significant speedups
         if (PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE <= 256) {
@@ -49,26 +52,28 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         IntVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f).reinterpretAsInts();
         IntVector signBit = IntVector.broadcast(INTEGER_SPECIES, 0x80000000);
 
-        int i = 0;
+        long i = 0;
         int limit = FLOAT_SPECIES.loopBound(d);
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            IntVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).reinterpretAsInts();
+            IntVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, z, (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder())
+                .reinterpretAsInts();
             // Use the sign bit from vec, but the rest of the value from halfConst
             IntVector result = halfConst.or(vec.and(signBit));
-            result.reinterpretAsFloats().intoArray(out, outOffset + i);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder());
         }
         if (i < d) {
             var mask = FLOAT_SPECIES.indexInRange(i, d);
-            IntVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask).reinterpretAsInts();
+            IntVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, z, (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder(), mask)
+                .reinterpretAsInts();
             IntVector result = halfConst.or(vec.and(signBit));  // don't need to mask this
-            result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder(), mask);
         }
 
         return (float) Math.sqrt(0.25 * d);
     }
 
     @Override
-    protected float calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
+    protected float calculateBaseLevel(MemorySegment z, int zOffset, int[] absZF) {
         FloatVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f);
 
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
@@ -83,10 +88,30 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
             int limit = (absZF.length / sectionLength) * sectionLength;
             for (; i < limit; i += sectionLength) {
-                FloatVector abs0 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).abs();
-                FloatVector abs1 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length()).abs();
-                FloatVector abs2 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 2).abs();
-                FloatVector abs3 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 3).abs();
+                FloatVector abs0 = FloatVector.fromMemorySegment(
+                    FLOAT_SPECIES,
+                    z,
+                    (long) (zOffset + i) * Float.BYTES,
+                    ByteOrder.nativeOrder()
+                ).abs();
+                FloatVector abs1 = FloatVector.fromMemorySegment(
+                    FLOAT_SPECIES,
+                    z,
+                    (long) (zOffset + i + FLOAT_SPECIES.length()) * Float.BYTES,
+                    ByteOrder.nativeOrder()
+                ).abs();
+                FloatVector abs2 = FloatVector.fromMemorySegment(
+                    FLOAT_SPECIES,
+                    z,
+                    (zOffset + i + FLOAT_SPECIES.length() * 2L) * Float.BYTES,
+                    ByteOrder.nativeOrder()
+                ).abs();
+                FloatVector abs3 = FloatVector.fromMemorySegment(
+                    FLOAT_SPECIES,
+                    z,
+                    (zOffset + i + FLOAT_SPECIES.length() * 3L) * Float.BYTES,
+                    ByteOrder.nativeOrder()
+                ).abs();
                 abs0.reinterpretAsInts().intoArray(absZF, i);
                 abs1.reinterpretAsInts().intoArray(absZF, i + FLOAT_SPECIES.length());
                 abs2.reinterpretAsInts().intoArray(absZF, i + FLOAT_SPECIES.length() * 2);
@@ -100,13 +125,20 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         }
         int limit = FLOAT_SPECIES.loopBound(absZF.length);
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).abs();
+            FloatVector abs = FloatVector.fromMemorySegment(FLOAT_SPECIES, z, (long) (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder())
+                .abs();
             abs.reinterpretAsInts().intoArray(absZF, i);
             acc = fma(halfConst, abs, acc);
         }
         if (i < absZF.length) {
             var mask = FLOAT_SPECIES.indexInRange(i, absZF.length);
-            FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask).abs();
+            FloatVector abs = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES,
+                z,
+                (long) (zOffset + i) * Float.BYTES,
+                ByteOrder.nativeOrder(),
+                mask
+            ).abs();
             abs.reinterpretAsInts().intoArray(absZF, i, mask.cast(INTEGER_SPECIES));
             acc = fma(halfConst, abs, acc);
         }
@@ -114,27 +146,27 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
     }
 
     @Override
-    protected void set2BitOutput(float threshold, float[] z, int zOffset, float[] out, int outOffset, int d) {
+    protected void set2BitOutput(float threshold, MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
         final int limit = FLOAT_SPECIES.loopBound(d);
         FloatVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f);
         IntVector oneHalfConst = FloatVector.broadcast(FLOAT_SPECIES, 1.5f).reinterpretAsInts();
         IntVector signBit = IntVector.broadcast(INTEGER_SPECIES, 0x80000000);
 
-        int i = 0;
+        long i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i);
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, z, (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder());
             // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
             VectorMask<Integer> nextLevel = vec.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
             IntVector result = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel).or(vec.reinterpretAsInts().and(signBit));
-            result.reinterpretAsFloats().intoArray(out, outOffset + i);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder());
         }
         if (i < d) {
             var mask = FLOAT_SPECIES.indexInRange(i, d);
-            FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask);
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, z, (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder(), mask);
             // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
             VectorMask<Integer> nextLevel = vec.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
             IntVector result = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel).or(vec.reinterpretAsInts().and(signBit));
-            result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder(), mask);
         }
     }
 
@@ -158,7 +190,16 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
     }
 
     @Override
-    protected void setGeneralOutput(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps, int bestStep, double bestMag) {
+    protected void setGeneralOutput(
+        MemorySegment z,
+        int zOffset,
+        MemorySegment out,
+        int outOffset,
+        int d,
+        int nSteps,
+        int bestStep,
+        double bestMag
+    ) {
         if (HALF_FLOAT_SPECIES == null) {
             // uh oh, can't get half vector sizes for some reason, fallback
             super.setGeneralOutput(z, zOffset, out, outOffset, d, nSteps, bestStep, bestMag);
@@ -176,9 +217,9 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         DoubleVector bestStepVec = DoubleVector.broadcast(DOUBLE_SPECIES, (double) bestStep);
         DoubleVector bestMagVec = DoubleVector.broadcast(DOUBLE_SPECIES, bestMag);
 
-        int i = 0;
+        long i = 0;
         for (; i < limit; i += HALF_FLOAT_SPECIES.length()) {
-            FloatVector vec = FloatVector.fromArray(HALF_FLOAT_SPECIES, z, zOffset + i);
+            FloatVector vec = FloatVector.fromMemorySegment(HALF_FLOAT_SPECIES, z, (zOffset + i) * Float.BYTES, ByteOrder.nativeOrder());
             // double scaled = bestStep * (double) Math.abs(v);
             Vector<Double> scaled = vec.abs().convertShape(F2D, DOUBLE_SPECIES, 0).mul(bestStepVec);
             // int levels = (int) Math.min(scaled / bestMag, nSteps);
@@ -196,11 +237,17 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
                 .add(halfConst)
                 .reinterpretAsInts()
                 .or(vec.reinterpretAsInts().and(signBit));
-            result.reinterpretAsFloats().intoArray(out, outOffset + i);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder());
         }
         if (i < d) {
             var mask = HALF_FLOAT_SPECIES.indexInRange(i, d);
-            FloatVector vec = FloatVector.fromArray(HALF_FLOAT_SPECIES, z, zOffset + i, mask);
+            FloatVector vec = FloatVector.fromMemorySegment(
+                HALF_FLOAT_SPECIES,
+                z,
+                (zOffset + i) * Float.BYTES,
+                ByteOrder.nativeOrder(),
+                mask
+            );
             Vector<Double> scaled = vec.abs().convertShape(F2D, DOUBLE_SPECIES, 0).mul(bestStepVec);
             DoubleVector levels = (DoubleVector) scaled.div(bestMagVec).min(nStepsVec).convert(D2I, 0).convert(I2D, 0);
 
@@ -213,7 +260,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
                 .add(halfConst)
                 .reinterpretAsInts()
                 .or(vec.reinterpretAsInts().and(signBit));
-            result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);
+            result.reinterpretAsFloats().intoMemorySegment(out, (outOffset + i) * Float.BYTES, ByteOrder.nativeOrder(), mask);
         }
     }
 }

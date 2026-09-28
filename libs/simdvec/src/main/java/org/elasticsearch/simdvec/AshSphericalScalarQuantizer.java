@@ -10,10 +10,15 @@
 package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.LSBRadixSorter;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
  * Spherical scalar quantizer for ASH. Quantizes each dimension of the
@@ -42,9 +47,9 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
-    public record QuantizeResult(float[] centeredCodes, float[] codeNorms) {
-        public QuantizeResult(int n, int nDims) {
-            this(new float[n * nDims], new float[n]);
+    public record QuantizeResult(MemorySegment centeredCodes, float[] codeNorms) {
+        public QuantizeResult(Arena arena, int n, int nDims) {
+            this(ArenaAdapter.allocate(arena, JAVA_FLOAT, n * nDims), new float[n]);
         }
     }
 
@@ -72,8 +77,8 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * @param n number of vectors
      * @param nDims components per vector
      */
-    public void encode(float[] x, int n, int nDims, QuantizeResult result) {
-        assert result.centeredCodes.length == n * nDims;
+    public void encode(MemorySegment x, int n, int nDims, QuantizeResult result) {
+        assert result.centeredCodes.byteSize() == (long) n * nDims * Float.BYTES;
         assert result.codeNorms.length == n;
 
         for (int i = 0; i < n; i++) {
@@ -85,7 +90,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
     public SingleQuantizeResult encodeOne(float[] xLatent) {
         int nDims = xLatent.length;
         float[] out = new float[nDims];
-        float norm = quantizeExact(xLatent, 0, out, 0, nDims);
+        float norm = quantizeExact(MemorySegment.ofArray(xLatent), 0, MemorySegment.ofArray(out), 0, nDims);
         return new SingleQuantizeResult(out, norm);
     }
 
@@ -95,8 +100,8 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * {@code out[outOffset..]}. The offsets let a caller quantize one row of a flat
      * row-major matrix in place.
      */
-    public float quantizeExact(float[] z, int zOffset, float[] out, int outOffset, int d) {
-        assert assertAllFinite(z);  // all vector values must be finite for the maths to work
+    public float quantizeExact(MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
+        assert assertAllFinite(z, d);  // all vector values must be finite for the maths to work
 
         int nSteps = (1 << (bitsPerDim - 1)) - 1;
 
@@ -107,9 +112,9 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
         };
     }
 
-    private static boolean assertAllFinite(float[] value) {
-        for (float v : value) {
-            assert Float.isFinite(v) : "value must be finite";
+    private static boolean assertAllFinite(MemorySegment value, int d) {
+        for (int i = 0; i < d; i++) {
+            assert Float.isFinite(value.getAtIndex(JAVA_FLOAT, i)) : "value must be finite";
         }
         return true;
     }
@@ -118,9 +123,9 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
      * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
      */
-    protected float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    protected float quantizeExact1Bit(MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
-            out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
+            out.setAtIndex(JAVA_FLOAT, outOffset + j, Math.copySign(0.5f, z.getAtIndex(JAVA_FLOAT, zOffset + j)));
         }
         return (float) Math.sqrt(0.25 * d);
     }
@@ -130,25 +135,25 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      */
     private static final ThreadLocal<LSBRadixSorter> SORTER = ThreadLocal.withInitial(LSBRadixSorter::new);
 
-    protected float calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
+    protected float calculateBaseLevel(MemorySegment z, int zOffset, int[] absZF) {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
         float dot = 0;
         for (int j = 0; j < absZF.length; j++) {
-            float abs = Math.abs(z[zOffset + j]);
+            float abs = Math.abs(z.getAtIndex(JAVA_FLOAT, zOffset + j));
             absZF[j] = Float.floatToRawIntBits(abs);
             dot = Math.fma(0.5f, abs, dot);
         }
         return dot;
     }
 
-    protected void set2BitOutput(float threshold, float[] z, int zOffset, float[] out, int outOffset, int d) {
+    protected void set2BitOutput(float threshold, MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
             // The tie rule only ever sets bestK at the end of a run of equal magnitudes, so
             // selecting every dimension at or above the smallest upgraded magnitude picks out exactly
             // bestK of them
             // need to recalculate abs(z[..]) here, as the absZ array order has changed
-            float v = z[zOffset + j];
-            out[outOffset + j] = Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
+            float v = z.getAtIndex(JAVA_FLOAT, zOffset + j);
+            out.setAtIndex(JAVA_FLOAT, outOffset + j, Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v));
         }
     }
 
@@ -173,7 +178,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
      * The selected set is recovered via a threshold on |z_j| rather than by tracking indices.
      */
-    protected float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    protected float quantizeExact2Bit(MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d) {
         int[] absZF = getAbsZFArray(d);
 
         double dot = calculateBaseLevel(z, zOffset, absZF);
@@ -225,13 +230,22 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
         return (float) Math.sqrt(bestNormSq);
     }
 
-    protected void setGeneralOutput(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps, int bestStep, double bestMag) {
+    protected void setGeneralOutput(
+        MemorySegment z,
+        int zOffset,
+        MemorySegment out,
+        int outOffset,
+        int d,
+        int nSteps,
+        int bestStep,
+        double bestMag
+    ) {
         // Every event up to the winning one was consumed, so dimension j holds each step s whose
         // critical time s / |z_j| is at or below the threshold bestStep / bestMag. The tie rule
         // only ever settles on the last event of a run of equal critical times, so the
         // threshold picks out exactly the consumed events.
         for (int j = 0; j < d; j++) {
-            float v = z[zOffset + j];
+            float v = z.getAtIndex(JAVA_FLOAT, zOffset + j);
             double scaled = bestStep * (double) Math.abs(v);
             int levels = (int) Math.min(scaled / bestMag, nSteps);
             // That division is the only inexact step, and it is correctly rounded, so the truncated
@@ -242,7 +256,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
             } else if (levels > 0 && levels * bestMag > scaled) {
                 levels--;
             }
-            out[outOffset + j] = Math.copySign(0.5f + levels, v);
+            out.setAtIndex(JAVA_FLOAT, outOffset + j, Math.copySign(0.5f + levels, v));
         }
     }
 
@@ -257,7 +271,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * sweep is a merge of the runs. The selected set is recovered from the threshold alone,
      * which is why only magnitudes need sorting and not the dimension indices alongside them.
      */
-    protected float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
+    protected float quantizeExactGeneral(MemorySegment z, int zOffset, MemorySegment out, int outOffset, int d, int nSteps) {
         int[] absZF = getAbsZFArray(d);
 
         double baseDot = calculateBaseLevel(z, zOffset, absZF);

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.ash;
 
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -17,9 +18,13 @@ import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
  * Asymmetric Hashing quantizer. Learns a projection matrix W that maps vectors from
@@ -129,21 +134,27 @@ public final class AsymmetricHashingQuantizer {
         int trainingSize = Math.min(originalDim * trainingFactor, vectors.length);
         int[] sampleIndices = sampleIndices(vectors.length, trainingSize);
 
-        // Center and normalize the sampled vectors into a fresh flat array. We must not mutate
-        // `vectors` in place -- the writer reuses it for per-posting-list encoding later.
-        float[] xTraining = new float[trainingSize * originalDim];
-        for (int i = 0; i < trainingSize; i++) {
-            int srcIdx = sampleIndices[i];
-            float[] centroid = centroids.apply(srcIdx);
-            int base = i * originalDim;
-            for (int d = 0; d < originalDim; d++) {
-                xTraining[base + d] = vectors[srcIdx][d] - centroid[d];
+        try (Arena arena = Arena.ofConfined()) {
+            // Center and normalize the sampled vectors into a fresh flat array. We must not mutate
+            // `vectors` in place -- the writer reuses it for per-posting-list encoding later.
+            MemorySegment xTraining = ArenaAdapter.allocate(arena, JAVA_FLOAT, trainingSize * originalDim);
+            for (int i = 0; i < trainingSize; i++) {
+                int srcIdx = sampleIndices[i];
+                float[] centroid = centroids.apply(srcIdx);
+                int base = i * originalDim;
+                for (int d = 0; d < originalDim; d++) {
+                    xTraining.setAtIndex(JAVA_FLOAT, base + d, vectors[srcIdx][d] - centroid[d]);
+                }
+                ESVectorUtil.l2NormalizeFloat(xTraining, base, originalDim);
             }
-            ESVectorUtil.l2Normalize(xTraining, base, originalDim);
-        }
 
-        // LEARNED: PCA init + Procrustes
-        return ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
+            // LEARNED: PCA init + Procrustes
+            MemorySegment w = ArenaAdapter.allocate(arena, JAVA_FLOAT, originalDim * nDims);
+            learnedTraining(xTraining, trainingSize, originalDim, nDims, w);
+            float[] wT = new float[originalDim * nDims];
+            ESVectorUtil.transposeFloatMatrix(w, originalDim, nDims, wT);
+            return wT;
+        }
     }
 
     /**
@@ -242,53 +253,62 @@ public final class AsymmetricHashingQuantizer {
         return new EncodedVector(xEnc, scale, offset);
     }
 
-    private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
-        // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
-        // This is much faster than full SVD when nDims << originalDim
-        float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
+    private void learnedTraining(MemorySegment xTraining, int nTraining, int originalDim, int nDims, MemorySegment result) {
+        try (Arena arena = Arena.ofConfined()) {
+            // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
+            // This is much faster than full SVD when nDims << originalDim
+            MemorySegment p = ArenaAdapter.allocate(arena, JAVA_FLOAT, originalDim * nDims);
+            AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed, p);
 
-        // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+            // Project training data: X_ld = xTraining @ P (nTraining x nDims)
+            MemorySegment xLd = ArenaAdapter.allocate(arena, JAVA_FLOAT, nTraining * nDims);
+            ESVectorUtil.matrixMultiplyFloat(xTraining, p, nTraining, originalDim, nDims, xLd);
 
-        // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
-        float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
+            // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
+            MemorySegment xLdT = ArenaAdapter.allocate(arena, JAVA_FLOAT, nTraining * nDims);
+            ESVectorUtil.transposeFloatMatrix(xLd, nTraining, nDims, xLdT);
 
-        // Initialize random M (nDims x nDims)
-        float[] m = AshUtils.randomGaussians(new Random(seed), nDims * nDims);
+            // Initialize random M (nDims x nDims)
+            float[] m = AshUtils.randomGaussians(new Random(seed), nDims * nDims);
+            MemorySegment mSegment = ArenaAdapter.allocate(arena, JAVA_FLOAT, nDims * nDims);
 
-        // Iterative Procrustes
-        float[] r = new float[nDims * nDims];
-        float[] xTransformed = new float[nTraining * nDims];
-        AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(nTraining, nDims);
+            // Iterative Procrustes
+            MemorySegment r = ArenaAdapter.allocate(arena, JAVA_FLOAT, nDims * nDims);
+            MemorySegment xTransformed = ArenaAdapter.allocate(arena, JAVA_FLOAT, nTraining * nDims);
+            AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(arena, nTraining, nDims);
 
-        for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
-            // R = procrustes(M)
-            AshUtils.procrustes(m, nDims, r);
+            for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
+                // R = procrustes(M)
+                AshUtils.procrustes(m, nDims, r);
 
-            if (epoch < nTrainingIterations) {
-                // X_transformed = X_ld @ R (nTraining x nDims)
-                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
-                // Quantize
-                quantizer.encode(xTransformed, nTraining, nDims, qr);
-                float[] xEnc = qr.centeredCodes();
-                float[] codeNorms = qr.codeNorms();
-                // Normalize encoded: xEnc[i] /= codeNorms[i]
-                for (int i = 0; i < nTraining; i++) {
-                    if (codeNorms[i] > 0) {
-                        float inv = 1.0f / codeNorms[i];
-                        int base = i * nDims;
-                        for (int j = 0; j < nDims; j++) {
-                            xEnc[base + j] *= inv;
+                if (epoch < nTrainingIterations) {
+                    // X_transformed = X_ld @ R (nTraining x nDims)
+                    ESVectorUtil.matrixMultiplyFloat(xLd, r, nTraining, nDims, nDims, xTransformed);
+                    // Quantize
+                    quantizer.encode(xTransformed, nTraining, nDims, qr);
+                    MemorySegment xEnc = qr.centeredCodes();
+                    float[] codeNorms = qr.codeNorms();
+                    // Normalize encoded: xEnc[i] /= codeNorms[i]
+                    for (int i = 0; i < nTraining; i++) {
+                        if (codeNorms[i] > 0) {
+                            float inv = 1.0f / codeNorms[i];
+                            int base = i * nDims;
+                            for (int j = 0; j < nDims; j++) {
+                                xEnc.setAtIndex(JAVA_FLOAT, base + j, xEnc.getAtIndex(JAVA_FLOAT, base + j) * inv);
+                            }
                         }
                     }
-                }
-                // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
-                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
-            }
-        }
 
-        // W = P @ R (originalDim x nDims)
-        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
+                    // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
+                    ESVectorUtil.matrixMultiplyFloat(xLdT, xEnc, nDims, nTraining, nDims, mSegment);
+                    // TODO: update procrustes to use MemorySegment for m so we don't need to copy
+                    MemorySegment.copy(mSegment, JAVA_FLOAT, 0, m, 0, m.length);
+                }
+            }
+
+            // W = P @ R (originalDim x nDims)
+            ESVectorUtil.matrixMultiplyFloat(p, r, originalDim, nDims, nDims, result);
+        }
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {

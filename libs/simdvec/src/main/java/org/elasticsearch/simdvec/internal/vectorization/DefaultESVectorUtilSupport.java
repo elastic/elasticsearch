@@ -19,8 +19,10 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
-import java.util.Arrays;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -88,6 +90,24 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         double invNorm = 1.0 / Math.sqrt(normSq);
         for (int j = offset; j < end; j++) {
             v[j] = (float) (v[j] * invNorm);
+        }
+        return (float) normSq;
+    }
+
+    @Override
+    public float l2NormalizeFloat(MemorySegment v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v.getAtIndex(JAVA_FLOAT, j);
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return 0;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v.setAtIndex(JAVA_FLOAT, j, (float) (v.getAtIndex(JAVA_FLOAT, j) * invNorm));
         }
         return (float) normSq;
     }
@@ -771,28 +791,29 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
-        Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, m, k, n);
+    public void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
+        // copy/allocate float[], do the thing, then copy back. It's a lot quicker to access arrays than segments in a tight scalar loop
+        float[] r = new float[m * n];
+        multiply(a.toArray(JAVA_FLOAT), k, b.toArray(JAVA_FLOAT), r, m, k, n);
+        MemorySegment.copy(r, 0, result, JAVA_FLOAT, 0, m * n);
     }
 
     /**
-     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * Computes {@code C = A @ B}, where element (i, l) of the left operand is
      * {@code a[i * aRowStride + l]}.
      *
      * @param aRowStride distance in {@code a} between consecutive rows of the left operand
      * @param cRows      rows of C, and of the left operand
-     * @param inner      inner dimension of the multiplication
+     * @param inner      inner dimension of the multiplication, at least one
      * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
-        // unroll 4x, so 4 values are accumulated into each c cell at once
-        final int innerLimit = inner - inner % 4;
+    private void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         for (int i = 0; i < cRows; i++) {
             int aBase = i * aRowStride;
             int cBase = i * n;
+            // unroll 4x, so 4 values are accumulated into each c cell at once
             int l = 0;
-            for (; l < innerLimit; l += 4) {
+            for (; l + 4 <= inner; l += 4) {
                 int aOffset = aBase + l;
                 int b0 = l * n;
                 int b1 = b0 + n;
@@ -809,7 +830,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             }
             // tail
             for (; l < inner; l++) {
-                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+                float al = a[aBase + l];
+                int bBase = l * n;
+                for (int j = 0; j < n; j++) {
+                    c[cBase + j] = fma(al, b[bBase + j], c[cBase + j]);
+                }
             }
         }
     }

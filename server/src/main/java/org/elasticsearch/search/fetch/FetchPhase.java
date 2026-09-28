@@ -395,9 +395,9 @@ public final class FetchPhase {
             });
 
             // Document-fields byte checker: covers fields / stored_fields / docvalue_fields / script_fields.
-            // Charged once per hit in nextDoc() after all sub-phases have run. Buffered like _source to
-            // amortise the per-call cost of addEstimateBytesAndMaybeBreak. Sub-threshold residuals are
-            // intentionally left uncharged (and therefore not released), matching the _source path.
+            // Charged once per hit in nextDoc() after all sub-phases have run. Buffered to amortise the
+            // per-call cost of addEstimateBytesAndMaybeBreak. Any tail below the buffer threshold is
+            // flushed in onAllHitsIterated() after the full iteration completes.
             LongConsumer fieldsChecker = streaming ? bytes -> {
                 if (bytes > context.memAccountingBufferSize()) {
                     context.circuitBreaker()
@@ -429,6 +429,22 @@ public final class FetchPhase {
                 if (held > 0) {
                     context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
                     streamingHeldBytes[0] = 0;
+                }
+            }
+
+            @Override
+            protected void onAllHitsIterated() {
+                if (locallyAccumulatedFieldBytes[0] > 0) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedFieldBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]");
+                    addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
+                    locallyAccumulatedFieldBytes[0] = 0;
+                }
+                if (locallyAccumulatedBytes[0] > 0) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                    locallyAccumulatedBytes[0] = 0;
                 }
             }
 

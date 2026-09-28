@@ -87,6 +87,14 @@ abstract class FetchPhaseDocsIterator {
     protected abstract SearchHit nextDoc(int doc) throws IOException;
 
     /**
+     * Called after all documents have been successfully iterated in non-streaming mode.
+     * Subclasses can override this to flush any tail-buffered bytes to the circuit breaker.
+     * May throw {@link org.elasticsearch.common.breaker.CircuitBreakingException} — the caller
+     * ensures that already-fetched hits are released before propagating the exception.
+     */
+    protected void onAllHitsIterated() {}
+
+    /**
      * Synchronous iteration for non-streaming mode.
      * Documents are sorted by doc ID for efficient sequential Lucene access,
      * then results are mapped back to their original (score-based) order.
@@ -166,6 +174,7 @@ abstract class FetchPhaseDocsIterator {
                     return new IterateResult(stripNulls(searchHits));
                 }
             }
+            onAllHitsIterated();
         } catch (SearchTimeoutException e) {
             throw e;
         } catch (CircuitBreakingException e) {

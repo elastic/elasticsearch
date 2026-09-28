@@ -16,13 +16,21 @@ import java.util.function.Supplier;
  * {@code EsqlPlugin} so that federation transport actions can inject it and call
  * {@link #check()} rather than directly using {@code XPackPlugin.getSharedLicenseState()}, which
  * is not overridable in integration tests.
+ *
+ * <p>Implements {@link Supplier}{@code <XPackLicenseState>} so it can be passed directly wherever
+ * a license state supplier is accepted (e.g. {@code DatasetResolver}).
  */
-public class FederationLicense {
+public class FederationLicense implements Supplier<XPackLicenseState> {
 
     private final Supplier<XPackLicenseState> licenseStateSupplier;
 
     public FederationLicense(Supplier<XPackLicenseState> licenseStateSupplier) {
         this.licenseStateSupplier = licenseStateSupplier;
+    }
+
+    @Override
+    public XPackLicenseState get() {
+        return licenseStateSupplier.get();
     }
 
     /** Throws if the current license does not permit data federation. */

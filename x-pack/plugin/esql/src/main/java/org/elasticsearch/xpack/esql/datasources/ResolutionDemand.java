@@ -54,7 +54,11 @@ public enum ResolutionDemand {
         return this == EAGER_STATS;
     }
 
-    /** Whether resolution may stop listing once it has what the schema needs. */
+    /**
+     * Whether the query discards every row from this path. No longer decides how far a listing runs - the
+     * dataset's mode does that - and its one remaining caller is the declared rail's coercibility check, which a
+     * query reading no rows never performs the cast for.
+     */
     public boolean isSchemaDiscovery() {
         return this == SCHEMA_DISCOVERY;
     }

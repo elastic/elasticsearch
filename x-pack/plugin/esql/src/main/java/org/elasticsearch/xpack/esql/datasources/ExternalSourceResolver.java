@@ -562,7 +562,7 @@ public class ExternalSourceResolver {
         resolve(paths, pathConfigs, filterHints, null, null, null, listener);
     }
 
-    /** As below, with no schema discovery information: every path resolves as one that reads rows. */
+    /** As below, with no schema discovery information: no path is told its rows are all discarded. */
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,

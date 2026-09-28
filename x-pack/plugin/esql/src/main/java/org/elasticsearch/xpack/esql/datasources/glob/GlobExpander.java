@@ -154,7 +154,11 @@ public final class GlobExpander {
      * Whether a bound is eligible at all — a mode whose schema does not span every file, no dataset-wide
      * statistics wanted, no dataset-chosen file order — is the caller's to establish, and
      * {@code ExternalSourceResolver#listingExtentsFor} is where that is decided. This class honours the extents it
-     * is handed and does not second-guess them.
+     * is handed wherever it can, and two shapes cannot: a comma-separated resource list, where a key budget has no
+     * single meaning across the segments, and a pattern whose every segment enumerates to finitely many literal
+     * spellings, which is probed key by key rather than listed. Both return every match. A caller cannot tell from
+     * the result that its bound was refused - {@link FileList#isTruncated()} is simply false - which is how three
+     * tests came to be written against a bound that was never taken.
      */
     public static FileList expandAndCompact(
         String path,
@@ -523,6 +527,8 @@ public final class GlobExpander {
 
         // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
         List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
+        // Every segment enumerates, so the keys are probed rather than listed and there is no page to stop at:
+        // this branch returns every match and honours no file-set extent. Same blind spot as the comma list.
         if (candidates != null) {
             List<StorageEntry> matched = new ArrayList<>();
             StorageEntry fileHintAnchor = null;

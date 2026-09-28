@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -2072,7 +2073,7 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        var filterHints = PartitionFilterHintExtractor.extract(listingPlan);
+        var filterHints = projectPartitionSpecs(PartitionFilterHintExtractor.extract(listingPlan), pathConfigs);
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2158,6 +2159,26 @@ public class EsqlSession {
             }
         });
         return pathConfigs;
+    }
+
+    /**
+     * Remaps identity hints and emits a finite {@code year IN} through each
+     * path's {@code partition_spec}. Identity-only specs leave the extractor
+     * hints unchanged.
+     */
+    static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, Map<String, Object>> pathConfigs
+    ) {
+        if (filterHints.isEmpty()) {
+            return filterHints;
+        }
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projected = new HashMap<>(filterHints.size());
+        filterHints.forEach((path, hints) -> {
+            PartitionSpec spec = PartitionSpec.fromConfig(pathConfigs.get(path));
+            projected.put(path, spec.projectListingHints(hints));
+        });
+        return projected;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

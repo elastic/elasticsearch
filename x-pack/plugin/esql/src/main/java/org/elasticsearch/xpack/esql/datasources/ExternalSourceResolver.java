@@ -1479,6 +1479,7 @@ public class ExternalSourceResolver {
         assert listing.isTruncated() == false || listingBound != Integer.MAX_VALUE
             : "a listing was truncated without a bound being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
+        emitPartitionSpecNotices(listing, hints, config);
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
     }
@@ -1515,6 +1516,27 @@ public class ExternalSourceResolver {
             return Integer.MAX_VALUE;
         }
         return PartitionConfig.sampleSize(config);
+    }
+
+    /**
+     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * cached) so they do not depend on listing-cache identity. Uses the resolver
+     * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
+     */
+    private void emitPartitionSpecNotices(
+        FileList listing,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config
+    ) {
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
+        if (spec.isEmpty()) {
+            return;
+        }
+        PartitionMetadata meta = listing.partitionMetadata();
+        // null metadata: listing never produced keys (do not warn). Empty key set:
+        // detection ran and found nothing — every bind is unmatched.
+        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
+        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
     }
 
     /**
@@ -3747,6 +3769,7 @@ public class ExternalSourceResolver {
             listing = expandAndCompact(path, provider, hints, config, storagePath, listingBound);
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
+        emitPartitionSpecNotices(listing, hints, config);
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         chargeListingPlanning(listing);
         if (listing.fileCount() == 0) {

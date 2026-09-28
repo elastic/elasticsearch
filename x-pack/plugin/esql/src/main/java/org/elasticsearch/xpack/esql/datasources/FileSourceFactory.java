@@ -76,7 +76,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link PartitionSpec}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
      * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
@@ -111,6 +111,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
+        keys.addAll(PartitionSpec.CONFIG_KEYS);
         keys.addAll(ExclusionConfig.CONFIG_KEYS);
         keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);

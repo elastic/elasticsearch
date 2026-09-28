@@ -731,6 +731,39 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A {@code partition_spec} year-IN projection is a normal listing hint. A multi-value
+     * hint leaves {@code key=*}; the expander does not invent a month IN list either.
+     */
+    public void testRewriteGlobWithProjectedYearInFromPartitionSpec() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant start = Instant.parse("2024-03-15T00:00:00Z");
+        Instant end = Instant.parse("2026-01-01T00:00:00Z");
+        var hints = spec.projectListingHints(
+            List.of(
+                hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
+            )
+        );
+        assertEquals(
+            List.of(
+                hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end),
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024, 2025))
+            ),
+            hints
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=*/month=*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobWithIdentityRemapFromPartitionSpec() {
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region");
+        var hints = spec.projectListingHints(List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu")));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/aws-region=*/*.parquet", hints);
+        assertEquals("s3://bucket/aws-region=eu/*.parquet", rewritten);
+    }
+
+    /**
      * A multi-value hint leaves {@code key=*}. Zero-padded folders ({@code month=06}) are kept by the value filter,
      * not by a brace of guessed spellings.
      */

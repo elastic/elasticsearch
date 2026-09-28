@@ -1994,6 +1994,18 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         );
     }
 
+    /**
+     * Whether a def call to {@code methodName} with {@code argumentCount} arguments must pass the script instance: some
+     * allowlisted method of that shape is {@code @script_aware}, or, with tracking on, {@code @allocates}. The receiver is
+     * unknown here, so this goes by name and arity.
+     */
+    protected static boolean defCallNeedsScript(ScriptScope scriptScope, String methodName, int argumentCount) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, methodName, argumentCount));
+    }
+
     @Override
     public void visitCall(ECall userCallNode, ScriptScope scriptScope) {
         ExpressionNode irExpressionNode;
@@ -2010,15 +2022,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
-            // Push the script receiver (the 'S' recipe) when the target might be @script_aware (cancellation) or, with tracking
-            // on, @allocates — the bootstrap needs it to poll/charge. Receiver-independent name/arity checks.
-            PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
-            String methodName = userCallNode.getMethodName();
-            int argumentCount = userCallNode.getArgumentNodes().size();
-            boolean pushScriptThis = painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
-                || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
-                    && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, methodName, argumentCount));
-            if (pushScriptThis) {
+            if (defCallNeedsScript(scriptScope, userCallNode.getMethodName(), userCallNode.getArgumentNodes().size())) {
                 irCallSubDefNode.attachCondition(IRCScriptAware.class);
             }
             irExpressionNode = irCallSubDefNode;

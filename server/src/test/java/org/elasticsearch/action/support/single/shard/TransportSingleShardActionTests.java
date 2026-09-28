@@ -10,9 +10,11 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -29,6 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -62,6 +67,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,6 +96,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportSingleShardActionTests.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node")).build())
             .metadata(new Metadata.Builder().put(project))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(settings);
@@ -222,6 +229,43 @@ public class TransportSingleShardActionTests extends ESTestCase {
         action.execute(null, new TestNonRetryableRequest().index("index"), result);
         // No retries since the request opted out of them.
         assertThrows(StaleRequestException.class, () -> result.actionGet(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+    }
+
+    public void testRoutingWithoutNodeId() {
+        var action = new TestTransportSingleShardAction<TestRequest>(threadPool, clusterService, transportService, projectResolver) {
+            @Override
+            protected ShardsIterator shards(
+                ProjectState state,
+                TransportSingleShardAction<TestRequest, TestResponse>.InternalRequest request
+            ) {
+                final var shardRouting = ShardRouting.newUnassigned(
+                    new ShardId("index", "uuid", 0),
+                    true,
+                    RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+                    buildUnassignedInfo("unassigned"),
+                    ShardRouting.Role.DEFAULT,
+                    ShardRouting.RecoveryPriority.UNKNOWN
+                );
+                return new PlainShardsIterator(List.of(shardRouting));
+            }
+        };
+
+        var request = new TestRequest().index("index");
+        var assertingListener = new ActionListener<TestResponse>() {
+            @Override
+            public void onResponse(TestResponse testResponse) {
+                fail("The operation should fail");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(
+                    "Expected NoShardAvailableActionException but got " + e.getClass().getName(),
+                    e instanceof NoShardAvailableActionException
+                );
+            }
+        };
+        action.execute(null, request, assertingListener);
     }
 
     static class TestRequest extends SingleShardRequest<TestRequest> implements RetryableSplitAwareRequest {

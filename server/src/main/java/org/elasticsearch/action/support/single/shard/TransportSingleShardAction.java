@@ -233,7 +233,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 return;
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();
-            if (shardRouting == null) {
+            if (shardRouting == null || shardRouting.currentNodeId() == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
                     failure = new NoShardAvailableActionException(

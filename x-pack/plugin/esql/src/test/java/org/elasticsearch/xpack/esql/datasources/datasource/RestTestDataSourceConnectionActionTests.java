@@ -15,12 +15,17 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class RestTestDataSourceConnectionActionTests extends ESTestCase {
 
-    public void testSupportedCapabilitiesIncludeTestConnection() {
+    public void testSupportedCapabilitiesRespectTestConnectionFeatureFlag() {
         RestTestDataSourceConnectionAction action = new RestTestDataSourceConnectionAction(Set.of());
-        assertThat(action.supportedCapabilities(), hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION));
+        if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+            assertThat(action.supportedCapabilities(), hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION));
+        } else {
+            assertThat(action.supportedCapabilities(), not(hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION)));
+        }
     }
 
     public void testGetFilteredFieldsEmpty() {

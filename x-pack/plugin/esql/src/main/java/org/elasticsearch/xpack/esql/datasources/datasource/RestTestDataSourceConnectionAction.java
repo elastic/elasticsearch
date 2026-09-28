@@ -91,10 +91,12 @@ public class RestTestDataSourceConnectionAction extends BaseRestHandler implemen
             Set.of(
                 EsqlDataSourcesCapabilities.DATA_SOURCES,
                 EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-                EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION,
                 EsqlDataSourcesCapabilities.EXTERNAL_DATASET_MESSAGES
             )
         );
+        if (ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+            caps.add(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION);
+        }
         if (LOCAL_TYPE_FLAG.isEnabled()) {
             caps.add(EsqlDataSourcesCapabilities.DATA_SOURCE_LOCAL_TYPE);
         }

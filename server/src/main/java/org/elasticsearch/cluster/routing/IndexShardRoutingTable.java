@@ -401,7 +401,7 @@ public class IndexShardRoutingTable {
      * Returns an iterator only on the primary shard.
      */
     public ShardIterator primaryShardIt() {
-        if (primary != null) {
+        if (primary != null && primary.assignedToNode()) {
             return new ShardIterator(shardId, Collections.singletonList(primary));
         }
         return new ShardIterator(shardId, Collections.emptyList());

@@ -583,7 +583,8 @@ public class Verifier {
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
                             + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof ViewUnionAll || p instanceof NamedSubquery ? "VIEW"
+                            : p instanceof ViewUnionAll ? "ViewUnionAll"
+                            : p instanceof NamedSubquery ? "NamedSubquery"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
                     )

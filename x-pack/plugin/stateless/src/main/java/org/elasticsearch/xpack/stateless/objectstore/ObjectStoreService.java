@@ -114,9 +114,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -909,7 +909,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -942,7 +942,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1482,16 +1482,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
-
-    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "found latest CC in [{}]: {}",
-                blobContainer.path().buildAsString(),
-                latestBcc.lastCompoundCommit().toLongDescription()
-            );
-        }
-    }
 
     /**
      * Abstract class for commit and files upload tasks.

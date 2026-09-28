@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verify;
 
 public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
-    private static final List<String> ALLOWED_FIELDS = List.of("username", "roles", "enabled");
+    private static final List<String> ALLOWED_FIELDS = List.of("username", "roles", "enabled", "description");
 
     public void testANullQuerySelectsEveryServiceAccountDocument() {
         final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(null);

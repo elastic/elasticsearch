@@ -106,10 +106,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> run(request, TimeValue.timeValueMinutes(2)).close());
             String trace = ExceptionsHelper.stackTrace(e);
-            assertTrue(
-                "strict policy must hard-fail on the cap-hit, got: " + trace,
-                trace.contains("record exceeded external_max_record_size")
-            );
+            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeds [1mb]"));
         } finally {
             Files.deleteIfExists(file);
         }
@@ -170,7 +167,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             assertThat("non-strict read must return only the rows parsed before the cap-hit", count.get(), equalTo((long) LEADING_ROWS));
             assertTrue(
                 "client must receive a prominent partial-results truncation Warning, got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("truncated at byte"))
+                warnings.stream().anyMatch(w -> w.contains("Record in [") && w.contains("; results are partial"))
             );
             assertTrue("a truncated lenient read must flip the response is_partial flag", partial.get());
         } finally {

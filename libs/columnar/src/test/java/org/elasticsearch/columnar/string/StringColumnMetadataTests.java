@@ -87,16 +87,43 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * A column whose every slot is null holds no value to measure, so both lengths are the absent {@code -1}
+     * and are written and read as such rather than as a length of zero.
+     */
+    public void testNullSlotsHaveNoLengths() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(1, 200)][];
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            docSlots[doc] = new BytesRef[between(1, 3)];
+        }
+        withColumn(docSlots, (metadata, reader) -> {
+            assertEquals("no shortest value", -1, metadata.minLength());
+            assertEquals("no longest value", -1, metadata.maxLength());
+            assertEquals("every slot is null", numValues(docSlots), metadata.numNullSlots());
+            assertRoundTrips(metadata, docSlots.length);
+        });
+    }
+
     private static void assertRoundTrips(StringColumnMetadata metadata, int maxDoc) throws IOException {
         final StringColumnMetadata read = roundTrip(metadata, maxDoc);
         assertEquals("numDocsWithField", metadata.numDocsWithField(), read.numDocsWithField());
         assertEquals("numValues", metadata.numValues(), read.numValues());
         assertEquals("numNullSlots", metadata.numNullSlots(), read.numNullSlots());
         assertEquals("valueBytes", metadata.valueBytes(), read.valueBytes());
+        assertEquals("minLength", metadata.minLength(), read.minLength());
+        assertEquals("maxLength", metadata.maxLength(), read.maxLength());
         assertEquals("layout", metadata.layout(), read.layout());
-        assertEquals("stream values", plainOf(metadata).values().numValues(), plainOf(read).values().numValues());
+        assertEquals("stored values", plainOf(metadata).values().numValues(), plainOf(read).values().numValues());
         assertEquals("values per block", plainOf(metadata).values().valuesPerBlock(), plainOf(read).values().valuesPerBlock());
-        assertEquals("stream value bytes", plainOf(metadata).values().valueBytes(), plainOf(read).values().valueBytes());
+        assertEquals("constant length", plainOf(metadata).values().constantLength(), plainOf(read).values().constantLength());
+        if (plainOf(metadata).values().constant() == false) {
+            assertEquals(
+                "lengths per block",
+                plainOf(metadata).values().lengths().blockSize(),
+                plainOf(read).values().lengths().blockSize()
+            );
+            assertTableRoundTrips("value starts", plainOf(metadata).values().starts(), plainOf(read).values().starts());
+        }
         assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
         assertEquals("has value addresses", metadata.hasValueAddresses(), read.hasValueAddresses());
         assertEquals("has null slots", metadata.hasNullSlots(), read.hasNullSlots());
@@ -104,10 +131,6 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             assertTableRoundTrips("addressing bases", metadata.addressing().bases(), read.addressing().bases());
             assertEquals("addressing counts", metadata.addressing().counts().numValues(), read.addressing().counts().numValues());
             assertEquals("addressing counts per block", metadata.addressing().counts().blockSize(), read.addressing().counts().blockSize());
-        }
-        // Only a plain column keeps a null-slot table; a dictionary names its nulls with an ordinal.
-        if (metadata instanceof StringColumnMetadata.Plain written) {
-            assertTableRoundTrips("null slots", written.nullSlots(), ((StringColumnMetadata.Plain) read).nullSlots());
         }
     }
 

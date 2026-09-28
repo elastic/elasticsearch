@@ -118,17 +118,18 @@ public final class ShardBatchMapper {
             return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
-            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
-                logger.debug(
-                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
-                    mapper.typeName()
-                );
-                return null;
-            }
+        final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+
+        // An empty metadata mapper array means the index has not yet received its first mapping — the
+        // initial cluster-state mapping was null, so MapperService.mappingLookup() returned EMPTY. We
+        // cannot determine columnar eligibility without metadata mappers (e.g. SourceFieldMapper governs
+        // whether stored _source is compatible), so fall back to the sequential path.
+        if (metadataMappers.length == 0) {
+            logger.debug("batch indexing disabled: mapping not yet established (no metadata mappers)");
+            return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+        for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",

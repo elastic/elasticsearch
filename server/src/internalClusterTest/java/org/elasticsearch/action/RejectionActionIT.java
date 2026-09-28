@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -256,25 +255,5 @@ public class RejectionActionIT extends ESIntegTestCase {
                 });
             }
         }
-    }
-
-    private void dumpStuckSearchDiagnostics() {
-        StringBuilder sb = new StringBuilder();
-        var threadBean = ManagementFactory.getThreadMXBean();
-        sb.append("thread dump:\n");
-        for (var info : threadBean.dumpAllThreads(true, true)) {
-            sb.append(Strings.format("[%s]: %s\n", info.getThreadName(), info.getThreadState()));
-            if (info.getLockInfo() != null) {
-                sb.append(Strings.format(" waiting on %s", info.getLockInfo()));
-                if (info.getLockOwnerName() != null) {
-                    sb.append(Strings.format(" held by [%s]", info.getLockOwnerName()));
-                }
-            }
-            sb.append('\n');
-            for (var frame : info.getStackTrace()) {
-                sb.append("\tat ").append(frame).append('\n');
-            }
-        }
-        assertThat(responses.size(), equalTo(numberOfAsyncOps));
     }
 }

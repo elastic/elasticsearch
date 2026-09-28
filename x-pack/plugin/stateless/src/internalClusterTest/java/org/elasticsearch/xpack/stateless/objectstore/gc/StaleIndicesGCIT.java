@@ -64,8 +64,8 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final TimeValue GC_INTERVAL = TimeValue.timeValueSeconds(1);
 
-    /// How long to wait when asserting that the GC did *not* delete something. Such an assertion can only be made after giving the GC
-    /// loop a chance to run, so it is expressed as a small multiple of [#GC_INTERVAL] rather than an arbitrary duration.
+    /// How long to wait when asserting that the GC did *not* delete something. Such an assertion can only be made after giving the GC loop
+    /// a chance to run, so it is expressed as a small multiple of [#GC_INTERVAL] rather than an arbitrary duration.
     private static final long SEVERAL_GC_INTERVALS = 3 * GC_INTERVAL.millis();
 
     @Override
@@ -84,13 +84,13 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
             .put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), GC_INTERVAL);
     }
 
-    /// Most tests here pin their indices to a single index node with `index.routing.allocation.require._name` and then stop that
-    /// node, so when the test ends some primaries can never be assigned again.
+    /// Most tests here pin their indices to a single index node with `index.routing.allocation.require._name` and then stop that node, so
+    /// when the test ends some primaries can never be assigned again.
     ///
-    /// [AbstractStatelessPluginIntegTestCase#beforeIndexDeletion] flushes *every* index to release commits held by the current
-    /// VBCC, and a flush against an unassigned primary does not give up until the timeout (one minute by default) has elapsed.
-    /// That stall dominated the runtime of this suite. An unassigned shard has no engine and therefore holds no commit, so
-    /// restricting the flush to indices whose primaries are assigned releases exactly the same commits without the wait.
+    /// [AbstractStatelessPluginIntegTestCase#beforeIndexDeletion] flushes *every* index to release commits held by the current VBCC, and a
+    /// flush against an unassigned primary does not give up until the timeout (one minute by default) has elapsed. That stall dominated the
+    /// runtime of this suite. An unassigned shard has no engine and therefore holds no commit, so restricting the flush to indices whose
+    /// primaries are assigned releases exactly the same commits without the wait.
     @Override
     protected void beforeIndexDeletion() throws Exception {
         if (internalCluster().size() > 0) {

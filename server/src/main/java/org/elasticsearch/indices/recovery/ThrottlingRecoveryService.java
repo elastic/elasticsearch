@@ -56,29 +56,28 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
-/// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
-/// released when the recovery's [RecoveryListener] completes.
-/// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-/// dynamic setting. [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] then controls the max proportion
-/// of those concurrent recovery slots that may be used for relocation recoveries.
+/// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and released when the
+/// recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled by the
+/// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
+/// [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] then controls the max proportion of those concurrent recovery
+/// slots that may be used for relocation recoveries.
 ///
-/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
-/// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
+/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots] registers a
+/// listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
-    /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
-    /// Includes both recoveries of unassigned shards and relocations.
+    /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this node is the
+    /// source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both recoveries of
+    /// unassigned shards and relocations.
     ///
     /// Note that the effective max concurrent recoveries limit also takes into account the below heap setting throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries
-    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
-    /// See [RecoveriesThrottle].
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries is then
+    /// `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`. See [RecoveriesThrottle].
     ///
-    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
-    /// throttle on relocations only.
+    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional throttle on
+    /// relocations only.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_incoming_recoveries",
@@ -89,18 +88,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Setting.Property.NodeScope
     );
 
-    /// Controls the heap-based limit on concurrent incoming recoveries. Excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
-    /// Includes both recoveries of unassigned shards and relocations. Must be strictly positive: 0 is disallowed
-    /// (consistent with the minimum of the other recovery throttle settings in [ThrottlingRecoveryService]).
+    /// Controls the heap-based limit on concurrent incoming recoveries. Excludes peer recoveries for which this node is the source, see
+    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both recoveries of unassigned
+    /// shards and relocations. Must be strictly positive: 0 is disallowed (consistent with the minimum of the other recovery throttle
+    /// settings in [ThrottlingRecoveryService]).
     ///
     /// Note that the effective max concurrent recoveries limit also takes into account the above static throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The effective max concurrent recoveries
-    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
-    /// See [RecoveriesThrottle].
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The effective max concurrent recoveries is then
+    /// `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`. See [RecoveriesThrottle].
     ///
-    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
-    /// throttle on relocations only.
+    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional throttle on
+    /// relocations only.
     ///
     public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
         "indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb",
@@ -110,12 +108,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Setting.Property.NodeScope
     );
 
-    /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for relocation recoveries.
-    /// The max allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-    /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. See [RecoveriesThrottle].
+    /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for relocation recoveries. The max
+    /// allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] and
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. See [RecoveriesThrottle].
     ///
-    /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
-    /// the other recovery throttle settings in [ThrottlingRecoveryService]).
+    /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of the other recovery
+    /// throttle settings in [ThrottlingRecoveryService]).
     ///
     public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.incoming_recoveries_max_relocation_proportion",
@@ -144,9 +142,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
     private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
-    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
-    /// already started (i.e. are not in [#pendingRecoveries]).
-    /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
+    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have already started
+    /// (i.e. are not in [#pendingRecoveries]). Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or
+    /// its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     public ThrottlingRecoveryService(
@@ -249,9 +247,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// Cancels recoveries matching the provided allocation ID batch.
     ///
-    /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it.
-    /// Any matching entries already in the pending queue are immediately notified via `onRecoveryFailure`
-    /// (with `sendShardFailure=false`, since the master is informed through the action response).
+    /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it. Any matching entries
+    /// already in the pending queue are immediately notified via `onRecoveryFailure` (with `sendShardFailure=false`, since the master is
+    /// informed through the action response).
     ///
     /// Returns the set of allocation IDs that were found and removed from the pending queue.
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
@@ -290,9 +288,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return cancelledInQueue;
     }
 
-    /// Prunes queued recoveries and remembered direct-cancellation requests that have been rendered stale by this
-    /// cluster state update, i.e. the shard is no longer assigned to this node under the allocation ID it was
-    /// queued or cancelled for (it was reallocated elsewhere, unassigned, or this node has left the cluster entirely).
+    /// Prunes queued recoveries and remembered direct-cancellation requests that have been rendered stale by this cluster state update,
+    /// i.e. the shard is no longer assigned to this node under the allocation ID it was queued or cancelled for (it was reallocated
+    /// elsewhere, unassigned, or this node has left the cluster entirely).
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
@@ -402,8 +400,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return blockedState.get() != null;
     }
 
-    /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
-    /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
+    /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so dispatch
+    /// is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
         if (isBlocked()) {
             return;
@@ -465,8 +463,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
     }
 
-    /// Handles a blocked decision observed by [#fillSlots]: a transition into blocked state reports the block and registers a
-    /// callback that resumes dispatch once the gates allow recoveries again.
+    /// Handles a blocked decision observed by [#fillSlots]: a transition into blocked state reports the block and registers a callback that
+    /// resumes dispatch once the gates allow recoveries again.
     private void onRecoveriesBlocked(RecoveryGate.Decision decision) {
         assert decision.mayRun() == false;
         if (isClosed()) {
@@ -566,9 +564,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return threadContext.wrapRestorable(context.get());
     }
 
-    /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
-    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
-    /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken.
+    /// Metadata holder for a recovery that has been enqueued but not yet dispatched. The `listener` is the one passed in to [#enqueue] by
+    /// indicesServices. Slot-release and other wrappers are added at dispatch time, such that aborting a queued-but-never-dispatched task
+    /// does not decrement a slot that was never taken.
     private record PendingRecovery(
         IndexShard indexShard,
         IndexMetadata indexMetadata,
@@ -579,9 +577,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Returns the [RecoveryState] for the shard to be recovered.
         ///
-        /// Note that, as long as [IndexShard#recoveryState()] returns a non-final field (and [RecoveryState#reset()] returns a new
-        /// instance) repeated calls to this method might return different instances. Therefore, callers should not hang onto the value for
-        /// a long time if they need a fresh value.
+        /// Note that, as long as [IndexShard#recoveryState()] returns a non-final field (and [RecoveryState#reset()] returns a new instance)
+        /// repeated calls to this method might return different instances. Therefore, callers should not hang onto the value for a long time
+        /// if they need a fresh value.
         RecoveryState recoveryState() {
             return indexShard.recoveryState();
         }
@@ -615,32 +613,30 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
     }
 
-    /// Helper class which manages throttling the number of running recoveries.
-    /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
+    /// Helper class which manages throttling the number of running recoveries. Not thread-safe. All access must be performed while holding
+    /// the enclosing [ThrottlingRecoveryService] instance lock.
     private static class RecoveriesThrottle {
 
         /// The node's max heap, used to compute the heap-based throttling limit.
         private final ByteSizeValue maxHeap;
 
-        /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).
-        /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
-        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRecoveries] and takes into
-        /// account the heap-based [#maxConcurrentRecoveriesPerHeapGb] limit.
+        /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source). See
+        /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The actual enforced limit is computed via
+        /// [#effectiveMaxConcurrentRecoveries] and takes into account the heap-based [#maxConcurrentRecoveriesPerHeapGb] limit.
         private int maxConcurrentRecoveries;
 
-        /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source)
-        /// per heap (in GB) allocated to this node.
-        /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
-        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRecoveries] and takes into
-        /// account the static [#maxConcurrentRecoveries] limit.
+        /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source) per heap
+        /// (in GB) allocated to this node. See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The actual
+        /// enforced limit is computed via [#effectiveMaxConcurrentRecoveries] and takes into account the static
+        /// [#maxConcurrentRecoveries] limit.
         private double maxConcurrentRecoveriesPerHeapGb;
 
-        /// The maximum proportion of [#effectiveMaxConcurrentRecoveries] slots that may be used for relocation recoveries.
-        /// See [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
+        /// The maximum proportion of [#effectiveMaxConcurrentRecoveries] slots that may be used for relocation recoveries. See
+        /// [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
         private double relocationRecoveriesMaxProportion;
 
-        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
-        /// not exceed [#effectiveMaxConcurrentRecoveries].
+        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must not exceed
+        /// [#effectiveMaxConcurrentRecoveries].
         private int runningRecoveries = 0;
 
         /// The number of concurrent relocation recoveries currently running.
@@ -650,8 +646,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             this.maxHeap = maxHeap;
         }
 
-        /// Returns the effective max concurrent relocation recoveries, derived from the provided
-        /// effectiveMaxConcurrentRecoveries and [#relocationRecoveriesMaxProportion].
+        /// Returns the effective max concurrent relocation recoveries, derived from the provided effectiveMaxConcurrentRecoveries and
+        /// [#relocationRecoveriesMaxProportion].
         private int effectiveMaxConcurrentRelocationRecoveries(int effectiveMaxConcurrentRecoveries) {
             return (int) Math.ceil(effectiveMaxConcurrentRecoveries * relocationRecoveriesMaxProportion);
         }
@@ -691,8 +687,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
     }
 
-    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `assertOnce` (to ensure there is only one terminal callback).
+    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped with `assertOnce`
+    /// (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final IndexShard indexShard;
         private final Consumer<RecoveryListener> task;
@@ -717,7 +713,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// The recovery gate blocking dispatch
     ///
-    /// @param gateName the name of the blocking gate
+    /// @param gateName            the name of the blocking gate
     /// @param sinceRelativeMillis the value of [ThreadPool#relativeTimeInMillis()] when blocking started
     public record BlockedState(String gateName, long sinceRelativeMillis) {}
 }

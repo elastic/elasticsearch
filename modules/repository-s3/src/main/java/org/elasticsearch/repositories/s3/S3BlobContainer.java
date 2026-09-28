@@ -295,8 +295,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     /// Attempt to abort the given MPU, logging any failures without throwing anything out of this method. Suitable for use when trying to
-    /// clean up a MPU because some earlier operation failed, because in a `finally` block or similar this will allow the original failure
-    /// to propagate.
+    /// clean up a MPU because some earlier operation failed, because in a `finally` block or similar this will allow the original failure to
+    /// propagate.
     ///
     /// @param uploadId identifies the multipart upload to abort; if blank (e.g. because the MPU succeeded) then this method is a no-op
     private void abortMultiPartUploadOnFailure(OperationPurpose purpose, String uploadId, String blobName) {

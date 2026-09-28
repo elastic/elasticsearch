@@ -708,21 +708,17 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             assertTrue("--> There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
         } finally {
             /// This is a workaround for assertion that `REQUEST` circuit breaker has outstanding bytes in
-            /// [InternalTestCluster#ensureEstimatedStats()].
-            /// Under disruption it is possible that shard fails in the middle of a bulk request.
-            /// In this case all successful writes so far are written to a [NodeTranslogBuffer.ShardBuffer].
-            /// But since the shard failed, translog can't be flushed after the bulk request is complete (the engine is closed in
-            /// [org.elasticsearch.index.shard.IndexShard#syncAfterWrite(Translog.Location, Consumer)]).
-            /// So the shard buffer remains open until the next translog flush when we would discover it corresponds to a closed shard
-            /// and discard it (in [NodeTranslogBuffer#complete(long, Collection)]).
-            /// However, if a node doesn't receive any other operations and time-based flush doesn't kick in until the test
-            /// completion, this won't happen.
-            /// This is fine from the correctness perspective since writes in the buffer were never acknowledged, and we'll clean up
-            /// this "garbage" buffer when the node is closed in [NodeTranslogBuffer#close()].
-            /// The problem is that [InternalTestCluster#ensureEstimatedStats()] runs _before_ the node is closed,
-            /// observes the state described above and says that there are outstanding bytes in the circuit breaker (there are).
-            /// We fix this by forcing a translog flush on every index node in the cluster using the trick below.
-            /// ¯\_(ツ)_/¯
+            /// [InternalTestCluster#ensureEstimatedStats()]. Under disruption it is possible that shard fails in the middle of a bulk
+            /// request. In this case all successful writes so far are written to a [NodeTranslogBuffer.ShardBuffer]. But since the shard
+            /// failed, translog can't be flushed after the bulk request is complete (the engine is closed in
+            /// [org.elasticsearch.index.shard.IndexShard#syncAfterWrite(Translog.Location, Consumer)]). So the shard buffer remains open
+            /// until the next translog flush when we would discover it corresponds to a closed shard and discard it (in
+            /// [NodeTranslogBuffer#complete(long, Collection)]). However, if a node doesn't receive any other operations and time-based
+            /// flush doesn't kick in until the test completion, this won't happen. This is fine from the correctness perspective since
+            /// writes in the buffer were never acknowledged, and we'll clean up this "garbage" buffer when the node is closed in
+            /// [NodeTranslogBuffer#close()]. The problem is that [InternalTestCluster#ensureEstimatedStats()] runs _before_ the node is
+            /// closed, observes the state described above and says that there are outstanding bytes in the circuit breaker (there are). We
+            /// fix this by forcing a translog flush on every index node in the cluster using the trick below. ¯\_(ツ)_/¯
 
             logger.info("--> Applying node translog flush");
             String cleanupIndexName = "cleanup";

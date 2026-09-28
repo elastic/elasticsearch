@@ -29,9 +29,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
-/// Transport action for listing all running reindex tasks.
-/// Delegates to {@link TransportListTasksAction} to fan out to all nodes (which handles deduplication if we list a non-relocated and
-/// relocated task), then filters for reindex parent tasks and rewrites task identity to reflect the original (pre-relocation) task.
+/// Transport action for listing all running reindex tasks. Delegates to {@link TransportListTasksAction} to fan out to all nodes (which
+/// handles deduplication if we list a non-relocated and relocated task), then filters for reindex parent tasks and rewrites task identity to
+/// reflect the original (pre-relocation) task.
 public class TransportListReindexAction extends HandledTransportAction<ListReindexRequest, ListReindexResponse> {
 
     public static final ActionType<ListReindexResponse> TYPE = new ActionType<>("cluster:monitor/reindex/list");

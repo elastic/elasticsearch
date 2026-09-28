@@ -45,11 +45,10 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/// Executor for the [ObjectStoreGCTask] persistent task. Registers itself as a [ClusterStateListener]
-/// and, once the cluster state is recovered and the local node is elected master, submits a start
-/// request to create the singleton GC task if one does not already exist. The task is then assigned
-/// to an index-role node via [#selectLeastLoadedNode] and runs indefinitely, recycling itself
-/// on a configurable interval (see `ObjectStoreGCTask#GC_INTERVAL_SETTING`).
+/// Executor for the [ObjectStoreGCTask] persistent task. Registers itself as a [ClusterStateListener] and, once the cluster state is
+/// recovered and the local node is elected master, submits a start request to create the singleton GC task if one does not already exist.
+/// The task is then assigned to an index-role node via [#selectLeastLoadedNode] and runs indefinitely, recycling itself on a configurable
+/// interval (see `ObjectStoreGCTask#GC_INTERVAL_SETTING`).
 public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams>
     implements
         ClusterStateListener {

@@ -316,8 +316,8 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         verify(cacheServiceA, never()).forceEvictAsync(ArgumentMatchers.any());
     }
 
-    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING] escape hatch is a
-    /// live no-op when flipped off, and takes effect again when flipped back on.
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING] escape hatch is a live
+    /// no-op when flipped off, and takes effect again when flipped back on.
     public void testDemotionOfClosedShardRegionsCanBeFlippedDynamically() throws Exception {
         final Settings cacheSettings = demoteClosedShardRegionsTestSettings();
         startMasterAndIndexNode(cacheSettings);
@@ -369,8 +369,8 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         assertBusy(() -> assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), equalTo(0L)));
     }
 
-    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING] escape hatch is a
-    /// live no-op when flipped off, and takes effect again when flipped back on.
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING] escape hatch is a live
+    /// no-op when flipped off, and takes effect again when flipped back on.
     public void testEvictionOfDeletedIndexRegionsCanBeFlippedDynamically() throws Exception {
         final Settings cacheSettings = evictDeletedIndexRegionsTestSettings();
         startMasterAndIndexNode(cacheSettings);
@@ -491,8 +491,8 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         return builder.build();
     }
 
-    /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on
-    /// the other search node has cached regions at a non-zero access frequency. Returns the shard id.
+    /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on the
+    /// other search node has cached regions at a non-zero access frequency. Returns the shard id.
     private ShardId createIndexWithPopulatedCacheExcludingNode(
         String indexName,
         String excludedSearchNode,

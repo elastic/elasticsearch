@@ -36,8 +36,8 @@ public class ShardRoutingHelper {
     }
 
     /// Returns a copy of the given [ShardRouting] with its [ShardRoutingState] set to [ShardRoutingState#INITIALIZING], its
-    /// [RecoverySource] set to the given value, and its [ShardRouting.RecoveryPriority], [UnassignedInfo], and [RelocationFailureInfo]
-    /// adjusted for consistency.
+    /// [RecoverySource] set to the given value, and its [ShardRouting.RecoveryPriority], [UnassignedInfo], and
+    /// [RelocationFailureInfo] adjusted for consistency.
     public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
         return new ShardRouting(
             copy.shardId(),

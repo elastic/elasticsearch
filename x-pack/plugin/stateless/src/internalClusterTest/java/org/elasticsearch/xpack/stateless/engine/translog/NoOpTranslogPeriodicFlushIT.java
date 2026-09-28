@@ -169,8 +169,8 @@ public class NoOpTranslogPeriodicFlushIT extends AbstractStatelessPluginIntegTes
     }
 
     /// Test [IndexEngine] for [NoOpTranslogPeriodicFlushIT]: simulates a non-tragic indexing failure by throwing
-    /// [UncategorizedExecutionException] from [Engine#acquireSearcher] when [InternalEngine] opens the internal
-    /// searcher whose `source` is `assert doc doesn't exist` (the path used around document-existence checks).
+    /// [UncategorizedExecutionException] from [Engine#acquireSearcher] when [InternalEngine] opens the internal searcher whose `source` is
+    /// `assert doc doesn't exist` (the path used around document-existence checks).
     ///
     /// Use [TestStatelessPlugin#FAIL_NEXT_ASSERT_DOC] to only throw once when requested, after which the flag is cleared.
     static final class FailingSearcherIndexEngine extends IndexEngine {

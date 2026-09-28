@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryReloc
 /// Carrier that lets Guice inject an optionally-present [StatelessPrimaryRelocationMetricsCollector] into transport actions that are
 /// instantiated on every node, such as [org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction].
 ///
-/// [StatelessPrimaryRelocationMetricsCollector] exists only on index nodes; search nodes do not have one.
-/// Because Guice cannot express optional bindings, this class acts as an indirection: the plugin
-/// registers it with a `null` collector on search nodes, and call sites unwrap the value via [#get()].
+/// [StatelessPrimaryRelocationMetricsCollector] exists only on index nodes; search nodes do not have one. Because Guice cannot express
+/// optional bindings, this class acts as an indirection: the plugin registers it with a `null` collector on search nodes, and call sites
+/// unwrap the value via [#get()].
 public class StatelessPrimaryRelocationMetricsCollectorProvider {
 
     private final StatelessPrimaryRelocationMetricsCollector instance;

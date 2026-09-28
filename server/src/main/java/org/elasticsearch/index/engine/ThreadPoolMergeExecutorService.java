@@ -61,23 +61,20 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.R
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 
-/// A node-level service that executes Lucene segment merge tasks submitted by per-shard [ThreadPoolMergeScheduler]
-/// instances.
+/// A node-level service that executes Lucene segment merge tasks submitted by per-shard [ThreadPoolMergeScheduler] instances.
 ///
-/// All merge work on a node goes through this single executor. The number of merges running in parallel across all
-/// shards is bounded by [#maxConcurrentMerges].
-/// An [adaptive rate][#newTargetIORateBytesPerSec(long, int, int, int)] is applied to merge I/O to avoid starving
-/// indexing or search. The [AvailableDiskSpacePeriodicMonitor] also periodically checks available disk space and
-/// the [MergeTaskPriorityBlockingQueue] will block new merges when the node approaches the
-/// `INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING` value.
+/// All merge work on a node goes through this single executor. The number of merges running in parallel across all shards is bounded by
+/// [#maxConcurrentMerges]. An [adaptive rate][#newTargetIORateBytesPerSec(long, int, int, int)] is applied to merge I/O to avoid starving
+/// indexing or search. The [AvailableDiskSpacePeriodicMonitor] also periodically checks available disk space and the
+/// [MergeTaskPriorityBlockingQueue] will block new merges when the node approaches the `INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING` value.
 ///
 /// @see ThreadPoolMergeScheduler
 ///
 public class ThreadPoolMergeExecutorService implements Closeable {
-    /// Factor applied to the default `merge` thread pool max size (which is the number of allocated processors on the node).
-    /// Values in `(0.0, 1.0]` reduce the number of merges that may run concurrently on the node, which lowers peak merge heap
-    /// usage (e.g. when merging large HNSW vector graphs) at the cost of merge throughput. The resulting max size is rounded to the
-    /// nearest integer and floored to at least 1, and never exceeds the number of allocated processors.
+    /// Factor applied to the default `merge` thread pool max size (which is the number of allocated processors on the node). Values in
+    /// `(0.0, 1.0]` reduce the number of merges that may run concurrently on the node, which lowers peak merge heap usage (e.g. when merging
+    /// large HNSW vector graphs) at the cost of merge throughput. The resulting max size is rounded to the nearest integer and floored to at
+    /// least 1, and never exceeds the number of allocated processors.
     ///
     /// This is intended as a mitigation knob for nodes prone to running out of memory during concurrent merges. It is node-scoped and
     /// non-dynamic: the merge thread pool is sized once at node start, so changes take effect only on restart. An explicitly configured

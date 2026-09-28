@@ -163,8 +163,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             : Set.of(randomProjectIdOrDefault());
     }
 
-    /// Available shards keep the indicator green. Relocating shards are still considered available and are counted
-    /// in the started_* detail fields together with fully started shards.
+    /// Available shards keep the indicator green. Relocating shards are still considered available and are counted in the started_* detail
+    /// fields together with fully started shards.
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStartedOrRelocating() {
         var clusterState = clusterStateWith(
             () -> List.of(
@@ -929,9 +929,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART
-    /// shutdown allocation delay is still running. Without a matching RESTART shutdown for that node, the indicator
-    /// treats the shard as unavailable instead of restarting.
+    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART shutdown allocation
+    /// delay is still running. Without a matching RESTART shutdown for that node, the indicator treats the shard as unavailable instead
+    /// of restarting.
     public void testRestartingPrimaryHasNoMatchingRestartShutdown() {
         final var clusterState = clusterStateWith(
             () -> List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.nanoTime()))),
@@ -968,9 +968,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART
-    /// shutdown allocation delay is still running. Without a matching RESTART shutdown for that node, the indicator
-    /// treats the shard as unavailable instead of restarting. An unavailable replica turns the indicator yellow.
+    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART shutdown allocation
+    /// delay is still running. Without a matching RESTART shutdown for that node, the indicator treats the shard as unavailable instead of
+    /// restarting. An unavailable replica turns the indicator yellow.
     public void testRestartingReplicaHasNoMatchingRestartShutdown() {
         final var clusterState = clusterStateWith(
             () -> List.of(
@@ -1241,9 +1241,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A primary shard that became inactive only moments ago is usually given a short grace period before the
-    /// health indicator turns red. That grace period does not apply when the last allocation status is DECIDERS_NO.
-    /// In that case the indicator reports red immediately.
+    /// A primary shard that became inactive only moments ago is usually given a short grace period before the health indicator turns red.
+    /// That grace period does not apply when the last allocation status is DECIDERS_NO. In that case the indicator reports red immediately.
     public void testShouldBeRedWhenPrimaryAllocationFailureBlocksGracePeriod() {
         final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
@@ -1297,9 +1296,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A replica shard that became inactive only moments ago is usually given a short grace period before the
-    /// health indicator turns yellow. That grace period does not apply when the last allocation status is DECIDERS_NO.
-    /// In that case the indicator reports yellow immediately.
+    /// A replica shard that became inactive only moments ago is usually given a short grace period before the health indicator turns
+    /// yellow. That grace period does not apply when the last allocation status is DECIDERS_NO. In that case the indicator reports
+    /// yellow immediately.
     public void testShouldBeYellowWhenReplicaAllocationFailureBlocksGracePeriod() {
         final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
@@ -1356,8 +1355,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}).
-    /// Direct cancellation is still disabled by default.
+    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}). Direct
+    /// cancellation is still disabled by default.
     public void testRecoveryCancelledPrimaryGracePeriodBehavior() {
         final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
@@ -1535,9 +1534,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
-    /// An inactive shard with no unassigned info cannot use the grace period, because the indicator has no way to
-    /// tell when the shard became inactive or why. Relocating replicas initialize on the destination node in that
-    /// state. Even with a non-zero grace buffer, the indicator reports yellow immediately for such a replica.
+    /// An inactive shard with no unassigned info cannot use the grace period, because the indicator has no way to tell when the shard
+    /// became inactive or why. Relocating replicas initialize on the destination node in that state. Even with a non-zero grace buffer, the
+    /// indicator reports yellow immediately for such a replica.
     public void testShouldBeYellowWhenReplicaMissingUnassignedInfo() {
         final var indexName = randomIndexName();
         Map<ProjectId, List<IndexMetadata>> metadata = new HashMap<>();

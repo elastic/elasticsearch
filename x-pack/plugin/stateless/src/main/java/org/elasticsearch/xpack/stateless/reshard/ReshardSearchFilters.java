@@ -218,9 +218,9 @@ public final class ReshardSearchFilters implements Closeable {
         IndexReshardingMetadata reshardingMetadata
     ) {
         if (summary.equals(SplitShardCountSummary.UNSET)) {
-            /// See ES-13108 to track injecting the summary at each call site that must provide it.
-            /// In the meantime we default to not filtering if the summary is not provided. This
-            /// isn't always correct, hence the ticket. The end state should be to remove this check.
+            /// See ES-13108 to track injecting the summary at each call site that must provide it. In the meantime we default to not
+            /// filtering if the summary is not provided. This isn't always correct, hence the ticket. The end state should be to remove
+            /// this check.
             return false;
         }
 
@@ -231,10 +231,9 @@ public final class ReshardSearchFilters implements Closeable {
 
         var decision = summary.check(numberOfShards, reshardingMetadata);
         return switch (decision) {
-            /// If the provided summary is older, then the request was only sent to the source shard
-            /// and therefore should not be filtered.
-            /// However, the request can be so stale that we would not have enough data to serve it after cleaning up
-            /// unowned data. In that case we have to fail the request.
+            /// If the provided summary is older, then the request was only sent to the source shard and therefore should not be filtered.
+            /// However, the request can be so stale that we would not have enough data to serve it after cleaning up unowned data. In that
+            /// case we have to fail the request.
             case OLDER -> {
                 assert reshardingMetadata != null;
                 assert reshardingMetadata.isSplit();
@@ -245,14 +244,14 @@ public final class ReshardSearchFilters implements Closeable {
                 assert split.isTargetShard(shardId.id()) == false : "Received a search request with stale summary on the search shard";
 
                 if (split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP)) {
-                    /// The grace period to drain queued search requests has passed but we still received this stale search request.
-                    /// We have to reject it since we are about to delete unowned data which
-                    /// would make such requests impossible to fulfill (we simply won't have the data).
+                    /// The grace period to drain queued search requests has passed but we still received this stale search request. We have
+                    /// to reject it since we are about to delete unowned data which would make such requests impossible to fulfill (we
+                    /// simply won't have the data).
                     throw new StaleRequestException(shardId, summary);
                 }
 
-                /// Otherwise we are in the middle of a split and received a request that was not routed to the target shard.
-                /// We should return the entirety of the source shard data.
+                /// Otherwise we are in the middle of a split and received a request that was not routed to the target shard. We should
+                /// return the entirety of the source shard data.
                 yield false;
             }
             case CURRENT -> {
@@ -268,12 +267,12 @@ public final class ReshardSearchFilters implements Closeable {
                 IndexReshardingState.Split split = reshardingMetadata.getSplit();
 
                 if (split.isTargetShard(shardId.id())) {
-                    /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
-                    /// So at this point we know that there is no unowned data and we can skip filters as an optimization.
+                    /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE. So at this point
+                    /// we know that there is no unowned data and we can skip filters as an optimization.
                     yield split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
                 } else {
-                    /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering
-                    /// if the shard is DONE as an optimization.
+                    /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering if the shard is DONE
+                    /// as an optimization.
                     yield split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
                 }
             }

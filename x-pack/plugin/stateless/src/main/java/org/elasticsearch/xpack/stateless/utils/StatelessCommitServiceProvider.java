@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 /// Carrier that lets Guice inject an optionally-present [StatelessCommitService] into transport actions that are instantiated on every
 /// node, such as [org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction].
 ///
-/// [StatelessCommitService] exists only on index nodes; search nodes do not have one.
-/// Because Guice cannot express optional bindings, this class acts as an indirection: the plugin
-/// registers it with a `null` commit service on search nodes, and call sites unwrap the value via [#get()].
+/// [StatelessCommitService] exists only on index nodes; search nodes do not have one. Because Guice cannot express optional bindings, this
+/// class acts as an indirection: the plugin registers it with a `null` commit service on search nodes, and call sites unwrap the value via
+/// [#get()].
 public class StatelessCommitServiceProvider {
 
     private final StatelessCommitService instance;

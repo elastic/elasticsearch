@@ -103,8 +103,8 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             .put(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), REGION_SIZE);
     }
 
-    /// Indexes several flushes (each its own multi-region BCC blob, kept referenced by disabling merges) and verifies that a search
-    /// shard recovery backfills the cache-region timestamps of the BCC blobs it reads: every metadata read first stamps regions with
+    /// Indexes several flushes (each its own multi-region BCC blob, kept referenced by disabling merges) and verifies that a search shard
+    /// recovery backfills the cache-region timestamps of the BCC blobs it reads: every metadata read first stamps regions with
     /// `BACKFILL_IN_PROGRESS_TIMESTAMP` and the backfill then resolves them to the blob's real data timestamp.
     public void testSearchShardRecoveryBackfillsMetadataReadRegions() throws Exception {
         var indexNode = startMasterAndIndexNode();
@@ -156,10 +156,10 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         });
     }
 
-    /// Packs three compound commits with *mixed* `@timestamp` values into a single BCC blob and verifies that a search-shard recovery
-    /// folds that blob to a single timestamp: the most recent known cache midpoint across its compound commits. The commit without a
-    /// `@timestamp` value (UNKNOWN midpoint) and the older timestamped commit must both inherit the most recent commit's timestamp, never
-    /// dragging the blob's regions to UNKNOWN.
+    /// Packs three compound commits with *mixed* `@timestamp` values into a single BCC blob and verifies that a search-shard recovery folds
+    /// that blob to a single timestamp: the most recent known cache midpoint across its compound commits. The commit without a `@timestamp`
+    /// value (UNKNOWN midpoint) and the older timestamped commit must both inherit the most recent commit's timestamp, never dragging the
+    /// blob's regions to UNKNOWN.
     public void testRecoveryBackfillsMultiCcBlobWithSingleMostRecentTimestamp() throws Exception {
         var indexNode = startMasterAndIndexNode(
             Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 3).build()
@@ -257,8 +257,8 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         });
     }
 
-    /// Non-time-based indices (no `@timestamp` mapping) stamp metadata-read regions with `UNKNOWN_TIMESTAMP` and never
-    /// backfill them to a real data timestamp.
+    /// Non-time-based indices (no `@timestamp` mapping) stamp metadata-read regions with `UNKNOWN_TIMESTAMP` and never backfill them to a
+    /// real data timestamp.
     public void testSearchShardRecoveryLeavesNonTimeBasedRegionsUnknown() throws Exception {
         var indexNode = startMasterAndIndexNode();
         var indexName = randomIdentifier();

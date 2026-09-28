@@ -554,8 +554,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     /// Serializes a [ShardRouting.RecoveryPriority] using a [TransportVersion] from before the introduction of
-    /// [ShardRouting.RecoveryPriority#UNKNOWN] and [ShardRouting.RecoveryPriority#UNASSIGNED_NEW_PRIMARY], deserializes them the way that
-    /// we used to before that change to get a [LegacyRecoveryPriority], and assert that it is the equivalent or closest value.
+    /// [ShardRouting.RecoveryPriority#UNKNOWN] and [ShardRouting.RecoveryPriority#UNASSIGNED_NEW_PRIMARY], deserializes them the way that we
+    /// used to before that change to get a [LegacyRecoveryPriority], and assert that it is the equivalent or closest value.
     public void testRecoveryPrioritySerialization_legacyReader() throws IOException {
         for (ShardRouting.RecoveryPriority originalPriority : ShardRouting.RecoveryPriority.values()) {
             TransportVersion version = ShardRouting.RECOVERY_PRIORITY_TRANSPORT_VERSION;

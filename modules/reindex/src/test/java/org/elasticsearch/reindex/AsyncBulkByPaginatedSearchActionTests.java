@@ -1668,8 +1668,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
-    /// PIT pagination tracks accurately on the first batch only, then disables tracking on follow-ups while still
-    /// reporting the cached total in the response.
+    /// PIT pagination tracks accurately on the first batch only, then disables tracking on follow-ups while still reporting the cached
+    /// total in the response.
     public void testPitPaginatedHitSourceCachesTotalAndDisablesTrackOnSubsequentBatches() {
         configurePitOrScroll(true);
         SearchRequest preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(

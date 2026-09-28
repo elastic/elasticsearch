@@ -5435,12 +5435,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     /// Races index deletion and re-creation against an in-flight reshard.
     ///
-    /// An interrupted reshard can leave blobs behind for the target shard. That is accepted, provided they are eventually reclaimed by
-    /// the periodic stale-index GC, so this test asserts only the properties that have to hold: the delete is acknowledged, the index
-    /// name is immediately reusable, and the deleted index's whole `indices/<uuid>` prefix eventually disappears from the object store.
+    /// An interrupted reshard can leave blobs behind for the target shard. That is accepted, provided they are eventually reclaimed by the
+    /// periodic stale-index GC, so this test asserts only the properties that have to hold: the delete is acknowledged, the index name is
+    /// immediately reusable, and the deleted index's whole `indices/<uuid>` prefix eventually disappears from the object store.
     ///
-    /// Several indices do this concurrently, each deleting as soon as its split reaches a randomly chosen phase, so different seeds
-    /// exercise different points in the split.
+    /// Several indices do this concurrently, each deleting as soon as its split reaches a randomly chosen phase, so different seeds exercise
+    /// different points in the split.
     public void testDeleteAndRecreateIndexDuringReshard() throws Exception {
         // The stale-index GC runs only on an index-role node, and reads its interval once when its persistent task starts, so the
         // interval has to be set in that node's own settings. 1s is the lowest value the setting accepts.
@@ -5575,8 +5575,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    /// Whether the split has reached {@code phase} on the given target shard. Also true once the index is no longer being resharded,
-    /// so that a split which finishes early does not leave the caller waiting for a phase it has already passed through.
+    /// Whether the split has reached {@code phase} on the given target shard. Also true once the index is no longer being resharded, so
+    /// that a split which finishes early does not leave the caller waiting for a phase it has already passed through.
     private static boolean splitReachedOrFinished(
         ClusterState state,
         Index index,
@@ -5590,8 +5590,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .orElse(true); // no split to wait for
     }
 
-    /// The state of the split's target shard in {@code state}, or {@code null} once the split has finished and its metadata has been
-    /// removed.
+    /// The state of the split's target shard in {@code state}, or {@code null} once the split has finished and its metadata has
+    /// been removed.
     @Nullable
     private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(
         ClusterState state,
@@ -5714,10 +5714,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     /// Asserts that two [ExplainResponse]s describe the same result, without requiring them to be identical.
     ///
-    /// Two responses taken either side of a split are only identical for as long as no merge has run. An explanation embeds the
-    /// collection statistics of whichever shard copy served the request, plus the per-segment doc ID of the explained document, and both
-    /// change once a merge reclaims the unowned documents that the split target hard-deleted. That merge is expected but its timing is
-    /// not ours to control, so compare only the parts that resharding has to preserve.
+    /// Two responses taken either side of a split are only identical for as long as no merge has run. An explanation embeds the collection
+    /// statistics of whichever shard copy served the request, plus the per-segment doc ID of the explained document, and both change once a
+    /// merge reclaims the unowned documents that the split target hard-deleted. That merge is expected but its timing is not ours to
+    /// control, so compare only the parts that resharding has to preserve.
     private void assertSameExplainResult(ExplainResponse expected, ExplainResponse actual) {
         var message = Strings.format("expected [%s] but was [%s]", expected, actual);
         assertEquals(message, expected.getIndex(), actual.getIndex());

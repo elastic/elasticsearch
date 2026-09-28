@@ -22,8 +22,8 @@ public class StatelessMemoryMetricsServiceTestUtils {
         return service.getLastMaxTotalPostingsInMemoryBytes();
     }
 
-    /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead
-    /// even if the service is configured to use it
+    /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead even if the service is configured to
+    /// use it
     public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
@@ -33,8 +33,8 @@ public class StatelessMemoryMetricsServiceTestUtils {
             .shardHeapUsageBytesExcludingPostings();
     }
 
-    /// Convenience method for computing the shard estimate with the specified parameters
-    /// and the current settings active on the [StatelessMemoryMetricsService]
+    /// Convenience method for computing the shard estimate with the specified parameters and the current settings active on
+    /// the [StatelessMemoryMetricsService]
     public static ShardAndIndexHeapUsage computeShardHeapEstimate(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics

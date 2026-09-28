@@ -112,9 +112,8 @@ final class RemoteResponseParsers {
         }, new ParseField("sort"), ValueType.VALUE_ARRAY);
     }
 
-    /// Parser for the `hits` element. Parsed to an array of `[total (Long, may be null), hits (List<Hit>)]`.
-    /// `total` is optional because reindex disables `track_total_hits` on follow-up PIT batches, and a remote
-    /// honouring that omits `hits.total` from the response.
+    /// Parser for the `hits` element. Parsed to an array of `[total (Long, may be null), hits (List<Hit>)]`. `total` is optional because
+    /// reindex disables `track_total_hits` on follow-up PIT batches, and a remote honouring that omits `hits.total` from the response.
     public static final ConstructingObjectParser<Object[], RemoteParseContext> HITS_PARSER = new ConstructingObjectParser<>(
         "hits",
         true,

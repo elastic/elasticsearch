@@ -11,8 +11,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 
-/// A [RecoverySchedulingListener] that calls [#onRecoverySchedulingChange] on every scheduling event.
-/// Subclasses implement [#onRecoverySchedulingChange] to react to any recovery scheduling transition.
+/// A [RecoverySchedulingListener] that calls [#onRecoverySchedulingChange] on every scheduling event. Subclasses implement
+/// [#onRecoverySchedulingChange] to react to any recovery scheduling transition.
 public abstract class TestRecoverySchedulingListener implements RecoverySchedulingListener {
 
     /// Called whenever any recovery scheduling event fires.

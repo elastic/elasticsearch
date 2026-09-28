@@ -46,8 +46,8 @@ public class SigtermShutdownMetrics {
     /// Records the overall duration of [`SigtermTerminationHandler#handleTermination`].
     ///
     /// @param durationMillis elapsed time in milliseconds
-    /// @param status overall shutdown outcome (for example `complete`, `failed`, `in_progress`)
-    /// @param timedOut true when the SIGTERM timeout expired before overall shutdown completed
+    /// @param status         overall shutdown outcome (for example `complete`, `failed`, `in_progress`)
+    /// @param timedOut       true when the SIGTERM timeout expired before overall shutdown completed
     public void recordShutdownTime(long durationMillis, SigtermTerminationHandler.ShutdownStatus status, boolean timedOut) {
         shutdownDurationSeconds.record(toSeconds(durationMillis), attributes(status, timedOut));
     }
@@ -55,7 +55,7 @@ public class SigtermShutdownMetrics {
     /// Records the shard-migration wait, from put-shutdown ack until migration is `COMPLETE`, or until the wait ends.
     ///
     /// @param durationMillis elapsed time in milliseconds
-    /// @param completed true when migration reached `COMPLETE` before the wait ended
+    /// @param completed      true when migration reached `COMPLETE` before the wait ended
     public void recordMigrationTime(long durationMillis, boolean completed) {
         shardMigrationDurationSeconds.record(toSeconds(durationMillis), Map.of(ATTRIBUTE_NAME_MIGRATION_COMPLETED, completed));
     }

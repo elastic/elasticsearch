@@ -43,8 +43,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/// A Lucene [MergeScheduler] that delegates merge execution to a shared, node-level [ThreadPoolMergeExecutorService]
-/// thread pool. This is the default merge scheduler in Elasticsearch.
+/// A Lucene [MergeScheduler] that delegates merge execution to a shared, node-level [ThreadPoolMergeExecutorService] thread pool. This is
+/// the default merge scheduler in Elasticsearch.
 ///
 /// @see ThreadPoolMergeExecutorService
 /// @see org.elasticsearch.index.MergePolicyConfig

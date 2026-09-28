@@ -105,8 +105,8 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
             );
         }
 
-        /// [Engine.IndexCommitListener#onNewCommit] is intercepted by the test, meaning that the ShardCommitState does not populate
-        /// the data structures used for file deletions; in this case we just mock the methods taking care of that tracking to be no-ops.
+        /// [Engine.IndexCommitListener#onNewCommit] is intercepted by the test, meaning that the ShardCommitState does not populate the
+        /// data structures used for file deletions; in this case we just mock the methods taking care of that tracking to be no-ops.
         private static class CommitListenerTestCommitService extends StatelessCommitService {
 
             CommitListenerTestCommitService(

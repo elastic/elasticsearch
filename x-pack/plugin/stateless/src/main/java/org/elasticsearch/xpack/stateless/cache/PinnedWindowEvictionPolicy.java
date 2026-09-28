@@ -22,13 +22,13 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-/// Eviction policy that does not evict cache regions for shards present on this node whose content timestamp
-/// falls within a configurable pinned window.
+/// Eviction policy that does not evict cache regions for shards present on this node whose content timestamp falls within a configurable
+/// pinned window.
 ///
 /// Regions are classified by their [CacheRegion#timestampMillis()] (for shards present on this node):
-///   - a non-negative timestamp (`>= 0`) is pinned iff it falls within the pinned window;
-///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
-///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
+/// - a non-negative timestamp (`>= 0`) is pinned iff it falls within the pinned window;
+/// - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
+/// - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
 ///
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 

@@ -86,9 +86,9 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE);
     }
 
-    /// A BCC upload is in flight when the relocation starts. The pre-flush drains it via `waitForCurrentCommitDurability`,
-    /// then calls `flush(false, waitIfOngoing)`. Because `flushLock` is free at that point, both threshold values
-    /// commit and wait for the new BCC upload (when there is uncommitted data).
+    /// A BCC upload is in flight when the relocation starts. The pre-flush drains it via `waitForCurrentCommitDurability`, then calls
+    /// `flush(false, waitIfOngoing)`. Because `flushLock` is free at that point, both threshold values commit and wait for the new BCC
+    /// upload (when there is uncommitted data).
     public void testPreFlushRelocationQueueDrain() {
         // threshold=ZERO → waitIfOngoing=true, threshold=1h → waitIfOngoing=false.
         // When flushLock is free both values behave identically: the pre-flush commits and waits for its upload to complete.
@@ -161,11 +161,11 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
     }
 
     /// A Lucene flush holds `flushLock` when the pre-flush calls `flush(false, waitIfOngoing)`. With `threshold=ZERO`
-    /// (`waitIfOngoing=true`) the pre-flush blocks until the lock is released and then waits for the BCC upload.
-    /// With `threshold=1h` (`waitIfOngoing=false`) the pre-flush skips immediately (`SKIPPED`).
+    /// (`waitIfOngoing=true`) the pre-flush blocks until the lock is released and then waits for the BCC upload. With `threshold=1h`
+    /// (`waitIfOngoing=false`) the pre-flush skips immediately (`SKIPPED`).
     ///
-    /// There is no pending BCC upload when the pre-flush runs: `waitForCurrentCommitDurability` resolves immediately
-    /// because the blocking flush has not yet committed.
+    /// There is no pending BCC upload when the pre-flush runs: `waitForCurrentCommitDurability` resolves immediately because the blocking
+    /// flush has not yet committed.
     public void testPreFlushRelocationOngoingFlush() {
         final TimeValue threshold = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueHours(1);
         final var sourceNode = startMasterAndIndexNode(
@@ -238,10 +238,10 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         ensureGreen(indexName);
     }
 
-    /// Both a BCC upload is in flight and a Lucene flush holds `flushLock` when the pre-flush runs.
-    /// `waitForCurrentCommitDurability` blocks on the first BCC upload. Only after it resolves does `flush(false, waitIfOngoing)`
-    /// encounter the held `flushLock`. With `threshold=ZERO` (`waitIfOngoing=true`) the pre-flush then waits for both
-    /// the lock and the second BCC upload. With `threshold=1h` (`waitIfOngoing=false`) it skips after draining the first upload.
+    /// Both a BCC upload is in flight and a Lucene flush holds `flushLock` when the pre-flush runs. `waitForCurrentCommitDurability` blocks
+    /// on the first BCC upload. Only after it resolves does `flush(false, waitIfOngoing)` encounter the held `flushLock`. With
+    /// `threshold=ZERO` (`waitIfOngoing=true`) the pre-flush then waits for both the lock and the second BCC upload. With `threshold=1h`
+    /// (`waitIfOngoing=false`) it skips after draining the first upload.
     public void testPreFlushRelocationCombined() {
         final TimeValue threshold = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueHours(1);
         final var sourceNode = startMasterAndIndexNode(

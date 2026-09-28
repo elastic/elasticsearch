@@ -34,21 +34,17 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/// Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the
-/// [CircuitBreaker#REQUEST] circuit breaker.
+/// Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the [CircuitBreaker#REQUEST] circuit breaker.
 ///
-/// The low-level REST client buffers each async response in a [SimpleInputBuffer] before
-/// invoking the application callback, so heap can be exhausted before the caller sees any bytes. This
-/// consumer accounts the actual [ByteBuffer] allocations used by that Apache buffer, including
-/// growth for responses without a `Content-Length` header. Responses are not subject to a fixed size
-/// cap, whether the length is known or chunked; they grow under the control of the circuit breaker,
-/// which is expected to trip before heap is exhausted, up to a hard `MAX_BUFFER_CAPACITY` ceiling that
-/// only guards against overflowing the `int`-indexed buffer.
+/// The low-level REST client buffers each async response in a [SimpleInputBuffer] before invoking the application callback, so heap can be
+/// exhausted before the caller sees any bytes. This consumer accounts the actual [ByteBuffer] allocations used by that Apache buffer,
+/// including growth for responses without a `Content-Length` header. Responses are not subject to a fixed size cap, whether the length is
+/// known or chunked; they grow under the control of the circuit breaker, which is expected to trip before heap is exhausted, up to a hard
+/// `MAX_BUFFER_CAPACITY` ceiling that only guards against overflowing the `int`-indexed buffer.
 ///
-/// On a successful response, Apache calls [#releaseResources()] before the caller reads the
-/// returned entity. For that reason the breaker reservation is attached to the response entity and
-/// must be released after the entity content has been consumed. Failed or cancelled requests release
-/// directly from [#releaseResources()].
+/// On a successful response, Apache calls [#releaseResources()] before the caller reads the returned entity. For that reason the breaker
+/// reservation is attached to the response entity and must be released after the entity content has been consumed. Failed or cancelled
+/// requests release directly from [#releaseResources()].
 final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseConsumer<HttpResponse> {
 
     static final String REMOTE_RESPONSE_BUFFER_BREAKER_LABEL = "reindex_remote_response_buffer";

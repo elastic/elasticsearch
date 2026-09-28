@@ -1098,9 +1098,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /// [TestThreadPool] that captures the single command handed to [ThreadPool#schedule] instead of scheduling it, so tests decide
-    /// deterministically whether and when the "timeout" fires. Its cancellable always reports a successful cancellation, mimicking
-    /// the real-life window in which a scheduled task's command has already been dispatched to its target executor but the JDK
-    /// future is not yet marked done, so a concurrent cancel() still "wins" (see https://github.com/elastic/elasticsearch/issues/154033).
+    /// deterministically whether and when the "timeout" fires. Its cancellable always reports a successful cancellation, mimicking the
+    /// real-life window in which a scheduled task's command has already been dispatched to its target executor but the JDK future is not yet
+    /// marked done, so a concurrent cancel() still "wins" (see https://github.com/elastic/elasticsearch/issues/154033).
     private static class CapturingScheduleThreadPool extends TestThreadPool {
         final AtomicReference<Runnable> scheduledCommand = new AtomicReference<>();
 
@@ -1146,10 +1146,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         );
     }
 
-    /// Deterministic regression test for https://github.com/elastic/elasticsearch/issues/154033: the timeout command fires first
-    /// and decides the race, yet the subsequent best-effort cancel() of the scheduled task reports success (which can genuinely
-    /// happen, see [CapturingScheduleThreadPool]). The recorded outcome must be `TIMEOUT` regardless of what cancel() reports,
-    /// and the warming listener completing afterward must not record a second measurement.
+    /// Deterministic regression test for https://github.com/elastic/elasticsearch/issues/154033: the timeout command fires first and
+    /// decides the race, yet the subsequent best-effort cancel() of the scheduled task reports success (which can genuinely happen, see
+    /// [CapturingScheduleThreadPool]). The recorded outcome must be `TIMEOUT` regardless of what cancel() reports, and the warming listener
+    /// completing afterward must not record a second measurement.
     public void testSearchRecoveryWarmingListenerRecordsTimeoutOutcomeEvenWhenCancelReportsSuccess() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
@@ -1179,8 +1179,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /// Deterministic counterpart of [#testSearchRecoveryWarmingListenerRecordsTimeoutOutcomeEvenWhenCancelReportsSuccess]: warming
-    /// completes before the timeout fires, so the outcome must be `WARMING_COMPLETE`, and the timeout command firing late must not
-    /// record a second measurement.
+    /// completes before the timeout fires, so the outcome must be `WARMING_COMPLETE`, and the timeout command firing late must not record a
+    /// second measurement.
     public void testSearchRecoveryWarmingListenerRecordsWarmingCompleteOutcomeWhenWarmingWins() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
@@ -1205,8 +1205,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
-    /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed
-    /// to `WARMING_COMPLETE`, since the warming side won the race), preserving the behavior that predates the race fix.
+    /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed to
+    /// `WARMING_COMPLETE`, since the warming side won the race), preserving the behavior that predates the race fix.
     public void testSearchRecoveryWarmingListenerWarmingFailurePropagatesAndRecordsMetric() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {

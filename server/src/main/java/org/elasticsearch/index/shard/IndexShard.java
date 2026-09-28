@@ -1424,13 +1424,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return innerGet(get, false, splitShardCountSummary, this::wrapSearcher);
     }
 
-    /// Reads a document specifically in the context of performing an update operation.
-    /// `SplitShardCountSummary` is not used here because this is always a realtime get
-    /// (or a read using internal searcher), and we don't need to pass `SplitShardCountSummary`
-    /// to a directory reader to apply resharding filters for unowned documents.
-    /// It _is_ possible that this read is stale due to ongoing resharding split
-    /// (e.g. when executed by `TransportUpdateAction`), this is handled in the caller,
-    /// specifically in `ShardGetService`.
+    /// Reads a document specifically in the context of performing an update operation. `SplitShardCountSummary` is not used here because
+    /// this is always a realtime get (or a read using internal searcher), and we don't need to pass `SplitShardCountSummary` to a directory
+    /// reader to apply resharding filters for unowned documents. It _is_ possible that this read is stale due to ongoing resharding split
+    /// (e.g. when executed by `TransportUpdateAction`), this is handled in the caller, specifically in `ShardGetService`.
     public Engine.GetResult getForUpdate(Engine.Get get) {
         assert get.realtime() && get.isReadFromTranslog();
         assert ThreadPool.assertCurrentThreadPool(
@@ -2099,13 +2096,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Requests cancellation of a recovery that is not yet completed.
     ///
-    /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries
-    /// via [#ensureRecoveryNotCancelled].
+    /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries via [#ensureRecoveryNotCancelled].
     ///
     /// Note that `RESHARD_SPLIT` recoveries are currently not supported (support will be added via elasticsearch-team#2801).
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
-    /// @throws IllegalStateException if the ongoing recovery is not of a supported type
+    /// @throws IllegalStateException            if the ongoing recovery is not of a supported type
     public void requestRecoveryCancellation() {
         synchronized (mutex) {
             if (state != IndexShardState.CREATED && state != IndexShardState.RECOVERING) {
@@ -2123,9 +2119,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
-    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
-    /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
-    /// (preserving it as the cause), e.g. via `onFailure`.
+    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries. Callers should let the exception
+    /// propagate up the call stack, or catch it to forward it unchanged or wrapped (preserving it as the cause), e.g. via `onFailure`.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         if (recoveryCancellationRequested) {
             final RecoveryState currentRecoveryState = recoveryState;
@@ -2803,9 +2798,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    /// Verify that current state is [IndexShardState#RECOVERING]
-    /// or throw [IndexShardClosedException] if shard has been [IndexShardState#CLOSED].
-    /// Treat other cases as bugs with assertion.
+    /// Verify that current state is [IndexShardState#RECOVERING] or throw [IndexShardClosedException] if shard has been
+    /// [IndexShardState#CLOSED]. Treat other cases as bugs with assertion.
     private void verifyRecovering() throws IndexShardClosedException {
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {

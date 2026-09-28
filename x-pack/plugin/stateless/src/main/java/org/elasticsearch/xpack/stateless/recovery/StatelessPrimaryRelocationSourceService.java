@@ -82,8 +82,8 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
-/// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
-/// See [StatelessPrimaryRelocationTargetService] for target side logic.
+/// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService]. See
+/// [StatelessPrimaryRelocationTargetService] for target side logic.
 public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING = Setting.timeSetting(
@@ -94,8 +94,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    /// Controls the heap-based limit on concurrent outgoing primary relocations on stateless indexing nodes. Must be
-    /// strictly positive: 0 is disallowed (consistent with the minimum of
+    /// Controls the heap-based limit on concurrent outgoing primary relocations on stateless indexing nodes. Must be strictly positive: 0
+    /// is disallowed (consistent with the minimum of
     /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
     ///
     /// The effective limit is `min(max_concurrent_outgoing_recoveries, ceil(heapGb * max_concurrent_outgoing_recoveries_per_heap_gb))`.
@@ -203,8 +203,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
     }
 
-    /// Returns the [ThrottledPrimaryRelocations] instance to register as an [IndexEventListener] in the plugin.
-    /// Returns `null` on search nodes where no throttling is needed.
+    /// Returns the [ThrottledPrimaryRelocations] instance to register as an [IndexEventListener] in the plugin. Returns `null` on search
+    /// nodes where no throttling is needed.
     @Nullable
     public ThrottledPrimaryRelocations indexEventListener() {
         return throttledPrimaryRelocations;
@@ -743,8 +743,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             return pendingRelocations.size();
         }
 
-        /// Always enqueues first to preserve FIFO ordering across all relocations.
-        /// Attempts to start pending items (if slots are available) after enqueuing.
+        /// Always enqueues first to preserve FIFO ordering across all relocations. Attempts to start pending items (if slots are available)
+        /// after enqueuing.
         void enqueueRelocation(
             Client parentClient,
             StatelessPrimaryRelocationAction.Request request,

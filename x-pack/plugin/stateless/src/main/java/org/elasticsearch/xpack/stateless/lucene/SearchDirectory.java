@@ -65,9 +65,9 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 public class SearchDirectory extends BlobStoreCacheDirectory {
     private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
 
-    /// IndexVersion that guarantees the writing node recorded a `@timestamp` field value range in the compound
-    /// commit header. Indices created before this can additionally contain compound commits with no recorded range purely
-    /// because the field did not exist yet, rather than because the commit lacks `@timestamp` data.
+    /// IndexVersion that guarantees the writing node recorded a `@timestamp` field value range in the compound commit header. Indices
+    /// created before this can additionally contain compound commits with no recorded range purely because the field did not exist yet,
+    /// rather than because the commit lacks `@timestamp` data.
     public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.NESTED_PATH_LIMIT;
 
     /// Fallback `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
@@ -456,9 +456,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return super.getCacheService();
     }
 
-    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet
-    /// completed. Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it,
-    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
+    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet completed.
+    /// Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it, so a "nothing was
+    /// evicted" assertion can be made deterministically rather than against a not-yet-run async task.
     long pendingObsoleteRegionsEvictionTasks() {
         return submittedObsoleteRegionsEvictionTasks.get();
     }
@@ -617,8 +617,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
     }
 
-    /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
-    /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
+    /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`. Caller should ensure that
+    /// `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
     public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
         return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
     }
@@ -681,7 +681,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
 
             /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
-            /// fallbackRegionTimestampMillis value.
+            ///         fallbackRegionTimestampMillis value.
             @Override
             public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
                 return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
@@ -788,8 +788,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /// Retrieves the [BlobFileRanges] metadata for a specific file by its name.
     ///
     /// @param fileName the name of the file for which to retrieve the metadata
-    /// @return the [BlobFileRanges] associated with the specified file,
-    ///         or `null` if no metadata is found for the given file name
+    /// @return the [BlobFileRanges] associated with the specified file, or `null` if no metadata is found for the given file name
     @Nullable
     public BlobFileRanges getBlobFileRangesForFile(String fileName) {
         return currentMetadata.get(fileName);

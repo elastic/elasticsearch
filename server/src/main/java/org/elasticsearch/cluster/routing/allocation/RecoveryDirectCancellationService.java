@@ -58,32 +58,29 @@ import java.util.concurrent.Semaphore;
 ///
 /// Two scenarios are currently supported:
 ///
-/// - Desired-balance cancellations ([cancelUndesiredRecoveries]): when the desired balance changes and an
-///   initializing shard is no longer assigned to its current node, a [CancelRecoveriesAction] request is sent to
-///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
-///   the next allocation round can move the shard.
+/// - Desired-balance cancellations ([cancelUndesiredRecoveries]): when the desired balance changes and an initializing shard is no longer
+///   assigned to its current node, a [CancelRecoveriesAction] request is sent to the data node so the recovery is aborted as soon as
+///   possible rather than waiting for it to complete before the next allocation round can move the shard.
 ///
 /// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has
-///   [SnapshotsInProgress.ShardState#WAITING] shards blocked by a primary relocation, we attempt to cancel the
-///   relocation target recovery if it has not started yet, so the snapshot can proceed. Relocations driven by node
-///   removal are left untouched. Enabled by default on stateful nodes and disabled by default on stateless nodes
-///   (where recoveries are generally quick), controllable via [ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING].
-///   This path is driven by [ClusterStateListener#clusterChanged].
+///   [SnapshotsInProgress.ShardState#WAITING] shards blocked by a primary relocation, we attempt to cancel the relocation target recovery if
+///   it has not started yet, so the snapshot can proceed. Relocations driven by node removal are left untouched. Enabled by default on
+///   stateful nodes and disabled by default on stateless nodes (where recoveries are generally quick), controllable via
+///   [ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING]. This path is driven by [ClusterStateListener#clusterChanged].
 ///
-/// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
-/// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
+/// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all failure cases the affected
+/// shards are eventually reassigned through the normal reroute/shard-failed path.
 public class RecoveryDirectCancellationService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
 
-    /// This limit is conservative (compared to [org.elasticsearch.indices.ShardLimitValidator] limits), but it should
-    /// still capture all "still in use" cancellations for the majority of clusters. Each entry is expected to be less
-    /// than 200 bytes, including the allocation ID key, the cache entry wrapper and SentCancellation object.
-    /// The estimated max cache size is then ~4MB (0.2% of a 2GB heap).
+    /// This limit is conservative (compared to [org.elasticsearch.indices.ShardLimitValidator] limits), but it should still capture all
+    /// "still in use" cancellations for the majority of clusters. Each entry is expected to be less than 200 bytes, including the allocation
+    /// ID key, the cache entry wrapper and SentCancellation object. The estimated max cache size is then ~4MB (0.2% of a 2GB heap).
     private static final int MAX_CANCELLATIONS_CACHE_SIZE = 20_000;
 
-    /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures stale
-    /// entries are eventually evicted in clusters where the size bound is rarely reached.
+    /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures stale entries are
+    /// eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
@@ -93,11 +90,11 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         Setting.Property.NodeScope
     );
 
-    /// Allows direct cancellation of recoveries blocking snapshots. Enabled by default on stateful nodes,
-    /// disabled by default on stateless nodes (where recoveries are expected to be generally quick).
+    /// Allows direct cancellation of recoveries blocking snapshots. Enabled by default on stateful nodes, disabled by default on stateless
+    /// nodes (where recoveries are expected to be generally quick).
     ///
-    /// Takes effect only when [ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING] is also enabled. Both settings must be
-    /// enabled for direct cancellation of snapshot-blocking recoveries to occur.
+    /// Takes effect only when [ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING] is also enabled. Both settings must be enabled for direct
+    /// cancellation of snapshot-blocking recoveries to occur.
     public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations_for_snapshots",
         settings -> DiscoveryNode.isStateless(settings) ? "false" : "true",
@@ -112,14 +109,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private volatile boolean enableDirectRecoveryCancellations;
     private volatile boolean enableDirectCancellationsForSnapshots;
 
-    /// Single permit used to coalesce snapshot-cancellation runs.
-    /// Acquired when a run is queued, released at the start of each run (or on rejection).
+    /// Single permit used to coalesce snapshot-cancellation runs. Acquired when a run is queued, released at the start of each run (or
+    /// on rejection).
     private final Semaphore pendingSnapshotCancellationPermit = new Semaphore(1);
     private final CancelRecoveriesBlockingSnapshotRunnable snapshotCancellationRunnable = new CancelRecoveriesBlockingSnapshotRunnable();
 
-    /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
-    /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
-    /// have taken effect on the data nodes.
+    /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate requests, e.g. when
+    /// multiple desired balance computations arrive in quick succession before prior cancellations have taken effect on the data nodes.
     final Cache<String, SentCancellation> sentCancellations;
 
     record SentCancellation(long term, boolean cancelIfStarted) {}
@@ -202,14 +198,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// Asynchronously computes which initializing shards are no longer desired on their current nodes according to the given
     /// [DesiredBalance] and sends cancellation requests to the affected data nodes.
     ///
-    /// Direct cancellation is a best-effort optimization. Reconciliation and desired balance computation run
-    /// concurrently and continuously, so `routingAllocation` may already be stale by the time cancellations are sent.
-    /// Stale cancellations are safe. The data node validates each request against its local recovery state and ignores
-    /// any that no longer apply.
+    /// Direct cancellation is a best-effort optimization. Reconciliation and desired balance computation run concurrently and continuously,
+    /// so `routingAllocation` may already be stale by the time cancellations are sent. Stale cancellations are safe. The data node validates
+    /// each request against its local recovery state and ignores any that no longer apply.
     ///
-    /// @param desiredBalance the desired balance used to determine which recoveries are no longer heading to a desired node
-    /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
-    /// which shards are currently initializing on an undesired node
+    /// @param desiredBalance    the desired balance used to determine which recoveries are no longer heading to a desired node
+    /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify which shards are
+    ///                          currently initializing on an undesired node
     public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
         if (lifecycle.started() == false) {
             logger.debug("service stopped or not yet fully started, will not cancel undesired recoveries");
@@ -218,11 +213,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));
     }
 
-    /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
-    /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
-    /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
-    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
-    /// interrupted even after it has started work.
+    /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing shards on that node
+    /// that are no longer heading to a desired location according to `desiredBalance` and for which a recovery cancellation will be
+    /// requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted` flag, determined by recovery type and allocation decider
+    /// result, indicating whether the recovery should be interrupted even after it has started work.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
         DesiredBalance desiredBalance,
         RoutingAllocation allocation
@@ -307,9 +301,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
-    /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations.
-    /// Cancels those recoveries if they have not yet started. Concurrent triggers are coalesced via
-    /// [pendingSnapshotCancellationPermit].
+    /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations. Cancels those
+    /// recoveries if they have not yet started. Concurrent triggers are coalesced via [pendingSnapshotCancellationPermit].
     private void cancelRecoveriesBlockingSnapshots() {
         if (pendingSnapshotCancellationPermit.tryAcquire() == false) {
             return;
@@ -366,8 +359,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         return cancellationRequests;
     }
 
-    /// Given the `requests` map of [CancelRecoveriesAction] request per node, sends each request to its target node.
-    /// This method is synchronized to prevent concurrent invocations from sending duplicate cancellations.
+    /// Given the `requests` map of [CancelRecoveriesAction] request per node, sends each request to its target node. This method is
+    /// synchronized to prevent concurrent invocations from sending duplicate cancellations.
     private synchronized void sendCancellations(Map<DiscoveryNode, CancelRecoveriesAction.Request> requests) {
         if (enableDirectRecoveryCancellations == false) {
             logger.debug(
@@ -396,9 +389,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
-    /// Reused across schedule attempts. Releases [pendingSnapshotCancellationPermit] at the start of each run so a
-    /// concurrent trigger can queue a follow-up against a (possibly) fresher cluster state.
-    /// Each run ([#doRun]) is synchronized, in order to serialize close-in-time executions.
+    /// Reused across schedule attempts. Releases [pendingSnapshotCancellationPermit] at the start of each run so a concurrent trigger can
+    /// queue a follow-up against a (possibly) fresher cluster state. Each run ([#doRun]) is synchronized, in order to serialize
+    /// close-in-time executions.
     private class CancelRecoveriesBlockingSnapshotRunnable extends AbstractRunnable {
         @Override
         protected synchronized void doRun() {
@@ -427,8 +420,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
-    /// Removes cancellations that were already sent recently and updates the cache. A cached entry can be bypassed and
-    /// the cancellation re-sent in two cases:
+    /// Removes cancellations that were already sent recently and updates the cache. A cached entry can be bypassed and the cancellation
+    /// re-sent in two cases:
     /// - the cluster term has changed (the data node may have discarded the request from the previous term)
     /// - the new request escalates `cancelIfStarted` from `false` to `true`
     private Map<DiscoveryNode, CancelRecoveriesAction.Request> deduplicateAndUpdateCache(

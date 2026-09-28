@@ -76,10 +76,10 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     /// Creates a new [RoutingAllocation]
     ///
-    /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
-    /// @param clusterState cluster state before rerouting
-    /// @param clusterInfo information about node disk usage and shard disk usage
-    /// @param shardSizeInfo information about snapshot shard sizes
+    /// @param deciders        [AllocationDeciders] to use to make decisions for routing allocations
+    /// @param clusterState    cluster state before rerouting
+    /// @param clusterInfo     information about node disk usage and shard disk usage
+    /// @param shardSizeInfo   information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
     ///
     RoutingAllocation(

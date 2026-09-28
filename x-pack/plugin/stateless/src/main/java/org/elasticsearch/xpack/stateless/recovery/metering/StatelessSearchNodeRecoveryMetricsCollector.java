@@ -17,8 +17,8 @@ import java.util.Map;
 
 /// Collects recovery metrics specific to search nodes in stateless deployments.
 ///
-/// Extends [StatelessRecoveryMetricsCollector] to track bytes pulled from indexing nodes during recovery,
-/// which is unique to search nodes that replicate shard data from indexing nodes rather than directly from the object store.
+/// Extends [StatelessRecoveryMetricsCollector] to track bytes pulled from indexing nodes during recovery, which is unique to search nodes
+/// that replicate shard data from indexing nodes rather than directly from the object store.
 public class StatelessSearchNodeRecoveryMetricsCollector extends StatelessRecoveryMetricsCollector {
 
     public static final String RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_warmed.total";

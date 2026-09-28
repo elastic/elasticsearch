@@ -34,8 +34,8 @@ public final class ShardRecoveryInfo implements Writeable {
     private final long blockedForMillis;
 
     /// @param recoveryState the underlying shard recovery state
-    /// @param gate the name of the [org.elasticsearch.indices.recovery.RecoveryGate] blocking the recovery,
-    ///             or `null` if it is not blocked
+    /// @param gate             the name of the [org.elasticsearch.indices.recovery.RecoveryGate] blocking the recovery, or `null` if it is
+    ///                         not blocked
     /// @param blockedForMillis how long the recovery gate had been blocking when this information was captured
     public ShardRecoveryInfo(RecoveryState recoveryState, @Nullable String gate, long blockedForMillis) {
         this.recoveryState = Objects.requireNonNull(recoveryState);

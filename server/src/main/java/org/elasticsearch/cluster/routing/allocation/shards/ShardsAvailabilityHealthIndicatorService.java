@@ -93,11 +93,11 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
 
     public static final String NAME = "shards_availability";
 
-    /// Grace period during which an inactive primary may not cause the health indicator to turn RED.
-    /// See [#isProvisionallyInactive] for eligibility criteria on [UnassignedInfo.Reason] and timing.
+    /// Grace period during which an inactive primary may not cause the health indicator to turn RED. See [#isProvisionallyInactive] for
+    /// eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
-    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    /// window applies to non-active shards in either unassigned or initializing state.
+    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace window applies to non-active shards in
+    /// either unassigned or initializing state.
     public static final Setting<TimeValue> PRIMARY_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -107,11 +107,11 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         Setting.Property.Dynamic
     );
 
-    /// Grace period during which an inactive replica may not cause the health indicator to turn YELLOW.
-    /// See [#isProvisionallyInactive] for eligibility criteria on [UnassignedInfo.Reason] and timing.
+    /// Grace period during which an inactive replica may not cause the health indicator to turn YELLOW. See [#isProvisionallyInactive] for
+    /// eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
-    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    /// window applies to non-active shards in either unassigned or initializing state.
+    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace window applies to non-active shards in
+    /// either unassigned or initializing state.
     public static final Setting<TimeValue> REPLICA_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(25),

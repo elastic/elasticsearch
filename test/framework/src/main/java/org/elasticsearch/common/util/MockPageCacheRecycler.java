@@ -22,12 +22,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-/// A [PageCacheRecycler] wrapper for tests that delegates all page allocations to an inner
-/// [PageCacheRecycler] and adds two test-time safeguards on top:
+/// A [PageCacheRecycler] wrapper for tests that delegates all page allocations to an inner [PageCacheRecycler] and adds two test-time
+/// safeguards on top:
 ///
-/// - Leak tracking: every outstanding page is recorded in a static set so that [#ensureAllPagesAreReleased] can detect
-///   unreleased pages synchronously at teardown, without relying on garbage collection. This mirrors the
-///   `ACQUIRED_ARRAYS` pattern in [MockBigArrays].
+/// - Leak tracking: every outstanding page is recorded in a static set so that [#ensureAllPagesAreReleased] can detect unreleased pages
+///   synchronously at teardown, without relying on garbage collection. This mirrors the `ACQUIRED_ARRAYS` pattern in [MockBigArrays].
 /// - Double-release detection: closing a page twice throws [IllegalStateException].
 ///
 public class MockPageCacheRecycler extends PageCacheRecycler {
@@ -51,8 +50,8 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     private final PageCacheRecycler delegate;
     private final Random random;
 
-    /// Returns `recycler` unchanged if it is already a [MockPageCacheRecycler]; otherwise wraps
-    /// it so that every page allocation is tracked and double-releases are caught.
+    /// Returns `recycler` unchanged if it is already a [MockPageCacheRecycler]; otherwise wraps it so that every page allocation is tracked
+    /// and double-releases are caught.
     public static MockPageCacheRecycler wrap(PageCacheRecycler recycler) {
         return recycler instanceof MockPageCacheRecycler mock ? mock : new MockPageCacheRecycler(recycler);
     }

@@ -195,12 +195,11 @@ public record UnassignedInfo(
             this.isExpectedTransient = isExpectedTransient;
         }
 
-        /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation,
-        /// replica addition) where the shard is anticipated to be assigned shortly and brief unassignment is
-        /// not a sign of a problem.
+        /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation, replica addition) where
+        /// the shard is anticipated to be assigned shortly and brief unassignment is not a sign of a problem.
         ///
-        /// Returns `false` for reasons that indicate something went wrong (e.g. allocation failure,
-        /// node loss), where the unassignment should be reported as unhealthy without delay.
+        /// Returns `false` for reasons that indicate something went wrong (e.g. allocation failure, node loss), where the unassignment
+        /// should be reported as unhealthy without delay.
         public boolean isExpectedTransient() {
             return isExpectedTransient;
         }

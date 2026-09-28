@@ -1662,9 +1662,10 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         );
     }
 
-    /// @return the expected allocation size for a [RecyclerBytesStreamOutput] populated using [RecyclerBytesStreamOutput#writeAllBytesFrom]
-    /// with an [java.io.InputStream] of the given length. Always has at least one free byte, even if this means the last page is completely
-    /// empty, because we must allocate the page before performing the final [java.io.InputStream#read] which returns `-1`.
+    /// @return the expected allocation size for a [RecyclerBytesStreamOutput] populated using
+    ///         [RecyclerBytesStreamOutput#writeAllBytesFrom] with an [java.io.InputStream] of the given length. Always has at least one free
+    ///         byte, even if this means the last page is completely empty, because we must allocate the page before performing the final
+    ///         [java.io.InputStream#read] which returns `-1`.
     private static long getExpectedAllocation(int length) {
         final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE) / PageCacheRecycler.BYTE_PAGE_SIZE);
         return expectedPages * PageCacheRecycler.BYTE_PAGE_SIZE;

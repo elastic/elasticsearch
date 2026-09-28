@@ -132,9 +132,8 @@ public class PostRecoveryMerger {
         final var shardId = shardRouting.shardId();
         return RecoveryListener.runBeforeDone(recoveryListener, () -> {
             if (delayRangeSeconds != null) {
-                /// We jitter this value to try to space out merges started by this mechanism even more
-                /// so that they compete less for resources.
-                /// See comment for [PostRecoveryMerger#POST_RECOVERY_MERGER_DELAY].
+                /// We jitter this value to try to space out merges started by this mechanism even more so that they compete less for
+                /// resources. See comment for [PostRecoveryMerger#POST_RECOVERY_MERGER_DELAY].
                 long actualDelay = Randomness.get().nextLong(delayRangeSeconds.v1(), delayRangeSeconds.v2());
                 scheduler.schedule(
                     () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)),

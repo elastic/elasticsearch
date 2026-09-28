@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
 /// Collects timing histograms for the primary shard relocation protocol in stateless deployments.
 ///
-/// Tracks the duration of each phase on both the relocation source (initial flush, permit acquisition,
-/// second flush, handoff) and the relocation target (pre-recovery, indexing shard state read, engine open).
-/// Registered only on index nodes; search nodes do not participate in primary relocation.
+/// Tracks the duration of each phase on both the relocation source (initial flush, permit acquisition, second flush, handoff) and the
+/// relocation target (pre-recovery, indexing shard state read, engine open). Registered only on index nodes; search nodes do not participate
+/// in primary relocation.
 public class StatelessPrimaryRelocationMetricsCollector {
 
     // The total relocation duration is already covered by es.recovery.shard.total.time (target-side recovery timer);

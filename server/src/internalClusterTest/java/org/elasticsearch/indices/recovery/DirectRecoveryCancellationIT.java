@@ -539,8 +539,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertThat(directCancellationMetric(targetNode), equalTo(1L));
     }
 
-    /// A cancellation requested once the primary handoff has started should be silently ignored.
-    /// The handoff and the relocation complete normally, and the flag is eventually wiped by `postRecovery()`.
+    /// A cancellation requested once the primary handoff has started should be silently ignored. The handoff and the relocation complete
+    /// normally, and the flag is eventually wiped by `postRecovery()`.
     public void testDirectCancellationAtPrimaryHandoffGetsIgnored() throws Exception {
         final var sourceNode = internalCluster().startNode();
         final var indexName = randomIndexName();
@@ -680,9 +680,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         awaitDirectCancellationMetric(node, 1L);
     }
 
-    /// Verifies that an unrelated cluster state update arriving after a started-recovery cancellation (while the
-    /// master has not yet processed the resulting SHARD_FAILED) does not cause `failedAllocations` to be incorrectly
-    /// incremented. The data node resends the failure from `failedShardsCache` using a [RecoveryCancelledException].
+    /// Verifies that an unrelated cluster state update arriving after a started-recovery cancellation (while the master has not yet
+    /// processed the resulting SHARD_FAILED) does not cause `failedAllocations` to be incorrectly incremented. The data node resends the
+    /// failure from `failedShardsCache` using a [RecoveryCancelledException].
     public void testUnrelatedClusterStateUpdateAfterStartedCancellation() throws Exception {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
@@ -781,8 +781,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         );
     }
 
-    /// Verifies that after a recovery is cancelled from the [ThrottlingRecoveryService] pending queue, subsequent
-    /// unrelated cluster state updates do not cause `failedAllocations` to be incorrectly incremented.
+    /// Verifies that after a recovery is cancelled from the [ThrottlingRecoveryService] pending queue, subsequent unrelated cluster state
+    /// updates do not cause `failedAllocations` to be incorrectly incremented.
     public void testUnrelatedClusterStateUpdateAfterQueuedCancellation() throws Exception {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode(

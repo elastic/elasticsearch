@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/// Transport action for batch cancellation of now-undesired recoveries.
-/// The elected master node uses this action to directly request cancellation of recoveries.
+/// Transport action for batch cancellation of now-undesired recoveries. The elected master node uses this action to directly request
+/// cancellation of recoveries.
 public class CancelRecoveriesAction {
 
     /// Minimum cluster-wide transport version before the master starts sending direct cancellation requests
@@ -118,9 +118,9 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
-    /// The master can use this information to immediately update cluster state without waiting for a separate
-    /// `ShardStateAction.shardFailed` notification from the data node.
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled. The master can
+    /// use this information to immediately update cluster state without waiting for a separate `ShardStateAction.shardFailed` notification
+    /// from the data node.
     public static class Response extends ActionResponse {
         private final Set<CancelledInQueue> cancelledInQueue;
 

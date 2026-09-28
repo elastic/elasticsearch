@@ -516,11 +516,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     /// Builds the [BlobFileRanges] map for all files in a compound commit, to be handed off to the target node during PIT relocation.
     ///
     /// For each file the method prefers the [BlobFileRanges] already held by the local [SearchDirectory] when its recorded
-    /// [BlobLocation] matches the canonical location in the CC. That entry may carry replicated byte ranges that allow the target node
-    /// to warm the header and footer of a segment from the first region of the blob, avoiding an extra seek. When the SearchDirectory entry
-    /// points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical
-    /// location from the CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction
-    /// decisions.
+    /// [BlobLocation] matches the canonical location in the CC. That entry may carry replicated byte ranges that allow the target node to
+    /// warm the header and footer of a segment from the first region of the blob, avoiding an extra seek. When the SearchDirectory entry
+    /// points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical location from the
+    /// CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction decisions.
     private static Map<String, BlobFileRanges> overrideBlobFileRangesTimestamp(
         final Map<String, BlobFileRanges> metadataFromSearchDirectory,
         final StatelessCompoundCommit statelessCompoundCommit
@@ -710,8 +709,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
-    /// Contains all resharding-related metadata of an open PIT.
-    /// This is needed to apply special logic related to resharding when opening a new reader in scope of PIT relocation.
+    /// Contains all resharding-related metadata of an open PIT. This is needed to apply special logic related to resharding when opening a
+    /// new reader in scope of PIT relocation.
     record OpenPITReshardingState(@Nullable IndexReshardingMetadata indexReshardingMetadata, SplitShardCountSummary splitShardCountSummary)
         implements
             Writeable {

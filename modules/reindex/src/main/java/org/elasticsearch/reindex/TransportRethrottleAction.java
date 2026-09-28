@@ -91,11 +91,11 @@ public class TransportRethrottleAction extends TransportTasksAction<
     /// - Has completed
     /// - Has completed and relocated
     ///
-    /// We use `GET _tasks/{task_id}` (AKA get-by-id, which follows relocations) to resolve the task's current location,
-    /// then re-issue the rethrottle against the resolved task ID. We largely stick to existing functionality. Scenarios and handling:
+    /// We use `GET _tasks/{task_id}` (AKA get-by-id, which follows relocations) to resolve the task's current location, then re-issue the
+    /// rethrottle against the resolved task ID. We largely stick to existing functionality. Scenarios and handling:
     /// - If the task doesn't exist, return the initial response that doesn't have the task listed and may or may not have a node failure
-    /// - If get-by-id fails to follow relocation, it'll return the last completed task in the chain with a TaskRelocatedException,
-    /// return the initial response that doesn't have the task listed and may or may not have a node failure.
+    /// - If get-by-id fails to follow relocation, it'll return the last completed task in the chain with a TaskRelocatedException, return
+    ///   the initial response that doesn't have the task listed and may or may not have a node failure.
     ///
     /// Visible for testing.
     void followRelocationAndRethrottle(

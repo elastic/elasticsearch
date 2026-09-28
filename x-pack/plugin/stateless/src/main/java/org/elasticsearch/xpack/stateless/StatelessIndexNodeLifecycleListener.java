@@ -32,8 +32,8 @@ import java.util.concurrent.Executor;
 /// [IndexEventListener] that manages shard lifecycle on stateless index nodes.
 ///
 /// Registers each shard with the [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] and
-/// [org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator] on creation and cleans up those
-/// registrations on close or deletion. Also, coordinates snapshot commit release and hollow shard tracking.
+/// [org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator] on creation and cleans up those registrations on close or
+/// deletion. Also, coordinates snapshot commit release and hollow shard tracking.
 class StatelessIndexNodeLifecycleListener implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessIndexNodeLifecycleListener.class);

@@ -483,8 +483,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         return builder.build();
     }
 
-    /// If unassignedInfo is `null`, the shard is started on `nodeId`. Otherwise, the shard is inactive with the
-    /// provided unassignment info.
+    /// If unassignedInfo is `null`, the shard is started on `nodeId`. Otherwise, the shard is inactive with the provided unassignment info.
     private static ShardRouting shardRouting(
         ShardId shardId,
         boolean primary,

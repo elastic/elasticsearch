@@ -43,20 +43,17 @@ public class EnsureDocsSearchableAction {
 
         private int shardId; // this is not serialized over the wire, and will be 0 on the other end of the wire.
         private String[] docIds;
-        /// Per-document routing, parallel to {@link #docIds} (entry {@code i} is the routing of {@code docIds[i]}).
-        /// {@code null} when the request comes from a node older than {@link #ROUTING}, or when no routing is involved.
-        /// It is needed so the indexing node can build the correct identity term for the live-version-map lookup on
-        /// indices whose {@code _id} is scoped by routing (e.g. slice-enabled indices).
+        /// Per-document routing, parallel to {@link #docIds} (entry {@code i} is the routing of {@code docIds[i]}). {@code null} when the
+        /// request comes from a node older than {@link #ROUTING}, or when no routing is involved. It is needed so the indexing node can
+        /// build the correct identity term for the live-version-map lookup on indices whose {@code _id} is scoped by routing (e.g.
+        /// slice-enabled indices).
         private String[] routings;
-        /// Note that this request doesn't implement [RetryableSplitAwareRequest].
-        /// This is because this request is sent from the search shard to the index shard (it's a "second leg").
-        /// Coordinator -> search shard -> index shard.
-        ///                             ^
-        /// If the summary is old and we can't perform this operation it means that the coordinator picked a wrong shard.
-        /// We should retry at the coordinator level and NOT at the search shard level.
-        /// We should also always carry over the summary from the coordinator and not generate it on the search shard.
-        /// So by not implementing [RetryableSplitAwareRequest] we opt out of retries and updates of the summary
-        /// that are implemented in [org.elasticsearch.action.support.single.shard.TransportSingleShardAction].
+        /// Note that this request doesn't implement [RetryableSplitAwareRequest]. This is because this request is sent from the search
+        /// shard to the index shard (it's a "second leg"). Coordinator -> search shard -> index shard. ^ If the summary is old and we can't
+        /// perform this operation it means that the coordinator picked a wrong shard. We should retry at the coordinator level and NOT at
+        /// the search shard level. We should also always carry over the summary from the coordinator and not generate it on the search
+        /// shard. So by not implementing [RetryableSplitAwareRequest] we opt out of retries and updates of the summary that are implemented
+        /// in [org.elasticsearch.action.support.single.shard.TransportSingleShardAction].
         private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
         public EnsureDocsSearchableRequest() {}

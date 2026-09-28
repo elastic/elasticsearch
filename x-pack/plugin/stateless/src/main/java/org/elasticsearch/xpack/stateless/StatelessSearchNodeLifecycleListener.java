@@ -24,9 +24,9 @@ import java.util.function.Predicate;
 
 /// [IndexEventListener] that manages shard lifecycle on stateless search nodes.
 ///
-/// Tracks shard sizes via [SearchShardSizeCollector], notifies [org.elasticsearch.xpack.stateless.commits.ClosedShardService]
-/// on store close, and drives cache eviction and demotion when index regions are deleted or shards are closed.
-/// Cache operations are skipped when the node is shutting down to avoid unnecessary work during termination.
+/// Tracks shard sizes via [SearchShardSizeCollector], notifies [org.elasticsearch.xpack.stateless.commits.ClosedShardService] on store
+/// close, and drives cache eviction and demotion when index regions are deleted or shards are closed. Cache operations are skipped when the
+/// node is shutting down to avoid unnecessary work during termination.
 class StatelessSearchNodeLifecycleListener implements IndexEventListener {
 
     private final SearchShardSizeCollector searchShardSizeCollector;

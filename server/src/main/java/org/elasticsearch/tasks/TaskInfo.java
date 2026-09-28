@@ -71,8 +71,8 @@ public record TaskInfo(
         assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
     }
 
-    /// Constructor for a task which is not continuing the work of another task, so `originalTaskId == taskId` and
-    /// `originalStartTimeMillis == startTime`.
+    /// Constructor for a task which is not continuing the work of another task, so `originalTaskId == taskId` and `originalStartTimeMillis
+    /// == startTime`.
     public TaskInfo(
         TaskId taskId,
         String type,

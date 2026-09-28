@@ -49,8 +49,8 @@ public class ReshardingActionHelper {
         this.threadPool = threadPool;
     }
 
-    /// Waits for routing information to be updated in preparation to execute a multi-read operation.
-    /// Provided [StaleRequestException]s are used to identify if routing information is recent enough.
+    /// Waits for routing information to be updated in preparation to execute a multi-read operation. Provided [StaleRequestException]s are
+    /// used to identify if routing information is recent enough.
     public void waitForRoutingUpdate(Map<ShardId, StaleRequestException> exceptions, ActionListener<Void> listener) {
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override

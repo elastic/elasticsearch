@@ -937,13 +937,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardMoved.get();
         }
 
-        /// Iterate over all the nodes and move any shards where `canRemain` returns `NO`, and accumulate the best
-        /// moves we've seen where `canRemain` returns `NOT_PREFERRED` via the `bestNonPreferredShardMovementsTracker`.
+        /// Iterate over all the nodes and move any shards where `canRemain` returns `NO`, and accumulate the best moves we've seen where
+        /// `canRemain` returns `NOT_PREFERRED` via the `bestNonPreferredShardMovementsTracker`.
         ///
-        /// Executes in two passes, the first pass will execute moves where `canAllocate` returns `YES`, the
-        /// second pass will move any remaining shards where `canAllocate` returns `NOT_PREFERRED`.
+        /// Executes in two passes, the first pass will execute moves where `canAllocate` returns `YES`, the second pass will move any
+        /// remaining shards where `canAllocate` returns `NOT_PREFERRED`.
         ///
-        /// @param shardMoved An atomic boolean that is set to true if a move was made
+        /// @param shardMoved                            An atomic boolean that is set to true if a move was made
         /// @param bestNonPreferredShardMovementsTracker The tracker of best canRemain:not-preferred shard movements
         private void iterateNodesAndMoveCannotRemain(
             AtomicBoolean shardMoved,
@@ -983,16 +983,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             YES_OR_NOT_PREFERRED
         }
 
-        /// Iterate through the shard Iterator looking for shards where `canRemain` is `NO`, acting only on
-        /// those with a canAllocate decision matching [CanAllocateDecisions].
+        /// Iterate through the shard Iterator looking for shards where `canRemain` is `NO`, acting only on those with a canAllocate
+        /// decision matching [CanAllocateDecisions].
         ///
-        /// Use the [BestShardMovementsTracker#shardIsBetterThanCurrent(ShardRouting)] to filter any shards
-        /// where `canRemain` is NOT_PREFERRED, and update the [BestShardMovementsTracker] accordingly.
+        /// Use the [BestShardMovementsTracker#shardIsBetterThanCurrent(ShardRouting)] to filter any shards where `canRemain` is
+        /// NOT_PREFERRED, and update the [BestShardMovementsTracker] accordingly.
         ///
-        /// @param shardMoved An atomic boolean that is set to true if a move was made
-        /// @param shardsToCheck The iterator of shards to check
+        /// @param shardMoved                            An atomic boolean that is set to true if a move was made
+        /// @param shardsToCheck                         The iterator of shards to check
         /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
-        /// @param canAllocateDecisions The canAllocate decisions a move must have to be executed
+        /// @param canAllocateDecisions                  The canAllocate decisions a move must have to be executed
         /// @return The IDs of any nodes with moves that were skipped due to not matching the `canAllocateDecisions`
         private Set<String> findAndExecuteMoves(
             AtomicBoolean shardMoved,

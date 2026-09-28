@@ -43,8 +43,8 @@ import java.util.concurrent.Executor;
 
 /// [TransportAction] for the primary-context handoff phase of a stateless primary relocation.
 ///
-/// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The
-/// target-side handler delegates to [StatelessPrimaryRelocationTargetService].
+/// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The target-side handler
+/// delegates to [StatelessPrimaryRelocationTargetService].
 public class TransportStatelessPrimaryRelocationHandoffAction extends TransportAction<
     TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest,
     ActionResponse.Empty> {
@@ -102,8 +102,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         );
     }
 
-    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding
-    /// it directly preserves the expected task linkage on the target node.
+    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding it directly preserves
+    /// the expected task linkage on the target node.
     @Override
     protected void doExecute(Task task, HandoffRequest request, ActionListener<ActionResponse.Empty> listener) {
         final var transportRequest = request.request();

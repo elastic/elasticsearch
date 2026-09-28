@@ -19,20 +19,19 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
 
-/// A persistent task that designates a single node in the cluster as the "health node". The health node is
-/// responsible for aggregating per-node health information reported by
-/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] instances running on every node:
+/// A persistent task that designates a single node in the cluster as the "health node". The health node is responsible for aggregating
+/// per-node health information reported by [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] instances running on every
+/// node:
 ///
 /// - [DiskHealthInfo][org.elasticsearch.health.node.DiskHealthInfo]
 /// - [RepositoriesHealthInfo][org.elasticsearch.health.node.RepositoriesHealthInfo]
 /// - [DataStreamLifecycleHealthInfo][org.elasticsearch.health.node.DataStreamLifecycleHealthInfo]
 /// - [FileSettingsHealthInfo][org.elasticsearch.health.node.FileSettingsHealthInfo]
 ///
-/// The aggregated data is held in the [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] on the
-/// health node and consumed by health indicator services.
+/// The aggregated data is held in the [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] on the health node and consumed by
+/// health indicator services.
 ///
-/// The health node also logs nodes health periodically via the
-/// [HealthPeriodicLogger][org.elasticsearch.health.HealthPeriodicLogger].
+/// The health node also logs nodes health periodically via the [HealthPeriodicLogger][org.elasticsearch.health.HealthPeriodicLogger].
 ///
 /// The lifecycle of this task is managed by [HealthNodeTaskExecutor].
 ///

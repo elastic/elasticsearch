@@ -96,8 +96,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
     /// Asserts that the given per-node recovery-stats predicates are all satisfied.
     ///
-    /// Unlike [#awaitRecoveryCountStats], this does not wait for recovery scheduling events. It reads
-    /// current stats and fails immediately if any predicate is not met.
+    /// Unlike [#awaitRecoveryCountStats], this does not wait for recovery scheduling events. It reads current stats and fails immediately if
+    /// any predicate is not met.
     protected void assertRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         for (final var nodePredicate : predicatePerNode.entrySet()) {
             final var indicesService = internalCluster().getInstance(IndicesService.class, nodePredicate.getKey());
@@ -114,8 +114,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    /// Waits until the given recovery stats predicates are all satisfied, re-checking on every recovery scheduling
-    /// event on all given nodes.
+    /// Waits until the given recovery stats predicates are all satisfied, re-checking on every recovery scheduling event on all
+    /// given nodes.
     protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
@@ -178,8 +178,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         awaitRecoveryCountMetrics(Map.of(nodeName, nodeTelemetry), Map.of(nodeName, expectedMetrics));
     }
 
-    /// Waits until `expectedMetrics` matches the provided telemetries' values, re-checking on every recovery
-    /// scheduling event on the given nodes.
+    /// Waits until `expectedMetrics` matches the provided telemetries' values, re-checking on every recovery scheduling event on the
+    /// given nodes.
     protected void awaitRecoveryCountMetrics(Map<String, TestTelemetryPlugin> telemetries, Map<String, Map<String, Long>> expectedMetrics) {
         final var conditionLatch = new CountDownLatch(1);
         final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();

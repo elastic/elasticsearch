@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action;
 
-/// Marker interface that marks requests that are used in actions that have special logic
-/// to handle resharding splits.
-/// This is used mostly for assertions.
+/// Marker interface that marks requests that are used in actions that have special logic to handle resharding splits. This is used mostly
+/// for assertions.
 public interface SplitAwareRequest {}

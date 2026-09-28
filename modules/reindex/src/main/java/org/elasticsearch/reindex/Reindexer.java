@@ -632,8 +632,8 @@ public class Reindexer {
 
     /// Listener to log the outcome of a relocation on the **source** node. These logs are used for dashboards.
     ///
-    /// We log instead of emitting a metric because the source is being shut down (SIGTERM is what triggered the
-    /// relocation), and the metrics agent stops publishing on SIGTERM — so any source-side metric would be dropped.
+    /// We log instead of emitting a metric because the source is being shut down (SIGTERM is what triggered the relocation), and the metrics
+    /// agent stops publishing on SIGTERM — so any source-side metric would be dropped.
     ///
     /// Visible for testing.
     static ActionListener<ResumeBulkByPaginatedSearchResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {

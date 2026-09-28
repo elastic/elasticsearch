@@ -18,8 +18,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.OptionalDouble;
 
-/// Centralizes BCC upload metric registration and state so [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] can focus
-/// on commit lifecycle management.
+/// Centralizes BCC upload metric registration and state so [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] can focus on
+/// commit lifecycle management.
 public class BccUploadMetrics {
 
     static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
@@ -91,15 +91,14 @@ public class BccUploadMetrics {
         }
     }
 
-    /// Calculates the span, in minutes, between the minimum and maximum timestamps
-    /// present in a collection of [TimestampFieldValueRange] objects.
-    /// If the collection contains no valid timestamp range entries, an empty `OptionalDouble` is returned.
+    /// Calculates the span, in minutes, between the minimum and maximum timestamps present in a collection of
+    /// [TimestampFieldValueRange] objects. If the collection contains no valid timestamp range entries, an empty `OptionalDouble` is
+    /// returned.
     ///
-    /// @param ranges an `Iterator` of `TimestampFieldValueRange` objects, where each range
-    ///               specifies a minimum and maximum timestamp in milliseconds.
-    ///               Null entries in the iterator are skipped.
-    /// @return an `OptionalDouble` containing the timestamp span in minutes if valid ranges are
-    ///         found, or an empty `OptionalDouble` if none are present.
+    /// @param ranges an `Iterator` of `TimestampFieldValueRange` objects, where each range specifies a minimum and maximum timestamp in
+    ///               milliseconds. Null entries in the iterator are skipped.
+    /// @return an `OptionalDouble` containing the timestamp span in minutes if valid ranges are found, or an empty `OptionalDouble` if none
+    ///         are present.
     static OptionalDouble bccTimestampSpanMinutes(final Iterator<TimestampFieldValueRange> ranges) {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;

@@ -416,8 +416,8 @@ public class WatcherService implements WatcherEventConsumer {
                     continue;
                 }
                 if (pendingWatch.status().state().isActive()) {
-                    /// We ignore the return value deliberately. If the engine pauses during this operation,
-                    /// the [#loadWatches(ClusterState)] will bring them back
+                    /// We ignore the return value deliberately. If the engine pauses during this operation, the
+                    /// [#loadWatches(ClusterState)] will bring them back
                     triggerService.add(pendingWatch);
                 }
             }
@@ -425,12 +425,11 @@ public class WatcherService implements WatcherEventConsumer {
         }
     }
 
-    /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is
-    /// paused between `pauseExecution` and `start`), retains the watch in the pending-watches map so the next reload
-    /// picks it up. When the engine accepts the watch immediately, no pending entry is needed — the next reload will
-    /// reload it from the index search anyway. Both branches happen under the same lock in [WatcherService], so a
-    /// concurrent [#onWatchRemoved] cannot interleave between the engine call and the pending update and leave the
-    /// two views inconsistent.
+    /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is paused between
+    /// `pauseExecution` and `start`), retains the watch in the pending-watches map so the next reload picks it up. When the engine accepts
+    /// the watch immediately, no pending entry is needed — the next reload will reload it from the index search anyway. Both branches happen
+    /// under the same lock in [WatcherService], so a concurrent [#onWatchRemoved] cannot interleave between the engine call and the pending
+    /// update and leave the two views inconsistent.
     @Override
     public void onWatchAdded(Watch watch) {
         synchronized (pendingWatches) {
@@ -440,9 +439,8 @@ public class WatcherService implements WatcherEventConsumer {
         }
     }
 
-    /// Atomically removes a watch from the pending-watches map and the trigger engine under the same lock as
-    /// [#onWatchAdded]. This prevents a concurrent `postIndex` from resurrecting a deleted watch by sneaking an add
-    /// in between the two halves of the removal.
+    /// Atomically removes a watch from the pending-watches map and the trigger engine under the same lock as [#onWatchAdded]. This prevents
+    /// a concurrent `postIndex` from resurrecting a deleted watch by sneaking an add in between the two halves of the removal.
     @Override
     public void onWatchRemoved(String watchId) {
         synchronized (pendingWatches) {

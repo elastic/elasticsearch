@@ -638,9 +638,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    /// Regression test for the race where an active recovery completes during service shutdown and would cause
-    /// a new pending recovery to be started after the lifecycle already moved to `State.STOPPED`.
-    /// The queue is now drained before the lifecycle state changes.
+    /// Regression test for the race where an active recovery completes during service shutdown and would cause a new pending recovery to be
+    /// started after the lifecycle already moved to `State.STOPPED`. The queue is now drained before the lifecycle state changes.
     public void testCompletingRecoveryWhileStopping() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
@@ -898,8 +897,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    /// When the limit increase opens fewer new slots than items in the queue, the initial drain fills
-    /// the available slots immediately; remaining items are pulled out via the cascade as recoveries complete.
+    /// When the limit increase opens fewer new slots than items in the queue, the initial drain fills the available slots immediately;
+    /// remaining items are pulled out via the cascade as recoveries complete.
     public void testDynamicLimitIncreaseDrainsViaInitialSlotsThenCascade() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
@@ -1012,8 +1011,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    /// Blocks all new primary operations on `shard` (blocking `recoverToTarget`).
-    /// The returned [Releasable] must be closed to unblock operations.
+    /// Blocks all new primary operations on `shard` (blocking `recoverToTarget`). The returned [Releasable] must be closed to
+    /// unblock operations.
     private static Releasable blockShardRecovery(IndexShard shard) {
         return safeAwait(listener -> shard.acquireAllPrimaryOperationsPermits(listener, TimeValue.MAX_VALUE));
     }

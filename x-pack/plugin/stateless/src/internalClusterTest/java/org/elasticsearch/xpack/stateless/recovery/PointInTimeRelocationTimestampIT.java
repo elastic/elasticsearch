@@ -62,9 +62,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/// Integration tests verifying that PIT relocation correctly transfers `@timestamp` field value
-/// range metadata in the wire payload, including generational files whose blob location changed between
-/// when SearchDirectory first pinned them and the commit the PIT was opened at.
+/// Integration tests verifying that PIT relocation correctly transfers `@timestamp` field value range metadata in the wire payload,
+/// including generational files whose blob location changed between when SearchDirectory first pinned them and the commit the PIT was
+/// opened at.
 public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
@@ -91,16 +91,13 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
-    /// Verifies that the PIT wire payload carries the correct `@timestamp` range for every file
-    /// in the commit after relocation.
+    /// Verifies that the PIT wire payload carries the correct `@timestamp` range for every file in the commit after relocation.
     ///
-    /// With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` every flush or refresh creates its own
-    /// single-commit BCC blob. Each file is stamped with the timestamp range of the BCC in
-    /// which it was first written, and [SearchDirectory]
-    /// preserves that range via `putIfAbsent`. The expected timestamp range for each file is
-    /// captured directly from the source [SearchDirectory]
-    /// right before PIT opens — this is the ground truth against which the wire payload is
-    /// compared, which is precise regardless of how many BCCs exist or what timestamps they carry.
+    /// With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` every flush or refresh creates its own single-commit BCC blob. Each file is stamped with
+    /// the timestamp range of the BCC in which it was first written, and [SearchDirectory] preserves that range via `putIfAbsent`. The
+    /// expected timestamp range for each file is captured directly from the source [SearchDirectory] right before PIT opens — this is the
+    /// ground truth against which the wire payload is compared, which is precise regardless of how many BCCs exist or what timestamps
+    /// they carry.
     public void testPitRelocationTransfersTimestamps() throws Exception {
         final var indexNode = startMasterAndIndexNode();
         final var searchNodeA = startSearchNode();
@@ -191,8 +188,8 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
                 );
             });
 
-            /// [SearchDirectory#mergeMetadata] (invoked via [SearchDirectory#mergePITReaderMetadata]) must merge every transferred
-            /// range into the destination's own metadata.
+            /// [SearchDirectory#mergeMetadata] (invoked via [SearchDirectory#mergePITReaderMetadata]) must merge every transferred range
+            /// into the destination's own metadata.
             pitMetadata.forEach((fileName, wireRanges) -> {
                 final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, fileName);
                 assertThat("destination SearchDirectory must know about transferred file: " + fileName, mergedRanges, notNullValue());
@@ -207,27 +204,20 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         }
     }
 
-    /// Verifies that when a generational file's blob location differs between the
-    /// [SearchDirectory]'s pinned entry and the commit the PIT was opened at,
-    /// the wire payload stamps the file with the CC's own timestamp — not the old pinned one.
+    /// Verifies that when a generational file's blob location differs between the [SearchDirectory]'s pinned entry and the commit the PIT
+    /// was opened at, the wire payload stamps the file with the CC's own timestamp — not the old pinned one.
     ///
     /// Scenario (UPLOAD_MAX=1, every explicit flush → its own single-commit BCC blob):
     ///
-    ///   1. Flush A: initial docs with `tsA` → segment `_0`, all files internal to
-    ///     BCC_A. SearchDirectory entries for all files carry `tsA`.
-    ///   2. Flush B: re-index one doc with `tsB`. Lucene soft-deletes the old version via a
-    ///     generational live-docs file (e.g. `_0_1.liv`) and writes the new version into a
-    ///     new segment `_1`. Because BCC_B is a single-commit VBCC, `_0_1.liv` is
-    ///     written as an _internal_ file into BCC_B. SearchDirectory pins it at BCC_B's
-    ///     offset with timestamp `tsB`.
-    ///   3. Flush C: add one new doc with `tsC` → new segment `_2`. Commit C still
-    ///     references `_0_1.liv` (segment `_0` has not been merged away). Because
-    ///     CC_C is again the first (and only) commit in VBCC_C, `_0_1.liv` is re-copied
-    ///     into BCC_C at a _new_ offset. SearchDirectory's `putIfAbsent` keeps the
-    ///     BCC_B pin.
-    ///   4. PIT opened at commit C. `overrideBlobFileRangesTimestamp` detects the location
-    ///     mismatch for `_0_1.liv` (BCC_B in SearchDirectory vs BCC_C in CC_C) and stamps
-    ///     the wire payload entry with CC_C's timestamp range `[tsC, tsC]`.
+    /// 1. Flush A: initial docs with `tsA` → segment `_0`, all files internal to BCC_A. SearchDirectory entries for all files carry `tsA`.
+    /// 2. Flush B: re-index one doc with `tsB`. Lucene soft-deletes the old version via a generational live-docs file (e.g. `_0_1.liv`) and
+    ///    writes the new version into a new segment `_1`. Because BCC_B is a single-commit VBCC, `_0_1.liv` is written as an _internal_ file
+    ///    into BCC_B. SearchDirectory pins it at BCC_B's offset with timestamp `tsB`.
+    /// 3. Flush C: add one new doc with `tsC` → new segment `_2`. Commit C still references `_0_1.liv` (segment `_0` has not been merged
+    ///    away). Because CC_C is again the first (and only) commit in VBCC_C, `_0_1.liv` is re-copied into BCC_C at a _new_ offset.
+    ///    SearchDirectory's `putIfAbsent` keeps the BCC_B pin.
+    /// 4. PIT opened at commit C. `overrideBlobFileRangesTimestamp` detects the location mismatch for `_0_1.liv` (BCC_B in SearchDirectory
+    ///    vs BCC_C in CC_C) and stamps the wire payload entry with CC_C's timestamp range `[tsC, tsC]`.
     public void testPitRelocationTransfersTimestampForGenerationalFileWithChangedBlobLocation() {
         final var indexNode = startMasterAndIndexNode();
         final var searchNodeA = startSearchNode();
@@ -302,9 +292,8 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
                 is(true)
             );
 
-            /// [SearchDirectory#mergeMetadata] must adopt CC_C's overridden range on the destination node too;
-            /// otherwise the fix would only be visible on the wire and never reach the merged metadata that
-            /// SearchDirectory actually uses to serve reads.
+            /// [SearchDirectory#mergeMetadata] must adopt CC_C's overridden range on the destination node too; otherwise the fix would only
+            /// be visible on the wire and never reach the merged metadata that SearchDirectory actually uses to serve reads.
             final var genFilesWithTimestampC = genFilesMetadata.entrySet()
                 .stream()
                 .filter(e -> Objects.equals(e.getValue().timestampRange(), new TimestampFieldValueRange(tsC, tsC)))
@@ -354,9 +343,8 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         return List.copyOf(capturedInfos);
     }
 
-    /// Reads the merged [BlobFileRanges] for `fileName` directly from the destination search
-    /// shard's [SearchDirectory], i.e. the state produced by [SearchDirectory#mergePITReaderMetadata] rather than
-    /// what was merely sent over the wire during the relocation handoff.
+    /// Reads the merged [BlobFileRanges] for `fileName` directly from the destination search shard's [SearchDirectory], i.e. the state
+    /// produced by [SearchDirectory#mergePITReaderMetadata] rather than what was merely sent over the wire during the relocation handoff.
     private static BlobFileRanges getSearchDirectoryBlobFileRanges(String indexName, String fileName) {
         return SearchDirectory.unwrapDirectory(findSearchShard(indexName).store().directory()).getBlobFileRangesForFile(fileName);
     }
@@ -394,10 +382,9 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 
-    /// A PIT id encodes, per shard, the node it was last seen on; that mapping is only refreshed by a
-    /// search response. Closing a PIT with the pre-relocation id after the shard has already relocated
-    /// targets the old node, leaving the reader context created on the new node during the handoff
-    /// unreleased. So we must search once to obtain the post-relocation id before closing.
+    /// A PIT id encodes, per shard, the node it was last seen on; that mapping is only refreshed by a search response. Closing a PIT with
+    /// the pre-relocation id after the shard has already relocated targets the old node, leaving the reader context created on the new node
+    /// during the handoff unreleased. So we must search once to obtain the post-relocation id before closing.
     private void closeRelocatedPointInTime(BytesReference pitId) {
         final var updatedPitId = new AtomicReference<BytesReference>();
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> updatedPitId.set(resp.pointInTimeId()));

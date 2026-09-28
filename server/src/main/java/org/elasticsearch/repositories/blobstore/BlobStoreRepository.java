@@ -2092,12 +2092,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
     }
 
-    /// Adjusts metadata that will be stored in a snapshot. Returns empty optional if no adjustment is needed.
-    /// This is needed because some functionality like resharding uses transient index metadata in the implementation.
-    /// Due to the async nature of the snapshot logic, such metadata can be out of sync with the shard data captured in the
-    /// snapshot.
-    /// As such we don't want to have it in the snapshot since it would be incorrect to make decisions based on it
-    /// after the snapshot is restored.
+    /// Adjusts metadata that will be stored in a snapshot. Returns empty optional if no adjustment is needed. This is needed because some
+    /// functionality like resharding uses transient index metadata in the implementation. Due to the async nature of the snapshot logic,
+    /// such metadata can be out of sync with the shard data captured in the snapshot. As such we don't want to have it in the snapshot since
+    /// it would be incorrect to make decisions based on it after the snapshot is restored.
     ///
     /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
     ///
@@ -2162,10 +2160,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         var indexGenerations = liveShardGenerations.getGens(index);
         assert indexGenerations.isEmpty() == false : "An index should have at least one shard";
 
-        /// `indexGenerations` has an entry for every shard id even if the shard snapshot failed.
-        /// In that case it just contains `null` generation.
-        /// See [SnapshotsServiceUtils.buildGenerations].
-        /// The line below relies on that assumption to be correct.
+        /// `indexGenerations` has an entry for every shard id even if the shard snapshot failed. In that case it just contains `null`
+        /// generation. See [SnapshotsServiceUtils.buildGenerations]. The line below relies on that assumption to be correct.
         return indexGenerations.size();
     }
 

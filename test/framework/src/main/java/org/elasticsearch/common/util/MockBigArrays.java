@@ -69,8 +69,9 @@ import static org.junit.Assert.assertTrue;
 /// - Breaker: `adjustBreaker` upfront + [BigArrays#validate].
 ///
 /// `bytesRefRecycler().obtain()` (direct [BytesRef] page)
-/// - [MockBigArrays#bytesRefRecycler] returns a [MockBytesRefRecycler] that delegates to [org.elasticsearch.transport.BytesRefRecycler],
-///   which in turn calls [MockPageCacheRecycler#bytePage]. Pages are recorded in `MockPageCacheRecycler.ACQUIRED_PAGES`.
+/// - [MockBigArrays#bytesRefRecycler] returns a [MockBytesRefRecycler] that delegates to
+///   [org.elasticsearch.transport.BytesRefRecycler], which in turn calls [MockPageCacheRecycler#bytePage]. Pages are recorded in
+///   `MockPageCacheRecycler.ACQUIRED_PAGES`.
 /// - Not a [BigArray], so nothing is recorded in `ACQUIRED_ARRAYS`.
 /// - Breaker: [MockBytesRefRecycler].
 ///
@@ -205,11 +206,10 @@ public class MockBigArrays extends BigArrays {
         return bytesRefRecycler;
     }
 
-    /// A [Recycler] for [BytesRef] pages that layers circuit-breaker accounting on top of a delegate recycler. Leak
-    /// tracking for the underlying pages is already handled by [MockPageCacheRecycler]. This class only ensures that
-    /// each [#obtain] call charges [#pageSize] bytes to the breaker so that
-    /// [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats] can catch unreleased pages acquired directly
-    /// via [BigArrays#bytesRefRecycler], which bypass the [BigArrays#validate] path used by [BigArrays#newByteArray].
+    /// A [Recycler] for [BytesRef] pages that layers circuit-breaker accounting on top of a delegate recycler. Leak tracking for the
+    /// underlying pages is already handled by [MockPageCacheRecycler]. This class only ensures that each [#obtain] call charges
+    /// [#pageSize] bytes to the breaker so that [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats] can catch unreleased pages
+    /// acquired directly via [BigArrays#bytesRefRecycler], which bypass the [BigArrays#validate] path used by [BigArrays#newByteArray].
     private static final class MockBytesRefRecycler implements Recycler<BytesRef> {
 
         private final Recycler<BytesRef> delegate;

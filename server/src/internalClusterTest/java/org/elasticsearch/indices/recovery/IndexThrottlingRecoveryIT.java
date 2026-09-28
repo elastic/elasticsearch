@@ -66,8 +66,8 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
     }
 
     /// Verifies that the source node queues peer recovery requests that exceed
-    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING], and that all queued recoveries
-    /// eventually complete successfully once slots become free.
+    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING], and that all queued recoveries eventually
+    /// complete successfully once slots become free.
     public void testSourceNodeQueuesRecoveriesPastConcurrencyLimit() throws Exception {
         internalCluster().startMasterOnlyNode();
         final int sourceConcurrentRecoveryLimit = 1;

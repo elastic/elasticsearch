@@ -907,8 +907,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    /// Verifies that {@link SharedBlobCacheService#demoteAll} moves demoted regions to the freq-0 head
-    /// so they are evicted before other freq-0 entries.
+    /// Verifies that {@link SharedBlobCacheService#demoteAll} moves demoted regions to the freq-0 head so they are evicted before other
+    /// freq-0 entries.
     public void testDemoteAllMovesRegionsToFrontForEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -2276,17 +2276,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     /// Drives the all-frequency scanner to the rarely-hit `Free` outcome and asserts the recorded `mode`, `outcome` and `entriesScanned`.
     ///
-    /// The `Free` outcome fires when a region appears in `freeRegions` *during* the scan's poll, rather than being produced by the
-    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but when its eviction predicate is
-    /// created force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses the eviction predicate (so
-    /// the side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
-    /// into `freeRegions` which the scan's next poll then picks up.
+    /// The `Free` outcome fires when a region appears in `freeRegions` *during* the scan's poll, rather than being produced by the scan's
+    /// own eviction. To trigger it deterministically, we install a policy that never evicts, but when its eviction predicate is created
+    /// force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses the eviction predicate (so the side
+    /// effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region into
+    /// `freeRegions` which the scan's next poll then picks up.
     ///
-    /// The victim must live in a *different* frequency bucket than the one being scanned: `maybeEvictAndTakeForFrequency` walks its
-    /// bucket's linked list in place, so force-evicting an entry from that same bucket would unlink the cursor (or a later node)
-    /// mid-traversal, making `entriesScanned` and the outcome non-deterministic with no exception to flag it. We therefore fill the
-    /// cache, decay everything to frequency 0, then promote the victim to frequency 2 via a cache hit, so `forceEvict` only mutates
-    /// `freqs[2]` and the freq-0 walk of the remaining `numRegions - 1` entries stays intact.
+    /// The victim must live in a *different* frequency bucket than the one being scanned: `maybeEvictAndTakeForFrequency` walks its bucket's
+    /// linked list in place, so force-evicting an entry from that same bucket would unlink the cursor (or a later node) mid-traversal,
+    /// making `entriesScanned` and the outcome non-deterministic with no exception to flag it. We therefore fill the cache, decay everything
+    /// to frequency 0, then promote the victim to frequency 2 via a cache hit, so `forceEvict` only mutates `freqs[2]` and the freq-0 walk
+    /// of the remaining `numRegions - 1` entries stays intact.
     public void testEvictionScanMetricsFreeOutcome() throws Exception {
         final int numRegions = randomIntBetween(4, 20);
         final long regionSize = size(1L);
@@ -2389,8 +2389,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// before reaching an evictable one, landing strictly between 1 and `numRegions`.
     ///
     /// We fill the cache, protect the first `skip` inserted keys via the policy, then decay everything to frequency 0 (which preserves
-    /// insertion order, so the protected keys sit at the head). A single scan then walks those `skip` protected head entries (counted
-    /// but skipped), evicts the `(skip+1)`-th, and stops, so `entriesScanned == skip + 1`.
+    /// insertion order, so the protected keys sit at the head). A single scan then walks those `skip` protected head entries (counted but
+    /// skipped), evicts the `(skip+1)`-th, and stops, so `entriesScanned == skip + 1`.
     public void testEvictionScanMetricsSkipsNonEvictableEntries() throws Exception {
         final int numRegions = randomIntBetween(4, 20);
         final int skip = randomIntBetween(1, numRegions - 1);
@@ -2498,12 +2498,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     /// Drives the all-frequencies scanner and asserts that `entriesScanned` accumulates across two frequency buckets in a single scan.
     ///
-    /// We place `freq0Regions` protected entries at frequency 0 (filled then decayed) and `freq1Regions` entries at frequency 1
-    /// (filled afterwards, no decay), protecting all of the freq-0 entries plus the first `skipFreq1Regions` of the freq-1 entries.
-    /// A single scan then walks every protected freq-0 entry, finds nothing freed at the freq-1 boundary,
-    /// skips the `skipFreq1Regions` protected freq-1 entries, and evicts the first eligible one,
-    /// so `entriesScanned == freq0Regions + skipFreq1Regions + 1` (strictly greater than 1, spanning both buckets).
-    /// As in the lowest-frequency variant, protection is keyed so the victim stays put as the scan proceeds.
+    /// We place `freq0Regions` protected entries at frequency 0 (filled then decayed) and `freq1Regions` entries at frequency 1 (filled
+    /// afterwards, no decay), protecting all of the freq-0 entries plus the first `skipFreq1Regions` of the freq-1 entries. A single scan
+    /// then walks every protected freq-0 entry, finds nothing freed at the freq-1 boundary, skips the `skipFreq1Regions` protected freq-1
+    /// entries, and evicts the first eligible one, so `entriesScanned == freq0Regions + skipFreq1Regions + 1` (strictly greater than 1,
+    /// spanning both buckets). As in the lowest-frequency variant, protection is keyed so the victim stays put as the scan proceeds.
     public void testEvictionScanMetricsSkipsAcrossFrequencyBuckets() throws Exception {
         final int numRegions = randomIntBetween(6, 30);
         final int freq0Regions = randomIntBetween(1, numRegions - 2);
@@ -2615,9 +2614,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         });
     }
 
-    /// Fills the cache, then drives an evicting [SharedBlobCacheService#get] on a brand-new key with zero free regions: the
-    /// cache-miss path scans for a victim (one [BlobCacheMetrics.LockAcquireSite#CacheMissEviction]) then installs the incoming
-    /// region ([BlobCacheMetrics.LockAcquireSite#SlotAssignment]). The fill produces one {@code SlotAssignment} per region.
+    /// Fills the cache, then drives an evicting [SharedBlobCacheService#get] on a brand-new key with zero free regions: the cache-miss path
+    /// scans for a victim (one [BlobCacheMetrics.LockAcquireSite#CacheMissEviction]) then installs the incoming region
+    /// ([BlobCacheMetrics.LockAcquireSite#SlotAssignment]). The fill produces one {@code SlotAssignment} per region.
     public void testLockAcquireMetricsCacheMissEviction() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             for (int i = 0; i < ctx.numRegions(); i++) {
@@ -2658,8 +2657,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         });
     }
 
-    /// Drives the best-effort prefetch scanner `SharedBlobCacheService::maybeEvictLeastUsed` on an empty freq-0 list: the lock is
-    /// taken unconditionally, so a single [BlobCacheMetrics.LockAcquireSite#LowestFrequencyEviction] sample is recorded even though nothing
+    /// Drives the best-effort prefetch scanner `SharedBlobCacheService::maybeEvictLeastUsed` on an empty freq-0 list: the lock is taken
+    /// unconditionally, so a single [BlobCacheMetrics.LockAcquireSite#LowestFrequencyEviction] sample is recorded even though nothing
     /// is evicted.
     public void testLockAcquireMetricsPrefetchEviction() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
@@ -2702,8 +2701,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     /// Drives the shard-scoped bulk eviction [SharedBlobCacheService#forceEvict(ShardId, Predicate)] and asserts the
-    /// [BlobCacheMetrics.LockAcquireSite#ForceEvict] site. A no-match {@code BiPredicate} call takes no lock and records
-    /// nothing.
+    /// [BlobCacheMetrics.LockAcquireSite#ForceEvict] site. A no-match {@code BiPredicate} call takes no lock and records nothing.
     public void testLockAcquireMetricsForceEvictByShard() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             final ShardId shard = randomShardId();
@@ -2803,8 +2801,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    /// Bundles the objects created by [#runLockAcquireMetricsTest] so a test body can drive the cache and assert against the
-    /// recorded lock-acquire samples without repeating the shared setup.
+    /// Bundles the objects created by [#runLockAcquireMetricsTest] so a test body can drive the cache and assert against the recorded
+    /// lock-acquire samples without repeating the shared setup.
     private record LockAcquireMetricsTestContext(
         SharedBlobCacheService<TestCacheKey> cacheService,
         RecordingMeterRegistry recording,
@@ -2821,9 +2819,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    /// Builds the settings, environment and cache shared by every {@code testLockAcquireMetrics*} test (a fixed number of
-    /// single-region slots, a deterministic clock that advances a random step per read, and a [DefaultEvictionPolicy]) and runs
-    /// {@code body} against the resulting [LockAcquireMetricsTestContext].
+    /// Builds the settings, environment and cache shared by every {@code testLockAcquireMetrics*} test (a fixed number of single-region
+    /// slots, a deterministic clock that advances a random step per read, and a [DefaultEvictionPolicy]) and runs {@code body} against the
+    /// resulting [LockAcquireMetricsTestContext].
     private void runLockAcquireMetricsTest(CheckedConsumer<LockAcquireMetricsTestContext, Exception> body) throws Exception {
         final int numRegions = randomIntBetween(2, 10);
         final long regionSize = size(1L);

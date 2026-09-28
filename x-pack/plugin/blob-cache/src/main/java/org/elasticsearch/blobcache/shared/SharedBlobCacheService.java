@@ -355,8 +355,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis);
 
-        /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
-        /// (i.e. its IO slot has been assigned), or `null` otherwise.
+        /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized (i.e. its IO slot has been
+        /// assigned), or `null` otherwise.
         ///
         /// Unlike [#get], this method will not allocate a new region slot if the entry does not exist.
         @Nullable

@@ -99,8 +99,8 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         assertThat(estimator.computeShardHeapUsage(m).shardHeapUsageBytesExcludingPostings(), equalTo(fixedBytes));
     }
 
-    /// This is a little surprising to me, and I'm pretty sure not right, but it's how it is on main,
-    /// and I don't want to change behavior as part of a refactor.
+    /// This is a little surprising to me, and I'm pretty sure not right, but it's how it is on main, and I don't want to change behavior as
+    /// part of a refactor.
     public void testFixedOverheadPlusPostingsWhenIncluded() {
         long fixedBytes = randomLongBetween(1, 10_000_000);
         long postings = randomLongBetween(1, 1_000_000);

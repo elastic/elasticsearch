@@ -39,9 +39,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-/// Transport action for batch cancellation of recoveries on a data node.
-/// Note that cancellation is best-effort. Recoveries may complete before the cancellation goes through or the request
-/// may be ignored past a certain point in the recovery process.
+/// Transport action for batch cancellation of recoveries on a data node. Note that cancellation is best-effort. Recoveries may complete
+/// before the cancellation goes through or the request may be ignored past a certain point in the recovery process.
 public class TransportCancelRecoveriesAction extends HandledTransportAction<
     CancelRecoveriesAction.Request,
     CancelRecoveriesAction.Response> {

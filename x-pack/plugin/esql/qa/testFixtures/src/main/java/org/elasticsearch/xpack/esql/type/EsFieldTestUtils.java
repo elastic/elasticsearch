@@ -148,7 +148,7 @@ public class EsFieldTestUtils {
         int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
         TextEsField.UnknownAnalyzer unknownAnalyzer = TextEsField.UnknownAnalyzer.NOT_REPORTED;
         List<IndexAnalyzerGroup> analyzerGroups = null;
-        if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
+        if (supportedOn == null || supportedOn.supports(TextEsField.TEXT_FIELD_ANALYZER)) {
             analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
             if (analyzerName != null) {
                 unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;

@@ -21,11 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
-public class APMTracerFlushTests extends ESTestCase {
+public class APMTracingServiceLifecycleTests extends ESTestCase {
 
     /**
      * A {@link TraceSupplier} that records, in order, when {@code attemptFlushTraces()} and {@code close()} are called
@@ -65,7 +64,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(settings, supplier);
         tracer.start();
         tracer.stop();
         assertThat(supplier.calls, contains("attemptFlushTraces"));
@@ -78,7 +77,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(settings, supplier);
         tracer.start();
         tracer.attemptFlushTraces();
 
@@ -89,12 +88,11 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier(() -> { throw new RuntimeException("simulated flush failure"); });
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(settings, supplier);
         tracer.start();
         tracer.close(); // must not throw
 
         assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
-        assertThat(tracer.getSpans(), anEmptyMap());
     }
 
     /**
@@ -106,7 +104,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(settings, supplier);
         tracer.start();
         tracer.close();
 

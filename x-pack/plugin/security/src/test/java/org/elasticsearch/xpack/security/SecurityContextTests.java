@@ -290,7 +290,7 @@ public class SecurityContextTests extends ESTestCase {
             Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
             Map.entry("_some_map", Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))),
             Map.entry("_remote_address", "125.124.123.122"),
-            Map.entry(Task.APM_TRACE_CONTEXT, new Object())
+            Map.entry("test.transient", new Object())
         );
         transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
 

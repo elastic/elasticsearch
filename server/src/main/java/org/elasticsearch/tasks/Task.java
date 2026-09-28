@@ -9,11 +9,13 @@
 
 package org.elasticsearch.tasks;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -21,13 +23,56 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Objects.requireNonNull;
 
 /**
  * Current task information
  */
-public class Task implements Traceable {
+public class Task {
+    /**
+     * The span this task owns, if any, wrapped in the context it was started under.
+     * <p>
+     * A task either <em>owns</em> a span created for it at registration, or <em>borrows</em> the context of the work
+     * that created it. A borrowed context is downgraded to a non-recording span, so that an intentionally untraced
+     * task propagates causality to its children but can never end or annotate its parent's span.
+     * <p>
+     * {@link TaskManager} starts the span before publishing the task, so the span is always in place before any other
+     * thread can reach it. Cleanup, however, may be attempted more than once, hence {@link #traceFinished}.
+     */
+    private volatile Context traceContext = Context.root();
+
+    private final AtomicBoolean traceFinished = new AtomicBoolean();
+
+    public Context getTraceContext() {
+        return traceContext;
+    }
+
+    /** Registration owns the span; executions and callbacks only borrow its context. */
+    public void startTrace(Context parent, Span span) {
+        assert traceFinished.get() == false : "task span started after the task was unregistered";
+        traceContext = parent.with(span);
+    }
+
+    /** Carries causality through an intentionally uninstrumented task, without taking ownership of the parent span. */
+    public void borrowTraceContext(Context parent) {
+        var spanContext = Span.fromContext(parent).getSpanContext();
+        traceContext = spanContext.isValid() ? parent.with(Span.wrap(spanContext)) : parent;
+    }
+
+    /**
+     * Unregistration is the terminal boundary, not the end of an individual execution slice. Duplicate cleanup is a
+     * no-op, and so is cleanup of a borrowed context, whose span is non-recording.
+     * <p>
+     * The span carries no outcome of its own: a task has no universally available result at this point, and inferring
+     * one from cancellation state or from child spans is unreliable, so the OTel status is deliberately left unset.
+     */
+    public void finishTrace() {
+        if (traceFinished.compareAndSet(false, true)) {
+            Span.fromContext(traceContext).end();
+        }
+    }
 
     /**
      * The request header to mark tasks with specific ids
@@ -65,20 +110,9 @@ public class Task implements Traceable {
 
     /**
      * Optional transient header allowing to override the start time of the root trace.
-     * This is discarded when creating a new trace context once an APM trace context exists.
+     * Only HTTP root instrumentation consumes this override; task spans use their actual registration time.
      */
     public static final String TRACE_START_TIME = "trace.starttime";
-
-    /**
-     * Used internally to pass the apm trace context between the nodes
-     */
-    public static final String APM_TRACE_CONTEXT = "apm.local.context";
-
-    public static final String PARENT_TRACE_PARENT_HEADER = "parent_" + Task.TRACE_PARENT_HTTP_HEADER;
-
-    public static final String PARENT_TRACE_STATE = "parent_" + Task.TRACE_STATE;
-
-    public static final String PARENT_APM_TRACE_CONTEXT = "parent_" + Task.APM_TRACE_CONTEXT;
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
@@ -306,11 +340,6 @@ public class Task implements Traceable {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
-    }
-
-    @Override
-    public String getSpanId() {
-        return "task-" + getId();
     }
 
     protected record OriginalTaskInfo(TaskId originalTaskId, long originalStartTimeMillis) {

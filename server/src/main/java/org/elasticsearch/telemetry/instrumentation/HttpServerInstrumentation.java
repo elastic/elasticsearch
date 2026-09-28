@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.instrumentation;
 
+import io.opentelemetry.context.Context;
+
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -27,6 +29,11 @@ public interface HttpServerInstrumentation {
      *                      or {@code null} if no handler was found for this request
      */
     void start(ThreadContext threadContext, RestRequest request, String matchedRoute);
+
+    /** Reuses a parent already extracted by the request dispatcher, avoiding a second extraction. */
+    default void start(ThreadContext threadContext, RestRequest request, String matchedRoute, Context parent) {
+        start(threadContext, request, matchedRoute);
+    }
 
     /**
      * Records an exception that occurred during request dispatch. May be called multiple times before {@link #end}.

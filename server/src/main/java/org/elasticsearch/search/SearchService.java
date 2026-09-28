@@ -10,6 +10,9 @@
 
 package org.elasticsearch.search;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Tracer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
@@ -144,7 +147,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -431,7 +434,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
+        OpenTelemetry tracer,
         OnlinePrewarmingService onlinePrewarmingService
     ) {
         Settings settings = clusterService.getSettings();
@@ -446,7 +449,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
-        this.tracer = tracer;
+        this.tracer = tracer.getTracer("elasticsearch.search");
         this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -767,8 +770,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
         ReaderContext readerContext = createOrGetReaderContext(request, task);
-        try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
-        Releasable scope = tracer.withScope(task);
+        try (@SuppressWarnings("unused") // task activation is necessary to instrument search execution
+        Releasable scope = withTaskContext(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
@@ -1026,27 +1029,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         throws Exception {
         final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
         try (
-            Releasable scope = tracer.withScope(task);
+            Releasable scope = withTaskContext(task);
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
-            tracer.startTrace("executeQueryPhase", Map.of());
+            var querySpan = tracer.spanBuilder("executeQueryPhase").startSpan();
             final long afterQueryTime;
             final long beforeQueryTime = System.nanoTime();
             var opsListener = context.indexShard().getSearchOperationListener();
-            opsListener.onPreQueryPhase(context);
-            try {
-                loadOrExecuteQueryPhase(request, context);
-                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
-                    freeReaderContext(readerContext.id(), "query phase produced no search context (single session)");
+            try (var queryScope = querySpan.makeCurrent()) {
+                opsListener.onPreQueryPhase(context);
+                try {
+                    loadOrExecuteQueryPhase(request, context);
+                    if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                        freeReaderContext(readerContext.id(), "query phase produced no search context (single session)");
+                    }
+                    afterQueryTime = System.nanoTime();
+                    opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+                    opsListener = null;
+                    querySpan.setAttribute("es.outcome", "success");
+                } finally {
+                    if (opsListener != null) {
+                        opsListener.onFailedQueryPhase(context);
+                    }
                 }
-                afterQueryTime = System.nanoTime();
-                opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
-                opsListener = null;
+            } catch (Exception failure) {
+                TracingContext.recordFailure(querySpan, failure);
+                throw failure;
             } finally {
-                if (opsListener != null) {
-                    opsListener.onFailedQueryPhase(context);
-                }
-                tracer.stopTrace(task);
+                querySpan.end();
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
@@ -1142,9 +1152,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
+    private Releasable withTaskContext(@Nullable Task task) {
+        return task == null ? () -> {} : TracingContext.activate(threadPool.getThreadContext(), task.getTraceContext());
+    }
+
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         var opsListener = context.indexShard().getSearchOperationListener();
-        try (Releasable scope = tracer.withScope(context.getTask());) {
+        try (Releasable scope = withTaskContext(context.getTask())) {
             opsListener.onPreFetchPhase(context);
             fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {

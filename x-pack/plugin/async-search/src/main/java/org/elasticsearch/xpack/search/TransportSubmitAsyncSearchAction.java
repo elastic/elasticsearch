@@ -92,101 +92,107 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             logger.debug("async search submitted with non-default keep_alive [{}]", request.getKeepAlive());
         }
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
-        try (var ignored = threadContext.newTraceContext()) {
+        try (var ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
             AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
                 "transport",
                 TransportSearchAction.TYPE.name(),
                 searchRequest
             );
-            searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+            try (var scope = taskManager.withTaskContext(searchTask)) {
+                searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
 
-            ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
-                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
-                if (response.getId() != null) {
-                    threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
-                }
-                return response;
-            });
-            searchTask.addCompletionListener(new ActionListener<>() {
-                @Override
-                public void onResponse(AsyncSearchResponse searchResponse) {
-                    if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
-                        // the task is still running and the user cannot wait more so we create
-                        // a document for further retrieval
-                        try {
-                            final String docId = searchTask.getExecutionId().getDocId();
-                            // creates the fallback response if the node crashes/restarts in the middle of the request
-                            // TODO: store intermediate results ?
-                            AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                            searchResponse.mustIncRef();
+                ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
+                    threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+                    if (response.getId() != null) {
+                        threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                    }
+                    return response;
+                });
+                searchTask.addCompletionListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AsyncSearchResponse searchResponse) {
+                        if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
+                            // the task is still running and the user cannot wait more so we create
+                            // a document for further retrieval
                             try {
-                                store.createResponse(
-                                    docId,
-                                    searchTask.getOriginHeaders(),
-                                    initialResp,
-                                    ActionListener.runAfter(new ActionListener<>() {
-                                        @Override
-                                        public void onResponse(DocWriteResponse r) {
-                                            if (searchResponse.isRunning()) {
-                                                try {
-                                                    // store the final response on completion unless the submit is cancelled
-                                                    searchTask.addCompletionListener(
-                                                        finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
+                                final String docId = searchTask.getExecutionId().getDocId();
+                                // creates the fallback response if the node crashes/restarts in the middle of the request
+                                // TODO: store intermediate results ?
+                                AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
+                                searchResponse.mustIncRef();
+                                try {
+                                    store.createResponse(
+                                        docId,
+                                        searchTask.getOriginHeaders(),
+                                        initialResp,
+                                        ActionListener.runAfter(new ActionListener<>() {
+                                            @Override
+                                            public void onResponse(DocWriteResponse r) {
+                                                if (searchResponse.isRunning()) {
+                                                    try {
+                                                        // store the final response on completion unless the submit is cancelled
+                                                        searchTask.addCompletionListener(
+                                                            finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
+                                                        );
+                                                    } finally {
+                                                        submitListenerWithHeaders.onResponse(searchResponse);
+                                                    }
+                                                } else {
+                                                    searchResponse.mustIncRef();
+                                                    onFinalResponse(
+                                                        searchTask,
+                                                        searchResponse,
+                                                        () -> ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse)
                                                     );
-                                                } finally {
-                                                    submitListenerWithHeaders.onResponse(searchResponse);
                                                 }
-                                            } else {
-                                                searchResponse.mustIncRef();
-                                                onFinalResponse(
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception exc) {
+                                                onFatalFailure(
                                                     searchTask,
-                                                    searchResponse,
-                                                    () -> ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse)
+                                                    exc,
+                                                    searchResponse.isRunning(),
+                                                    "fatal failure: unable to store initial response",
+                                                    submitListenerWithHeaders
                                                 );
                                             }
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception exc) {
-                                            onFatalFailure(
-                                                searchTask,
-                                                exc,
-                                                searchResponse.isRunning(),
-                                                "fatal failure: unable to store initial response",
-                                                submitListenerWithHeaders
-                                            );
-                                        }
-                                    }, searchResponse::decRef)
+                                        }, searchResponse::decRef)
+                                    );
+                                } finally {
+                                    initialResp.decRef();
+                                }
+                            } catch (Exception exc) {
+                                onFatalFailure(
+                                    searchTask,
+                                    exc,
+                                    searchResponse.isRunning(),
+                                    "fatal failure: generic error",
+                                    submitListenerWithHeaders
                                 );
-                            } finally {
-                                initialResp.decRef();
                             }
-                        } catch (Exception exc) {
-                            onFatalFailure(
-                                searchTask,
-                                exc,
-                                searchResponse.isRunning(),
-                                "fatal failure: generic error",
-                                submitListenerWithHeaders
-                            );
-                        }
-                    } else {
-                        try (searchTask) {
-                            // the task completed within the timeout so the response is sent back to the user
-                            // with a null id since nothing was stored on the cluster.
-                            taskManager.unregister(searchTask);
-                            ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse.clone(null));
+                        } else {
+                            try (searchTask) {
+                                // the task completed within the timeout so the response is sent back to the user
+                                // with a null id since nothing was stored on the cluster.
+                                taskManager.unregister(searchTask);
+                                ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse.clone(null));
+                            }
                         }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception exc) {
-                    // this will only ever be called if there is an issue scheduling the thread that executes
-                    // the completion listener once the wait for completion timeout expires.
-                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
-                }
-            }, request.getWaitForCompletionTimeout(), true); // TODO do we want have the option for partial results in the submit?
+                    @Override
+                    public void onFailure(Exception exc) {
+                        // this will only ever be called if there is an issue scheduling the thread that executes
+                        // the completion listener once the wait for completion timeout expires.
+                        onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
+                    }
+                }, request.getWaitForCompletionTimeout(), true); // TODO do we want have the option for partial results in the submit?
+            } catch (Exception failure) {
+                taskManager.unregister(searchTask);
+                searchTask.close();
+                throw failure;
+            }
         }
     }
 

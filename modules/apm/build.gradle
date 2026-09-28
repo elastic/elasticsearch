@@ -12,14 +12,12 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.64.0'
+def otelVersion = versions.opentelemetry
 def otelInstrumentationVersion = '2.30.0-alpha'
 def otelContribDiskBufferingVersion = '1.59.0-alpha'
 
 dependencies {
   implementation project(":libs:ssl-config")
-  implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
-  implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-metrics:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}"
@@ -38,7 +36,6 @@ dependencies {
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
-  runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${otelVersion}"
   implementation "com.squareup.okhttp3:okhttp-jvm:5.3.2"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"

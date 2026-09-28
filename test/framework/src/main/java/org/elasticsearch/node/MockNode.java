@@ -9,6 +9,8 @@
 
 package org.elasticsearch.node;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -49,7 +51,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -91,7 +92,7 @@ public class MockNode extends Node {
             Settings settings,
             ThreadPool threadPool,
             Set<String> taskHeaders,
-            Tracer tracer,
+            OpenTelemetry tracer,
             String nodeId
         ) {
             if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
@@ -131,7 +132,7 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer,
+            OpenTelemetry tracer,
             OnlinePrewarmingService onlinePrewarmingService
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {

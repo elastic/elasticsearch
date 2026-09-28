@@ -118,8 +118,11 @@ public final class SingleResultDeduplicator<T> {
         // Restore the given threadContext before proceed with the work execution.
         // This ensures all executions begin execution with their own context.
         if (storedContext != null) {
-            storedContext.restore();
+            try (var scope = threadContext.restoreExistingContext(storedContext)) {
+                ActionListener.run(wrappedListener, executeAction::accept);
+            }
+        } else {
+            ActionListener.run(wrappedListener, executeAction::accept);
         }
-        ActionListener.run(wrappedListener, executeAction::accept);
     }
 }

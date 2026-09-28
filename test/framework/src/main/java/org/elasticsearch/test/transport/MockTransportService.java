@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.transport;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -51,7 +53,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
@@ -261,6 +262,21 @@ public class MockTransportService extends TransportService {
         Set<String> taskHeaders,
         String nodeId
     ) {
+        this(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, nodeId, OpenTelemetry.noop());
+    }
+
+    /** Installs a real node-local API for transport tracing contract tests without changing SDK ownership. */
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders,
+        String nodeId,
+        OpenTelemetry openTelemetry
+    ) {
         this(
             settings,
             new StubbableTransport(transport),
@@ -268,10 +284,15 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
+            MockTaskManager.create(settings, threadPool, taskHeaders, openTelemetry, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             new NoopTelemetryProvider() {
                 final MeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+                @Override
+                public OpenTelemetry getOpenTelemetry() {
+                    return openTelemetry;
+                }
 
                 @Override
                 public MeterRegistry getMeterRegistry() {

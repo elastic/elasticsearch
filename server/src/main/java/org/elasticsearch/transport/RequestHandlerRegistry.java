@@ -83,7 +83,9 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
             final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, assertOnce(unregisterTask));
-            handler.messageReceived(request, taskTransportChannel, task);
+            try (var scope = taskManager.withTaskContext(task)) {
+                handler.messageReceived(request, taskTransportChannel, task);
+            }
             unregisterTask = null;
         } finally {
             Releasables.close(unregisterTask);

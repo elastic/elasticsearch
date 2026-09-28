@@ -403,7 +403,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                             routingInfo.getCurrentAllocations()
                         );
                         // Loading the model is done by a separate task, so needs a new trace context
-                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                             prepareModelToLoad(params);
                         }
                     }

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.rest;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -30,7 +33,6 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,15 +45,124 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-public class RestRequest implements ToXContent.Params, Traceable {
+public class RestRequest implements ToXContent.Params {
+    /**
+     * The request this one was copied from, or {@code null} if this is the original request.
+     * <p>
+     * Wrappers such as {@link FilteredRestRequest} are created at arbitrary points in the request lifecycle, including
+     * before instrumentation has started a span. Tracing state therefore lives on the original request only, and every
+     * copy delegates to it, so that a span started through one instance is visible and endable through all of them.
+     */
+    @Nullable
+    private final RestRequest traceOrigin;
+
+    private Context traceContext = Context.root();
+    private boolean traceStarted;
+    private boolean traceFinished;
+
+    private RestRequest traceState() {
+        return traceOrigin == null ? this : traceOrigin;
+    }
+
+    public Context getTraceContext() {
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            return origin.traceContext;
+        }
+    }
+
+    /** Whether instrumentation already claimed this request, so that revisited routing cannot start a second span. */
+    public boolean isTraceStarted() {
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            return origin.traceStarted;
+        }
+    }
+
+    /**
+     * Takes ownership of {@code span} for this request, unless a span was already started for it, in which case
+     * {@code span} is ended immediately and {@code false} is returned. A request owns at most one span.
+     */
+    public boolean startTrace(Context parent, Span span) {
+        Objects.requireNonNull(span);
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            if (origin.traceStarted) {
+                // A span nobody can reach, annotate or end later must not be left open.
+                span.end();
+                return false;
+            }
+            origin.traceStarted = true;
+            origin.traceContext = parent.with(span);
+            return true;
+        }
+    }
+
+    /**
+     * Preserves inbound causality when HTTP instrumentation does not create a span, downgrading the parent to a
+     * non-recording span so this request can never end or annotate it. Ignored once a span has been started.
+     */
+    public void borrowTraceContext(Context parent) {
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            if (origin.traceStarted) {
+                return;
+            }
+            var spanContext = Span.fromContext(parent).getSpanContext();
+            origin.traceContext = spanContext.isValid() ? parent.with(Span.wrap(spanContext)) : parent;
+        }
+    }
+
+    /**
+     * Runs {@code action} against this request's span, if instrumentation started one that has not ended yet.
+     * Requests that never reached the start hook, or whose span already ended, are left untouched.
+     *
+     * @return {@code true} if {@code action} ran
+     */
+    public boolean withTraceSpan(Consumer<Span> action) {
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            if (origin.traceStarted == false || origin.traceFinished) {
+                return false;
+            }
+            action.accept(Span.fromContext(origin.traceContext));
+            return true;
+        }
+    }
+
+    /**
+     * Completes the span at the response boundary, not when dispatch returns, applying {@code annotator} to it first.
+     * Responses that bypassed the start hook, and duplicate completions, end and annotate nothing, so {@code annotator}
+     * never observes a span belonging to another request.
+     *
+     * @return {@code true} if a span was ended by this call
+     */
+    public boolean finishTrace(Consumer<Span> annotator) {
+        RestRequest origin = traceState();
+        synchronized (origin) {
+            if (origin.traceStarted == false || origin.traceFinished) {
+                return false;
+            }
+            origin.traceFinished = true;
+            Span span = Span.fromContext(origin.traceContext);
+            try {
+                annotator.accept(span);
+            } finally {
+                span.end();
+            }
+            return true;
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(RestRequest.class);
 
@@ -127,6 +238,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         HttpChannel httpChannel,
         long requestId
     ) {
+        this.traceOrigin = null;
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
         } catch (IllegalArgumentException e) {
@@ -159,6 +271,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     protected RestRequest(RestRequest other) {
+        this.traceOrigin = other.traceState();
         assert other.parserConfig.restApiVersion().equals(other.getRestApiVersion());
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
@@ -751,11 +864,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
         params.put(param, "true");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(param);
-    }
-
-    @Override
-    public String getSpanId() {
-        return "rest-" + getRequestId();
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

@@ -9,11 +9,12 @@
 
 package org.elasticsearch.telemetry;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 
 public interface TelemetryProvider {
 
@@ -32,7 +33,8 @@ public interface TelemetryProvider {
         );
     }
 
-    Tracer getTracer();
+    /** Returns the node-owned native API; callers own their spans, never the SDK lifecycle. */
+    OpenTelemetry getOpenTelemetry();
 
     MeterRegistry getMeterRegistry();
 
@@ -50,8 +52,8 @@ public interface TelemetryProvider {
     class NoopTelemetryProvider implements TelemetryProvider {
 
         @Override
-        public Tracer getTracer() {
-            return Tracer.NOOP;
+        public OpenTelemetry getOpenTelemetry() {
+            return OpenTelemetry.noop();
         }
 
         @Override

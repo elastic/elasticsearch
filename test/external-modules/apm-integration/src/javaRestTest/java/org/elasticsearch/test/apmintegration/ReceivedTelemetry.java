@@ -44,7 +44,7 @@ public sealed interface ReceivedTelemetry {
      * For APM intake NDJSON these are nested keys (e.g. {@code "context.request.method"});
      * for OTLP, {@link org.elasticsearch.test.apmintegration.OtlpTracesParser} normalises
      * raw OTel semantic keys into the {@code otel.attributes.*} namespace (e.g.
-     * {@code "otel.attributes.http.method"}) to satisfy the assertions in
+     * {@code "otel.attributes.http.request.method"}) to satisfy the assertions in
      * {@code OtelSdkTracesIT}.
      */
     record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId, Map<String, Object> attributes)

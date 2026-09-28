@@ -231,7 +231,7 @@ public class IncrementalBulkService {
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
 
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
                     BULK_SESSION_TASK_TYPE,
                     BULK_SESSION_ACTION,
@@ -330,25 +330,27 @@ public class IncrementalBulkService {
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         bulkInProgress = true;
-                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(BulkResponse bulkResponse) {
-                                handleBulkSuccess(bulkResponse);
-                                createNewBulkRequest(
-                                    new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
-                                );
-                            }
+                        try (var scope = taskManager.withTaskContext(bulkSessionTask)) {
+                            client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                                @Override
+                                public void onResponse(BulkResponse bulkResponse) {
+                                    handleBulkSuccess(bulkResponse);
+                                    createNewBulkRequest(
+                                        new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
+                                    );
+                                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
-                            }
-                        }, () -> {
-                            bulkInProgress = false;
-                            toRelease.forEach(Releasable::close);
-                            coordinating.close();
-                            nextItems.run();
-                        }));
+                                @Override
+                                public void onFailure(Exception e) {
+                                    handleBulkFailure(isFirstRequest, e);
+                                }
+                            }, () -> {
+                                bulkInProgress = false;
+                                toRelease.forEach(Releasable::close);
+                                coordinating.close();
+                                nextItems.run();
+                            }));
+                        }
                     } else {
                         nextItems.run();
                     }
@@ -375,25 +377,27 @@ public class IncrementalBulkService {
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
                     bulkInProgress = true;
-                    client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
+                    try (var scope = taskManager.withTaskContext(bulkSessionTask)) {
+                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
-                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                            private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
-                        @Override
-                        public void onResponse(BulkResponse bulkResponse) {
-                            handleBulkSuccess(bulkResponse);
-                            finalListener.onResponse(BulkResponse.combine(responses));
-                        }
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                handleBulkSuccess(bulkResponse);
+                                finalListener.onResponse(BulkResponse.combine(responses));
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
-                            errorResponse(finalListener);
-                        }
-                    }, () -> {
-                        toRelease.forEach(Releasable::close);
-                        coordinating.close();
-                    }));
+                            @Override
+                            public void onFailure(Exception e) {
+                                handleBulkFailure(isFirstRequest, e);
+                                errorResponse(finalListener);
+                            }
+                        }, () -> {
+                            toRelease.forEach(Releasable::close);
+                            coordinating.close();
+                        }));
+                    }
                 } else {
                     errorResponse(finalListener);
                 }

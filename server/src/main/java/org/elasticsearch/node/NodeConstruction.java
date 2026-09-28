@@ -9,6 +9,8 @@
 
 package org.elasticsearch.node;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
@@ -257,7 +259,6 @@ import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -750,7 +751,7 @@ class NodeConstruction {
 
         Settings settings = settingsModule.getSettings();
 
-        modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
+        modules.bindToInstance(OpenTelemetry.class, telemetryProvider.getOpenTelemetry());
 
         TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
 
@@ -769,7 +770,7 @@ class NodeConstruction {
                 pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet()),
-            telemetryProvider.getTracer(),
+            telemetryProvider.getOpenTelemetry(),
             nodeEnvironment.nodeId()
         );
 
@@ -1372,7 +1373,7 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer(),
+            telemetryProvider.getOpenTelemetry(),
             onlinePrewarmingService
         );
         searchTransportService.setSearchService(searchService);

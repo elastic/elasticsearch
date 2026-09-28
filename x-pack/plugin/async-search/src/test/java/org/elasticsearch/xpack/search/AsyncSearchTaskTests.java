@@ -6,6 +6,14 @@
  */
 package org.elasticsearch.xpack.search;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -17,6 +25,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -34,6 +43,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -202,6 +212,56 @@ public class AsyncSearchTaskTests extends ESTestCase {
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             latch.await();
+        }
+    }
+
+    public void testTaskSpanOutlivesFailureBeforeInitialResponse() throws Exception {
+        assertFailureIsTraced(false, new IllegalArgumentException("failure"));
+    }
+
+    public void testTaskSpanOutlivesFailureAfterInitialResponse() throws Exception {
+        assertFailureIsTraced(true, new IllegalArgumentException("failure"));
+    }
+
+    public void testTaskSpanOutlivesCancellationAfterInitialResponse() throws Exception {
+        assertFailureIsTraced(true, new TaskCancelledException("cancelled"));
+    }
+
+    /** The span must survive the initial response and end exactly once, when the search actually completes. */
+    private void assertFailureIsTraced(boolean afterInitialResponse, Exception failure) throws Exception {
+        var exporter = InMemorySpanExporter.create();
+        try (
+            var sdk = OpenTelemetrySdk.builder()
+                .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build())
+                .build();
+            var task = createAsyncSearchTask()
+        ) {
+            var span = sdk.getTracer("test").spanBuilder("background").startSpan();
+            task.startTrace(Context.root(), span);
+            if (afterInitialResponse) {
+                task.getSearchProgressActionListener()
+                    .onListShards(List.of(), Map.of(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+                var initial = new PlainActionFuture<Void>();
+                task.addCompletionListener(ActionListener.wrap(response -> {
+                    assertTrue(response.isRunning());
+                    assertNull(response.getFailure());
+                    initial.onResponse(null);
+                }, initial::onFailure), TimeValue.ZERO, true);
+                initial.actionGet(10, TimeUnit.SECONDS);
+                assertTrue(span.isRecording());
+                assertTrue(exporter.getFinishedSpanItems().isEmpty());
+            }
+            task.addCompletionListener(response -> {
+                assertNotNull(response.getFailure());
+                task.finishTrace();
+            });
+            task.getSearchProgressActionListener().onFailure(failure);
+            assertBusy(() -> assertEquals(1, exporter.getFinishedSpanItems().size()));
+            var recorded = exporter.getFinishedSpanItems().getFirst();
+            // The task span records lifetime only; the failure is reported through the async search response.
+            assertEquals(StatusCode.UNSET, recorded.getStatus().getStatusCode());
+            assertNull(recorded.getAttributes().get(AttributeKey.stringKey("es.outcome")));
+            assertNull(recorded.getAttributes().get(AttributeKey.stringKey("error.type")));
         }
     }
 

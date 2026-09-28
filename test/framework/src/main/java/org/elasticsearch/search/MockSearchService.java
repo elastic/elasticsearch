@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
@@ -28,7 +30,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -103,7 +104,7 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
+        OpenTelemetry tracer,
         OnlinePrewarmingService onlinePrewarmingService
     ) {
         super(

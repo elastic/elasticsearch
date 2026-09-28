@@ -505,11 +505,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     private TraceContext getCurrentTraceInfo() {
         var threadPool = getServiceComponents().threadPool();
-
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
-        var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
-
-        return new TraceContext(traceParent, traceState);
+        var headers = threadPool.getThreadContext().getHeaders();
+        return new TraceContext(headers.get(Task.TRACE_PARENT_HTTP_HEADER), headers.get(Task.TRACE_STATE));
     }
 
     public static InferenceServiceConfiguration createConfiguration(EnumSet<TaskType> enabledTaskTypes) {

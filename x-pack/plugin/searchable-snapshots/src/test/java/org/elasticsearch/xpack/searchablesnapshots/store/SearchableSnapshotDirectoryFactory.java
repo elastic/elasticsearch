@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -69,7 +71,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -533,7 +534,13 @@ public class SearchableSnapshotDirectoryFactory {
         );
 
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, discoveryNode.getId());
+        TaskManager taskManager = new TaskManager(
+            settings,
+            threadPool,
+            Collections.emptySet(),
+            OpenTelemetry.noop(),
+            discoveryNode.getId()
+        );
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, taskManager);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

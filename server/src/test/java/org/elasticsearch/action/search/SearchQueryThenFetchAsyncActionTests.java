@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.search;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
@@ -59,7 +61,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -539,7 +540,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
+            OpenTelemetry.noop(),
             OnlinePrewarmingService.NOOP
         ) {
             @Override

@@ -381,7 +381,7 @@ public class MasterService extends AbstractLifecycleComponent {
             listener.onResponse(null);
         } else {
             final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                 final var newClusterStateVersion = newClusterState.getVersion();
 
                 final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
@@ -402,36 +402,42 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 });
 
-                ActionListener.run(
-                    new DelegatingActionListener<Void, Void>(
-                        ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
-                            assert publicationMayFail() : e;
-                            handleException(summary, publicationStartTime, newClusterState, e);
-                            l.onResponse(null);
-                        })
-                    ) {
-                        @Override
-                        public void onResponse(Void response) {
-                            delegate.onResponse(response);
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "listener for publication of cluster state [" + newClusterStateVersion + "]";
-                        }
-                    },
-                    l -> publishClusterStateUpdate(
-                        executor,
-                        summary,
-                        previousClusterState,
-                        executionResults,
-                        newClusterState,
-                        computationTime,
-                        publicationStartTime,
-                        task,
-                        l
-                    )
+                var parentListener = org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext(
+                    listener,
+                    threadPool.getThreadContext()
                 );
+                try (var scope = taskManager.withTaskContext(task)) {
+                    ActionListener.run(
+                        new DelegatingActionListener<Void, Void>(
+                            ActionListener.runAfter(parentListener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
+                                assert publicationMayFail() : e;
+                                handleException(summary, publicationStartTime, newClusterState, e);
+                                l.onResponse(null);
+                            })
+                        ) {
+                            @Override
+                            public void onResponse(Void response) {
+                                delegate.onResponse(response);
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "listener for publication of cluster state [" + newClusterStateVersion + "]";
+                            }
+                        },
+                        l -> publishClusterStateUpdate(
+                            executor,
+                            summary,
+                            previousClusterState,
+                            executionResults,
+                            newClusterState,
+                            computationTime,
+                            publicationStartTime,
+                            task,
+                            l
+                        )
+                    );
+                }
             }
         }
     }
@@ -1575,8 +1581,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
-        try (var ignored = threadContext.newStoredContext()) {
-            clusterStateUpdateContext.restore();
+        try (var ignored = threadContext.restoreExistingContext(clusterStateUpdateContext)) {
             threadPoolExecutor.execute(queuesProcessor);
         }
     }

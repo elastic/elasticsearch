@@ -9,6 +9,12 @@
 
 package org.elasticsearch.rest;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Context;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -41,10 +47,12 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -68,6 +76,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -318,7 +327,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(instrumentation).start(eq(threadContext), eq(fakeRequest), isNull());
+        verify(instrumentation).start(eq(threadContext), eq(fakeRequest), isNull(), any(Context.class));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -942,6 +951,79 @@ public class RestControllerTests extends ESTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(GET.toString())));
     }
 
+    /** No-op instrumentation must retain caller IDs for logs and child tasks. */
+    public void testNoopHttpInstrumentationPreservesIncomingTrace() throws Exception {
+        assertNoopHttpTraceContext(true, false);
+    }
+
+    /** Deferred interception must not replace request causality with the completion thread's trace. */
+    public void testNoopHttpInstrumentationPreservesIncomingTraceAfterAsyncInterception() throws Exception {
+        assertNoopHttpTraceContext(true, true);
+    }
+
+    /** Requests without trace headers must not inherit a reused worker's trace. */
+    public void testNoopHttpInstrumentationDoesNotInheritUnrelatedTrace() throws Exception {
+        assertNoopHttpTraceContext(false, false);
+        assertNoopHttpTraceContext(false, true);
+    }
+
+    private void assertNoopHttpTraceContext(boolean incomingTrace, boolean asyncInterception) throws Exception {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        String traceId = "0af7651916cd43dd8448eb211c80319d";
+        String traceParent = "00-" + traceId + "-b7ad6b7169203332-01";
+        if (incomingTrace) {
+            threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParent);
+            threadContext.putHeader(Task.TRACE_ID, traceId);
+            threadContext.putHeader(Task.TRACE_STATE, "es=s:1");
+        }
+        SpanContext expected = Span.fromContext(TracingContext.extract(threadContext)).getSpanContext();
+        SpanContext unrelated = SpanContext.create(
+            "12345678901234567890123456789012",
+            "1234567890123456",
+            TraceFlags.getSampled(),
+            TraceState.getDefault()
+        );
+        Context unrelatedContext = Context.root().with(Span.wrap(unrelated));
+        AtomicReference<ActionListener<Boolean>> intercepted = new AtomicReference<>();
+        RestController controller = new RestController((request, channel, handler, listener) -> {
+            assertEquals(expected, Span.current().getSpanContext());
+            assertEquals(incomingTrace ? traceId : null, threadContext.getHeader(Task.TRACE_ID));
+            if (asyncInterception) {
+                intercepted.set(listener);
+            } else {
+                listener.onResponse(true);
+            }
+        }, client, circuitBreakerService, usageService, TelemetryProvider.NOOP);
+        controller.registerHandler(new Route(GET, "/"), (request, channel, nodeClient) -> {
+            assertEquals(expected, Span.current().getSpanContext());
+            assertEquals(incomingTrace ? traceId : null, threadContext.getHeader(Task.TRACE_ID));
+            assertEquals(incomingTrace ? traceParent : null, threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+            assertEquals(incomingTrace ? "es=s:1" : null, threadContext.getHeader(Task.TRACE_STATE));
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/").build();
+        AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        try (var ignored = unrelatedContext.makeCurrent()) {
+            controller.dispatchRequest(request, channel, threadContext);
+            assertEquals(unrelated, Span.current().getSpanContext());
+            assertEquals(unrelated.getTraceId(), threadContext.getHeader(Task.TRACE_ID));
+        }
+        assertEquals(incomingTrace ? traceId : null, threadContext.getHeader(Task.TRACE_ID));
+        if (asyncInterception) {
+            assertFalse(channel.getSendResponseCalled());
+            threadPool.generic().submit(() -> {
+                try (var ignored = threadContext.stashContext(); var scope = TracingContext.activate(threadContext, unrelatedContext)) {
+                    intercepted.get().onResponse(true);
+                    assertEquals(unrelated, Span.current().getSpanContext());
+                    assertEquals(unrelated.getTraceId(), threadContext.getHeader(Task.TRACE_ID));
+                }
+            }).get(10, TimeUnit.SECONDS);
+        }
+        assertTrue(channel.getSendResponseCalled());
+        assertEquals(expected, Span.fromContext(request.getTraceContext()).getSpanContext());
+        assertFalse(request.isTraceStarted());
+    }
+
     /**
      * Check that when dispatching a request, if an IllegalArgumentException is thrown, then a trace span is started
      * and the exception is captured in the span.
@@ -956,7 +1038,7 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(instrumentation).start(any(), any(RestRequest.class), isNull());
+        verify(instrumentation).start(any(), any(RestRequest.class), isNull(), any(Context.class));
         verify(instrumentation).recordException(any(RestRequest.class), any(IllegalArgumentException.class));
     }
 

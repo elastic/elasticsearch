@@ -6,18 +6,30 @@
  */
 package org.elasticsearch.xpack.ql.async;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -32,6 +44,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -197,13 +210,20 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation
     ) {
+        return createManagementService(operation, transportService.getTaskManager());
+    }
+
+    private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
+        AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation,
+        TaskManager taskManager
+    ) {
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         return new AsyncTaskManagementService<>(
             index,
             client(),
             "test_origin",
             writableRegistry(),
-            transportService.getTaskManager(),
+            taskManager,
             "test_action",
             operation,
             TestTask.class,
@@ -211,6 +231,87 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             transportService.getThreadPool(),
             bigArrays
         );
+    }
+
+    public void testNativeTaskSpanOnFailureBeforeTimeout() throws Exception {
+        assertNativeFailure(false, false, new IllegalArgumentException("failed"));
+    }
+
+    public void testNativeTaskSpanOnStoredFailureBeforeTimeout() throws Exception {
+        assertNativeFailure(false, true, new IllegalArgumentException("failed"));
+    }
+
+    public void testNativeTaskSpanOnFailureAfterTimeout() throws Exception {
+        assertNativeFailure(true, randomBoolean(), new IllegalArgumentException("failed"));
+    }
+
+    public void testNativeTaskSpanOnCancellationAfterTimeout() throws Exception {
+        assertNativeFailure(true, randomBoolean(), new TaskCancelledException("cancelled"));
+    }
+
+    /** The task span must end exactly once under its submitter, regardless of how the operation failed. */
+    private void assertNativeFailure(boolean afterTimeout, boolean keepOnCompletion, Exception failure) throws Exception {
+        var exporter = InMemorySpanExporter.create();
+        try (
+            var sdk = OpenTelemetrySdk.builder()
+                .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build())
+                .build()
+        ) {
+            var manager = new TaskManager(Settings.EMPTY, transportService.getThreadPool(), Set.of(), sdk);
+            var taskHolder = new AtomicReference<TestTask>();
+            var completion = new AtomicReference<ActionListener<TestResponse>>();
+            var service = createManagementService(new TestOperation() {
+                @Override
+                public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                    assertEquals(Span.fromContext(task.getTraceContext()).getSpanContext(), Span.current().getSpanContext());
+                    taskHolder.set(task);
+                    completion.set(listener);
+                }
+            }, manager);
+            var parent = sdk.getTracer("test").spanBuilder("submit").startSpan();
+            var initial = new PlainActionFuture<TestResponse>();
+            try {
+                try (var scope = parent.makeCurrent()) {
+                    service.asyncExecute(
+                        new TestRequest("die"),
+                        afterTimeout ? TimeValue.ZERO : TimeValue.timeValueMinutes(1),
+                        TimeValue.timeValueMinutes(10),
+                        keepOnCompletion,
+                        ActionListener.wrap(response -> {
+                            assertEquals(parent.getSpanContext(), Span.current().getSpanContext());
+                            initial.onResponse(response);
+                        }, initial::onFailure)
+                    );
+                }
+                if (afterTimeout) {
+                    assertNull(initial.actionGet(10, TimeUnit.SECONDS).string);
+                    parent.end();
+                }
+                var task = taskHolder.get();
+                assertTrue(Span.fromContext(task.getTraceContext()).isRecording());
+                completion.get().onFailure(failure);
+                assertFalse(Span.current().getSpanContext().isValid());
+                if (afterTimeout == false) {
+                    expectThrows(failure.getClass(), () -> initial.actionGet(10, TimeUnit.SECONDS));
+                }
+                assertBusy(() -> {
+                    assertTrue(manager.getTasks().isEmpty());
+                    var spans = exporter.getFinishedSpanItems().stream().filter(span -> span.getName().equals("test_action[a]")).toList();
+                    assertEquals(1, spans.size());
+                    var recorded = spans.getFirst();
+                    // The task span records lifetime and parentage only; the failure is reported to the caller.
+                    assertEquals(StatusCode.UNSET, recorded.getStatus().getStatusCode());
+                    assertNull(recorded.getAttributes().get(AttributeKey.stringKey("es.outcome")));
+                    assertNull(recorded.getAttributes().get(AttributeKey.stringKey("error.type")));
+                    assertEquals(parent.getSpanContext().getSpanId(), recorded.getParentSpanId());
+                });
+            } finally {
+                if (taskHolder.get() != null) {
+                    manager.unregister(taskHolder.get());
+                }
+                parent.end();
+            }
+        }
     }
 
     public void testReturnBeforeTimeout() throws Exception {

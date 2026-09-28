@@ -256,7 +256,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
     private ModelDownloadTask createDownloadTask(Request request) {
         // Loading the model is done by a separate task, so needs a new trace context
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
             return (ModelDownloadTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
                 @Override
                 public void setParentTask(TaskId taskId) {

@@ -251,10 +251,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     }
 
     private TraceContext getCurrentTraceInfo() {
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
-        var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
-
-        return new TraceContext(traceParent, traceState);
+        var headers = threadPool.getThreadContext().getHeaders();
+        return new TraceContext(headers.get(Task.TRACE_PARENT_HTTP_HEADER), headers.get(Task.TRACE_STATE));
     }
 
     // Default because should only be used for testing

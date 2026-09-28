@@ -108,7 +108,8 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         // Start a search shard
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
-        assertThat(registerCommitRequestsSent.get(), equalTo(1));
+        // Registration may retry while nodes apply cluster state updates.
+        assertThat(registerCommitRequestsSent.get(), greaterThan(0));
     }
 
     public void testSearchShardRecoveryRegistrationRetry() {

@@ -1,6 +1,0 @@
-pr: 160424
-summary: "[ES|QL] Run `LOAD_ALL` unmapped-fields expansion on the `esql_worker` thread pool"
-area: ES|QL
-type: bug
-issues:
- - 160286

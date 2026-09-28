@@ -120,8 +120,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     }
 
     private static Sort sliceSortWithMissingLast() {
-        SortField sf = new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST);
-        return new Sort(sf);
+        return new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST));
     }
 
     @Override

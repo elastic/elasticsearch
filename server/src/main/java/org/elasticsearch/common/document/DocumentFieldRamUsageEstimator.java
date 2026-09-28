@@ -43,19 +43,12 @@ public final class DocumentFieldRamUsageEstimator {
     private static final int ARRAY_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
     private static final int OBJECT_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
 
-    /**
-     * Caches the result of {@link RamUsageEstimator#shallowSizeOfInstance(Class)} per class.
-     * Lucene's {@code shallowSizeOfInstance} walks the class hierarchy with {@code getDeclaredFields()}
-     * on every call (uncached). When {@code fields} or {@code stored_fields} return many
-     * {@code Double}/{@code Boolean}/{@code BytesRef}/date values per hit across thousands of hits,
-     * repeating that reflective walk would add measurable fetch-phase CPU overhead.
-     */
-    private static final ClassValue<Long> SHALLOW_SIZES = new ClassValue<>() {
-        @Override
-        protected Long computeValue(Class<?> type) {
-            return RamUsageEstimator.shallowSizeOfInstance(type);
-        }
-    };
+
+    private static final long DOUBLE_SIZE = RamUsageEstimator.shallowSizeOfInstance(Double.class);
+    private static final long FLOAT_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
+    private static final long BOOLEAN_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
+    private static final long SHORT_SIZE = RamUsageEstimator.shallowSizeOfInstance(Short.class);
+    private static final long BYTE_SIZE = RamUsageEstimator.shallowSizeOfInstance(Byte.class);
 
     private static final long HASH_MAP_ENTRY_BYTES;
     private static final long LINKED_HASH_MAP_ENTRY_BYTES;
@@ -81,10 +74,8 @@ public final class DocumentFieldRamUsageEstimator {
     private DocumentFieldRamUsageEstimator() {}
 
     /**
-     * Returns the shallow retained heap of a leaf value (one that is not a {@link Map},
-     * {@link Collection}, or {@code Object[]}). Replicates the fast paths of
-     * {@link RamUsageEstimator#sizeOfObject(Object)} but routes the final fallthrough through
-     * {@link #SHALLOW_SIZES} to avoid repeated reflective class-hierarchy walks.
+     * Returns the full retained heap of a leaf value (one that is not a {@link Map},
+     * {@link Collection}, or {@code Object[]}).
      */
     private static long sizeOfLeaf(Object value) {
         if (value == null) {
@@ -129,9 +120,14 @@ public final class DocumentFieldRamUsageEstimator {
         if (value instanceof String[] a) {
             return RamUsageEstimator.sizeOf(a);
         }
-        // For any other type (Double, Float, Boolean, BytesRef, ZonedDateTime, GeoPoint, …),
-        // use the ClassValue cache to avoid repeated getDeclaredFields() walks.
-        return SHALLOW_SIZES.get(value.getClass());
+        // Boxed primitives have no reference fields, so shallow size equals full retained size.
+        if (value instanceof Double) return DOUBLE_SIZE;
+        if (value instanceof Float) return FLOAT_SIZE;
+        if (value instanceof Boolean) return BOOLEAN_SIZE;
+        if (value instanceof Short) return SHORT_SIZE;
+        if (value instanceof Byte) return BYTE_SIZE;
+        // Unknown type — may have reference fields; use Lucene's conservative fallback.
+        return RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED;
     }
 
     /**

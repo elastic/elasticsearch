@@ -25,11 +25,10 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
-import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,6 +80,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final DataSourceService dataSourceService;
+    private final FederationLicense federationLicense;
 
     @Inject
     public TransportTestDataSourceConnectionAction(
@@ -88,7 +88,8 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ClusterService clusterService,
-        DataSourceService dataSourceService
+        DataSourceService dataSourceService,
+        FederationLicense federationLicense
     ) {
         super(TestDataSourceConnectionAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("action [" + TestDataSourceConnectionAction.NAME + "] is local-only");
@@ -96,6 +97,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.dataSourceService = dataSourceService;
+        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -104,7 +106,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         TestDataSourceConnectionAction.Request request,
         ActionListener<TestDataSourceConnectionAction.Response> listener
     ) {
-        EsqlLicenseChecker.checkFederation(XPackPlugin.getSharedLicenseState());
+        federationLicense.check();
         // --- Step 1: validate type against PUT registry (unknown type → 400) ---
         DataSourceValidator validator = dataSourceService.validatorFor(request.type());
         if (validator == null) {

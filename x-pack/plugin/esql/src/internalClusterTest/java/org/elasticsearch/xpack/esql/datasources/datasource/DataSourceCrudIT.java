@@ -25,7 +25,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -922,7 +924,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             plugins.add(new EsqlPlugin() {
                 @Override
                 protected XPackLicenseState getLicenseState() {
-                    return LocalStateDataSource.this.getLicenseState();
+                    License.OperationMode mode = randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL);
+                    return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(mode, true, null));
                 }
 
                 @Override

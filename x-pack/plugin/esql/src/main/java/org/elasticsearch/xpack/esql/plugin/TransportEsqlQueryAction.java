@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -148,7 +149,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
-        QueryMetricsListener metricsCollector
+        QueryMetricsListener metricsCollector,
+        FederationLicense federationLicense
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -162,7 +164,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             requestExecutor,
             crossProjectModeDecider,
             Federation.isAvailable(clusterService.getSettings()),
-            XPackPlugin::getSharedLicenseState
+            federationLicense
         );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;

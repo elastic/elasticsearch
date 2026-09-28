@@ -43,7 +43,6 @@ public final class DocumentFieldRamUsageEstimator {
     private static final int ARRAY_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
     private static final int OBJECT_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
 
-
     private static final long DOUBLE_SIZE = RamUsageEstimator.shallowSizeOfInstance(Double.class);
     private static final long FLOAT_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
     private static final long BOOLEAN_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);

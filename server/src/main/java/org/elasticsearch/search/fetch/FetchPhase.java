@@ -411,7 +411,10 @@ public final class FetchPhase {
                         locallyAccumulatedFieldBytes[0] += bytes;
                         if (locallyAccumulatedFieldBytes[0] >= context.memAccountingBufferSize()) {
                             context.circuitBreaker()
-                                .addEstimateBytesAndMaybeBreak(locallyAccumulatedFieldBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]");
+                                .addEstimateBytesAndMaybeBreak(
+                                    locallyAccumulatedFieldBytes[0],
+                                    ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
+                                );
                             addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
                             locallyAccumulatedFieldBytes[0] = 0;
                         }
@@ -435,13 +438,19 @@ public final class FetchPhase {
             protected void onAllHitsIterated() {
                 if (locallyAccumulatedFieldBytes[0] > 0) {
                     context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedFieldBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]");
+                        .addEstimateBytesAndMaybeBreak(
+                            locallyAccumulatedFieldBytes[0],
+                            ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
+                        );
                     addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
                     locallyAccumulatedFieldBytes[0] = 0;
                 }
                 if (locallyAccumulatedSourceBytes[0] > 0) {
                     context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(locallyAccumulatedSourceBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                        .addEstimateBytesAndMaybeBreak(
+                            locallyAccumulatedSourceBytes[0],
+                            ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]"
+                        );
                     addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
                     locallyAccumulatedSourceBytes[0] = 0;
                 }

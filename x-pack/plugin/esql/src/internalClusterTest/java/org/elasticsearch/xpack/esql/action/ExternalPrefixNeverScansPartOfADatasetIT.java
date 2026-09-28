@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -36,7 +41,7 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(ParquetDataSourcePlugin.class);
+        return List.of(ParquetDataSourcePlugin.class, CsvDataSourcePlugin.class);
     }
 
     /** The same, in the shape a real partitioned dataset has: hive folders and a globstar pattern. */
@@ -125,6 +130,111 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
             for (List<Object> row : rows) {
                 long id = ((Number) row.get(0)).longValue();
                 assertThat("each row's value belongs to its own id", ((Number) row.get(1)).longValue(), equalTo(id * 10));
+            }
+        }
+    }
+
+    /**
+     * The declared rail, bounded. A declared mapping is the whole schema, so no file is read to know the columns
+     * and one bounded listing answers what is left — the file count and the partition columns. The file set is
+     * still the whole dataset.
+     * <p>
+     * {@code schema_resolution} is set explicitly because the bound turns on it: {@code FileOrderConfig#forListing}
+     * answers name-ascending for every other mode, and {@code listingExtentsFor} declines a bound for any order but
+     * the default. A declared dataset that leaves it unset is never bounded and this case would assert nothing.
+     */
+    /**
+     * A text format, where a file's columns come from reading it rather than from a footer, and where the read is
+     * positional. Files past the prefix carry a fourth column the anchor does not have.
+     * <p>
+     * Under {@code first_file_wins} the anchor's schema is the dataset's, and a row that does not fit it is a row
+     * error — which is what a file inside the prefix gets, and what every file got before a listing could be a
+     * prefix at all. This is the case that shows the per-file read schema has to travel with the file set: left
+     * behind, a file past the prefix is read under its own columns instead, and the same dataset answers a query
+     * that the dataset's own schema says is an error.
+     */
+    public void testATextFilePastThePrefixIsReadUnderTheAnchorsColumns() throws Exception {
+        Path dir = createTempDir();
+        int files = 12;
+        int rowsPerFile = 10;
+        // A comma-separated resource list, not a glob: it is the one way to have both a bounded listing and a known
+        // first file, since file_sort_by declines the bound. The first two files are the prefix, and they agree.
+        StringBuilder resource = new StringBuilder();
+        for (int i = 0; i < files; i++) {
+            boolean anchorShaped = i < 2;
+            StringBuilder csv = new StringBuilder(anchorShaped ? "id,name,value\n" : "id,name,value,extra\n");
+            for (int r = 0; r < rowsPerFile; r++) {
+                int id = i * rowsPerFile + r;
+                csv.append(id).append(",row_").append(id).append(',').append(id * 10).append(anchorShaped ? "\n" : ",spare\n");
+            }
+            Path file = dir.resolve(String.format(Locale.ROOT, "part-%03d.csv", i));
+            Files.writeString(file, csv.toString(), StandardCharsets.UTF_8);
+            resource.append(resource.isEmpty() ? "" : ",").append(file.toUri());
+        }
+
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "csv");
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("partition_sample_size", 2);
+        String dataset = registerLocalFileDataset("prefix_csv_ds", resource.toString(), settings);
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile)).close()
+        );
+        assertThat(
+            "a file past the prefix is read under the dataset's three columns, so its fourth column is a row error",
+            e.getMessage() + causeChain(e),
+            containsString("the schema has [3]")
+        );
+
+        // And under a policy that drops such a row, the answer comes from the files that do fit the schema: the
+        // two the prefix held. Left unpinned, the other ten would be read under their own four columns and counted.
+        Map<String, Object> skipping = new HashMap<>(settings);
+        skipping.put("error_mode", "skip_row");
+        String skippingDataset = registerLocalFileDataset("prefix_csv_skip_ds", resource.toString(), skipping);
+        try (var response = run(syncEsqlQueryRequest("FROM " + skippingDataset + " | STATS c = COUNT(*)"))) {
+            assertThat(
+                "rows that do not fit the dataset's schema are dropped, not silently widened",
+                ((Number) getValuesList(response).get(0).get(0)).longValue(),
+                equalTo(2L * rowsPerFile)
+            );
+        }
+    }
+
+    /** Flattens an exception's causes so an assertion can match a message the transport wrapped. */
+    private static String causeChain(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable c = t.getCause(); c != null; c = c.getCause()) {
+            sb.append(' ').append(c.getMessage());
+        }
+        return sb.toString();
+    }
+
+    public void testEveryFileIsReadUnderADeclaredMapping() throws Exception {
+        Path dir = createTempDir();
+        int files = 12;
+        int rowsPerFile = 10;
+        for (int i = 0; i < files; i++) {
+            writeParquet(dir.resolve(String.format(Locale.ROOT, "part-%03d.parquet", i)), rowsPerFile, rowsPerFile);
+        }
+
+        LinkedHashMap<String, DatasetFieldMapping> declared = new LinkedHashMap<>();
+        declared.put("ident", new DatasetFieldMapping("long", "id"));
+        declared.put("name", new DatasetFieldMapping("keyword", null));
+        declared.put("value", new DatasetFieldMapping("integer", null));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("partition_sample_size", 2);
+        String dataset = registerStrictDataset("prefix_declared_ds", dir.toUri() + "*.parquet", declared, settings);
+
+        // Row-returning: a dataset-wide aggregate takes the eager-statistics path, which declines the bound.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP ident, value | LIMIT " + files * rowsPerFile))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("every file is read under the declared mapping", rows.size(), equalTo(files * rowsPerFile));
+            for (List<Object> row : rows) {
+                assertThat("the renamed declared column is read from every file", row.get(0), notNullValue());
             }
         }
     }

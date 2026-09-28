@@ -783,7 +783,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
                 handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
             }
-            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }

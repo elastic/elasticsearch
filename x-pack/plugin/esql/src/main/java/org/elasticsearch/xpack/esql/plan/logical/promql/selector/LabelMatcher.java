@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
@@ -141,6 +142,7 @@ public class LabelMatcher implements NodeStringRenderable {
     public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
 
     // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public Automaton automaton() {
         if (automaton != null) {
             return automaton;
@@ -151,7 +153,7 @@ public class LabelMatcher implements NodeStringRenderable {
             automaton = buildAutomaton();
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             // Lucene's parser recurses on nested groups; this Error must not escape the request.
             throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }

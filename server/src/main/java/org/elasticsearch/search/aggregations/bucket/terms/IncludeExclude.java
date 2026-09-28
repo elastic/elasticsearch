@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
@@ -596,13 +597,14 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     @Nullable
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private static CircuitBreakingRegExp parse(@Nullable String regex, ParseField field) {
         if (regex == null) {
             return null;
         }
         try {
             return new CircuitBreakingRegExp(regex, REGEX_FLAGS, 0);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw tooDeeplyNested(field);
         }
     }

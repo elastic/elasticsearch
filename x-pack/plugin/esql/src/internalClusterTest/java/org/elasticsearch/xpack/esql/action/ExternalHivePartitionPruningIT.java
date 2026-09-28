@@ -564,6 +564,22 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertPrune(dataset, "WHERE year == 2025", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
     }
 
+    /**
+     * {@code city=New%20York} is the on-disk spelling of New York. An IN must return that row and Paris, and not
+     * Berlin, on both a keyed {@code city=*} glob and a {@code **} glob.
+     */
+    public void testKeyedCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_keyed", "/city=*/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
+    public void testGlobstarCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_globstar", "/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
     /** Same, across all three keys, so every segment of the glob is rewritten. */
     public void testKeyedGlobPrunesOnAllThreeKeys() throws Exception {
         String dataset = registerKeyedTree("csv_keyed_full", "csv");
@@ -756,9 +772,9 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
 
     /**
      * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
-     * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
-     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob, which takes the textual
-     * rewrite instead of the listing walk; the default {@code **} glob is the one the walk narrows.
+     * zeros are spelled in exponent form, which types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*}
+     * in the glob, which takes the textual rewrite instead of the listing walk; the default {@code **} glob is the one
+     * the walk narrows.
      */
     private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
         Path root = createTempDir().resolve(name);
@@ -771,6 +787,51 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
         return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    /** An empty Hive folder {@code k=} is the value {@code ""}. {@code k == "x"} returns the other file. */
+    public void testCsvEmptyPartitionFolderFilters() throws Exception {
+        String name = "csv_empty_k";
+        Path root = createTempDir().resolve(name);
+        Path empty = root.resolve("k=");
+        Path valued = root.resolve("k=x");
+        Files.createDirectories(empty);
+        Files.createDirectories(valued);
+        Files.writeString(empty.resolve("f.csv"), "id\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(valued.resolve("f.csv"), "id\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE k == \"x\" | KEEP id"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(2));
+        }
+    }
+
+    /** {@code price=1.5} is a partition value. A filter on {@code year} returns both prices. */
+    public void testCsvDottedPricePartitionValue() throws Exception {
+        String name = "csv_dotted_price";
+        Path root = createTempDir().resolve(name);
+        Path decimal = root.resolve("year=2024").resolve("price=1.5");
+        Path integral = root.resolve("year=2024").resolve("price=2");
+        Files.createDirectories(decimal);
+        Files.createDirectories(integral);
+        Files.writeString(decimal.resolve("f1.csv"), "v\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(integral.resolve("f2.csv"), "v\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | KEEP v, price | SORT v"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(1)).doubleValue(), equalTo(1.5));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(1)).doubleValue(), equalTo(2.0));
+        }
     }
 
     /** Registers the 8-file {@code year/month/day} fixture and asserts the filter's pruning + rows. */
@@ -931,6 +992,25 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     @FunctionalInterface
     private interface PartitionPredicate {
         boolean test(int year, int month, int day);
+    }
+
+    /**
+     * Three city folders, one row each: {@code New%20York} (id 1), {@code Paris} (id 2), {@code Berlin} (id 3).
+     * {@code globSuffix} is appended to the directory URI and must contain {@code **} so the local provider recurses.
+     */
+    private String registerCityTree(String name, String globSuffix) throws IOException {
+        Path root = createTempDir().resolve(name);
+        writeCity(root, "New%20York", 1);
+        writeCity(root, "Paris", 2);
+        writeCity(root, "Berlin", 3);
+        String glob = StoragePath.fileUri(root) + globSuffix;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    private static void writeCity(Path root, String folderValue, int id) throws IOException {
+        Path dir = root.resolve("city=" + folderValue);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("f.csv"), "id\n" + id + "\n", StandardCharsets.UTF_8);
     }
 
     /**

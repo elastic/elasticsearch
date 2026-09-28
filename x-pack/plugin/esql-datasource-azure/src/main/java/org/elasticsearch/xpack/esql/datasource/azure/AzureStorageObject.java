@@ -587,6 +587,6 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "AzureStorageObject{container=" + container + ", blobName=" + blobName + ", path=" + path + "}";
+        return "AzureStorageObject[" + path.objectName() + "]";
     }
 }

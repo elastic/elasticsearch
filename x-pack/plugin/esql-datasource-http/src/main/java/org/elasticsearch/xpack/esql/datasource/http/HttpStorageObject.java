@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -165,25 +166,27 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
-        String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
+        String bodyDetail = (detail == null || detail.isEmpty()) ? null : "body: " + detail;
+        String suffix = bodyDetail == null ? "" : ", " + bodyDetail;
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
-            return new ExternalUnavailableException(
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+                path,
+                "HTTP " + statusCode,
+                "",
                 throttling,
-                throttling ? retryAfterMs : 0L,
-                "HTTP store unavailable reading [{}] (HTTP {}){}",
-                HttpUrls.redact(path),
-                statusCode,
-                suffix
+                throttling ? retryAfterMs : 0L
             );
+            if (bodyDetail != null) {
+                ex.setDetail(bodyDetail);
+            }
+            return ex;
         }
         if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
-            return new ExternalObjectChangedException(
-                "Object changed during read of [{}] (HTTP {}){}",
-                HttpUrls.redact(path),
-                statusCode,
-                suffix
-            );
+            ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
+            ex.setDetail("HTTP " + statusCode + suffix);
+            return ex;
         }
         return new IOException(context + " [" + HttpUrls.redact(path) + "] (HTTP " + statusCode + ")" + suffix);
     }
@@ -564,10 +567,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException(
-                    "Object generation could not be verified during read of [{}]",
-                    HttpUrls.redact(path)
-                );
+                ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
+                ex.setDetail("generation could not be verified");
+                throw ex;
             }
             return;
         }
@@ -578,7 +580,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", HttpUrls.redact(path));
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -699,7 +701,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     private ExternalUnavailableException typeTransportFailure(Exception e) {
-        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", HttpUrls.redact(path));
+        return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L, e);
     }
 
     /**

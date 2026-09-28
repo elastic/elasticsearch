@@ -208,6 +208,17 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
             "ds_loc_bad_orc",
             "garbage.orc"
         );
+        // Dataset context (dataset name + datasource name) must appear in every error.
+        Map<String, String> expectedDatasource = Map.of(
+            "ds_loc_denied_single",
+            "ds_loc_bad_src",
+            "ds_loc_denied_glob",
+            "ds_loc_bad_src",
+            "ds_loc_wrong_format",
+            "ds_loc_good_src",
+            "ds_loc_bad_orc",
+            "ds_loc_good_src"
+        );
 
         for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format", "ds_loc_bad_orc")) {
             for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
@@ -227,6 +238,16 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
                         is(true)
                     );
                 }
+                assertThat(
+                    label + " must see dataset name in error for [" + dataset + "]",
+                    texts.stream().anyMatch(t -> t.contains("in dataset [" + dataset + "]")),
+                    is(true)
+                );
+                assertThat(
+                    label + " must see datasource name in error for [" + dataset + "]",
+                    texts.stream().anyMatch(t -> t.contains("from data source [" + expectedDatasource.get(dataset) + "]")),
+                    is(true)
+                );
             }
         }
 

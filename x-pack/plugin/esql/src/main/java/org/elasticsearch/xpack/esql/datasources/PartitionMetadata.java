@@ -330,11 +330,7 @@ public final class PartitionMetadata {
                 for (int c = 0; c < columnNames.length; c++) {
                     if (Objects.equals(shared[c][g], valuesByColumn[c][oldRow]) == false) {
                         throw new IllegalStateException(
-                            "partition values disagree within directory group ["
-                                + g
-                                + "] for column ["
-                                + columnNames[c]
-                                + "]"
+                            "partition values disagree within directory group [" + g + "] for column [" + columnNames[c] + "]"
                         );
                     }
                 }

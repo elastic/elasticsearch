@@ -273,8 +273,6 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testSnapshotContextOmitsSecretSettings() throws IOException {
-        // Snapshot serialization must exclude secret settings so credentials are never written to snapshots.
-        // Non-secret settings must survive the round-trip intact.
         Map<String, DataSourceSetting> settings = new HashMap<>();
         settings.put("access_key", new DataSourceSetting("AKIA123", true));
         settings.put("secret_key", new DataSourceSetting("wJalSecret", true));

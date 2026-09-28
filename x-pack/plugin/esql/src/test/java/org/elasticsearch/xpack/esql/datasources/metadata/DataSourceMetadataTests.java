@@ -77,10 +77,6 @@ public class DataSourceMetadataTests extends AbstractChunkedSerializingTestCase<
     }
 
     public void testContextIncludesGatewayAndSnapshot() {
-        // Regression guard. The cluster-state framework reads context() to decide inclusion:
-        // - GATEWAY is included for node-restart recovery (persists the full representation including encrypted secrets).
-        // - SNAPSHOT is included so datasources survive snapshot/restore; secrets are stripped in DataSource.toXContent.
-        // - API is excluded so raw secret values never surface in GET /_cluster/state; use the masked REST path.
         DataSourceMetadata metadata = new DataSourceMetadata(
             Map.of("my-s3", new DataSource("my-s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA_LEAK_CHECK", true))))
         );

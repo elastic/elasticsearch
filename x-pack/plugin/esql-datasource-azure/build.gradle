@@ -63,7 +63,7 @@ dependencies {
   implementation 'net.minidev:json-smart:2.5.2'
   implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  implementation "io.projectreactor:reactor-core:3.7.19"
+  implementation "io.projectreactor:reactor-core:3.8.7"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
   // Jackson must match the version bundled by the extended x-pack-esql plugin (see libs:arrow):

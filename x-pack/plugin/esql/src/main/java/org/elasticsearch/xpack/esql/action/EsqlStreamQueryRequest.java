@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -30,6 +32,7 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
     private final boolean dropNullColumns;
     private final int batchSize;
+    private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
@@ -37,14 +40,29 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
         boolean dropNullColumns,
         int batchSize
     ) {
+        this(source, resultStreamListener, dropNullColumns, batchSize, footer -> {});
+    }
+
+    EsqlStreamQueryRequest(
+        EsqlQueryRequest source,
+        ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener,
+        boolean dropNullColumns,
+        int batchSize,
+        Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener
+    ) {
         super(source);
         this.resultStreamListener = resultStreamListener;
         this.dropNullColumns = dropNullColumns;
         this.batchSize = batchSize;
+        this.preHeaderFailureFooterListener = preHeaderFailureFooterListener;
     }
 
     public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
         return resultStreamListener;
+    }
+
+    public Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener() {
+        return preHeaderFailureFooterListener;
     }
 
     public boolean dropNullColumns() {

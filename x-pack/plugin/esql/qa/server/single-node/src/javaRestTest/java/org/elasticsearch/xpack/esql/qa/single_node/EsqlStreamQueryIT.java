@@ -302,6 +302,25 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             errorLine.get("status"),
             equalTo(re.getResponse().getStatusLine().getStatusCode())
         );
+
+        assertThat("pre-header error line must carry took", errorLine, hasKey("took"));
+        assertThat("took must be non-negative", (int) errorLine.get("took"), greaterThan(-1));
+        assertThat("pre-header error line must carry warnings", errorLine, hasKey("warnings"));
+        assertThat("root_cause must be present (standard ES error shape)", error, hasKey("root_cause"));
+        assertThat(errorLine, not(hasKey("documents_found")));
+        assertThat(errorLine, not(hasKey("values_loaded")));
+        assertThat(errorLine, not(hasKey("rows_emitted")));
+
+        Request syncRequest = new Request("POST", "/_query");
+        syncRequest.setJsonEntity("{\"query\": \"FROM stream-test | EVAL x = unknown_function(value)\"}");
+        ResponseException syncRe = expectThrows(ResponseException.class, () -> client().performRequest(syncRequest));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncBody = (Map<String, Object>) XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            syncRe.getResponse().getEntity().getContent(),
+            true
+        ).get("error");
+        assertThat("streaming error type must match sync", error.get("type"), equalTo(syncBody.get("type")));
     }
 
     public void testOmittedBatchSizeDefaultsToHundred() throws IOException {

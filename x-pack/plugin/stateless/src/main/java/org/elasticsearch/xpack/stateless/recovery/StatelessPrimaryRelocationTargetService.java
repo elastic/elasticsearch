@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetrics
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.REFERENCED_BCCS_LOG_THRESHOLD_SETTING;

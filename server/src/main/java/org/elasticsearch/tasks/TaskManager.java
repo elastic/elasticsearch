@@ -9,6 +9,11 @@
 
 package org.elasticsearch.tasks;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -16,6 +21,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -31,7 +37,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -95,21 +101,21 @@ public class TaskManager implements ClusterStateApplier {
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        this(settings, threadPool, taskHeaders, Tracer.NOOP);
+        this(settings, threadPool, taskHeaders, OpenTelemetry.noop());
     }
 
     // For testing (especially the creating a random node ID, which some tests rely on)
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
-        this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, OpenTelemetry openTelemetry) {
+        this(settings, threadPool, taskHeaders, openTelemetry, UUIDs.randomBase64UUID());
     }
 
     // TODO Both of the above overloads should be moved to the test package.
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, OpenTelemetry openTelemetry, String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.tracer = tracer;
+        this.tracer = openTelemetry.getTracer("elasticsearch.tasks");
         this.nodeId = nodeId;
     }
 
@@ -140,8 +146,6 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
-
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {
@@ -161,35 +165,57 @@ public class TaskManager implements ClusterStateApplier {
         );
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        // The span must exist before the task is published, otherwise a concurrent unregister could complete the task
+        // before it has one, and the span would never be ended.
+        if (traceRequest) {
+            maybeStartTrace(threadContext, task);
+        } else {
+            task.borrowTraceContext(Context.current());
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task, request.getRequestId(), traceRequest);
+            registerCancellableTask(task, request.getRequestId());
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
-            if (traceRequest) {
-                maybeStartTrace(threadContext, task);
-            }
         }
         return task;
     }
 
     /**
-     * Start a new trace span if a parent trace context already exists.
-     * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
+     * Start a new trace span if a parent trace context already exists, otherwise borrow the caller's context so that an
+     * untraced task still carries causality to its children.
+     * <p>
+     * Must be called before the task is published, so that no other thread can unregister it before it has a span.
+     * Registration does not activate the span; execution boundaries must use {@link #withTaskContext(Task)}.
      */
     void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentApmTraceContext() == false) {
+        Context parent = Context.current();
+        if (Span.fromContext(parent).getSpanContext().isValid() == false) {
+            task.borrowTraceContext(parent);
             return;
         }
-        TaskId parentTask = task.getParentTaskId();
-        Map<String, Object> attributes = parentTask.isSet()
-            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
-            : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-        tracer.startTrace(threadContext, task, task.getAction(), attributes);
+        var builder = tracer.spanBuilder(task.getAction()).setParent(parent).setAttribute("es.task.id", task.getId());
+        if (task.getParentTaskId().isSet()) {
+            builder.setAttribute("es.task.parent.id", task.getParentTaskId().toString());
+        }
+        String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+        if (opaqueId != null) {
+            builder.setAttribute("es.x-opaque-id", opaqueId);
+        }
+        String projectId = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        if (projectId != null) {
+            builder.setAttribute("project.id", projectId);
+        }
+        task.startTrace(parent, builder.startSpan());
+    }
+
+    /** Activates a task for execution or scheduling without transferring span ownership. */
+    public Releasable withTaskContext(Task task) {
+        return TracingContext.activate(threadPool.getThreadContext(), task.getTraceContext());
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -199,6 +225,7 @@ public class TaskManager implements ClusterStateApplier {
         Transport.Connection localConnection,
         ActionListener<Response> taskListener
     ) {
+        final var parentListener = ContextPreservingActionListener.wrapPreservingContext(taskListener, threadPool.getThreadContext());
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
             unregisterChildNode = registerChildConnection(request.getParentTask().getId(), localConnection);
@@ -206,7 +233,7 @@ public class TaskManager implements ClusterStateApplier {
             unregisterChildNode = null;
         }
 
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
             final Task task;
             try {
                 task = register(type, action.actionName, request);
@@ -214,48 +241,47 @@ public class TaskManager implements ClusterStateApplier {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }
-            action.execute(task, request, new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        release();
-                    } finally {
-                        taskListener.onResponse(response);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        if (request.getParentTask().isSet()) {
-                            cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+            try (var scope = withTaskContext(task)) {
+                action.execute(task, request, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Response response) {
+                        try {
+                            release();
+                        } finally {
+                            parentListener.onResponse(response);
                         }
-                        release();
-                    } finally {
-                        taskListener.onFailure(e);
                     }
-                }
 
-                @Override
-                public String toString() {
-                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            if (request.getParentTask().isSet()) {
+                                cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+                            }
+                            release();
+                        } finally {
+                            parentListener.onFailure(e);
+                        }
+                    }
 
-                private void release() {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                    }
+
+                    private void release() {
+                        Releasables.close(unregisterChildNode, () -> unregister(task));
+                    }
+                });
+            }
             return task;
         }
     }
 
-    private void registerCancellableTask(Task task, long requestId, boolean traceRequest) {
+    private void registerCancellableTask(Task task, long requestId) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
-        if (traceRequest) {
-            maybeStartTrace(threadPool.getThreadContext(), task);
-        }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());
@@ -353,7 +379,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.stopTrace(task); // stop trace if started / known by tracer
+            task.finishTrace();
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

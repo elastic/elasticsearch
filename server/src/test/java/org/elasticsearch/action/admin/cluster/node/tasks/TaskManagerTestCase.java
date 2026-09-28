@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
@@ -38,7 +40,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -178,7 +179,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), Tracer.NOOP, name);
+            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), OpenTelemetry.noop(), name);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(

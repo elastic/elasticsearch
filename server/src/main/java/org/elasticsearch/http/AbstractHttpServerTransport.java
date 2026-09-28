@@ -44,7 +44,6 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
@@ -105,7 +104,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
-    private final Tracer tracer;
     private final HttpServerInstrumentation instrumentation;
     private final MeterRegistry meterRegistry;
     private final List<AutoCloseable> metricsToClose = new ArrayList<>(2);
@@ -147,7 +145,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.tracer = telemetryProvider.getTracer();
         this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.meterRegistry = telemetryProvider.getMeterRegistry();
         this.httpLogger = new HttpTracer(settings, clusterSettings);
@@ -522,7 +519,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.newEmptyContext()) {
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {

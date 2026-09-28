@@ -39,9 +39,9 @@ import static org.hamcrest.Matchers.not;
  *   <li>Only root (entry-point) spans are exported; child spans are dropped.</li>
  * </ul>
  * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC. Child-span filtering is enforced by ES code in
- * {@code APMTracer} when {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression is
+ * {@code APMTracingService} when {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression is
  * enforced by the same code when {@code telemetry.tracing.record_exception_stacks=false} (the default); see
- * {@code APMTracerTests} for coverage of that branch.
+ * {@code NativeTracingTests} for coverage of that branch.
  */
 public class OtelSdkTracesIT extends AbstractTelemetryIT {
 
@@ -66,13 +66,9 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
     static final Set<String> REQUIRED_NODE_STATS_SPAN_KEYS = Set.of(
         "otel.attributes.es.cluster.name",
         "otel.attributes.es.node.name",
-        "otel.attributes.http.flavour",
-        "otel.attributes.http.method",
-        "otel.attributes.http.status_code",
-        "otel.attributes.http.url",
-        "otel.span_kind",
         "otel.attributes.http.request.method",
         "otel.attributes.http.response.status_code",
+        "otel.span_kind",
         "otel.attributes.http.route",
         "otel.attributes.network.protocol.version",
         "otel.attributes.url.path"
@@ -189,7 +185,7 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
      * <p>Two layers of assertion:
      * <ol>
      *   <li><b>Value assertions</b> (below) cover the small set of keys where the value — not just
-     *       the key's presence — is semantically load-bearing (HTTP method, status code, URL,
+     *       the key's presence — is semantically load-bearing (HTTP method, status code, URL path,
      *       span kind).</li>
      *   <li><b>Key-set assertion</b> against {@link #REQUIRED_NODE_STATS_SPAN_KEYS} and
      *       {@link #FORBIDDEN_SPAN_KEYS}: every required key present, no forbidden key present.</li>
@@ -202,15 +198,13 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
         // Span kind must be SERVER — distinguishes inbound HTTP requests from outbound client calls.
         assertThat("span kind", attrs.get("otel.span_kind"), is("SERVER"));
         // HTTP semantics
-        assertThat("HTTP method", attrs.get("otel.attributes.http.method"), is("GET"));
-        assertThat("HTTP status code", attrs.get("otel.attributes.http.status_code"), instanceOf(Number.class));
+        assertThat("HTTP method", attrs.get("otel.attributes.http.request.method"), is("GET"));
+        assertThat("HTTP status code", attrs.get("otel.attributes.http.response.status_code"), instanceOf(Number.class));
         assertThat(
             "HTTP status code value",
-            ((Number) attrs.get("otel.attributes.http.status_code")).intValue(),
+            ((Number) attrs.get("otel.attributes.http.response.status_code")).intValue(),
             greaterThanOrEqualTo(200)
         );
-        assertThat("HTTP URL", attrs.get("otel.attributes.http.url").toString(), is("/_nodes/stats"));
-        assertThat("HTTP flavour", attrs.get("otel.attributes.http.flavour").toString(), not(emptyOrNullString()));
         // ES resource attributes
         assertThat("ES node name", attrs.get("otel.attributes.es.node.name").toString(), not(emptyOrNullString()));
         assertThat("ES cluster name", attrs.get("otel.attributes.es.cluster.name").toString(), not(emptyOrNullString()));

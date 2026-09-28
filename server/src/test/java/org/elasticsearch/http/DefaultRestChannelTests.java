@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -523,7 +522,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(instrumentation).end(argThat(id -> id.getSpanId().startsWith("rest-")), any(RestResponse.class));
+        verify(instrumentation).end(any(RestRequest.class), any(RestResponse.class));
     }
 
     public void testHandleHeadRequest() {

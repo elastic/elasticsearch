@@ -601,10 +601,10 @@ public class ActionModule extends AbstractModule {
                     Optional<String> traceId = RestUtils.extractTraceId(traceparent);
                     if (traceId.isPresent()) {
                         threadContext.putHeader(Task.TRACE_ID, traceId.get());
-                        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, traceparent);
+                        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
                 } else if (name.equals(Task.TRACE_STATE)) {
-                    threadContext.putTransient(Task.PARENT_TRACE_STATE, distinctHeaderValues.get(0));
+                    threadContext.putHeader(Task.TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }

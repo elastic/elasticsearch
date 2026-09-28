@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.test;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -38,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -185,7 +186,7 @@ public class ClusterServiceUtils {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, localNode.getId())
+            new TaskManager(settings, threadPool, Collections.emptySet(), OpenTelemetry.noop(), localNode.getId())
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

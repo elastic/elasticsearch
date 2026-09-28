@@ -44,6 +44,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.tracing.TracingContext;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -602,7 +603,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     if (processRequest) {
                         try {
                             validateRequest(request, handler, client);
-                            handler.handleRequest(request, finalChannel, client);
+                            try (var scope = TracingContext.activate(threadContext, request.getTraceContext())) {
+                                handler.handleRequest(request, finalChannel, client);
+                            }
                         } catch (Exception e) {
                             onFailure(e);
                         }
@@ -681,7 +684,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
-        this.instrumentation.start(threadContext, channel.request(), restPath);
+        RestRequest request = channel.request();
+        // Routing can revisit instrumentation; both calls below are no-ops once a span has been started for the request.
+        var parent = TracingContext.extract(threadContext);
+        request.borrowTraceContext(parent);
+        this.instrumentation.start(threadContext, request, restPath, parent);
     }
 
     private void traceException(RestChannel channel, Throwable e) {
@@ -734,7 +741,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    try (var scope = TracingContext.activate(threadContext, request.getTraceContext())) {
+                        maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    }
                     return;
                 }
             }

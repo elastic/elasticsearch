@@ -62,8 +62,8 @@ public final class OtlpTracesParser extends OtlpParser {
      * Test-only normalisation of raw OTLP span attributes into the shape the contract assertions in
      * {@link OtelSdkTracesIT} expect:
      * <ul>
-     *   <li>each OTel attribute key is prefixed with {@code otel.attributes.} (e.g. {@code http.method}
-     *       becomes {@code otel.attributes.http.method}), matching how the APM agent nests attributes
+     *   <li>each OTel attribute key is prefixed with {@code otel.attributes.} (e.g. {@code http.request.method}
+     *       becomes {@code otel.attributes.http.request.method}), matching how the APM agent nests attributes
      *       in its intake NDJSON;</li>
      *   <li>the {@link Span.SpanKind} enum is surfaced as an {@code otel.span_kind} entry
      *       (e.g. {@code "SERVER"}), matching the same intake nesting.</li>

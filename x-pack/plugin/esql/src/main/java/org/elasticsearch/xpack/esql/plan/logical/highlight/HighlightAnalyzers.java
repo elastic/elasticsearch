@@ -38,11 +38,14 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
  * from mapped fields, uses {@link TextEsField#analyzerName}, a TO_TEXT column uses its declared analyzer, and anything
  * else uses {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is
  * available, each index uses its own analyzer.
+ * <p>
+ * A mapped field that RENAME or EVAL turned into a {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}
+ * is "anything else": it uses {@code standard} without a warning, even when its mapping names another analyzer.
  */
 public final class HighlightAnalyzers {
 
     private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
-    private static final String NOT_REPORTED_REASON = "the node holding it did not report its analyzer";
+    private static final String NOT_REPORTED_REASON = "its analyzer was not reported under a name any node can rebuild";
 
     private HighlightAnalyzers() {}
 
@@ -162,6 +165,7 @@ public final class HighlightAnalyzers {
                 case NONE -> null;
                 case CONFLICT -> "the queried indices disagree on the analyzer for this field";
                 case INDEX_LOCAL -> INDEX_LOCAL_REASON;
+                case NOT_REPORTED -> NOT_REPORTED_REASON;
                 case BRANCH_CONFLICT -> "the FORK or UNION ALL branches disagree on the analyzer for this column";
             };
             return mappingAnalyzer(

@@ -177,6 +177,11 @@ public final class AnalyzerTestUtils {
         return highlightFallbackWarning(field, "analyzer [" + analyzerName + "] is not registered on this node");
     }
 
+    /** Header warning from {@code HighlightAnalyzers} when no index reported an analyzer name for {@code field}. */
+    public static String notReportedFallbackWarning(String field) {
+        return highlightFallbackWarning(field, "its analyzer was not reported under a name any node can rebuild");
+    }
+
     /** Header warning from {@code HighlightAnalyzers} when every row of {@code field} falls back to {@code standard}. */
     public static String highlightFallbackWarning(String field, String reason) {
         return "HIGHLIGHT on ["

@@ -183,6 +183,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapab
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.notReportedFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -7243,6 +7244,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(fieldNames(highlight.fields()), hasItem("body"));
         assertThat(fieldNames(highlight.generatedAttributes()), everyItem(not(startsWith("highlight_$$"))));
         assertThat(fieldNames(highlight.fields()), everyItem(not(startsWith("$$"))));
+        // These caps report no analyzer names.
+        assertWarnings(notReportedFallbackWarning("body"));
     }
 
     public void testHighlightExplicitQueryBeatsUpstreamWhere() {

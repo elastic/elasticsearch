@@ -1084,6 +1084,7 @@ book_no:keyword | highlight_title:keyword
 
 # On a semantic_text field, MATCH in WHERE selects rows through the field's semantic query, while the HIGHLIGHT
 # query matches literal terms in the returned text. Only the row containing the literal term "prosper" is highlighted.
+# semantic_text has no index analyzer to report, so HIGHLIGHT falls back to standard and warns.
 highlightMatchOnSemanticText
 required_capability: highlight_v6
 required_capability: semantic_text_field_caps
@@ -1095,6 +1096,7 @@ FROM semantic_text
 | SORT semantic_text_field ASC
 ;
 
+warningRegex:HIGHLIGHT on \[semantic_text_field\] falls back to \[standard\]: its analyzer was not reported under a name any node can rebuild.*
 semantic_text_field:text                                              | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null
@@ -1114,6 +1116,7 @@ FROM semantic_text
 | SORT semantic_text_field ASC
 ;
 
+warningRegex:HIGHLIGHT on \[semantic_text_field\] falls back to \[standard\]: its analyzer was not reported under a name any node can rebuild.*
 semantic_text_field:text                                              | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null
@@ -2841,6 +2844,7 @@ null
 ;
 
 
+# ON * covers every semantic_text field of the index, and each one warns that it falls back to standard.
 implicitOnSemanticTextViaStar
 required_capability: highlight_implicit_query_and_fields
 
@@ -2851,6 +2855,7 @@ FROM semantic_text
 | SORT semantic_text_field
 ;
 
+warningRegex:HIGHLIGHT on \[[^\]]+\] falls back to \[standard\]: its analyzer was not reported under a name any node can rebuild.*
 semantic_text_field:text | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null
@@ -2869,6 +2874,7 @@ FROM semantic_text
 | SORT semantic_text_dense_field
 ;
 
+warningRegex:HIGHLIGHT on \[[^\]]+\] falls back to \[standard\]: its analyzer was not reported under a name any node can rebuild.*
 semantic_text_dense_field:text | highlight_semantic_text_dense_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null

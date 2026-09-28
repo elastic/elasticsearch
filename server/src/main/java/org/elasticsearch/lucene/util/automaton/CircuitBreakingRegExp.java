@@ -34,8 +34,17 @@ import static org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations.
  * accept the empty string copies transitions quadratically. So this walks the parse tree itself and, for each node, calls
  * the Lucene operation {@code toAutomaton} would call, after reserving an upper bound on that operation's peak memory
  * computed from the operands already built. Intersection and complement, whose size is only known once built, go through
- * the charged implementations in {@link CircuitBreakingOperations}. Lucene's repeat operations can also spend time far out
- * of proportion to their output, so the walk counts their work too and gives up past {@link #DEFAULT_WORK_LIMIT}.
+ * the charged implementations in {@link CircuitBreakingOperations}. Lucene's operations can also spend time far out of
+ * proportion to what they build, so the walk counts their work too and gives up past {@link #DEFAULT_WORK_LIMIT}.
+ * <p>
+ * For example, {@code (a|b)*} is built bottom-up in three steps, each with its own reservation:
+ * <pre>
+ *   a, b      leaves: built directly (their size is bounded by the pattern text), then held on the breaker
+ *   a|b       Operations.union, with unionCost's bound reserved while it runs; a and b are released after it
+ *   (a|b)*    Operations.repeat, with starCost's bound reserved while it runs; the union is released after it
+ * </pre>
+ * The bounds are what make short patterns safe: {@code x?{1000}} is eight characters, but Lucene links its copies with
+ * half a million transitions, and {@code concatenateCost} charges for them before any of them exist.
  * <p>
  * The walk is iterative, so the depth of the parse tree cannot overflow the stack. Lucene's parser still recurses on nested
  * groups, so the constructor can throw {@link StackOverflowError}.
@@ -43,10 +52,15 @@ import static org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations.
 public final class CircuitBreakingRegExp {
 
     /**
-     * Upper bound on the work of building one automaton, in units of states, transitions and entries scanned or created
-     * by Lucene's operations. Ordinary patterns use a few thousand; this allows a fraction of a second.
+     * Upper bound on the work of building one automaton. Scanning an entry costs one unit; building a state or a transition
+     * costs {@link #WORK_PER_BUILT_STATE_OR_TRANSITION}, because Lucene sorts and trims what it builds, which takes far longer
+     * per item than a scan. Ordinary patterns use at most a few million units; the limit allows a fraction of a second of
+     * either kind of work.
      */
     public static final int DEFAULT_WORK_LIMIT = 100_000_000;
+
+    /** Work units per state or transition an operation builds, against one unit per entry it scans. */
+    static final long WORK_PER_BUILT_STATE_OR_TRANSITION = 64L;
 
     /** Bytes per entry of the operand list and per-copy bookkeeping in Lucene's repeat operations. */
     private static final long REPEAT_BYTES_PER_COPY = 16L;
@@ -87,6 +101,7 @@ public final class CircuitBreakingRegExp {
         try {
             return walk.run();
         } finally {
+            // on failure, the operands of every node still on the walk's stack are still held
             walk.releaseHeld();
         }
     }
@@ -119,7 +134,11 @@ public final class CircuitBreakingRegExp {
         };
     }
 
-    /** The maximal same-kind subtree's leaves, left to right, as {@code RegExp.findLeaves} collects them. */
+    /**
+     * The maximal same-kind subtree's leaves, left to right, as {@code RegExp.findLeaves} collects them: Lucene unions and
+     * concatenates a list, so a union of unions is one list. For {@code a*|b|c?}, parsed as {@code UNION(UNION(a*, b), c?)},
+     * the leaves are {@code [a*, b, c?]}; each of them is built as its own node.
+     */
     private static RegExp[] leaves(RegExp re) {
         List<RegExp> leaves = new ArrayList<>();
         ArrayDeque<RegExp> pending = new ArrayDeque<>();
@@ -151,6 +170,10 @@ public final class CircuitBreakingRegExp {
             this.workLimit = workLimit;
         }
 
+        /**
+         * Builds the automaton bottom-up: a node is built once all its operands are, and each operand stays held on the
+         * breaker until that build returns. The root's result is returned unheld.
+         */
         Automaton run() {
             ArrayDeque<Node> stack = new ArrayDeque<>();
             stack.push(new Node(regExp));
@@ -252,8 +275,9 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * What the cost bounds read from an operand: states, transitions, accept states, transitions leaving the initial state,
-     * and whether the initial state accepts (the operand matches the empty string).
+     * What the bounds read from an operand that is already built: its states, its transitions, its accept states, the
+     * transitions leaving its initial state, and whether its initial state accepts, that is whether it matches the empty
+     * string. For {@code x?}: 2 states, 1 transition, 2 accept states, 1 initial transition, nullable.
      */
     record Shape(long states, long transitions, long accepts, long initial, boolean nullable) {
         static Shape of(Automaton a) {
@@ -271,26 +295,47 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * An upper bound on one operation: the states and transitions of what it builds, the peak memory it holds while it runs,
-     * and its work.
+     * An upper bound on one Lucene operation:
+     * <ul>
+     *   <li>{@code states} and {@code transitions}: what it builds before trimming dead states, which is the most it holds;</li>
+     *   <li>{@code bytes}: its peak live memory, the build together with whatever else it holds at the same time, such as its
+     *       operand list or the result of an earlier stage;</li>
+     *   <li>{@code work}: its time, in the units of {@link #DEFAULT_WORK_LIMIT}.</li>
+     * </ul>
+     * For example, concatenating 1000 copies of {@code x?} builds at most 2000 states and 1,000,000 transitions, so it
+     * reserves {@code buildBytes(2000, 1_000_000)} plus 16 bytes for each entry of its operand list.
      */
     record Cost(long states, long transitions, long bytes, long work) {
         static final Cost NONE = new Cost(0, 0, 0, 0);
 
         /** One stage that builds the output, holding {@code extraBytes} besides, with {@code extraWork} on top of its size. */
         static Cost of(long states, long transitions, long extraBytes, long extraWork) {
+            long built = addSaturating(states, transitions);
             return new Cost(
                 states,
                 transitions,
                 addSaturating(buildBytes(states, transitions), extraBytes),
-                addSaturating(addSaturating(states, transitions), extraWork)
+                addSaturating(multiplySaturating(built, WORK_PER_BUILT_STATE_OR_TRANSITION), extraWork)
             );
         }
     }
 
     /**
-     * {@link Operations#concatenate(List)}: each accept state of a piece receives the initial transitions of every following
-     * piece up to and including the first that does not accept the empty string.
+     * {@link Operations#concatenate(List)}. Lucene copies every piece, then gives each accept state of a piece the initial
+     * transitions of the next piece, and keeps going through the pieces after that for as long as they match the empty
+     * string. So a piece whose followers are all nullable links to every one of them, which is where a concatenation's
+     * transitions grow with the square of its length.
+     * <p>
+     * The bound walks the pieces from the end, carrying in {@code chained} what each accept state of the current piece will
+     * receive. For four pieces {@code x?}, each with 1 transition, 2 accept states and 1 initial transition, and nullable:
+     * <pre>
+     *   piece   chains into   links per accept state
+     *   1       2, 3, 4       3
+     *   2       3, 4          2
+     *   3       4             1
+     *   4       nothing       0
+     * </pre>
+     * that is 2 accept states times (3 + 2 + 1), 12 links, plus the pieces' own 4 transitions: 16.
      */
     static Cost concatenateCost(Automaton[] pieces) {
         Shape[] shapes = new Shape[pieces.length];
@@ -300,7 +345,8 @@ public final class CircuitBreakingRegExp {
         return concatenateCost(shapes, pieces.length);
     }
 
-    private static Cost concatenateCost(Shape[] shapes, long listSize) {
+    /** {@link #concatenateCost(Automaton[])} over the pieces' shapes, with {@code listSize} entries in Lucene's operand list. */
+    static Cost concatenateCost(Shape[] shapes, long listSize) {
         long states = 0;
         long transitions = 0;
         long chained = 0;
@@ -313,7 +359,11 @@ public final class CircuitBreakingRegExp {
         return Cost.of(states, transitions, multiplySaturating(listSize, REPEAT_BYTES_PER_COPY), listSize);
     }
 
-    /** {@link Operations#union(java.util.Collection)}: a new initial state that copies each piece's initial transitions. */
+    /**
+     * {@link Operations#union(java.util.Collection)}: a new initial state, a copy of every piece, and the new initial state
+     * given each piece's initial transitions. For {@code cat|dog}, two pieces of 4 states, 3 transitions and 1 initial
+     * transition: at most 9 states and 8 transitions.
+     */
     static Cost unionCost(Automaton[] pieces) {
         long states = 1;
         long transitions = 0;
@@ -325,7 +375,11 @@ public final class CircuitBreakingRegExp {
         return Cost.of(states, transitions, multiplySaturating(pieces.length, REPEAT_BYTES_PER_COPY), pieces.length);
     }
 
-    /** {@link Operations#optional(Automaton)}: at most a new initial state copying the initial transitions. */
+    /**
+     * {@link Operations#optional(Automaton)}: nothing if the operand already matches the empty string, since Lucene then
+     * returns it unchanged; otherwise at most a new initial state given the operand's initial transitions. For {@code (ab)?}:
+     * at most 4 states and 3 transitions.
+     */
     static Cost optionalCost(Shape a) {
         if (a.nullable()) {
             return Cost.NONE;
@@ -333,7 +387,12 @@ public final class CircuitBreakingRegExp {
         return Cost.of(addSaturating(a.states(), 1), addSaturating(a.transitions(), a.initial()), 0, 0);
     }
 
-    /** {@link Operations#repeat(Automaton)}: a new initial state, and the initial transitions copied onto every accept state. */
+    /**
+     * {@link Operations#repeat(Automaton)}: a new accepting initial state, a copy of the operand, and the operand's initial
+     * transitions copied onto the new initial state and onto every accept state, which is what lets it loop. Lucene builds it
+     * through {@code Automaton.Builder}, so the builder's bytes are added. For {@code (ab)*}, whose operand has 3 states,
+     * 2 transitions, 1 accept state and 1 initial transition: at most 4 states and 2 + 1 + 1 = 4 transitions.
+     */
     static Cost starCost(Shape a) {
         if (a.states() == 0) {
             return Cost.NONE;
@@ -348,8 +407,10 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * {@link Operations#repeat(Automaton, int)}: the star of the operand, then {@code min} copies concatenated with it. The
-     * two stages run one after the other, the star staying alive through the second.
+     * {@link Operations#repeat(Automaton, int)}, that is {@code a{min,}}: Lucene first builds the operand's star, then
+     * concatenates {@code min} copies of the operand followed by that star. The two stages run one after the other and the
+     * star stays alive through the second, so the peak is the larger of the star's build and the concatenation plus the
+     * star. For {@code a{3,}}: the star {@code a*}, then {@code a a a a*}.
      */
     static Cost repeatCost(Shape a, int min) {
         if (min == 0) {
@@ -368,10 +429,21 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * {@link Operations#repeat(Automaton, int, int)}: {@code min} copies concatenated, then, in a builder, that result and
-     * {@code max - min} more copies, each linked by copying its initial transitions onto every accept state of the previous
-     * one. The two stages run one after the other, the concatenation staying alive through the second. Each link scans every
-     * transition built so far, so the work grows with the square of the number of optional copies.
+     * {@link Operations#repeat(Automaton, int, int)}, that is {@code a{min,max}}. Lucene builds it in two stages, one after
+     * the other:
+     * <ol>
+     *   <li>{@code b}: just the empty string when {@code min} is 0, a copy of the operand when it is 1, otherwise {@code min}
+     *       copies concatenated;</li>
+     *   <li>a builder holding {@code b}, then {@code max - min} more copies, each linked by copying its initial transitions
+     *       onto every accept state of the one before it, the first onto {@code b}'s accept states.</li>
+     * </ol>
+     * {@code b} stays alive through the second stage, so the peak is the larger of {@code b}'s build and {@code b} plus the
+     * builder and its output.
+     * <p>
+     * Each link calls {@code Automaton.Builder.addEpsilon}, which scans every transition in the builder, so the work grows with
+     * the square of the optional copies even when the output is small. For {@code x{0,20000}} the output is about 40,000
+     * states and 40,000 transitions, but copy j is linked by scanning the roughly 2j transitions before it, about 400 million
+     * entries in all, which the work limit refuses.
      */
     static Cost repeatCost(Shape a, int min, int max) {
         if (min > max) {
@@ -387,13 +459,13 @@ public final class CircuitBreakingRegExp {
             bTransitions = 0;
             bAccepts = 1;
             bBytes = 0;
-            bWork = 1;
+            bWork = WORK_PER_BUILT_STATE_OR_TRANSITION;
         } else if (min == 1) {
             bStates = a.states();
             bTransitions = a.transitions();
             bAccepts = a.accepts();
             bBytes = retainedBytes(bStates, bTransitions);
-            bWork = addSaturating(bStates, bTransitions);
+            bWork = multiplySaturating(addSaturating(bStates, bTransitions), WORK_PER_BUILT_STATE_OR_TRANSITION);
         } else {
             Cost b = copiesCost(a, min, null);
             bStates = b.states();
@@ -425,8 +497,8 @@ public final class CircuitBreakingRegExp {
             addSaturating(builderBytes(transitions), multiplySaturating(optionalCopies, REPEAT_BYTES_PER_COPY))
         );
         long work = addSaturating(
-            addSaturating(addSaturating(states, transitions), addSaturating(bWork, scanWork)),
-            multiplySaturating(optionalCopies, addSaturating(a.accepts(), 1))
+            addSaturating(multiplySaturating(addSaturating(states, transitions), WORK_PER_BUILT_STATE_OR_TRANSITION), bWork),
+            addSaturating(scanWork, multiplySaturating(optionalCopies, addSaturating(a.accepts(), 1)))
         );
         return new Cost(states, transitions, Math.max(bBytes, builderStage), work);
     }
@@ -445,10 +517,17 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * {@code count} copies of {@code a} concatenated, followed by {@code tail} (the operand's star, which accepts the empty
-     * string) when it is not null, in closed form so that a large count costs nothing to evaluate.
+     * {@code count} identical copies of {@code a} concatenated, followed by {@code tail} (the operand's star, which matches the
+     * empty string) when it is not null: exactly {@link #concatenateCost(Shape[], long)} over those pieces, in closed form so
+     * that {@code a{1000000}} costs nothing to evaluate.
+     * <p>
+     * If the operand matches the empty string, copy k chains into every copy after it and then into the tail, so its accept
+     * states each receive {@code (count - k) * initial} transitions plus the tail's initial ones; summed over the copies that
+     * is {@code count * (count - 1) / 2 * initial}, plus {@code count} times the tail's. Otherwise each copy links only to
+     * the next one, and the last to the tail: {@code (count - 1) * initial}, plus the tail's. For {@code x?{4}} that is
+     * 4 * 3 / 2 = 6 links for each of the 2 accept states, 12 in all; for {@code [ab]{4}}, 3.
      */
-    private static Cost copiesCost(Shape a, int count, Shape tail) {
+    static Cost copiesCost(Shape a, int count, Shape tail) {
         long n = count;
         long states = multiplySaturating(n, a.states());
         long transitions = multiplySaturating(n, a.transitions());

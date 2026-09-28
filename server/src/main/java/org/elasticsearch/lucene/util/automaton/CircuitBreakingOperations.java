@@ -71,8 +71,8 @@ public final class CircuitBreakingOperations {
     private static final long TRANSITIONS_PER_STATE_ESTIMATE = 3L;
     /**
      * Bytes per DFA transition beyond {@link #TRANSITIONS_PER_STATE_ESTIMATE} per state: the builder's four-int entry with
-     * growth headroom, and the copy {@code finish()} makes. A state reading a class of many separate ranges carries one
-     * transition per range.
+     * growth headroom, and its copy in the finished automaton. Lucene stores a state's transitions as character ranges, so a
+     * class of separate characters such as {@code [aceg]} needs one transition per character on every state that reads it.
      */
     private static final long ESTIMATED_BYTES_PER_EXTRA_TRANSITION = 32L;
 
@@ -244,21 +244,28 @@ public final class CircuitBreakingOperations {
                 points.reset();
                 assert statesSet.size() == 0 : "size=" + statesSet.size();
             }
+            // the reservations cover the builder and the copy finish() makes of it, so they are held until it returns
+            Automaton result = b.finish();
+            assert result.isDeterministic();
+            return result;
         } finally {
             if (totalReserved > 0) {
                 circuitBreaker.addWithoutBreaking(-totalReserved, label);
             }
         }
-
-        Automaton result = b.finish();
-        assert result.isDeterministic();
-        return result;
     }
 
     /**
-     * {@link Operations#complement(Automaton, int)} with the determinization charged as it grows and the totalized and
+     * {@link Operations#complement(Automaton, int)}, with the determinization charged as it grows and the totalized and
      * trimmed copies reserved before they are built. Temporary memory is released before returning; the caller accounts
      * the result's {@code ramBytesUsed()}.
+     * <p>
+     * Lucene complements a DFA by making it total and flipping which states accept. Making it total ({@code totalize}) adds
+     * a dead state that loops on every character and, for every state, a transition to the dead state for each gap in its
+     * ranges: before its first range, between two ranges, and after its last. A state with k transitions has at most k + 1
+     * gaps, so the totalized DFA has at most S + 1 states and T + (T + S) + 1 transitions. For the DFA of {@code ab}, with
+     * 3 states and 2 transitions: at most 4 states and 2 + (2 + 3) + 1 = 8 transitions. Flipping then makes the dead state
+     * accepting, so every string that fell off the original automaton is in the complement.
      */
     public static Automaton complement(Automaton a, int workLimit, CircuitBreaker circuitBreaker, String label) {
         Automaton dfa = determinize(a, workLimit, circuitBreaker, label);

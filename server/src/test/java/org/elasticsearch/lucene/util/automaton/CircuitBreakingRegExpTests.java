@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.util.automaton;
 
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -22,10 +23,13 @@ import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp.Cost;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp.Shape;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CircuitBreakingRegExpTests extends ESTestCase {
 
@@ -118,8 +122,8 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
             Automaton a = AutomatonTestUtil.randomAutomaton(random());
             Automaton b = AutomatonTestUtil.randomAutomaton(random());
             Shape shape = Shape.of(a);
-            int min = between(0, 4);
-            int max = min + between(0, 4);
+            int min = between(0, 12);
+            int max = min + between(0, 12);
             assertBounds(CircuitBreakingRegExp.concatenateCost(new Automaton[] { a, b }), Operations.concatenate(List.of(a, b)), a);
             assertBounds(CircuitBreakingRegExp.unionCost(new Automaton[] { a, b }), Operations.union(List.of(a, b)), a);
             assertBounds(CircuitBreakingRegExp.optionalCost(shape), Operations.optional(a), a);
@@ -130,11 +134,56 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     }
 
     /**
+     * {@code copiesCost} is {@code concatenateCost} over identical pieces, in closed form: for any operand, count and tail,
+     * the two must agree exactly.
+     */
+    public void testCopiesClosedFormMatchesTheLoop() {
+        for (int i = 0; i < 200; i++) {
+            long states = between(1, 50);
+            Shape a = new Shape(states, between(0, 200), between(1, (int) states), between(0, 20), randomBoolean());
+            int count = between(1, 1000);
+            Shape tail = randomBoolean() ? null : new Shape(a.states() + 1, between(0, 300), a.accepts() + 1, a.initial(), true);
+            Shape[] pieces = new Shape[tail == null ? count : count + 1];
+            Arrays.fill(pieces, 0, count, a);
+            if (tail != null) {
+                pieces[count] = tail;
+            }
+            assertEquals(
+                a + " x " + count + " then " + tail,
+                CircuitBreakingRegExp.concatenateCost(pieces, pieces.length),
+                CircuitBreakingRegExp.copiesCost(a, count, tail)
+            );
+        }
+    }
+
+    /**
+     * For operands without dead states of their own, what Lucene trims from an operation's build is at most the copies'
+     * unreachable initial states and the transitions leaving them, so the bounds stay within a small factor of what it
+     * builds: a regression that over-reserves by an order of magnitude fails here.
+     */
+    public void testBoundsStayCloseToTheBuildForNamedOperands() {
+        for (String operand : List.of("x", "x?", "[ab]", "ab|c", "(ab)*", "a?b?", "[acegikmoqsuwy]")) {
+            Automaton a = new RegExp(operand).toAutomaton();
+            Shape shape = Shape.of(a);
+            int min = between(0, 100);
+            int max = min + between(0, 100);
+            assertClose(operand + "*", CircuitBreakingRegExp.starCost(shape), Operations.repeat(a), a);
+            assertClose(operand + "{" + min + ",}", CircuitBreakingRegExp.repeatCost(shape, min), Operations.repeat(a, min), a);
+            assertClose(
+                operand + "{" + min + "," + max + "}",
+                CircuitBreakingRegExp.repeatCost(shape, min, max),
+                Operations.repeat(a, min, max),
+                a
+            );
+        }
+    }
+
+    /**
      * Pieces that accept the empty string make a concatenation's transitions grow with the square of its length, which the
      * state count does not show. Sized so that the build fits in the test heap even if it were not charged.
      */
     public void testNullableRepeatsAreCharged() {
-        assertTripsSmallAndReleases("x?{1000}{2}", ByteSizeValue.ofMb(4));
+        assertTripsSmallAndReleases("x?{500}{2}", ByteSizeValue.ofMb(4));
     }
 
     /** An intersection with a complement written inside one pattern is a product, charged as it grows. */
@@ -151,22 +200,28 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         }
     }
 
-    /** Each stacked quantifier roughly doubles what the one inside it built; the doubling is charged step by step. */
+    /**
+     * Each stacked quantifier roughly doubles what the one inside it built; the doubling is charged step by step. Sized so
+     * that the build fits in the test heap even if it were not charged.
+     */
     public void testStackedQuantifiersAreCharged() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         expectThrows(
             CircuitBreakingException.class,
-            () -> new CircuitBreakingRegExp("a" + "+".repeat(40), FLAGS, 0).toAutomaton(breaker, "test")
+            () -> new CircuitBreakingRegExp("a" + "+".repeat(16), FLAGS, 0).toAutomaton(breaker, "test")
         );
         assertEquals(0L, breaker.getUsed());
     }
 
     /**
      * Optional copies are linked by scanning everything built so far, so their work grows with the square of the count while
-     * the output stays small. The work limit refuses them before Lucene starts.
+     * the output stays small. The work limit refuses them before Lucene starts. Sized just past the limit, so that without
+     * the check the build would still finish in about a second and the test would fail rather than hang.
      */
     public void testConstructionWorkIsBounded() {
-        for (String pattern : List.of("x{0,1000000}", "((a?){50}){0,500}")) {
+        Cost cost = CircuitBreakingRegExp.repeatCost(Shape.of(Automata.makeChar('x')), 0, 20_000);
+        assertThat(cost.work(), greaterThan((long) CircuitBreakingRegExp.DEFAULT_WORK_LIMIT));
+        for (String pattern : List.of("x{0,20000}", "((a?){50}){0,100}")) {
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
             expectThrows(
                 TooComplexToDeterminizeException.class,
@@ -236,6 +291,16 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         Automaton built = new CircuitBreakingRegExp(pattern, FLAGS, 0).toAutomaton(roomy, "test");
         assertTrue(built.getNumStates() > 0);
         assertEquals("everything reserved is released after the build", 0L, roomy.getUsed());
+    }
+
+    /** The bound covers the build and stays within three times it, give or take a few states and transitions. */
+    private static void assertClose(String what, Cost cost, Automaton built, Automaton operand) {
+        assertBounds(cost, built, operand);
+        if (built == operand) {
+            return;
+        }
+        assertThat(what + " states", cost.states(), lessThanOrEqualTo(3L * built.getNumStates() + 3));
+        assertThat(what + " transitions", cost.transitions(), lessThanOrEqualTo(3L * built.getNumTransitions() + 3));
     }
 
     /** An operation that returns its operand unchanged allocates nothing, so there is nothing to bound. */

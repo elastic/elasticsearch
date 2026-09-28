@@ -550,9 +550,12 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals("every reservation is released on failure", 0L, small.getUsed());
     }
 
-    /** Optional copies whose linking work grows with the square of their count are refused before they are built. */
+    /**
+     * Optional copies whose linking work grows with the square of their count are refused before they are built. Sized just
+     * past the limit, so that without the check the build would still finish quickly and the test would fail rather than hang.
+     */
     public void testTooMuchConstructionWorkIsAClientError() {
-        IncludeExclude inexcl = new IncludeExclude("x{0,1000000}", null, null, null);
+        IncludeExclude inexcl = new IncludeExclude("x{0,20000}", null, null, null);
         CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

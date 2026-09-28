@@ -710,7 +710,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                       "grant": [
                         "spaceId", "id", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
-                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",
                         "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
                         "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
@@ -734,7 +734,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                       "grant": [
                         "spaceId", "id", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
-                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",
                         "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
                         "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
@@ -759,7 +759,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                       "grant": [
                         "spaceId", "id", "workflowId", "managed", "managedBy",
                         "originManagedWorkflowId", "managedVersion", "status", "createdAt",
-                        "isTestRun", "stepId", "createdBy", "executedBy", "startedAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
                         "finishedAt", "duration", "triggeredBy", "eventChainDepth",
                         "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
                         "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"

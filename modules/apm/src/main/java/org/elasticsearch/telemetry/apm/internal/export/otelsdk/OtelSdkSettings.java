@@ -179,6 +179,7 @@ public final class OtelSdkSettings {
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
      * Spans from an upstream {@code traceparent} are not counted. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
+        // TODO: Retain the root-only default for compatibility; revisit selection and span-volume controls for general instrumentation.
         "telemetry.tracing.max_depth",
         0,
         0,

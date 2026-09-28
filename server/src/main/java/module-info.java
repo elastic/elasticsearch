@@ -12,6 +12,8 @@ import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
+    requires transitive io.opentelemetry.api;
+    requires transitive io.opentelemetry.context;
     requires java.logging;
     requires java.security.jgss;
     requires java.sql;

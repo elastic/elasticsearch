@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,7 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMTracingService;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -30,7 +31,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class APMTelemetryProvider implements TelemetryProvider {
-    private final APMTracer apmTracer;
+    private final APMTracingService tracingService;
     private final APMMeterService apmMeterService;
     private final APMLoggingService loggingService;
     private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
@@ -44,22 +45,26 @@ public class APMTelemetryProvider implements TelemetryProvider {
         @Nullable MetricReaderProvider metricReaderProvider
     ) {
         apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
-        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
+        tracingService = new APMTracingService(settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(tracingService.getOpenTelemetry());
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, APMLoggingService loggingService) {
+    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracingService tracingService, APMLoggingService loggingService) {
         this.apmMeterService = apmMeterService;
-        this.apmTracer = apmTracer;
+        this.tracingService = tracingService;
         this.loggingService = loggingService;
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(tracingService.getOpenTelemetry());
     }
 
     @Override
-    public APMTracer getTracer() {
-        return apmTracer;
+    public OpenTelemetry getOpenTelemetry() {
+        return tracingService.getOpenTelemetry();
+    }
+
+    public APMTracingService getTracingService() {
+        return tracingService;
     }
 
     public APMMeterService getMeterService() {
@@ -79,7 +84,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     @Override
     public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
-        CompletableResultCode traces = apmTracer.attemptFlushTraces();
+        CompletableResultCode traces = tracingService.attemptFlushTraces();
         CompletableResultCode logs = loggingService.forceFlush();
         CompletableResultCode.ofAll(List.of(metrics, traces, logs))
             .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);

@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMTracingService;
 
 import java.util.List;
 import java.util.Set;
@@ -31,7 +31,7 @@ public class APMAgentSettings {
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMTracingService apmTracer = apmTelemetryProvider.getTracingService();
         final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, apmTracer::setEnabled);

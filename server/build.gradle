@@ -29,6 +29,9 @@ base {
 }
 
 dependencies {
+  api "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-common:${versions.opentelemetry}"
 
   api project(':libs:core')
   api project(':libs:logging')
@@ -285,6 +288,7 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /opentelemetry-.*/, to: 'opentelemetry'
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /log4j-.*/, to: 'log4j'
 

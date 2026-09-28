@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -30,6 +31,7 @@ import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider}.
@@ -42,6 +44,18 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private final Supplier<MeterProvider> meterProvider;
     private final Object mutex = new Object();
     private volatile OpenTelemetrySdk openTelemetrySdk;
+    private boolean initialized;
+    private boolean closed;
+    private volatile UnaryOperator<Attributes> attributeSanitizer = UnaryOperator.identity();
+
+    /** Installs privacy enforcement before the SDK exporter is initialized. */
+    public void setAttributeSanitizer(UnaryOperator<Attributes> sanitizer) {
+        attributeSanitizer = sanitizer;
+    }
+
+    public boolean hasEndpoint() {
+        return OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings).isEmpty() == false;
+    }
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         this.settings = settings;
@@ -51,8 +65,12 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     @Override
     public OpenTelemetry get() {
         synchronized (mutex) {
-            if (openTelemetrySdk == null) {
+            if (closed) {
+                return OpenTelemetry.noop();
+            }
+            if (initialized == false) {
                 openTelemetrySdk = createOpenTelemetrySdk();
+                initialized = true;
             }
             return openTelemetrySdk == null ? OpenTelemetry.noop() : openTelemetrySdk;
         }
@@ -70,10 +88,12 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     @Override
     public void close() {
         synchronized (mutex) {
+            closed = true;
             if (openTelemetrySdk != null) {
                 openTelemetrySdk.getSdkTracerProvider().close();
                 openTelemetrySdk = null;
             }
+            initialized = false;
         }
     }
 
@@ -104,7 +124,9 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         OtelSdkExportMeterSupplier.configureTls(settings, builder::setSslContext);
         OtlpGrpcSpanExporter exporter = builder.build();
 
-        BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)
+        BatchSpanProcessor processor = BatchSpanProcessor.builder(
+            new SanitizingSpanExporter(exporter, attributes -> attributeSanitizer.apply(attributes))
+        )
             .setMeterProvider(meterProvider)
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)

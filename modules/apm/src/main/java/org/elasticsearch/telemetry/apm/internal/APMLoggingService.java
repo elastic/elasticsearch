@@ -23,7 +23,7 @@ import java.util.Collection;
 
 /**
  * Manages the lifecycle of the OTel SDK audit-log export path.
- * Analogous to {@link APMMeterService} (metrics) and {@link org.elasticsearch.telemetry.apm.internal.tracing.APMTracer} (traces).
+ * Analogous to {@link APMMeterService} (metrics) and {@link org.elasticsearch.telemetry.apm.internal.tracing.APMTracingService} (traces).
  */
 public class APMLoggingService implements Closeable {
 

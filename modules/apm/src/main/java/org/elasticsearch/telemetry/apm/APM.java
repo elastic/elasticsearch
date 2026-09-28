@@ -28,16 +28,15 @@ import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMTracingService;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
- * a {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which this module implements via
- * {@link APMTracer}. We use the OpenTelemetry API to capture telemetry, and the OpenTelemetry SDK
+ * This module integrates Elastic's APM product with Elasticsearch through the node-owned
+ * {@link APMTracingService}. Instrumentation uses the OpenTelemetry API, and the OpenTelemetry SDK
  * to ship it to an APM server using OTLP/gRPC.
  * <p>
  * All settings are found under the <code>telemetry.</code> prefix.
@@ -84,7 +83,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        final APMTracer apmTracer = telemetryProvider.get().getTracer();
+        final APMTracingService apmTracer = telemetryProvider.get().getTracingService();
         final APMMeterService apmMeter = telemetryProvider.get().getMeterService();
 
         apmTracer.setClusterName(services.clusterService().getClusterName().value());

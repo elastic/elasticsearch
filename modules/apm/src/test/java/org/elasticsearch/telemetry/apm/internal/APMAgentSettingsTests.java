@@ -9,11 +9,16 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import io.opentelemetry.api.common.AttributeKey;
+
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.tracing.NativeTracingFixture;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -33,6 +38,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class APMAgentSettingsTests extends ESTestCase {
+    private NativeTracingFixture tracing;
+
+    @Before
+    public void configureNativeTracing() {
+        tracing = new NativeTracingFixture(Settings.EMPTY);
+        when(apmTelemetryProvider.getTracingService()).thenReturn(tracing.service);
+    }
+
+    @After
+    public void closeNativeTracing() {
+        tracing.close();
+    }
+
     APMAgentSettings apmAgentSettings = new APMAgentSettings();
     APMTelemetryProvider apmTelemetryProvider = mock(Mockito.RETURNS_DEEP_STUBS);
 
@@ -40,14 +58,14 @@ public class APMAgentSettingsTests extends ESTestCase {
         Settings initial = Settings.builder().put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
         Settings update = Settings.builder().put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         triggerUpdateConsumer(initial, update);
-        verify(apmTelemetryProvider.getTracer()).setEnabled(true);
+        assertTrue(tracing.api.getTracer("test").isEnabled());
     }
 
     public void testDisableTracing() {
         Settings initial = Settings.builder().put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         Settings update = Settings.builder().put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
         triggerUpdateConsumer(initial, update);
-        verify(apmTelemetryProvider.getTracer()).setEnabled(false);
+        assertFalse(tracing.api.getTracer("test").isEnabled());
     }
 
     public void testEnableMetrics() {
@@ -68,13 +86,25 @@ public class APMAgentSettingsTests extends ESTestCase {
         int depth = randomIntBetween(1, 100);
         Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), depth).build();
         triggerUpdateConsumer(Settings.EMPTY, update);
-        verify(apmTelemetryProvider.getTracer()).setMaxTraceDepth(depth);
+        tracing.service.setEnabled(true);
+        var parent = tracing.api.getTracer("test").spanBuilder("parent").startSpan();
+        try (var scope = parent.makeCurrent()) {
+            var child = tracing.api.getTracer("test").spanBuilder("child").startSpan();
+            assertTrue(child.isRecording());
+            child.end();
+        } finally {
+            parent.end();
+        }
     }
 
     public void testUpdateRecordExceptionStacksPropagatesToTracer() {
         Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), true).build();
         triggerUpdateConsumer(Settings.EMPTY, update);
-        verify(apmTelemetryProvider.getTracer()).setRecordExceptionStacks(true);
+        tracing.service.setEnabled(true);
+        var span = tracing.api.getTracer("test").spanBuilder("exception").startSpan();
+        span.recordException(new IllegalArgumentException("failed"));
+        span.end();
+        assertNotNull(tracing.span("exception").getEvents().getFirst().getAttributes().get(AttributeKey.stringKey("exception.stacktrace")));
     }
 
     public void testTracingSampleRateIsNotDynamicallyUpdatable() {
@@ -91,6 +121,8 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     private void triggerUpdateConsumer(Settings initial, Settings update) {
+        tracing.service.setEnabled(TELEMETRY_TRACING_ENABLED_SETTING.get(initial));
+        tracing.service.setMaxTraceDepth(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(initial));
         ClusterService clusterService = mock();
         ClusterSettings clusterSettings = new ClusterSettings(
             initial,

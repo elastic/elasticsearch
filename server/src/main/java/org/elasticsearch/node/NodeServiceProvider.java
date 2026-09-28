@@ -9,6 +9,8 @@
 
 package org.elasticsearch.node;
 
+import io.opentelemetry.api.OpenTelemetry;
+
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.CacheSizesAndCommitmentCollector;
@@ -47,7 +49,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -77,7 +78,7 @@ class NodeServiceProvider {
         Settings settings,
         ThreadPool threadPool,
         Set<String> taskHeaders,
-        Tracer tracer,
+        OpenTelemetry tracer,
         String nodeId
     ) {
         return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
@@ -196,7 +197,7 @@ class NodeServiceProvider {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
+        OpenTelemetry tracer,
         OnlinePrewarmingService onlinePrewarmingService
     ) {
         return new SearchService(

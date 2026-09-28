@@ -1542,11 +1542,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
                     String pathStr = e.getKey().toString();
-                    assertEquals(
-                        "[" + strategy + "] " + pathStr + ": fileSchema must equal the file's own schema",
-                        expectedFileSchemas.get(pathStr),
-                        e.getValue().fileSchema().attributes()
-                    );
+                    List<Attribute> expectedSchema = expectedFileSchemas.get(pathStr);
+                    List<Attribute> actualSchema = e.getValue().fileSchema().attributes();
+                    assertEquals("[" + strategy + "] " + pathStr + ": fileSchema width", expectedSchema.size(), actualSchema.size());
+                    for (int c = 0; c < expectedSchema.size(); c++) {
+                        assertTrue(
+                            "[" + strategy + "] " + pathStr + ": fileSchema column " + c,
+                            expectedSchema.get(c).equals(actualSchema.get(c), true)
+                        );
+                    }
                     ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[" + strategy + "] " + pathStr + ": ColumnMapping must be set", mapping);
                     int[] expected = expectedLocalIndices.get(pathStr);
@@ -1562,6 +1566,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         // No type drift in this fixture → no casts under UBN.
                         assertNull("[" + strategy + "] " + pathStr + ": no casts at position " + i, mapping.cast(i));
                     }
+                }
+                if (strategy == FormatReader.SchemaResolution.UNION_BY_NAME) {
+                    Attribute col0a = schemaMap.get(StoragePath.of("s3://bucket/data/a.parquet")).fileSchema().attributes().get(0);
+                    Attribute col0c = schemaMap.get(StoragePath.of("s3://bucket/data/c.parquet")).fileSchema().attributes().get(0);
+                    assertSame("UNION_BY_NAME shares col0 across files a and c", col0a, col0c);
                 }
             }
         }

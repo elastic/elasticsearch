@@ -721,12 +721,15 @@ public class ExternalSourceResolver {
         // string keys in the untyped config map. Renames are consumed on the data node by the centralized last-mile
         // physicalization (PhysicalNames) and the pushdown planner rules (readers stay rename-agnostic).
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
+        // One interner per path. Allowance stays 0 until the multi-file listing is charged; single-file and
+        // declared-strict never canonicalize through it. First-file-wins already shares one schema and does not use it.
+        SchemaInterner schemaInterner = new SchemaInterner(planningReservation, 0L);
 
-        resolveSource(path, config, hints, declaredMapping, demand, ActionListener.wrap(resolvedSource -> {
+        resolveSource(path, config, hints, declaredMapping, demand, schemaInterner, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
             ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
-                ? applyNonStrictOverlay(resolvedSource, declaredMapping)
+                ? applyNonStrictOverlay(resolvedSource, declaredMapping, schemaInterner)
                 : resolvedSource;
             resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
@@ -914,12 +917,13 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
             bufferConfigWarnings(path, config);
-            resolveSourceInner(path, config, hints, declaredMapping, demand, listener);
+            resolveSourceInner(path, config, hints, declaredMapping, demand, schemaInterner, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -931,6 +935,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         // A query cancelled before resolution starts must do no storage I/O at all: bail before glob
@@ -938,7 +943,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, declaredMapping, demand, listener);
+            resolveMultiFileSource(path, config, hints, declaredMapping, demand, schemaInterner, listener);
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -1052,6 +1057,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
@@ -1073,6 +1079,8 @@ public class ExternalSourceResolver {
             }
             FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
             chargeListingPlanning(listing);
+            // The 760-per-file credit is already on the reservation. Further schema bytes charge only the overflow.
+            schemaInterner.setAllowance(listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1080,7 +1088,15 @@ public class ExternalSourceResolver {
                 FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
+                resolveMultiFileWithReconciliation(
+                    listing,
+                    fileConfig,
+                    schemaResolution,
+                    cacheable,
+                    datasetFormat,
+                    schemaInterner,
+                    listener
+                );
                 return;
             }
 
@@ -2001,11 +2017,12 @@ public class ExternalSourceResolver {
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
         @Nullable String datasetFormat,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
-        readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
+        readAllFileMetadata(fileList, config, cacheable, schemaInterner, ActionListener.wrap(allMetadata -> {
             try {
                 long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
                 LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
@@ -2013,9 +2030,9 @@ public class ExternalSourceResolver {
                 StoragePath firstFile = fileList.path(0);
                 SchemaReconciliation.Result result;
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
-                    result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
+                    result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -2031,7 +2048,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add);
+                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add, schemaInterner);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -2126,7 +2143,8 @@ public class ExternalSourceResolver {
     private static SchemaReconciliation.Result shadowPartitionCollisions(
         SchemaReconciliation.Result result,
         Set<String> partitionColumnNames,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        SchemaInterner schemaInterner
     ) {
         if (partitionColumnNames.isEmpty()) {
             return result;
@@ -2153,7 +2171,9 @@ public class ExternalSourceResolver {
             // Recompute the mapping against the data-only unified schema; the file (physical) schema is
             // unchanged so the reader still parses every column, including the shadowed one. Carry the pin's
             // inferredTypes forward so a Hive-partitioned glob keeps the pinned-column stats boundary.
-            ColumnMapping mapping = SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes());
+            ColumnMapping mapping = schemaInterner.intern(
+                SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes())
+            );
             perFileInfo.put(
                 entry.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics(), info.inferredTypes())
@@ -2172,10 +2192,11 @@ public class ExternalSourceResolver {
         FileList fileList,
         Map<String, Object> config,
         boolean cacheable,
+        SchemaInterner schemaInterner,
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, config, cacheable, ActionListener.wrap(perFile -> {
+        gatherPerFile(fileList, config, cacheable, schemaInterner, ActionListener.wrap(perFile -> {
             Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
             for (int i = 0; i < fileCount; i++) {
                 result.put(fileList.path(i), perFile.get(i));
@@ -2200,6 +2221,16 @@ public class ExternalSourceResolver {
         boolean cacheable,
         ActionListener<List<SourceMetadata>> listener
     ) {
+        gatherPerFile(fileList, config, cacheable, null, listener);
+    }
+
+    private void gatherPerFile(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        @Nullable SchemaInterner schemaInterner,
+        ActionListener<List<SourceMetadata>> listener
+    ) {
         int fileCount = fileList.fileCount();
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -2211,10 +2242,15 @@ public class ExternalSourceResolver {
                 releasable.close();
                 return;
             }
-            ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(
-                ActionListener.wrap(meta -> results.set(i, meta), e -> failure.compareAndSet(null, e)),
-                releasable::close
-            );
+            ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
+                // Reconcile path only. Stats gathers pass a null interner: those lists are transient and must
+                // not be charged as schema retention. Canonicalize before the result is stored so the array
+                // does not keep a private attribute list per file.
+                SourceMetadata stored = schemaInterner == null
+                    ? meta
+                    : withCanonicalSchema(meta, schemaInterner.canonicalize(meta.schema()));
+                results.set(i, stored);
+            }, e -> failure.compareAndSet(null, e)), releasable::close);
             // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
             // permanently held (its releasable never closed) and onCompletion would never fire — a hang. A check-
             // before-dispatch cancellation and any synchronous throw from the resolve dispatch (e.g. a factory that
@@ -2251,6 +2287,54 @@ public class ExternalSourceResolver {
             // failure rather than returning a partially-populated result.
             failure.compareAndSet(null, e);
         });
+    }
+
+    /**
+     * Replaces {@code metadata.schema()} with the canonical list and forwards the rest. The original metadata's
+     * attribute list becomes garbage when the fan-out callback returns.
+     */
+    private static ExternalSourceMetadata withCanonicalSchema(SourceMetadata metadata, List<Attribute> schema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return metadata.statistics();
+            }
+
+            @Override
+            public List<String> warnings() {
+                return metadata.warnings();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return metadata.partitionColumns();
+            }
+        };
     }
 
     /**
@@ -4001,9 +4085,13 @@ public class ExternalSourceResolver {
      */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        SchemaInterner schemaInterner
     ) {
         final ExternalSourceMetadata inferred = resolved.metadata();
+        // Multi-file already set the listing credit. A single file never charged that credit; credit one file here
+        // so the overlay's shared shape does not become a new breaker charge.
+        schemaInterner.ensureAllowance(resolved.schemaMap().size() * SCHEMA_MAP_BYTES_PER_FILE);
         PartitionMetadata partitionMetadata = resolved.fileList() != null ? resolved.fileList().partitionMetadata() : null;
         // Partition collision: the same guard the strict paths run. The inferred schema already carries the partition
         // columns, so a declared column colliding with a partition key would overlay/retype it and misbind at read time.
@@ -4092,9 +4180,17 @@ public class ExternalSourceResolver {
             } else if (expectedReadConfig.equals(perFileReadConfig) == false) {
                 perFileReadConfigsDisagree = true;
             }
-            ColumnMapping mapping = hasDeclaredColumns
-                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
-                : info.mapping();
+            // Rebuild would mint a fresh ExternalSchema and ColumnMapping per file and drop the sharing reconcile
+            // just established. Fold the overlaid shape and the mapping back into the path interner.
+            List<Attribute> canonical = schemaInterner.canonicalize(perFile.fileSchema());
+            ColumnMapping mapping;
+            if (hasDeclaredColumns) {
+                mapping = schemaInterner.intern(SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, canonical));
+            } else if (info.mapping() != null) {
+                mapping = schemaInterner.intern(info.mapping());
+            } else {
+                mapping = null;
+            }
             // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
             // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
             // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
@@ -4114,7 +4210,7 @@ public class ExternalSourceResolver {
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(perFile.fileSchema()),
+                    schemaInterner.intern(canonical),
                     mapping,
                     info.statistics(),
                     preRetypeInferredTypes

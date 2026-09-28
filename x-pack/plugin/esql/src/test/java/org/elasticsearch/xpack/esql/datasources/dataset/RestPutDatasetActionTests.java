@@ -20,9 +20,11 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RestPutDatasetActionTests extends ESTestCase {
@@ -132,14 +134,17 @@ public class RestPutDatasetActionTests extends ESTestCase {
     }
 
     /**
-     * Malformed JSON must not throw from {@code content()}: auditing calls it before {@code prepareRequest},
-     * and an uncaught parse error would surface as HTTP 500 instead of the handler's 400.
+     * Malformed JSON must not throw from {@code content()} (that would be HTTP 500 during audit), and must not
+     * return raw bytes that still contain secrets (AuditUtil would log them as {@code Invalid Format: ...}).
      */
-    public void testFilterMalformedBodyFallsBackToOriginal() {
+    public void testFilterMalformedBodyOmitsSecrets() {
         RestPutDatasetAction action = new RestPutDatasetAction(Set.of("secret_key"));
-        final BytesArray body = new BytesArray("{not-json");
+        final String secret = "s3cr3t-must-not-appear-in-audit";
+        // Truncated JSON: valid prefix holding a secret, then cut off so filtering cannot parse the body.
+        final BytesArray body = new BytesArray("{\"data_source\":\"archive\",\"settings\":{\"secret_key\":\"" + secret + "\"");
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(body, XContentType.JSON).build();
         RestRequest filtered = action.getFilteredRequest(restRequest);
-        assertThat(BytesReference.toBytes(filtered.content()), equalTo(BytesReference.toBytes(body)));
+        assertThat(BytesReference.toBytes(filtered.content()), equalTo(BytesReference.toBytes(BytesArray.EMPTY)));
+        assertThat(filtered.content().utf8ToString(), not(containsString(secret)));
     }
 }

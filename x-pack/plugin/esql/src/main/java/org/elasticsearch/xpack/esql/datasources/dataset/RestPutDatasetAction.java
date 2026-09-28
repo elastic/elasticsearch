@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -31,6 +34,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatasetAction extends BaseRestHandler implements RestRequestFilter {
+
+    private static final Logger logger = LogManager.getLogger(RestPutDatasetAction.class);
 
     private final Set<String> filteredFields;
 
@@ -72,9 +77,9 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
      * (query string, fragment, and user info on {@code http}/{@code https} URLs) before the body is audited.
      * Overrides the default so redaction still runs when there are no secret setting names to drop.
      * <p>
-     * Malformed bodies fall back to the original content: {@code FilteredRestRequest} parses before
-     * audit-body rendering can catch parse errors, and an uncaught failure there would turn a client
-     * 400 into a 500.
+     * When the body cannot be parsed, returns an empty body rather than the raw bytes: audit rendering would
+     * otherwise fall through to {@code Invalid Format: <raw>} and leak secrets from a truncated JSON prefix.
+     * An empty body also avoids turning a client 400 into a 500 when filtering runs before {@code prepareRequest}.
      */
     @Override
     public RestRequest getFilteredRequest(RestRequest restRequest) {
@@ -85,9 +90,11 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
                     try {
                         return super.content();
                     } catch (Exception e) {
-                        // Safe to swallow: AuditUtil then renders the raw bytes as "Invalid Format: ...",
-                        // and prepareRequest still returns 400 from contentParser().
-                        return restRequest.content();
+                        // Omit the body rather than returning raw bytes: AuditUtil's "Invalid Format: ..."
+                        // path would otherwise print secrets from a truncated JSON prefix into the audit log.
+                        // prepareRequest still returns 400 from contentParser() on the original request.
+                        logger.warn("failed to filter dataset PUT body for audit logging; omitting request body", e);
+                        return ReleasableBytesReference.wrap(BytesArray.EMPTY);
                     }
                 }
 

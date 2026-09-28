@@ -467,6 +467,11 @@ public class AuditIT extends ESRestTestCase {
                     if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
                         return false;
                     }
+                    // Match the request under test by path so a preceding setup call (same principal) that
+                    // flushes into this time window cannot make hasSize(1) fail spuriously.
+                    if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
+                        return false;
+                    }
                     Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
                     if (tstamp.isBefore(start)) {
                         return false;

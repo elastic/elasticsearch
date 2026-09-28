@@ -409,10 +409,9 @@ public final class FetchPhase {
                     ? (bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes))
                     : bytes -> {
                         locallyAccumulatedFieldBytes[0] += bytes;
-                        if (context.checkCircuitBreaker(
-                            (int) Math.min(locallyAccumulatedFieldBytes[0], Integer.MAX_VALUE),
-                            ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
-                        )) {
+                        if (locallyAccumulatedFieldBytes[0] >= context.memAccountingBufferSize()) {
+                            context.circuitBreaker()
+                                .addEstimateBytesAndMaybeBreak(locallyAccumulatedFieldBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]");
                             addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
                             locallyAccumulatedFieldBytes[0] = 0;
                         }

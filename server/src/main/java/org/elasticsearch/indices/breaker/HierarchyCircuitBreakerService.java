@@ -662,7 +662,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         static int triggerAllocationSize(int allocationIndex, long g1RegionSize) {
             // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-            // smaller allocations are regular eden allocations.
+            // The first allocation stays humongous: as before, it lets G1 start a concurrent cycle, and with it a young GC, right away
+            // when occupancy is above the IHOP threshold, and it is a candidate for eager reclaim. Further humongous allocations would
+            // take free regions directly, including the ones G1 evacuates into, so the young GC they eventually force can fail
+            // evacuation. The rest are therefore regular eden allocations, which fill eden until G1 starts a young GC itself.
             return allocationIndex == 0 ? (int) (g1RegionSize >> 1) : fillerAllocationSize(g1RegionSize);
         }
 

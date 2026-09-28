@@ -2423,19 +2423,20 @@ book_no:keyword | new_title:text
 7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
-// Non-text runtime match: incompatible query values do not match by default. Only lenient is a valid option.
+// Non-text runtime match: a text query that cannot convert to the field type does not match by default
+// (lenient). A convertible text query such as "5" against an integer still matches. Only lenient is a
+// valid option on this path.
 
 matchRuntimeNonTextIncompatibleValueIsLenientByDefault
 required_capability: match_function
 required_capability: fn_match_runtime_lenient_non_text
 
 ROW n = 5
-| EVAL m = to_long(n)
-| WHERE match(m, "not_a_number")
-| KEEP m
+| WHERE match(n, "not_a_number")
+| KEEP n
 ;
 
-m:long
+n:integer
 ;
 
 matchRuntimeNonTextIncompatibleValueWithExplicitLenientTrue
@@ -2443,25 +2444,23 @@ required_capability: match_function
 required_capability: fn_match_runtime_lenient_non_text
 
 ROW n = 5
-| EVAL m = to_long(n)
-| WHERE match(m, "not_a_number", {"lenient": true})
-| KEEP m
+| WHERE match(n, "not_a_number", {"lenient": true})
+| KEEP n
 ;
 
-m:long
+n:integer
 ;
 
-matchRuntimeNonTextCompatibleValueWithLenient
+matchRuntimeNonTextConvertibleStringValueMatches
 required_capability: match_function
 required_capability: fn_match_runtime_lenient_non_text
 
 ROW n = 5
-| EVAL m = to_long(n)
-| WHERE match(m, 5, {"lenient": true})
-| KEEP m
+| WHERE match(n, "5", {"lenient": true})
+| KEEP n
 ;
 
-m:long
+n:integer
 5
 ;
 

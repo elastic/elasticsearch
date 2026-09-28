@@ -1137,6 +1137,21 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchRuntimeEvalWithConvertibleStringQueryMatches() {
+        // Lenient's happy path: a text query that converts to the numeric field type matches.
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "1", {"lenient": true})
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
     public void testMatchRuntimeWithAnalyzerOption() {
         // The whitespace values analyzer, declared through to_text, does not lowercase, and the query analyzer
         // defaults to it: "Fox" only matches the value that kept the capital F.

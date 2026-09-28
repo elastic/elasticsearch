@@ -11,7 +11,7 @@
 * **Union of columns.** Columns from multiple branches are merged into a single table. Missing columns are filled with `null` values.
 * **Supported commands.** Complex processing commands can be used inside both views and `FROM` subqueries, as detailed in the [description of `FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md#description).
 * **No nested branching.** Nested branching is generally not supported, but views can work around this through [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
-* **Maximum branch count.** All three share the same maximum branch count of 8.
+* **Maximum branch count.** All three share the same maximum branch count of 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides it.
 
 ### How FORK differs
 

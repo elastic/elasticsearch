@@ -38,12 +38,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -816,13 +819,11 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends MergePlan which caps at 8 branches — the upper bound the rewriter can hand off.
-        // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
-        // is bounded-time at the platform's largest supported shape.
+    public void testWildcardAtMaxBranchCountSucceeds() {
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < cap; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -830,21 +831,21 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        EsqlFlags flags = EsqlFlags.withMaxBranchLimits(cap, EsqlFlags.DEFAULTS.maxBranchLevel());
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, QueryPragmas.EMPTY, flags);
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
-        assertThat(union.children(), hasSize(8));
+        assertThat(union.children(), hasSize(cap));
     }
 
-    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses MergePlan's 8-branch cap. The rewriter
-        // intercepts before constructing the UnionAll and throws a VerificationException with
-        // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not the internal union type name.
+    public void testWildcardOverMaxBranchCountRejectsWithUserFacingMessage() {
+        // A wildcard matching more datasets than the cap is rejected before the UnionAll is built. Uses a small constant
+        // so the test stays cheap regardless of what the production default is.
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < cap + 1; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -852,11 +853,44 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
+        EsqlFlags flags = EsqlFlags.withMaxBranchLimits(cap, EsqlFlags.DEFAULTS.maxBranchLevel());
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, QueryPragmas.EMPTY, flags)
+        );
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
-        assertThat(ex.getMessage(), containsString("the current limit of 8"));
+        assertThat(ex.getMessage(), containsString("resolved to " + (cap + 1) + " branches"));
+        assertThat(ex.getMessage(), containsString("the limit of " + cap));
+        assertThat(ex.getMessage(), containsString("[" + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey() + "] cluster setting"));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
+    }
+
+    public void testWildcardOverMaxBranchCountPragmaRejectsWithPragmaMessage() {
+        int cap = 2;
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < cap + 1; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewriteUnsecured(
+                relationOf("logs_*"),
+                project,
+                RESOLVER,
+                true,
+                new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), cap).build()),
+                EsqlFlags.DEFAULTS
+            )
+        );
+        assertThat(ex.getMessage(), containsString("resolved to 3 branches"));
+        assertThat(ex.getMessage(), containsString("the limit of 2"));
+        assertThat(ex.getMessage(), containsString("[max_branch_count] query pragma"));
     }
 
     public void testDateMathPatternReachesSlowPath() {
@@ -1187,12 +1221,12 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, true);
+        return rewriteDatasetsUnsecured(parsed, project, RESOLVER, true);
     }
 
     /** As {@link #rewrite}, but with wildcard-dataset matching off (the default: datasets by exact name). */
     private static LogicalPlan rewriteWildcardsDisabled(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, false);
+        return rewriteDatasetsUnsecured(parsed, project, RESOLVER, false);
     }
 
     /**
@@ -1202,13 +1236,13 @@ public class DatasetRewriterTests extends ESTestCase {
      */
     private static LogicalPlan rewriteWithAuthorized(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
         DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
-        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /** As {@link #rewriteWithAuthorized}, but with cross-project search (CPS) enabled. */
     private static LogicalPlan rewriteWithAuthorizedCps(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
         DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
-        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */

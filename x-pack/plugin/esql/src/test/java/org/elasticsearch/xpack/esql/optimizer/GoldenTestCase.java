@@ -105,6 +105,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
@@ -763,12 +764,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
             // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
-            parsedPlan = DatasetRewriter.rewriteUnsecured(
-                parsedPlan,
-                datasetMetadata,
-                TestIndexNameExpressionResolver.newInstance(),
-                false
-            );
+            parsedPlan = rewriteDatasetsUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance(), false);
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);

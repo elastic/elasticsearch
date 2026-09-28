@@ -38,13 +38,13 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.BaseMatcher;
@@ -60,7 +60,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -75,7 +74,6 @@ import java.util.function.BiPredicate;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -807,25 +805,28 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
+        // Each of the six matching views expands to two piped leaves. Nested ViewUnionAlls flatten
+        // into the parent when the flat width stays within max_branch_count (12 ≤ default 20).
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(6));
-        for (LogicalPlan child : subqueries) {
-            child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(ViewUnionAll.class));
-            List<LogicalPlan> subchildren = child.children();
-            assertThat(subchildren.size(), equalTo(2));
-            assertThat(
-                subchildren,
-                matchesAnyXOf(
-                    2,
-                    query("FROM emp1 | WHERE emp.age > 30"),
-                    query("FROM emp2 | WHERE emp.age < 40"),
-                    query("FROM emp3 | WHERE emp.salary > 50000")
-                )
-            );
-        }
+        assertThat(subqueries.size(), equalTo(12));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
+            )
+        );
     }
 
     public void testViewDepthExceeded() {
@@ -2011,9 +2012,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                     } else {
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull("Diagonal resolution should succeed for nesting=" + nesting + ", branching=" + branching, result);
-                        // When flattening stays within MAX_BRANCHES, nesting is eliminated and no nested FORK errors occur.
-                        // When flattening would exceed MAX_BRANCHES, it is skipped, keeping nested ViewUnionAlls.
-                        if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) <= MergePlan.MAX_BRANCHES) {
+                        // When flattening stays within max_branch_count, nesting is eliminated and no nested FORK errors occur.
+                        // When flattening would exceed it, it is skipped, keeping nested ViewUnionAlls.
+                        if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) <= EsqlFlags.DEFAULTS.maxBranchCount()) {
                             Failures failures = new Failures();
                             Failures depFailures = new Failures();
                             LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
@@ -2960,47 +2961,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             } else {
                 description.appendText("was ").appendValue(item);
             }
-        }
-    }
-
-    /**
-     * Matches if the iterable contains exactly {@code x} items from {@code plans} in any order.
-     * For example, {@code matchesAnyXOf(2, a, b, c)} is equivalent to:
-     * {@code anyOf(containsInAnyOrder(a, b), containsInAnyOrder(a, c), containsInAnyOrder(b, c))}
-     */
-    private static Matcher<Iterable<? extends LogicalPlan>> matchesAnyXOf(int x, LogicalPlan... plans) {
-        if (x < 1) {
-            throw new IllegalArgumentException("x must be >= 1");
-        }
-        List<Matcher<? super LogicalPlan>> matchers = Arrays.stream(plans)
-            .<Matcher<? super LogicalPlan>>map(InMemoryViewServiceTests::matchesPlan)
-            .toList();
-        if (x >= matchers.size()) {
-            return containsInAnyOrder(matchers);
-        }
-        List<Matcher<Iterable<? extends LogicalPlan>>> combinations = new ArrayList<>();
-        generateCombinations(matchers, x, 0, new ArrayList<>(), combinations);
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        Matcher<Iterable<? extends LogicalPlan>>[] combinationsArray = combinations.toArray(new Matcher[0]);
-        return anyOf(combinationsArray);
-    }
-
-    private static void generateCombinations(
-        List<Matcher<? super LogicalPlan>> matchers,
-        int size,
-        int start,
-        List<Matcher<? super LogicalPlan>> current,
-        List<Matcher<Iterable<? extends LogicalPlan>>> result
-    ) {
-        if (current.size() == size) {
-            Collection<Matcher<? super LogicalPlan>> combination = new ArrayList<>(current);
-            result.add(containsInAnyOrder(combination));
-            return;
-        }
-        for (int i = start; i < matchers.size(); i++) {
-            current.add(matchers.get(i));
-            generateCombinations(matchers, size, i + 1, current, result);
-            current.removeLast();
         }
     }
 

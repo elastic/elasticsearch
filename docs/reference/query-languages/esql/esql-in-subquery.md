@@ -22,6 +22,8 @@ its values into a literal `IN` list.
 Use `IN` to keep rows whose values match subquery results and `NOT IN` to
 exclude them.
 
+{applies_to}`stack: preview 9.6+` You can also use an `IN` or `NOT IN` subquery in [`EVAL`](/reference/query-languages/esql/commands/eval.md) to add a boolean column. The query keeps every row.
+
 ## Syntax
 
 ```esql
@@ -33,12 +35,37 @@ The subquery starts with a source command followed by zero or more piped
 processing commands, all enclosed in parentheses. The source command is usually
 [`FROM`](/reference/query-languages/esql/commands/from.md), and
 [`ROW`](/reference/query-languages/esql/commands/row.md) and
-[`TS`](/reference/query-languages/esql/commands/ts.md) are also supported. The
-subquery must return exactly one column, whose values are compared against
-`<expression>`. The column and `<expression>` must have compatible types.
+[`TS`](/reference/query-languages/esql/commands/ts.md) are also supported. In this
+form, the subquery must return exactly one column, whose values are compared
+against `<expression>`. The column and `<expression>` must have compatible types.
 
 The outer query is not limited to `FROM` either: it can also start with `ROW` or
 `TS` and still filter its rows with an `IN` subquery.
+
+### Compare a list of values [compare-a-list-of-values]
+```{applies_to}
+stack: preview 9.6+
+```
+
+To keep or drop rows that match a combination of values, put the values in parentheses. The subquery must return one column for each value, in the same order. Types in the same position must be compatible.
+
+```esql
+... | WHERE (<expression>, <expression>, ...) IN (FROM index_pattern [| processing_commands]) | ...
+... | WHERE (<expression>, <expression>, ...) NOT IN (FROM index_pattern [| processing_commands]) | ...
+```
+
+### Add a boolean column in `EVAL` [in-subquery-in-eval]
+```{applies_to}
+stack: preview 9.6+
+```
+
+To record whether each row matches, assign an `IN` or `NOT IN` subquery in [`EVAL`](/reference/query-languages/esql/commands/eval.md). The new column is boolean. `IN` is true when the values match a subquery row, and `NOT IN` is true when they do not. The query keeps every row. You can compare one value or a parenthesized list.
+
+```esql
+... | EVAL <column> = <expression> IN (FROM index_pattern [| processing_commands]) | ...
+... | EVAL <column> = <expression> NOT IN (FROM index_pattern [| processing_commands]) | ...
+... | EVAL <column> = (<expression>, <expression>, ...) IN (FROM index_pattern [| processing_commands]) | ...
+```
 
 ## Description
 
@@ -48,8 +75,8 @@ its results reflect the current state of the data.
 
 Unlike a [subquery in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md),
 which contributes rows to the combined result set, a subquery in a `WHERE`
-command returns exactly one column. The outer `IN` or `NOT IN` predicate uses
-the values from that column as its comparison set.
+command supplies the values that `IN` or `NOT IN` compares. The outer query
+keeps or drops rows based on that comparison.
 
 An `IN` subquery can itself contain another `IN` subquery, and multiple `IN`
 subqueries can be combined with other predicates using `AND`, `OR`, and `NOT`.
@@ -58,7 +85,7 @@ For the full list of supported source and processing commands inside a subquery,
 
 ## Examples
 
-The following examples show how to use `IN` subqueries within the `WHERE` command.
+The following examples show how to use `IN` subqueries.
 
 ### Filter by values from a subquery
 
@@ -218,17 +245,95 @@ The first `FORK` branch keeps the high earners returned by its `IN` subquery, th
 second branch keeps the low earners returned by its `IN` subquery, and the `_fork`
 column records which branch produced each row.
 
+### Match several values [match-several-values]
+```{applies_to}
+stack: preview 9.6+
+```
+
+Use a parenthesized list when a row must match on more than one value. `NOT IN` drops rows that match a returned combination.
+
+```esql
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+```
+
+| emp_no:integer | first_name:keyword | salary:integer |
+| --- | --- | --- |
+| 10001 | Georgi | 57305 |
+| 10002 | Bezalel | 56371 |
+| 10003 | Parto | 61805 |
+
+The subquery returns `emp_no` and `salary` for the first three employees, in that order. The outer query keeps employees whose `emp_no` and `salary` both match one of those rows.
+
+### Add a boolean column with `EVAL` [add-boolean-column-with-eval]
+```{applies_to}
+stack: preview 9.6+
+```
+
+Assign the subquery in `EVAL` when you want the match recorded on every row.
+
+```esql
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+```
+
+| emp_no:integer | m:boolean |
+| --- | --- |
+| 10001 | true |
+| 10002 | true |
+| 10003 | true |
+| 10004 | false |
+
+The `WHERE` command keeps `emp_no` values through `10004`, so the result shows both a match and a miss. `m` is `true` for `10001`, `10002`, and `10003`, because those values are in the subquery result. It is `false` for `10004`. With `NOT IN`, those three values are `false` and `10004` is `true`.
+
+You can compare a parenthesized list in `EVAL` the same way. The new column is still boolean, and every row stays. If you then filter on that column in `WHERE`, only the matching rows stay.
+
 ## Limitations [esql-in-subquery-limitations]
 
 #### `IN` subqueries are only supported in the WHERE command
+```{applies_to}
+stack: preview =9.5
+serverless: unavailable
+```
 
 An `IN` subquery can only appear in the [`WHERE`](/reference/query-languages/esql/commands/where.md)
 command. It is not supported in other commands.
 
+#### `IN` subqueries in `WHERE` and `EVAL`
+```{applies_to}
+stack: preview 9.6+
+```
+
+An `IN` subquery compares values and returns a boolean.
+
+- In [`WHERE`](/reference/query-languages/esql/commands/where.md), matching rows stay and other rows are dropped.
+- In [`EVAL`](/reference/query-languages/esql/commands/eval.md), the comparison adds a boolean column and every row stays.
+
 #### The subquery must return exactly one column
+```{applies_to}
+stack: preview =9.5
+serverless: unavailable
+```
 
 The subquery must produce a single column to compare against the left-hand side
 expression. A subquery that returns zero or more than one column is rejected.
+
+#### Match the column count to the values you compare
+```{applies_to}
+stack: preview 9.6+
+```
+
+The number of subquery columns must match the values you compare.
+
+- A single value needs one column.
+- A parenthesized list needs one column per value, in the same order. Types in the same position must be compatible.
+
+A different column count is rejected.
 
 #### The `IN` subquery must be a top-level predicate
 
@@ -247,4 +352,5 @@ outer query.
 * [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): canonical definition and supported commands.
 * [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
 * [`WHERE` command](/reference/query-languages/esql/commands/where.md): full reference for the `WHERE` command.
+* {applies_to}`stack: preview 9.6+` [`EVAL` command](/reference/query-languages/esql/commands/eval.md): Add a boolean column with an `IN` subquery.
 * [`IN` operator](/reference/query-languages/esql/functions-operators/operators.md): the operator used to match against a list of literal values or a subquery.

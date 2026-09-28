@@ -11,10 +11,13 @@ products:
 
 A subquery is a complete ES|QL query wrapped in parentheses, nested inside another query. Each subquery runs independently and cannot reference columns from the outer query.
 
-You can use subqueries in two places:
+You can use subqueries in these places:
 
 * **In a [`FROM` command](/reference/query-languages/esql/esql-from-subquery.md)**: each subquery runs its own pipeline and its rows are combined into the outer result set.
-* **In a [`WHERE` command with `IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns exactly one column, and the outer query filters rows against those values.
+* **In a [`WHERE` command with `IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the outer query filters rows against the subquery result. For a single value, the subquery returns one column.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` **In an [`EVAL` command with `IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md#add-boolean-column-with-eval)**: The comparison adds a boolean column, and every row stays.
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` In `WHERE` and `EVAL`, you can also compare a parenthesized list of values. The subquery then returns one column per value, in the same order.
 
 ## Supported source commands
 
@@ -51,3 +54,4 @@ The source command can be followed by zero or more piped processing commands:
 
 * [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
 * [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows with `IN` or `NOT IN`.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` [Add a boolean column with an `IN` subquery](/reference/query-languages/esql/esql-in-subquery.md#add-boolean-column-with-eval): Keep every row and record whether each value matches.

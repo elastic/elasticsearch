@@ -102,6 +102,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
@@ -228,18 +229,6 @@ public class SnapshotResiliencyTestHelper {
         return ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).remove(node.getId()).add(node).localNodeId(node.getId()))
             .build();
-    }
-
-    /**
-     * Creates a {@link FeatureService} that reports only {@code supportedFeatures} as supported by the cluster.
-     */
-    private static FeatureService createFeatureService(Set<NodeFeature> supportedFeatures) {
-        return new FeatureService(List.of()) {
-            @Override
-            public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                return supportedFeatures.contains(feature);
-            }
-        };
     }
 
     public static class TestClusterNodes {
@@ -465,10 +454,15 @@ public class SnapshotResiliencyTestHelper {
         }
 
         public class TestClusterNode {
-            private static final Set<NodeFeature> SUPPORTED_FEATURES = Set.of(
-                DataStream.DATA_STREAM_FAILURE_STORE_FEATURE,
-                RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
-            );
+            private static final FeatureSpecification SUPPORTED_FEATURES = new FeatureSpecification() {
+                @Override
+                public Set<NodeFeature> getFeatures() {
+                    return Set.of(
+                        DataStream.DATA_STREAM_FAILURE_STORE_FEATURE,
+                        RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
+                    );
+                }
+            };
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
@@ -595,7 +589,7 @@ public class SnapshotResiliencyTestHelper {
                         }
                     }
                 );
-                featureService = createFeatureService(SUPPORTED_FEATURES);
+                featureService = new FeatureService(List.of(SUPPORTED_FEATURES));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override

@@ -259,7 +259,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "first"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "second")
                     ),
-                    "ConstantNull",
+                    "LiteralsEvaluator[lit=null]",
                     DataType.NULL,
                     nullValue()
                 )

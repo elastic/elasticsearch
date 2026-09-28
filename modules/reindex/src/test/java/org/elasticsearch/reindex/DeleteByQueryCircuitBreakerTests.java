@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,6 +59,9 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     }
 
     public void testDeleteByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
+        // No keyword subfield, so nothing lands in _ignored: it would trip the breaker before the bulk does.
+        assertAcked(indicesAdmin().prepareCreate("source").setMapping("data", "type=text"));
+
         int docCount = 100;
         for (int i = 0; i < docCount; i++) {
             prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x".repeat(500)).get();

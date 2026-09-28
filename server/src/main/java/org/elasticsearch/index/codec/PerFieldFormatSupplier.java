@@ -259,7 +259,7 @@ public class PerFieldFormatSupplier {
             format = idRandomAccessDocValuesFormat != null && IdFieldMapper.NAME.equals(field)
                 ? idRandomAccessDocValuesFormat
                 : tsdbDocValuesFormat;
-        }  else {
+        } else {
             format = docValuesFormat;
         }
 

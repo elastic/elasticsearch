@@ -211,9 +211,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
+            // close() raises the flag before releaseBuffer() drains this list under the same lock
             if (isClosed()) {
-                // close() raises the flag before releaseBuffer() drains this list under the same lock
-                Releasables.close(mergeResult.reducedAggs());
+                releaseBatchedAggs(mergeResult.reducedAggs());
                 return;
             }
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
@@ -614,9 +614,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         synchronized (this.batchedResults) {
             Tuple<TopDocsStats, MergeResult> batchedResult;
             while ((batchedResult = batchedResults.poll()) != null) {
-                Releasables.close(batchedResult.v2().reducedAggs());
+                releaseBatchedAggs(batchedResult.v2().reducedAggs());
             }
         }
+    }
+
+    /**
+     * Releases the aggregations of a wire-received {@link MergeResult} that will not be reduced. A serialized one frees
+     * its buffer on close, but a connection older than {@code batched_query_execution_delayable_writeable} sends the
+     * tree expanded and {@code readFrom} wraps it in a referencing {@link DelayableWriteable} whose close does nothing,
+     * so its pooled top_hits are dropped here. Not for a {@link #partialReduce} result: {@code topHitsToRelease} owns those.
+     */
+    private static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
+        if (reducedAggs != null && reducedAggs.isSerialized() == false) {
+            List<SearchHits> topHits = new ArrayList<>();
+            InternalAggregations.addTopHitsToReleaseList(reducedAggs.expand(), topHits, false);
+            for (SearchHits hits : topHits) {
+                hits.decRef();
+            }
+        }
+        Releasables.close(reducedAggs);
     }
 
     private synchronized void onMergeFailure(Exception exc) {

@@ -2657,6 +2657,30 @@ book_no:keyword | _score:double
 2301            | 1.0
 ;
 
+matchOnRuntimeTextBm25WithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_to_text_similarity
+
+// with the bm25 similarity a runtime match ranks like an indexed field, over statistics of the rows entering the match:
+// the rare "poems" outweighs the common "tolkien", where the boolean default scores each 1.0
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description), {"similarity": "bm25"})
+| WHERE match(content, "Tolkien poems")
+| EVAL score = ROUND(_score, 4)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+4289            | 6.6355
+3254            | 4.3959
+5469            | 3.2447
+1463            | 2.8606
+9607            | 2.6271
+;
+
 matchOnRuntimeTextAfterLimitWithScore
 required_capability: match_function
 required_capability: metadata_score

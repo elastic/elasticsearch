@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -2016,9 +2017,15 @@ public class VerifierTests extends AnalyzerTestCase {
 
     public void testToTextInvalidOption() throws Exception {
         fullText().error(
-            "from test | eval t = to_text(concat(title, body), {\"similarity\": \"bm25\"})",
-            allOf(containsString("Invalid option [similarity]"), containsString("expected one of [analyzer]"))
+            "from test | eval t = to_text(concat(title, body), {\"boost\": 2})",
+            allOf(containsString("Invalid option [boost]"), containsString("expected one of [analyzer"))
         );
+        if (Build.current().isSnapshot()) {
+            fullText().error(
+                "from test | eval t = to_text(concat(title, body), {\"similarity\": \"dfr\"})",
+                containsString("[similarity] option must be one of [boolean, bm25], found [dfr]")
+            );
+        }
         fullText().error(
             "from test | eval t = to_text(concat(title, body), {\"analyzer\": 42})",
             containsString("[42] is not a registered analyzer")

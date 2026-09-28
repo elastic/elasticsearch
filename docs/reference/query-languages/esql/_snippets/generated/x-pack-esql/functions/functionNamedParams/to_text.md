@@ -5,3 +5,6 @@
 `analyzer`
 :   (keyword) The analyzer applied to the values of the resulting text column, playing the role the mapping's `analyzer` plays for an indexed text field. Defaults to `standard`. Must name a registered (prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an index-mapped field.
 
+`similarity`
+:   (keyword) How a `match` on the resulting text column scores rows. Defaults to `boolean`: one point per matched query term. `bm25` ranks like an indexed text field, using statistics that a separate pass computes over the rows entering the `match`, which reads the input twice.
+

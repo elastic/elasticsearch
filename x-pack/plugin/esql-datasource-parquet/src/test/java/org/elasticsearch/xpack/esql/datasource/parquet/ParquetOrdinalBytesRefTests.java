@@ -24,7 +24,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.LongBytesRefAdaptiveBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -180,10 +180,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
      * flows into the {@code (LONG, BYTES_REF)} {@link BlockHash}'s vector-only fast path. This is the
      * input shape produced by the ClickBench q17/q18 query
      * {@code STATS COUNT(*) BY UserID:long, SearchPhrase:keyword}: a dense {@link LongBlock} (a vector
-     * for non-nullable columns) paired with an {@link OrdinalBytesRefBlock}. The adaptive hash should
-     * keep its vector-only delegate the whole way through — no migration to {@link
-     * org.elasticsearch.compute.aggregation.blockhash.PackedValuesBlockHash} — so the dictionary is
-     * hashed once instead of once per row.
+     * for non-nullable columns) paired with an {@link OrdinalBytesRefBlock}.
      */
     public void testLongBytesRefStatsKeepsVectorOnlyFastPath() throws IOException {
         int numRows = 4_000;
@@ -199,7 +196,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         boolean sawLongVector = false;
         Map<List<Object>, Integer> expectedGroupOrds = new HashMap<>();
         try (
-            LongBytesRefAdaptiveBlockHash hash = (LongBytesRefAdaptiveBlockHash) BlockHash.build(
+            LongBytesRefBlockHash hash = (LongBytesRefBlockHash) BlockHash.build(
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
                 blockFactory,
                 BATCH_SIZE,
@@ -235,9 +232,6 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
                 }
                 assertEquals(numRows, row);
             }
-            // The crux of this test: the adaptive hash must stay on its vector-only fast path. If it
-            // had migrated, this would flip to true.
-            assertFalse("expected vector-only fast path; got " + hash, hash.migratedToPackedHash());
 
             // Read final group keys for cross-checking.
             try (IntVector nonEmpty = hash.nonEmpty()) {

@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,11 +21,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -82,6 +87,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PruneColumnsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPruneUnusedEval() {
         var plan = plan("""
@@ -2571,10 +2580,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
-    public void testExternalRelationKeepsAllDataColumnsWhenSourceConsumed() {
-        // When _source survives downstream, the synthesizer needs every file-resident data column
-        // at compose time — pruning them would render `{}`. Project only _source over (col_a,
-        // col_b, col_c, _source); pin must keep all four.
+    public void testExternalRelationPrunesDataColumnsWhenOnlySourceConsumed() {
+        // _source is a constant null block on a dataset — a file carries no stored source — so nothing
+        // is read from the file to answer it. Project only _source over (col_a, col_b, col_c, _source);
+        // the three data columns are pruned and the reader loads none of them.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2586,13 +2595,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var project = as(result, Project.class);
         var prunedExt = as(project.child(), ExternalRelation.class);
-        assertThat(prunedExt.output(), hasSize(4));
-        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b", "col_c", "_source"));
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("_source"));
     }
 
     public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
-        // _source is bound but the user drops it without ever reading. Pin should NOT fire (no
-        // over-retention); _source itself is pruned along with col_b and col_c.
+        // _source is bound but the user drops it without ever reading; it is pruned along with col_b
+        // and col_c.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2625,6 +2634,48 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var prunedExt = as(resultFilter.child(), ExternalRelation.class);
         assertThat(prunedExt.output(), hasSize(2));
         assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    public void testEvalAliasKeepsFileSizeOnExternalRelation() {
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(size, other));
+        Alias computed = new Alias(EMPTY, "x", size);
+        LogicalPlan plan = new Project(EMPTY, new Eval(EMPTY, ext, List.of(computed)), List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var prunedExt = as(eval.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains(FileMetadataColumns.SIZE));
+    }
+
+    public void testArithmeticWhereKeepsFileSizeOnExternalRelation() {
+        Attribute value = extAttr("a", LONG);
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        ExternalRelation ext = externalRelation(List.of(value, size));
+        Expression scaled = new Add(EMPTY, new Div(EMPTY, size, new Literal(EMPTY, 39L, LONG)), new Literal(EMPTY, 49L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, new GreaterThan(EMPTY, value, scaled, null));
+        LogicalPlan result = new PruneColumns().apply(new Project(EMPTY, filter, List.of(value)));
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("a", FileMetadataColumns.SIZE));
+    }
+
+    public void testWhereBeforeCountKeepsPartitionColumn() {
+        Attribute year = extAttr("year", INTEGER);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(year, other));
+        Filter filter = new Filter(EMPTY, ext, new Equals(EMPTY, year, new Literal(EMPTY, 2024, INTEGER)));
+        Alias count = new Alias(EMPTY, "count", new Count(EMPTY, Literal.keyword(EMPTY, "*")));
+        LogicalPlan result = new PruneColumns().apply(new Aggregate(EMPTY, filter, List.of(), List.of(count)));
+
+        var aggregate = as(result, Aggregate.class);
+        var resultFilter = as(aggregate.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("year"));
     }
 
     /**

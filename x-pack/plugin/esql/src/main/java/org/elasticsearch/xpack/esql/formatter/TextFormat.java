@@ -391,7 +391,7 @@ public enum TextFormat implements MediaType {
     private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
     private static final String CONTENT_TYPE_MD = "text/markdown";
     private static final String VENDOR_CONTENT_TYPE_MD = "text/vnd.elasticsearch+markdown";
-    private static final String URL_PARAM_HEADER = "header";
+    public static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
     /*

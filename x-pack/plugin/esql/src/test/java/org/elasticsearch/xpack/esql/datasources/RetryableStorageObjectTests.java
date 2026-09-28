@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -772,6 +774,66 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertSame(stream, captured[0]);
     }
 
+    public void testAbortStreamPreventsResumeOfInFlightRead() throws Exception {
+        ParkingAbortableStorageObject delegate = new ParkingAbortableStorageObject(StoragePath.of("s3://bucket/key"));
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 1, 10));
+        InputStream in = obj.newStream(0, 100);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-inflight-read");
+        reader.start();
+        try {
+            assertTrue("read must park", delegate.awaitParked(5, TimeUnit.SECONDS));
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(15));
+            assertFalse("reader must unblock after abort", reader.isAlive());
+            assertThat(error.get(), instanceOf(ExternalUnavailableException.class));
+            assertEquals("connection aborted", error.get().getMessage());
+            assertSame("abortStream must receive the inner GET, not the resuming wrapper", delegate.lastOpened(), delegate.lastAborted());
+            assertEquals("abort must not re-open the range", 1, delegate.openCount());
+            assertEquals("abort must not count as a retry", 0L, obj.metrics().retryCount());
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
+    }
+
+    public void testAbortStreamAbortsRacedResumeOpen() throws Exception {
+        FailThenParkOnResumeStorageObject delegate = new FailThenParkOnResumeStorageObject(StoragePath.of("s3://bucket/key"));
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 1, 10));
+        InputStream in = obj.newStream(0, 100);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-raced-resume");
+        reader.start();
+        try {
+            assertTrue("resume open must park", delegate.awaitResumeParked(5, TimeUnit.SECONDS));
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(15));
+            assertFalse("reader must unblock after abort", reader.isAlive());
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertEquals("read aborted", error.get().getMessage());
+            assertEquals("initial open plus one raced resume", 2, delegate.openCount());
+            assertEquals("raced resume abort must not count as a retry", 0L, obj.metrics().retryCount());
+            assertSame("raced resume GET must be aborted, not drained", delegate.lastOpened(), delegate.lastAborted());
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
+    }
+
     /**
      * A transient transport fault <em>during</em> a range read must re-open the remaining byte range and
      * resume, delivering every byte exactly once (object content is immutable). The re-open requests
@@ -882,6 +944,25 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertEquals("Access Denied", thrown.getMessage());
         }
         assertEquals("a non-transient error must not trigger a re-open", 1, delegate.openCount());
+    }
+
+    public void testRangeReadPropagatesExpiredCredentialsWithoutResume() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[200];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            40,
+            new ExternalCredentialsExpiredException("Session credentials expired or invalid reading [s3://bucket/key]")
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, in::readAllBytes);
+            assertThat(thrown.getMessage(), containsString("expired or invalid"));
+        }
+        assertEquals("expired credentials must not trigger a re-open", 1, delegate.openCount());
+        assertEquals("expired credentials must not count as a retry", 0L, obj.metrics().retryCount());
     }
 
     /**
@@ -1863,6 +1944,212 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public String contentGeneration() {
             return opens <= 1 ? firstGeneration : secondGeneration;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(opens, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Parks the first {@code read} until {@link #abortStream} releases it, then throws a transient
+     * {@link ExternalUnavailableException} so resume would fire unless the abort flag holds.
+     */
+    private static final class ParkingAbortableStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final CountDownLatch inRead = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+        private int opens;
+        private InputStream lastOpened;
+        private InputStream lastAborted;
+
+        ParkingAbortableStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        int openCount() {
+            return opens;
+        }
+
+        boolean awaitParked(long timeout, TimeUnit unit) throws InterruptedException {
+            return inRead.await(timeout, unit);
+        }
+
+        InputStream lastOpened() {
+            return lastOpened;
+        }
+
+        InputStream lastAborted() {
+            return lastAborted;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            opens++;
+            lastOpened = new InputStream() {
+                @Override
+                public int read() throws IOException {
+                    byte[] one = new byte[1];
+                    int n = read(one, 0, 1);
+                    return n == -1 ? -1 : (one[0] & 0xFF);
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    inRead.countDown();
+                    try {
+                        if (release.await(5, TimeUnit.SECONDS) == false) {
+                            throw new IOException("read was not unblocked by abort");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(e);
+                    }
+                    throw new ExternalUnavailableException("connection aborted");
+                }
+            };
+            return lastOpened;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return newStream(0, READ_TO_END);
+        }
+
+        @Override
+        public void abortStream(InputStream stream) {
+            lastAborted = stream;
+            release.countDown();
+        }
+
+        @Override
+        public long length() {
+            return 100L;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(opens, 0, 0, 0);
+        }
+    }
+
+    /**
+     * First open fails on {@code read} with a transient EUE. The resume {@code newStream} parks
+     * until {@link #abortStream} so {@code adoptResume} can abort the raced GET.
+     */
+    private static final class FailThenParkOnResumeStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final CountDownLatch resumeParked = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+        private int opens;
+        private InputStream lastOpened;
+        private InputStream lastAborted;
+
+        FailThenParkOnResumeStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        int openCount() {
+            return opens;
+        }
+
+        boolean awaitResumeParked(long timeout, TimeUnit unit) throws InterruptedException {
+            return resumeParked.await(timeout, unit);
+        }
+
+        InputStream lastOpened() {
+            return lastOpened;
+        }
+
+        InputStream lastAborted() {
+            return lastAborted;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            opens++;
+            if (opens == 1) {
+                lastOpened = new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new ExternalUnavailableException("connection aborted");
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        throw new ExternalUnavailableException("connection aborted");
+                    }
+                };
+                return lastOpened;
+            }
+            resumeParked.countDown();
+            try {
+                if (release.await(5, TimeUnit.SECONDS) == false) {
+                    throw new IllegalStateException("resume open was not unblocked by abort");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            lastOpened = new ByteArrayInputStream(new byte[100]);
+            return lastOpened;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return newStream(0, READ_TO_END);
+        }
+
+        @Override
+        public void abortStream(InputStream stream) {
+            lastAborted = stream;
+            release.countDown();
+        }
+
+        @Override
+        public long length() {
+            return 100L;
         }
 
         @Override

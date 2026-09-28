@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -72,8 +73,10 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("test-node"));
         final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build(),
-            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING)
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build(),
+            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(
@@ -81,7 +84,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings)
+            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(

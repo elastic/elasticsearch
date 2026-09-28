@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -299,7 +300,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
-        // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
+        // This check runs before the empty-config early-return so bare file:// reads (no config)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
         if (config != null) {
@@ -322,6 +323,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         if (config == null || config.isEmpty()) {
             return;
+        }
+        // Warn when a budget is present without an explicit mode: the query path infers skip_row, which
+        // may surprise the caller. Routes through the sink so the message reaches the client response
+        // regardless of which thread validateConfig runs on (request or metadata-read executor).
+        boolean hasMaxErrors = config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null;
+        boolean hasMaxErrorRatio = config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null;
+        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null && (hasMaxErrors || hasMaxErrorRatio)) {
+            String keys = hasMaxErrors && hasMaxErrorRatio
+                ? "[" + ErrorPolicy.CONFIG_MAX_ERRORS + "] and [" + ErrorPolicy.CONFIG_MAX_ERROR_RATIO + "]"
+                : "[" + (hasMaxErrors ? ErrorPolicy.CONFIG_MAX_ERRORS : ErrorPolicy.CONFIG_MAX_ERROR_RATIO) + "]";
+            warningSink.accept(keys + " set without [" + ErrorPolicy.CONFIG_ERROR_MODE + "]; skipping rows with errors");
         }
         StoragePath storagePath = StoragePath.of(location);
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
@@ -487,7 +499,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Map<String, Object> config = context.config();
 
             // Enforce the file:// allowlist confinement at execution time on the data node, before either branch.
-            // The bare-read branch (provider(path)) checks this internally, but the WITH-config branch goes through
+            // The bare-read branch (provider(path)) checks this internally, but the config-bearing branch goes through
             // createProvider, which only enforces the scheme-level on/off gate; checking here keeps both paths uniform.
             localFileAccess.check(path);
 
@@ -549,7 +561,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
                 // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
                 // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
-                // WITH-config storage is a deferred pool lease: first operator get() borrows, onClose returns it.
+                // Config-bearing storage is a deferred pool lease: first operator get() borrows, onClose returns it.
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
@@ -569,8 +581,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Deferred extraction fires when both signals are present: the reader is
                 // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
                 // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
-                // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
-                // injects it for plain _id composition, where enabling deferred mode would create a
+                // projection is NOT a valid signal on its own — InjectRowPositionForRecordRef also
+                // injects it for plain _file.record_ref composition, where enabling deferred mode would create a
                 // SourceExtractors registry no extract operator ever closes.
                 // Additionally, deferred extraction is disabled when skip_row is active with declared-type
                 // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
@@ -610,11 +622,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .pushdownSupport(pushdownSupport)
                     .onClose(onClose)
                     .deferredExtraction(deferredExtraction)
-                    // datasetName drives the per-file _index synthesizer in
-                    // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
-                    // came from a direct-file query (no dataset name), populated when it came from
-                    // FROM <dataset>.
-                    .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
                     // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
@@ -623,14 +630,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
                     // For the split-less rails, which read one whole file and so have no per-split schema.
                     .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
-                    // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
-                    .idPath(context.declaredReadSpec().idPath())
-                    // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
-                    // carrier; without this wire-up _version would silently render as SQL NULL even
-                    // on resolved single-file plans. The slice-queue / multi-file paths still source
-                    // mtime from FileSplit.partitionValues / per-FileList entry respectively and
-                    // ignore this builder value.
-                    .lastModifiedMillis(firstFileMtime(context.fileList()))
                     .build();
                 transferred = true;
                 return built;
@@ -640,22 +639,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 }
             }
         };
-    }
-
-    /**
-     * Returns the {@code lastModifiedMillis} of the first entry in {@code fileList}, or {@code null}
-     * when the list is absent / unresolved / empty. Threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis(Long)} so that the
-     * single-file producer paths render {@code _version} from the file's mtime instead of SQL
-     * {@code NULL}. Returning a boxed {@code Long} lets the builder distinguish "no mtime available"
-     * from "mtime is zero (epoch)".
-     */
-    @Nullable
-    private static Long firstFileMtime(@Nullable FileList fileList) {
-        if (fileList == null || fileList.fileCount() == 0) {
-            return null;
-        }
-        return fileList.lastModifiedMillis(0);
     }
 
     /**
@@ -728,7 +711,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
-     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
+     * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
     private static final class DeferredPoolLease implements StorageProvider {
@@ -770,6 +753,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
             return inner().listObjects(prefix, recursive);
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+            return inner().listChildren(prefix, limit);
         }
 
         @Override

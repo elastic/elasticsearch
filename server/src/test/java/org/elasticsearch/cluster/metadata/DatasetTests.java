@@ -124,8 +124,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             String path = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
             properties.put("col_" + i, new DatasetFieldMapping(type, path));
         }
-        String idPath = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        return new DatasetMapping.Mappings(dynamic, properties, idPath);
+        return new DatasetMapping.Mappings(dynamic, properties);
     }
 
     private static Map<String, Object> randomSettings() {
@@ -278,7 +277,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("when", new DatasetFieldMapping("date", "ts"));
         properties.put("status", new DatasetFieldMapping("integer", null));
-        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties, "request_id"));
+        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         var dataset = new Dataset(
             "access_logs",
             new DataSourceReference("my-s3"),
@@ -296,15 +295,6 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         assertEquals(dataset, deserialized);
         assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.mapping().mappings().dynamic());
         assertEquals("ts", deserialized.mapping().mappings().properties().get("when").path());
-        assertEquals("request_id", deserialized.mapping().mappings().idPath());
-    }
-
-    public void testXContentRoundTripIdPathOnlyNoProperties() throws IOException {
-        // _id.path with an otherwise-empty mappings block — the id-source is a meta-field, so it rides a mappings wrapper.
-        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of(), "request_id"));
-        var dataset = new Dataset("events", new DataSourceReference("s3"), "s3://b/*.ndjson", null, Map.of(), mapping);
-        assertExplicitXContentRoundTrip(dataset);
-        assertEquals("request_id", dataset.mapping().mappings().idPath());
     }
 
     private void assertExplicitXContentRoundTrip(Dataset dataset) throws IOException {

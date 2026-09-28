@@ -257,36 +257,18 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
                 TimeValue ageOfTheOldestCommitPendingUpload;
                 if (oldestCommitUploadStartTime == null) {
-                    // When `oldestCommitUploadStartTime` is null it means that there are commits pending upload
+                    // When `oldestCommitUploadStartTime` is null, it means that there are no pending upload commits,
                     // and as such we can remove throttling (TimeValue.ZERO should always be smaller than `settings.deactivationThreshold`).
                     ageOfTheOldestCommitPendingUpload = TimeValue.ZERO;
                 } else {
-                    ageOfTheOldestCommitPendingUpload = TimeValue.timeValueMillis(
-                        relativeTimeMillis.get() - stats.oldestCommitUploadStartTimeRelativeMillis()
-                    );
+                    ageOfTheOldestCommitPendingUpload = TimeValue.timeValueMillis(relativeTimeMillis.get() - oldestCommitUploadStartTime);
                     oldestCommitAgeSecondsHistogram.record(ageOfTheOldestCommitPendingUpload.seconds());
                 }
 
                 if (ageOfTheOldestCommitPendingUpload.compareTo(settings.activationThreshold) > 0) {
                     // This is a throttle condition.
                     if (shardState != null && shardState.latestDecision() == Type.THROTTLED) {
-                        /// We are currently throttling, and we still see the queue.
-                        ///
-                        /// Indexing throttling reduces the amount of threads available for indexing to one.
-                        /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].
-                        /// So if we see that we should throttle we'll keep it applied as long as needed
-                        /// since it is not a "full stop" scenario for the customer.
-                        /// We do want to understand how often this happens though.
-                        if (shardState.consecutiveApplications() >= MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD) {
-                            logger.info(
-                                "Indexing  throttling for shard {} has been applied {} consecutive times",
-                                shardId,
-                                shardState.consecutiveApplications()
-                            );
-                        }
-
-                        // We don't need to apply throttling since it's already applied.
-                        newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), shardState.consecutiveApplications() + 1));
+                        newState.put(shardId, renewThrottle(shardId, shardState));
                     } else {
                         // We know we can apply throttling - the grace period after the latest throttle expired
                         // or there was no prior decision.
@@ -302,10 +284,34 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                         throttler.deactivate(shardId);
                         newState.put(shardId, ThrottleState.throttleRemoved(relativeTimeMillis.get()));
                     }
+                } else if (shardState != null && shardState.latestDecision() == Type.THROTTLED) {
+                    // The oldest pending upload's age is between the activation and removal thresholds.
+                    // Keep tracking the active throttle and renew it for another cooldown period.
+                    newState.put(shardId, renewThrottle(shardId, shardState));
                 }
             });
 
             return newState;
+        }
+
+        private ThrottleState renewThrottle(ShardId shardId, ThrottleState shardState) {
+            /// We are currently throttling, and we still see the queue.
+            ///
+            /// Indexing throttling reduces the amount of threads available for indexing to one.
+            /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].
+            /// So if we see that we should throttle we'll keep it applied as long as needed
+            /// since it is not a "full stop" scenario for the customer.
+            /// We do want to understand how often this happens though.
+            if (shardState.consecutiveApplications() >= MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD) {
+                logger.info(
+                    "Indexing  throttling for shard {} has been applied {} consecutive times",
+                    shardId,
+                    shardState.consecutiveApplications()
+                );
+            }
+
+            // We don't need to apply throttling since it's already applied.
+            return ThrottleState.throttled(relativeTimeMillis.get(), shardState.consecutiveApplications() + 1);
         }
     }
 

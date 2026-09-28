@@ -24,6 +24,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
@@ -33,6 +36,8 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 
@@ -131,6 +136,23 @@ public final class ColumnarTestUtils {
         };
     }
 
+    /** Records every temporary file the columnar writers ask the directory for, by suffix. */
+    public static final class TempOutputRecorder extends FilterDirectory {
+        public final Set<String> columnarSuffixes = ConcurrentHashMap.newKeySet();
+
+        public TempOutputRecorder(Directory in) {
+            super(in);
+        }
+
+        @Override
+        public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+            if (suffix.startsWith("columnar")) {
+                columnarSuffixes.add(suffix);
+            }
+            return super.createTempOutput(prefix, suffix, context);
+        }
+    }
+
     /**
      * Returns a {@link Codec} that routes all doc-values fields through a {@link ColumNARDocValuesFormat}
      * whose columns are all of {@code type}.
@@ -139,9 +161,6 @@ public final class ColumnarTestUtils {
         return columnarCodec(new ColumNARDocValuesFormat(field -> type));
     }
 
-    /**
-     * Returns a {@link Codec} that routes all doc-values fields through {@code fmt}.
-     */
     /**
      * The columnar format for {@code field} and the default for everything else, for a test that needs a
      * companion field the columnar format does not write, such as one to sort the index on.
@@ -165,6 +184,7 @@ public final class ColumnarTestUtils {
         };
     }
 
+    /** Returns a {@link Codec} that routes all doc-values fields through {@code fmt}. */
     public static Codec columnarCodec(final DocValuesFormat fmt) {
         final Codec base = TestUtil.getDefaultCodec();
         return new FilterCodec(base.getName(), base) {

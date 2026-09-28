@@ -11,11 +11,11 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -66,19 +66,19 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private int generation;
     private boolean directSlots;
 
-    DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, IndexInput data) throws IOException {
+    DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs) throws IOException {
         // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
-        super(column, data, column.ordinals().blockSize());
-        this.dictionary = column.dictionary().open(data);
-        this.ordinals = new NumericColumnReader(column.ordinals(), data);
+        super(column, inputs, column.ordinals().blockSize());
+        this.dictionary = column.dictionary().open(inputs);
+        this.ordinals = new NumericColumnReader(column.ordinals(), inputs);
         this.dictionarySize = column.dictionarySize();
         this.escapeOrdinal = column.escapeOrdinal();
         if (column.hasEscapes()) {
-            this.escapes = column.escapes().open(data);
+            this.escapes = column.escapes().open(inputs);
             this.escapeCount = column.escapes().numValues();
             this.escapeRankBlockSize = column.escapeRankBlockSize();
             this.escapeRanks = MonotonicReader.open(
-                data,
+                inputs.navigation(),
                 column.escapeRanks().meta(),
                 StringColumnWriter.escapeRankEntries(column.numValues(), escapeRankBlockSize),
                 column.escapeRanks().dataOffset(),

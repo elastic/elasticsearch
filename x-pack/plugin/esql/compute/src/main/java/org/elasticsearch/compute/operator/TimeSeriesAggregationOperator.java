@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import com.carrotsearch.hppc.LongLongHashMap;
-
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -369,8 +367,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private GroupingAggregatorEvaluationContext evaluationContext(TimeSeriesBlockHash tsBlockHash) {
         Rounding.Prepared fastRounding = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
-            IntArray prevGroupIds;
-            IntArray nextGroupIds;
+            TimeSeriesAdjacentGroups adjacentGroups;
 
             @Override
             public long rangeStartInMillis(int groupId) {
@@ -400,74 +397,25 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public int previousGroupId(int currentGroupId) {
-                return prevGroupIds.get(currentGroupId);
+                return adjacentGroups.previousGroupId(currentGroupId);
             }
 
             @Override
             public int nextGroupId(int currentGroupId) {
-                return nextGroupIds.get(currentGroupId);
+                return adjacentGroups.nextGroupId(currentGroupId);
             }
 
             @Override
             public void computeAdjacentGroupIds() {
-                if (nextGroupIds != null) {
+                if (adjacentGroups != null) {
                     return;
                 }
-                long numGroups = tsBlockHash.numGroups();
-                nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
-                nextGroupIds.fill(0, numGroups, -1);
-                prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
-                prevGroupIds.fill(0, numGroups, -1);
-                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
-                for (int groupId = 0; groupId < numGroups; groupId++) {
-                    long tsid = tsBlockHash.tsidForGroup(groupId);
-                    long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
-                    long nextBucketTs;
-                    if (cacheIndex >= 0) {
-                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
-                    } else {
-                        // both the map and the hash keys are in the resolution of the timestamp field, the rounding
-                        // operates on milliseconds
-                        nextBucketTs = timeResolution.convert(fastRounding.nextRoundingValue(timeResolution.roundDownToMillis(bucketTs)));
-                        nextTimestamps.put(bucketTs, nextBucketTs);
-                    }
-                    int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
-                    if (nextGroupId >= 0) {
-                        // https://github.com/elastic/elasticsearch/issues/152758
-                        assert tsBlockHash.tsidForGroup(nextGroupId) == tsid
-                            : "adjacent groups must share the same tsid: group "
-                                + groupId
-                                + " (tsid="
-                                + tsid
-                                + ") -> nextGroup "
-                                + nextGroupId
-                                + " (tsid="
-                                + tsBlockHash.tsidForGroup(nextGroupId)
-                                + ")";
-                        assert tsBlockHash.timestampForGroup(nextGroupId) == nextBucketTs
-                            : "next group timestamp mismatch: expected "
-                                + nextBucketTs
-                                + " but group "
-                                + nextGroupId
-                                + " has "
-                                + tsBlockHash.timestampForGroup(nextGroupId);
-                        assert prevGroupIds.get(nextGroupId) == -1
-                            : "prevGroupIds["
-                                + nextGroupId
-                                + "] already set to "
-                                + prevGroupIds.get(nextGroupId)
-                                + " when linking from group "
-                                + groupId;
-                        nextGroupIds.set(groupId, nextGroupId);
-                        prevGroupIds.set(nextGroupId, groupId);
-                    }
-                }
+                adjacentGroups = TimeSeriesAdjacentGroups.compute(tsBlockHash, driverContext.bigArrays());
             }
 
             @Override
             public void close() {
-                Releasables.close(nextGroupIds, prevGroupIds, super::close);
+                Releasables.close(adjacentGroups, super::close);
             }
         };
     }

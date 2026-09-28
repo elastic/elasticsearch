@@ -31,10 +31,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 public class TextEsField extends EsField {
 
     /**
-     * Same transport version as {@code IndexFieldCapabilities#indexAnalyzer}. Also gates {@link #analyzerGroups}: the
-     * HIGHLIGHT analyzer stack ships under one version.
+     * Gates {@link #analyzerName}, {@link #positionIncrementGap}, {@link #unknownAnalyzer}, and {@link #analyzerGroups}
      */
-    public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
+    public static final TransportVersion TEXT_FIELD_ANALYZER = TransportVersion.fromName("esql_text_field_analyzer");
 
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
     public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
@@ -50,7 +49,7 @@ public class TextEsField extends EsField {
         /**
          * No index reported a name and none withheld one as {@code index.analysis}: the mapper hard-codes its analyzer
          * (like {@code pattern_text}), the field has no index analyzer (like {@code semantic_text}), or the node predates
-         * {@link TextEsField#FIELD_CAPS_INDEX_ANALYZER}.
+         * {@link TextEsField#TEXT_FIELD_ANALYZER}.
          */
         NOT_REPORTED,
         /**
@@ -108,7 +107,7 @@ public class TextEsField extends EsField {
     }
 
     protected TextEsField(StreamInput in) throws IOException {
-        this(in, in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER));
+        this(in, in.getTransportVersion().supports(TEXT_FIELD_ANALYZER));
     }
 
     private TextEsField(StreamInput in, boolean hasAnalyzer) throws IOException {
@@ -147,7 +146,7 @@ public class TextEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
         writeTimeSeriesFieldType(out);
-        if (out.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER)) {
+        if (out.getTransportVersion().supports(TEXT_FIELD_ANALYZER)) {
             out.writeOptionalString(analyzerName);
             // Written even when the name is null; the reader always consumes this vint.
             out.writeVInt(positionIncrementGap);

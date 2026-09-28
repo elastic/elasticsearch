@@ -27,7 +27,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
      * analyzer, while retaining the rest of the field. All of it rides the same transport version.
      */
     public void testAnalyzerMetadataSerialization() throws IOException {
-        var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.TEXT_FIELD_ANALYZER);
         var bareField = new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE);
         record Case(String analyzerName, int gap, TextEsField.UnknownAnalyzer unknown, List<IndexAnalyzerGroup> groups) {}
         for (Case c : List.of(
@@ -49,7 +49,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
             );
             assertEquals(c.unknown(), field.unknownAnalyzer());
             assertEquals(bareField, copyInstance(field, oldVersion));
-            assertEquals(field, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER));
+            assertEquals(field, copyInstance(field, TextEsField.TEXT_FIELD_ANALYZER));
         }
     }
 

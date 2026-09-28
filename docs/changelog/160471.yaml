@@ -1,7 +1,0 @@
-area: Machine Learning
-issues:
- - 158426
-pr: 160460
-summary: Revert auto-stop datafeed after consecutive extraction failures pending
-  .ml-config mapping version fix
-type: bug

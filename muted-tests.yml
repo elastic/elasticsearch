@@ -692,3 +692,6 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/160410
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
+  method: testRandomWithUpdatesAndGraph
+  issue: https://github.com/elastic/elasticsearch/issues/160422

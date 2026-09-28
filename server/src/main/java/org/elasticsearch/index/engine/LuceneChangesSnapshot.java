@@ -196,6 +196,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 parallelArray.primaryTerm[index] = combinedDocValues.docPrimaryTerm(segmentDocID);
                 parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
                 parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
+                parallelArray.isDocValuesUpdate[index] = combinedDocValues.isDocValuesUpdate(segmentDocID);
+                if (parallelArray.isDocValuesUpdate[index]) {
+                    parallelArray.docValuesUpdatePayload[index] = combinedDocValues.docValuesUpdatePayload(segmentDocID);
+                }
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
                 if (ordinalToRoutingLookup != null) {
                     // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
@@ -277,6 +281,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             setNextSyntheticFieldsReader(leaf);
             leaf.reader().storedFields().document(segmentDocID, fields);
         }
+        final boolean isDocValuesUpdate = parallelArray.isDocValuesUpdate[docIndex];
         final BytesReference source = fields.source() != null && fields.source().length() > 0
             ? addSyntheticFields(Source.fromBytes(fields.source()), segmentDocID).internalSourceRef()
             : fields.source();
@@ -298,7 +303,11 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
 
         final Translog.Operation op;
-        if (isTombstone && idBytes == null) {
+        if (isDocValuesUpdate) {
+            assert isTombstone == false : "a doc-values-update history document must not be a tombstone";
+            assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "doc-values update but soft_deletes field is not set";
+            op = Translog.DocValuesUpdate.fromHistoryPayload(seqNo, primaryTerm, version, parallelArray.docValuesUpdatePayload[docIndex]);
+        } else if (isTombstone && idBytes == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
@@ -391,6 +400,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final long[] seqNo;
         final long[] primaryTerm;
         final boolean[] isTombStone;
+        final boolean[] isDocValuesUpdate;
+        final BytesRef[] docValuesUpdatePayload;
         final boolean[] hasRecoverySource;
         final int[] routingOrdinals;
         final BytesRef[] columnarIds;
@@ -402,6 +413,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             seqNo = new long[size];
             primaryTerm = new long[size];
             isTombStone = new boolean[size];
+            isDocValuesUpdate = new boolean[size];
+            docValuesUpdatePayload = new BytesRef[size];
             hasRecoverySource = new boolean[size];
             routingOrdinals = new int[size];
             Arrays.fill(routingOrdinals, -1);

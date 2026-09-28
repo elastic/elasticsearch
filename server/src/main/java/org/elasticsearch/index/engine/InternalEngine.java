@@ -11,6 +11,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
@@ -2362,6 +2364,117 @@ public class InternalEngine extends Engine {
         }
         maybePruneDeletes();
         return deleteResult;
+    }
+
+    @Override
+    public DocValuesUpdateResult docValuesUpdate(DocValuesUpdate docValuesUpdate) throws IOException {
+        // An in-place doc-values update is not append-only: it changes an existing document, so the version map must resolve versions
+        // safely from here on, exactly as for deletes and regular updates.
+        versionMap.enforceSafeAccess();
+        assert assertIncomingSequenceNumber(docValuesUpdate.origin(), docValuesUpdate.seqNo());
+        // On a sequence-number-aware index an in-place update advances the document's sequence number and primary term so optimistic
+        // concurrency and realtime get stay correct; on a sequence-number-disabled index it stays last-writer-wins and leaves the
+        // identity untouched (see IndexShard#applyDocValuesUpdateOnPrimary). The version is left unchanged in both cases: it is the
+        // observable signal that a change took the in-place path rather than a reindex.
+        final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
+        DocValuesUpdate op = docValuesUpdate;
+        DocValuesUpdateResult result;
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(op.uid())) {
+            lastWriteNanos = op.startTime();
+            if (op.origin() == Operation.Origin.PRIMARY) {
+                op = new DocValuesUpdate(
+                    op.id(),
+                    op.uid(),
+                    generateSeqNoForOperationOnPrimary(op),
+                    op.primaryTerm(),
+                    op.version(),
+                    op.versionType(),
+                    op.origin(),
+                    op.startTime(),
+                    op.updates()
+                );
+                advanceMaxSeqNoOfUpdatesOnPrimary(op.seqNo());
+            } else {
+                advanceMaxSeqNo(op.seqNo());
+            }
+            assert op.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + op.origin();
+            result = updateDocValuesInLucene(op);
+            if (op.origin().isFromTranslog() == false && result.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(
+                    new Translog.DocValuesUpdate(op.uid(), op.seqNo(), op.primaryTerm(), op.version(), op.updates())
+                );
+                result.setTranslogLocation(location);
+            }
+            if (seqNoAware && result.getResultType() == Result.Type.SUCCESS) {
+                // Publish the document's new identity to the version map so optimistic-concurrency reads and realtime get see the update
+                // before the next refresh. A null operation location routes realtime get through a refresh and the searcher (the new value
+                // lives in doc-values columns, applied via updateDocValues, not in a translog index operation to replay).
+                versionMap.maybePutIndexUnderLock(op.uid(), new IndexVersionValue(null, op.version(), op.seqNo(), op.primaryTerm()));
+            }
+            localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
+            if (result.getTranslogLocation() == null) {
+                assert op.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
+                localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
+            }
+            result.setTook(System.nanoTime() - op.startTime());
+            result.freeze();
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("doc_values_update", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        return result;
+    }
+
+    private DocValuesUpdateResult updateDocValuesInLucene(DocValuesUpdate op) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), false, false);
+        try {
+            final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
+            // 1. apply the in-place update to the live document's doc-values columns. Applied before the history document is added so
+            // that it only touches the pre-existing document, not the (identically identified) history document.
+            final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
+            // On a sequence-number-aware index also advance the document's identity in place: _seq_no cannot be rewritten (it is a point
+            // or doc-values-skipper field), so record this update's sequence number and primary term in the plain-numeric companion
+            // columns. Readers combine these with _seq_no as the effective identity for optimistic concurrency.
+            final int identityFields = seqNoAware ? 2 : 0;
+            final Field[] fields = new Field[op.updates().size() + identityFields];
+            int i = 0;
+            for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
+                fields[i++] = switch (update) {
+                    case Translog.DocValuesUpdate.NumericFieldUpdate n -> new NumericDocValuesField(n.field(), n.value());
+                    case Translog.DocValuesUpdate.BinaryFieldUpdate b -> new BinaryDocValuesField(b.field(), b.value());
+                };
+            }
+            if (seqNoAware) {
+                fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME, op.seqNo());
+                fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME, op.primaryTerm());
+            }
+            indexWriter.updateDocValues(uidTerm, fields);
+
+            // 2. write a born-soft-deleted history document so the operation is visible when history is reconstructed from Lucene
+            // (peer recovery and CCR), which the in-place update alone leaves no trace for.
+            final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
+                engineConfig.getIndexSettings().seqNoIndexOptions(),
+                op.id(),
+                Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.updates()).toBytesRef()
+            );
+            history.updateSeqID(op.seqNo(), op.primaryTerm());
+            history.version().setLongValue(op.version());
+            final LuceneDocument doc = history.docs().getFirst();
+            doc.add(softDeletesField);
+            indexWriter.addDocument(doc);
+            return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id());
+        } catch (final Exception ex) {
+            // A document-level failure here is unexpected (e.g. the field is not a doc-values-only field, or a corrupt index). A sequence
+            // number has already been issued, so this is fatal: fail the engine, mirroring deleteInLucene.
+            if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
+                failEngine("doc values update id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "] failed", ex);
+            }
+            throw ex;
+        }
     }
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {

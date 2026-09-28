@@ -65,6 +65,9 @@ import java.util.TreeSet;
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
+    /** Field attribute recording a column's {@link ColumnarFieldType}, so an update or merge resolves it without the mapping. */
+    static final String FIELD_TYPE_ATTRIBUTE = "ColumNAR.fieldType";
+
     private final int maxDoc;
     private final Directory directory;
     private final IOContext context;
@@ -133,7 +136,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        ColumnarFieldType type = typeSelector.select(field);
+        ColumnarFieldType type = resolveType(field);
         // Exhaustive, so a column type added later is a compile error here rather than a surprise at runtime.
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(
@@ -150,6 +153,22 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
+     * The column type for {@code field}. The mapping-backed type selector is only reachable when a field is
+     * first written; a doc-values update writes a new generation through the read-only SPI format, which has
+     * no mapping. The type is therefore recorded in the field's attributes on first write and read back here,
+     * so an update (or a merge) resolves it without the selector.
+     */
+    private ColumnarFieldType resolveType(FieldInfo field) {
+        String recorded = field.getAttribute(FIELD_TYPE_ATTRIBUTE);
+        if (recorded != null) {
+            return ColumnarFieldType.valueOf(recorded);
+        }
+        ColumnarFieldType type = typeSelector.select(field);
+        field.putAttribute(FIELD_TYPE_ATTRIBUTE, type.name());
+        return type;
+    }
+
+    /**
      * Merge: re-runs the encoder pipeline over the source segments, reading their values in bulk off
      * disk via {@link ColumnarNumericBinaryDocValues#directValues}. A fresh merge cursor
      * ({@link DocIDMerger} in merged doc order) is built per pass — count, iterator, values (the skip
@@ -157,7 +176,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
-        ColumnarFieldType type = typeSelector.select(field);
+        ColumnarFieldType type = resolveType(field);
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {

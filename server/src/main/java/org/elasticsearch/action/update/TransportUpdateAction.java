@@ -21,6 +21,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -273,7 +275,9 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
                     FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
-                    request.getSplitShardCountSummary()
+                    request.getSplitShardCountSummary(),
+                    // Only realize an in-place doc-values update when every node understands the operation (mixed-version safety).
+                    clusterService.state().getMinTransportVersion().supports(DocValuesUpdateRequest.DOC_VALUES_UPDATE)
                 ),
                 indexService.getMetadata(),
                 mappingLookup
@@ -326,18 +330,25 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                         );
                     }
                     case UPDATED -> {
-                        IndexRequest indexRequest = result.action();
-                        // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                        final BytesReference indexSourceBytes = indexRequest.source();
+                        // The realized write is an IndexRequest for a normal update, or a DocValuesUpdateRequest for an in-place
+                        // doc-values update; both are ReplicatedWriteRequests, and the merged source is taken from the result map so
+                        // neither needs to be an IndexRequest here.
+                        final ReplicatedWriteRequest<?> updatedRequest = result.action();
                         client.bulk(
-                            toSingleItemBulkRequest(indexRequest),
+                            toSingleItemBulkRequest(updatedRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
+                                // For an in-place doc-values update the response already carries the operation's seq_no, primary term and
+                                // bumped version, which are the document's new identity after the update on a sequence-number-aware index
+                                // (last-writer-wins, unassigned/unchanged, otherwise). Report them directly so a follow-up if_seq_no
+                                // matches.
+                                long seqNo = response.getSeqNo();
+                                long primaryTerm = response.getPrimaryTerm();
                                 UpdateResponse update = new UpdateResponse(
                                     response.getShardInfo(),
                                     response.getShardId(),
                                     response.getId(),
-                                    response.getSeqNo(),
-                                    response.getPrimaryTerm(),
+                                    seqNo,
+                                    primaryTerm,
                                     response.getVersion(),
                                     response.getResult()
                                 );
@@ -346,12 +357,12 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                                         request,
                                         request.concreteIndex(),
                                         mappingLookup,
-                                        response.getSeqNo(),
-                                        response.getPrimaryTerm(),
+                                        seqNo,
+                                        primaryTerm,
                                         response.getVersion(),
                                         result.updatedSourceAsMap(),
                                         result.updateSourceContentType(),
-                                        indexSourceBytes
+                                        null
                                     )
                                 );
                                 update.setForcedRefresh(response.forcedRefresh());

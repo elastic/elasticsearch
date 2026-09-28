@@ -1032,6 +1032,7 @@ public class TranslogTests extends ESTestCase {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
+                            case DOC_VALUES_UPDATE -> throw new AssertionError("not in singleOpTypes");
                         };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
@@ -2080,6 +2081,43 @@ public class TranslogTests extends ESTestCase {
         assertEquals(ops, readOperations);
     }
 
+    public void testDocValuesUpdateSerialization() throws IOException {
+        Translog.DocValuesUpdate update = new Translog.DocValuesUpdate(
+            "id-1",
+            randomNonNegativeLong(),
+            primaryTerm.get(),
+            randomNonNegativeLong(),
+            List.of(
+                new Translog.DocValuesUpdate.NumericFieldUpdate("count", randomLong()),
+                new Translog.DocValuesUpdate.BinaryFieldUpdate("status", new BytesRef(randomAlphaOfLengthBetween(1, 16)))
+            )
+        );
+
+        // stream round trip (writeTo / readOperation)
+        BytesStreamOutput out = new BytesStreamOutput();
+        Translog.writeOperations(out, List.of(update));
+        List<Translog.Operation> read = Translog.readOperations(out.bytes().streamInput(), "testDocValuesUpdateSerialization");
+        assertEquals(List.of(update), read);
+        assertThat(read.get(0), instanceOf(Translog.DocValuesUpdate.class));
+
+        // on-disk round trip through the translog writer (exercises the size-prefixed header path)
+        Translog.Location location = translog.add(update);
+        assertEquals(update, translog.readOperation(location));
+    }
+
+    public void testDocValuesUpdateRejectsUnknownFormat() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeByte(Translog.Operation.Type.DOC_VALUES_UPDATE.id());
+        out.writeVInt(Translog.DocValuesUpdate.EXPERIMENTAL_PRE_RELEASE + 1); // unsupported format
+        out.writeLong(1L); // version
+        out.writeLong(1L); // seqNo
+        out.writeLong(primaryTerm.get()); // primaryTerm
+        out.writeBytesRef(Uid.encodeId("id-1"));
+        out.writeCollection(List.<Translog.DocValuesUpdate.FieldUpdate>of());
+        IOException e = expectThrows(IOException.class, () -> Translog.Operation.readOperation(out.bytes().streamInput()));
+        assertThat(e.getMessage(), containsString("unexpected doc values update format"));
+    }
+
     public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
         int extraDocs = randomIntBetween(10, 15);
 
@@ -2454,6 +2492,7 @@ public class TranslogTests extends ESTestCase {
                             1 + randomInt(100000)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
+                        case DOC_VALUES_UPDATE -> throw new AssertionError("doc values update not covered by this test");
                     };
 
                     Translog.Location loc = add(op);

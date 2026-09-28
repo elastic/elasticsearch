@@ -208,11 +208,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             force(request)
         );
         final var mappingLookup = primary.mapperService().mappingLookup();
+        // Only realize updates as in-place doc-values updates when every node understands the operation; otherwise fall back to
+        // read-modify-reindex so a mixed-version cluster never sends an operation an older node cannot deserialize or apply.
+        final boolean inPlaceDocValuesUpdatesSupported = clusterService.state()
+            .getMinTransportVersion()
+            .supports(DocValuesUpdateRequest.DOC_VALUES_UPDATE);
         // Pre-resolution prefetches stored fields; skip it when source is rebuilt from doc values instead
         final PreResolvedUpdates preResolvedUpdates = preResolveBulkUpdates
             && mappingLookup.isSourceSynthetic() == false
             && mappingLookup.isSourceColumnarStored() == false
-                ? PreResolvedUpdates.resolve(request, primary, updateHelper, threadPool::absoluteTimeInMillis, UPDATE_FETCH_SOURCE_CONTEXT)
+                ? PreResolvedUpdates.resolve(
+                    request,
+                    primary,
+                    updateHelper,
+                    threadPool::absoluteTimeInMillis,
+                    UPDATE_FETCH_SOURCE_CONTEXT,
+                    inPlaceDocValuesUpdatesSupported
+                )
                 : PreResolvedUpdates.EMPTY;
         var listener = ActionListener.releaseBefore(
             preResolvedUpdates,
@@ -222,7 +234,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             request,
             primary,
             pressureExpansionTracker,
-            preResolvedUpdates
+            preResolvedUpdates,
+            inPlaceDocValuesUpdatesSupported
         );
         long startBatchTime = System.nanoTime();
         if (shardBatchIndexer.canUseBatchIndexing(request)) {
@@ -501,7 +514,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getPrimary(),
                         nowInMillisSupplier,
                         UPDATE_FETCH_SOURCE_CONTEXT,
-                        context.getBulkShardRequest().splitShardCountSummary()
+                        context.getBulkShardRequest().splitShardCountSummary(),
+                        context.inPlaceDocValuesUpdatesSupported()
                     );
                 }
                 if (updateResult.getResponseResult() != DocWriteResponse.Result.NOOP) {
@@ -534,7 +548,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final long version = context.getRequestToExecute().version();
         final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
         final Engine.Result result;
-        if (isDelete) {
+        if (context.getRequestToExecute() instanceof DocValuesUpdateRequest docValuesUpdate) {
+            result = primary.applyDocValuesUpdateOnPrimary(
+                docValuesUpdate.documentVersion(),
+                docValuesUpdate.id(),
+                docValuesUpdate.updates()
+            );
+            // Record the operation's generated seq_no/term on the request (before it is replicated) so the replica replays at them; the
+            // user-facing response instead reports the document's unchanged seq_no.
+            docValuesUpdate.operationSeqNo(result.getSeqNo(), result.getTerm());
+        } else if (isDelete) {
             final DeleteRequest request = context.getRequestToExecute();
             result = primary.applyDeleteOperationOnPrimary(
                 version,
@@ -722,8 +745,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final DocWriteResponse.Result translatedResult = translate.getResponseResult();
             final UpdateResponse updateResponse;
             if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
-                final IndexRequest updateIndexRequest = translate.action();
+                // The realized action is an IndexRequest for a normal update or upsert, or a DocValuesUpdateRequest for an in-place
+                // doc-values update.
                 final IndexResponse indexResponse = operationResponse.getResponse();
+                // For an in-place doc-values update the IndexResponse already carries the operation's seq_no, primary term and bumped
+                // version, which are the document's new identity after the update on a sequence-number-aware index (on a
+                // sequence-number-disabled index the update is last-writer-wins and these stay unassigned/unchanged). Report them
+                // directly so a follow-up if_seq_no matches the current document.
                 updateResponse = new UpdateResponse(
                     indexResponse.getShardInfo(),
                     indexResponse.getShardId(),
@@ -735,12 +763,27 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
 
                 if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
-                    final BytesReference indexSourceAsBytes = updateIndexRequest.source();
-                    final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-                        indexSourceAsBytes,
-                        true,
-                        updateIndexRequest.getContentType()
-                    );
+                    final Map<String, Object> sourceAsMap;
+                    final XContentType sourceContentType;
+                    final BytesReference sourceAsBytes;
+                    if (translate.action() instanceof DocValuesUpdateRequest) {
+                        // An in-place doc-values update has no IndexRequest source to read back; the merged source is on the translate
+                        // result.
+                        sourceAsMap = translate.updatedSourceAsMap();
+                        sourceContentType = translate.updateSourceContentType();
+                        sourceAsBytes = null;
+                    } else {
+                        // A normal update or upsert realizes as an IndexRequest whose source is the document to return.
+                        final IndexRequest updateIndexRequest = translate.action();
+                        sourceAsBytes = updateIndexRequest.source();
+                        final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                            sourceAsBytes,
+                            true,
+                            updateIndexRequest.getContentType()
+                        );
+                        sourceAsMap = sourceAndContent.v2();
+                        sourceContentType = sourceAndContent.v1();
+                    }
                     updateResponse.setGetResult(
                         UpdateHelper.extractGetResult(
                             updateRequest,
@@ -749,9 +792,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             indexResponse.getSeqNo(),
                             indexResponse.getPrimaryTerm(),
                             indexResponse.getVersion(),
-                            sourceAndContent.v2(),
-                            sourceAndContent.v1(),
-                            indexSourceAsBytes
+                            sourceAsMap,
+                            sourceContentType,
+                            sourceAsBytes
                         )
                     );
                 }
@@ -885,6 +928,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard replica
     ) throws Exception {
         final Engine.Result result;
+        // A doc-values update is realized on the primary and reported with OpType.UPDATE, so it is dispatched by type here rather than
+        // through the op-type switch (which never otherwise sees UPDATE on a replica).
+        if (docWriteRequest instanceof DocValuesUpdateRequest docValuesUpdate) {
+            // Replay at the operation's own seq_no/term (carried on the request), not the response's — the response reports the
+            // document's unchanged seq_no, which differs from the operation's for an in-place update.
+            return replica.applyDocValuesUpdateOnReplica(
+                docValuesUpdate.operationSeqNo(),
+                docValuesUpdate.operationPrimaryTerm(),
+                primaryResponse.getVersion(),
+                docValuesUpdate.id(),
+                docValuesUpdate.updates()
+            );
+        }
         switch (docWriteRequest.opType()) {
             case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;

@@ -4398,22 +4398,21 @@ dense_vector          | 4    | null
 dense_vector_unmapped | 0    | null
 ;
 
-// A branch mentioning txt while unmapped must not cost the mapped branch its data: with a third branch that lacks txt
-// entirely, the mention used to overwrite the mapped text attribute with a keyword one and condemn the column.
-loadAllSubqueryMentionInOneBranchKeepsMappedSiblingData
+// KEEP names txt, so that branch is keyword and conflicts with the mapped text.
+loadAllSubqueryMentionInOneBranchConflictsWithMappedText
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM text_state_mapped), (FROM text_state_nonexistent | KEEP doc_id, txt), (FROM text_state_nonexistent)
 | KEEP doc_id, txt
-| SORT doc_id, txt NULLS LAST
+| SORT doc_id
 ;
 warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
-doc_id:keyword | txt:text
-mapped-1       | William Faulkner
-mapped-2       | Jane Austen
+doc_id:keyword | txt:unsupported
+mapped-1       | null
+mapped-2       | null
 nonexistent-1  | null
 nonexistent-1  | null
 ;

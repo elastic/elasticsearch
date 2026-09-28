@@ -103,6 +103,49 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
 
+    /**
+     * Coordinator keys that do not identify what a cached record holds. Naming a key here is a claim that it
+     * cannot change a single row or value a read produces, so each carries the reason it holds.
+     * <p>
+     * Getting one of these wrong lets two different reads share a record, which is a wrong answer rather
+     * than a slow query — so the list is short and nothing joins it without a reason written beside it.
+     */
+    static final Set<String> COORDINATOR_IDENTITY_INERT_KEYS;
+
+    static {
+        Set<String> inert = new HashSet<>();
+        // Split geometry partitions a file's bytes into ranges to read in parallel. It changes how the work is
+        // divided, never which rows the file has or what they hold.
+        inert.addAll(FileSplitProvider.CONFIG_KEYS);
+        // A deprecated no-op: PartitionConfig.CONFIG_KEYS documents that fromConfig does not read it, and
+        // SchemaCacheKeyTests pins that two configs differing only in it address one entry.
+        inert.add(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        // Bounds how much of a listing schema discovery samples. Nothing cached is derived under it: the
+        // resolver only caches a listing it expanded without a bound.
+        inert.add(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE);
+        // Changes which files a set contains, which the file-set fingerprint already identifies. It cannot
+        // change what any one file holds, and a per-file record is about one file.
+        inert.addAll(ExclusionConfig.CONFIG_KEYS);
+        // Selects between interchangeable readers for one format, which by definition read the same bytes the
+        // same way.
+        inert.add(FormatNameResolver.CONFIG_READER);
+        // The envelope carrying the data source's settings rather than a setting. Its contents reach an
+        // identity through the storage participant, and its credentials through the definition version.
+        inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
+    }
+
+    /**
+     * The identity of the coordinator's contribution to how a cached record was produced: the error policy, the
+     * partitioning, the schema-resolution strategy, the listing order.
+     * <p>
+     * These belong to no reader and no storage provider — the coordinator consumes them itself — so it is the
+     * participant that says what they identify, the same way a reader and a storage configuration do.
+     */
+    static String coordinatorIdentity(Map<String, Object> config) {
+        return Configured.identityOf(config, COORDINATOR_KEYS, COORDINATOR_IDENTITY_INERT_KEYS);
+    }
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);

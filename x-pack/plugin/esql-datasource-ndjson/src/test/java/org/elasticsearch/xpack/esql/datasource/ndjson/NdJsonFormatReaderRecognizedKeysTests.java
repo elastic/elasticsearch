@@ -255,4 +255,43 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             );
         }
     }
+
+    /**
+     * The behavioural form of the pin above, against the value the reader actually vends. A declared key must
+     * move the identity and an inert one must not — which is what a cache addressing a record by this value
+     * depends on, and what a set-membership assertion cannot see: a reader that computed its identity by hand
+     * and forgot a key passes the membership check and fails this one.
+     */
+    public void testTheVendedIdentityMovesWithEveryDeclaredKeyAndNoInertOne() {
+        Map<String, Object> base = Map.of(
+            NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_SIZE,
+            "100",
+            NdJsonFormatReader.CONFIG_SEGMENT_SIZE,
+            "1mb",
+            NdJsonFormatReader.CONFIG_DATETIME_FORMAT,
+            "yyyy-MM-dd"
+        );
+        String baseIdentity = newReader().withConfigTrackingConsumedKeys(base).identity();
+
+        for (String key : NdJsonFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, differentValueFor(key));
+            String identity = newReader().withConfigTrackingConsumedKeys(altered).identity();
+            if (IDENTITY_INERT_KEYS.contains(key)) {
+                assertEquals("inert key [" + key + "] must not move the identity", baseIdentity, identity);
+            } else {
+                assertNotEquals("declared key [" + key + "] must move the identity", baseIdentity, identity);
+            }
+        }
+    }
+
+    private static String differentValueFor(String key) {
+        if (NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_SIZE.equals(key)) {
+            return "200";
+        }
+        if (NdJsonFormatReader.CONFIG_SEGMENT_SIZE.equals(key)) {
+            return "2mb";
+        }
+        return "dd-MM-yyyy";
+    }
 }

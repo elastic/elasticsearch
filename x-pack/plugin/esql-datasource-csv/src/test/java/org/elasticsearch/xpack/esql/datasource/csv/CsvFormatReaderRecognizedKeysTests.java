@@ -203,7 +203,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
         FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
         assertNotNull("csv FormatSpec must have a configValidator", validator);
-        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY);
 
         // Good values — both must accept without throwing.
         for (Map.Entry<String, Object> good : goodCsvValues()) {
@@ -381,5 +381,51 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
                 CsvFormatReader.RECOGNIZED_KEYS.contains(key)
             );
         }
+    }
+
+    /**
+     * The behavioural form of the pin above, against the value the reader actually vends. CSV declares nothing
+     * inert, so every recognised key must move the identity: a set-membership assertion cannot see a reader that
+     * derived its identity by hand and dropped one.
+     */
+    public void testTheVendedIdentityMovesWithEveryRecognizedKey() {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        Map<String, Object> base = new HashMap<>();
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            base.put(key, sampleValueFor(key));
+        }
+        String baseIdentity = reader.withConfigTrackingConsumedKeys(base).identity();
+
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, otherSampleValueFor(key));
+            assertNotEquals(
+                "recognised key [" + key + "] must move the vended identity, or two reads that differ share a record",
+                baseIdentity,
+                reader.withConfigTrackingConsumedKeys(altered).identity()
+            );
+        }
+    }
+
+    /** A second valid value per key, different from {@link #sampleValueFor}, so each key can be varied alone. */
+    private static Object otherSampleValueFor(String key) {
+        return switch (key) {
+            case "delimiter" -> ";";
+            case "mode" -> "quoted";
+            case "quote" -> "'";
+            case "escape" -> "/";
+            case "comment" -> "%";
+            case "null_value" -> "NULL";
+            case "encoding" -> "ISO-8859-1";
+            case "datetime_format" -> "dd-MM-yyyy";
+            case "max_field_size" -> 2048;
+            case "multi_value_syntax" -> "none";
+            case "header_row" -> true;
+            case "column_prefix" -> "c_";
+            case "trim_spaces" -> false;
+            case "schema_sample_size" -> 20;
+            case "skip_rows" -> 3;
+            default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
+        };
     }
 }

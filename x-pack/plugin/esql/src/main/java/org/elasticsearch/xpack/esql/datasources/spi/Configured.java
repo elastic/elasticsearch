@@ -76,8 +76,7 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
         if (config == null || config.isEmpty() || recognized == null || recognized.isEmpty()) {
             return "";
         }
-        Set<String> present = config.keySet().stream().filter(recognized::contains).collect(Collectors.toUnmodifiableSet());
-        return identityOf(config, present, Set.of());
+        return identityOf(config, recognized, Set.of());
     }
 
     /**
@@ -96,7 +95,9 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
         }
         Map<String, String> sorted = new TreeMap<>();
         for (String name : names) {
-            if (excluded != null && excluded.contains(name)) {
+            // Absent rather than null: a setting the config does not carry contributes nothing, so two configs
+            // differing only in a setting neither sets have one identity.
+            if (config.containsKey(name) == false || (excluded != null && excluded.contains(name))) {
                 continue;
             }
             Object value = config.get(name);

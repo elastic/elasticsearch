@@ -93,6 +93,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE, CONFIG_DATETIME_FORMAT);
 
+    /**
+     * Consumed, but changes nothing a read produces: the segment size divides a file's bytes into parse units
+     * and moves no row and no value. Two reads differing only in it measured the same thing, so they share a
+     * record rather than each paying a scan.
+     */
+    static final Set<String> IDENTITY_INERT_KEYS = Set.of(CONFIG_SEGMENT_SIZE);
+
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
@@ -212,7 +219,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
 
         // Pin the node-stable config identity from THIS query's WITH config (see CsvFormatReader).
-        String canon = Configured.identityOf(config, RECOGNIZED_KEYS);
+        String canon = Configured.identityOf(config, RECOGNIZED_KEYS, IDENTITY_INERT_KEYS);
 
         FormatReader result = new NdJsonFormatReader(
             settings,
@@ -225,7 +232,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             readConfig
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS, IDENTITY_INERT_KEYS);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)

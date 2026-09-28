@@ -1059,7 +1059,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 .contains(
                     "FORK resolved to "
                         + (limit + 1)
-                        + " branches, exceeding the limit of "
+                        + " branches in total, exceeding the limit of "
                         + limit
                         + " set by the ["
                         + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()
@@ -1077,7 +1077,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertTrue(
                 e.getMessage()
                     .contains(
-                        "FORK resolved to 3 branches, exceeding the limit of 2 set by the ["
+                        "FORK resolved to 3 branches in total, exceeding the limit of 2 set by the ["
                             + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()
                             + "] cluster setting"
                     )

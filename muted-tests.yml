@@ -188,6 +188,19 @@ tests:
 - class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
   method: testAutoFollowing {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
   issue: https://github.com/elastic/elasticsearch/issues/160284
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/160407
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testStopLookback_forceTrue_closeJobFalse
+  issue: https://github.com/elastic/elasticsearch/issues/146955
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  issue: https://github.com/elastic/elasticsearch/issues/160421
 
 # Examples:
 #

@@ -775,11 +775,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        // The _test connectivity probe is additionally gated by its own FeatureFlag (snapshot-on, release-off).
         if (Federation.isAvailable(restHandlersServices.settings())) {
             handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
+            if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
+            }
             handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());

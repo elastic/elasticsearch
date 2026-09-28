@@ -20,12 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
@@ -135,6 +133,36 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         }
     }
 
+    /**
+     * A function over its argument's value ({@code rate}, {@code abs}, ...): the child translates under the same
+     * requirement and the function is an expression over its value; the labels pass through unchanged.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // IN: required, unchanged
+        TranslationResult child = translation.translate(child(), translation.required());
+        if (child.kind().constant) {
+            return child;
+        }
+        Expression function = buildEsqlFunction(child.value(), translation.promqlContext(child, window(translation.cmd())));
+        // OUT: child's labels, the function as the value
+        return translation.eval(child, function);
+    }
+
+    /** The lookback window of a range-vector argument; none for an instant vector. */
+    private Expression window(PromqlCommand cmd) {
+        if (child() instanceof RangeSelector rangeSelector) {
+            return isImplicitRangePlaceholder(rangeSelector.range()) ? cmd.resolveImplicitRangeWindow() : rangeSelector.range();
+        }
+        return AggregateFunction.NO_WINDOW;
+    }
+
+    private static boolean isImplicitRangePlaceholder(Expression range) {
+        return range.foldable()
+            && range.fold(FoldContext.small()) instanceof Duration duration
+            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+    }
+
     public abstract FunctionType functionType();
 
     /**
@@ -150,26 +178,5 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     @Override
     public final PromqlDataType returnType() {
         return functionType().outputType;
-    }
-
-    /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        IntermediateResult child = context.translate(child());
-        if (child.kind().constant) {
-            return child;
-        }
-        Expression window = AggregateFunction.NO_WINDOW;
-        if (child() instanceof RangeSelector rangeSelector) {
-            window = isImplicitRangePlaceholder(rangeSelector.range()) ? context.cmd().resolveImplicitRangeWindow() : rangeSelector.range();
-        }
-        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
-        return context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
-    }
-
-    private static boolean isImplicitRangePlaceholder(Expression range) {
-        return range.foldable()
-            && range.fold(FoldContext.small()) instanceof Duration duration
-            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
     }
 }

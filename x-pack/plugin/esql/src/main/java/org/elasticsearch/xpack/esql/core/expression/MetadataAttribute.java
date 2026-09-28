@@ -200,8 +200,12 @@ public final class MetadataAttribute extends TypedAttribute {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
+    /**
+     * Whether {@code name} is the {@code _timeseries} packing or one of its exclusion variants ({@code _timeseries$a$b}, see
+     * {@link TimeSeriesMetadataAttribute#nameFor}).
+     */
     public static boolean isTimeSeriesAttributeName(String name) {
-        return TIMESERIES.equals(name);
+        return TIMESERIES.equals(name) || name.startsWith(TIMESERIES + SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR);
     }
 
     public static boolean isTimeSeriesAttribute(Expression a) {

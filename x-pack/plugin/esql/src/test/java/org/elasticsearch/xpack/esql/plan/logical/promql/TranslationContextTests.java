@@ -7,90 +7,160 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonMerge;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonRemove;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.open;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
 
+/**
+ * Exercises lowering directly, including combinations still restricted by the public PromQL verifier.
+ * The input is a real plan with materialized label attributes; no scan or evaluator mocks are needed.
+ */
 public class TranslationContextTests extends ESTestCase {
+    public void testWithoutOverWithoutReadsThePreviousResult() {
+        var input = input(attr("current_record"));
+        TranslationContext context = context(input, TransportVersion.current());
+        var first = context.bind(input, sub(input.shape(), of("instance")), Source.EMPTY);
+        JsonRemove firstEdit = (JsonRemove) ((Eval) first.plan()).fields().getFirst().child();
+        assertEquals(input.packedLabels(), firstEdit.children().getFirst());
+        assertNull(first.label("instance"));
+        assertSame(input.label("region"), first.label("region"));
 
-    public void testUnionMergesLabelsAndSkipSets() {
-        Header header = finite(List.of("cluster")).union(TranslationContext.open(Set.of("pod")))
-            .union(TranslationContext.open(Set.of("pod")))
-            .union(finite(List.of("cluster", "region")));
-
-        assertThat(header.labels(), contains("cluster", "region"));
-        assertThat(header.skips(), contains(Set.of("pod")));
-        assertThat(header.union(Header.EMPTY), equalTo(header));
+        var second = context.bind(first, sub(first.shape(), of("region")), Source.EMPTY);
+        JsonRemove secondEdit = (JsonRemove) ((Eval) second.plan()).fields().getFirst().child();
+        assertEquals(first.packedLabels(), secondEdit.children().getFirst());
+        assertNotEquals(input.packedLabels(), second.packedLabels());
+        assertTrue(second.labels().isEmpty());
+        assertEquals(1, second.attributes().size());
     }
 
-    public void testSubtractDropsLabelsAndWidensSkipSets() {
-        Header above = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
-
-        Header below = above.subtract(List.of("pod"));
-        assertThat(below.labels(), contains("cluster"));
-        assertThat(below.skips(), contains(Set.of("region", "pod")));
-
-        // the regroup's own column composes as a second, finer skip set
-        Header child = below.union(TranslationContext.open(Set.of("pod")));
-        assertThat(child.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
-        assertThat(child.finestSkip(), equalTo(Set.of("pod")));
+    public void testSourceProjectionReplacesRatherThanAddsAVariant() {
+        var input = input(new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of()));
+        var context = context(input, TransportVersion.current());
+        var first = context.bind(input, sub(input.shape(), of("instance")), Source.EMPTY);
+        var second = context.bind(first, sub(first.shape(), of("region")), Source.EMPTY);
+        assertEquals(Set.of("instance", "region"), ((TimeSeriesMetadataAttribute) second.packedLabels()).excludedFields());
+        assertEquals(1, second.plan().output().stream().filter(TimeSeriesMetadataAttribute.class::isInstance).count());
+        assertFalse(second.plan().outputSet().contains(input.packedLabels()));
+        assertFalse(second.plan().outputSet().contains(first.packedLabels()));
+        assertFalse(second.plan() instanceof Eval);
     }
 
-    public void testIntersectIsTheUpwardCounterpartOfSubtract() {
-        Header required = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
-        Header child = required.subtract(List.of("pod")).union(TranslationContext.open(Set.of("pod")));
-
-        Header lifted = child.intersect(List.of("pod"));
-
-        // every column the parent required, apart from the dropped label, comes back; so does the regroup's own
-        // packing, which already excludes the dropped label and fixes the grain of the result
-        assertThat(lifted.labels(), contains("cluster"));
-        assertThat(lifted.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
-        // the regroup's own full label space does not survive dropping a label it still carries
-        assertFalse(open().intersect(List.of("pod")).isOpen());
-        // without () keeps everything
-        assertThat(child.intersect(List.of()), equalTo(child));
+    public void testMissingNamedBindingIsAbsentEvenWithAPackedRecord() {
+        var input = input(attr("current_record"));
+        var result = context(input, TransportVersion.current()).bind(input, of("missing_projection"), Source.EMPTY);
+        assertEquals(new Literal(Source.EMPTY, null, DataType.KEYWORD), ((Eval) result.plan()).fields().getFirst().child());
+        assertNull(result.packedLabels());
+        assertNotNull(result.label("missing_projection"));
     }
 
-    public void testProjectKeepsSkipSets() {
-        Header header = finite(List.of("cluster", "pod", "region")).union(TranslationContext.open(Set.of("pod")));
-
-        Header retained = header.project(List.of("cluster", "missing"));
-
-        assertThat(retained.labels(), contains("cluster"));
-        assertThat(retained.skips(), contains(Set.of("pod")));
+    public void testDroppedNamedBindingCannotBeReadBackFromTheRecord() {
+        var input = input(attr("current_record"));
+        var context = context(input, TransportVersion.current());
+        var dropped = context.bind(input, sub(input.shape(), of("region")), Source.EMPTY);
+        var result = context.bind(dropped, of("region"), Source.EMPTY);
+        assertEquals(new Literal(Source.EMPTY, null, DataType.KEYWORD), ((Eval) result.plan()).fields().getFirst().child());
+        assertNotEquals(input.label("region"), result.label("region"));
     }
 
-    public void testPackedNameDerivesFromTheSkipSet() {
-        assertThat(TranslationContext.mapOpen(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
-        assertThat(TranslationContext.mapOpen(Set.of("region", "pod")), equalTo(MetadataAttribute.TIMESERIES + "$pod$region"));
-        assertThat(TranslationContext.mapOpen(Set.of("pod", "region")), equalTo(TranslationContext.mapOpen(Set.of("region", "pod"))));
+    public void testRelabelUpdatesBothBindings() {
+        var input = input(attr("current_record"));
+        var destination = new Alias(Source.EMPTY, "instance", Literal.keyword(Source.EMPTY, "new"));
+        var result = context(input, TransportVersion.current()).replaceLabel(input, "instance", destination);
+        assertEquals(destination.toAttribute(), result.label("instance"));
+        assertNotEquals(input.packedLabels(), result.packedLabels());
+        Eval record = result.plan().collect(Eval.class).getFirst();
+        Case choice = (Case) record.fields().getFirst().child();
+        assertTrue(choice.anyMatch(e -> e instanceof JsonRemove));
+        assertTrue(choice.anyMatch(e -> e instanceof JsonMerge));
+        assertTrue(choice.references().contains(input.packedLabels()));
     }
 
-    public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
-        Attribute bare = attr("cluster");
-        Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
-        Attribute packed = attr(TranslationContext.mapOpen(Set.of("pod")));
+    public void testNamedOnlyProjectionNeedsNoJsonEdits() {
+        var input = input(null);
+        var result = context(input, TransportVersion.current()).bind(input, of("region"), Source.EMPTY);
+        assertSame(input.plan(), result.plan());
+        assertSame(input.label("region"), result.label("region"));
+        assertNull(result.packedLabels());
+    }
 
-        assertThat(TranslationContext.find(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
-        assertThat(TranslationContext.find(List.of(bare), "cluster"), sameInstance(bare));
-        assertThat(TranslationContext.find(List.of(bare, packed), TranslationContext.mapOpen(Set.of("pod"))), sameInstance(packed));
-        assertNull(TranslationContext.find(List.of(bare), "pod"));
-        assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
+    public void testComputedRecordCanBeEditedOnCoordinatorWithOlderDataNodes() {
+        var input = input(attr("current_record"));
+        var context = context(input, TransportVersionUtils.getPreviousVersion(FieldAttribute.ESQL_PROMQL_LABEL_RECORD));
+        var result = context.bind(input, sub(input.shape(), of("region")), Source.EMPTY);
+        assertTrue(((Eval) result.plan()).fields().getFirst().child() instanceof JsonRemove);
+    }
+
+    public void testMissingBindingDoesNotRetainTheUnprojectedSourceRecord() {
+        var input = input(new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of()));
+        var selected = TranslationConstraint.union(sub(input.shape(), of("instance")), of("new_projection"));
+        var result = context(input, TransportVersion.current()).bind(input, selected, Source.EMPTY);
+        assertEquals(new Literal(Source.EMPTY, null, DataType.KEYWORD), ((Eval) result.plan()).fields().getFirst().child());
+        assertFalse(result.plan().outputSet().contains(input.packedLabels()));
+    }
+
+    public void testDottedDerivedLabelUsesItsNamedBinding() {
+        var input = input(attr("current_record"));
+        var context = context(input, TransportVersion.current());
+        var destination = new Alias(Source.EMPTY, "service.name", Literal.keyword(Source.EMPTY, "derived"));
+        var derived = context.replaceLabel(input, "service.name", destination);
+        var result = context.bind(derived, of("service.name"), Source.EMPTY);
+        assertSame(derived.plan(), result.plan());
+        assertEquals(destination.toAttribute(), result.label("service.name"));
+    }
+
+    private static TranslationResult input(Attribute record) {
+        Attribute region = attr("region");
+        Attribute instance = attr("instance");
+        var columns = new java.util.ArrayList<>(List.of(region, instance));
+        if (record != null) columns.add(record);
+        var plan = new LocalRelation(Source.EMPTY, columns, EmptyLocalSupplier.EMPTY);
+        return new TranslationResult(
+            plan,
+            Map.of("region", region, "instance", instance),
+            record,
+            Literal.NULL,
+            attr("step"),
+            null,
+            TranslationResult.Kind.AFTER_INITIAL_AGGREGATE
+        );
+    }
+
+    private static TranslationContext context(TranslationResult input, TransportVersion version) {
+        var cmd = new PromqlCommand(
+            Source.EMPTY,
+            input.plan(),
+            input.plan(),
+            Literal.NULL,
+            Literal.NULL,
+            Literal.NULL,
+            Literal.NULL,
+            Literal.NULL,
+            "value",
+            input.step()
+        );
+        return new TranslationContext(cmd, EsqlTestUtils.analyzer().minimumTransportVersion(version).buildContext());
     }
 
     private static Attribute attr(String name) {

@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
@@ -28,6 +26,18 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
 
     public ScalarConversionFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);
+    }
+
+    /** {@code scalar(v)}: collapse to one value per step. The result has no labels, so the child exposes none. */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // IN: nothing - one value per step
+        TranslationResult child = translation.translate(child(), TranslationConstraint.of());
+        if (child.value().foldable()) {
+            return TranslationResult.scalar(child.plan(), new ToDouble(source(), child.value()), child.step(), child.pendingFilter());
+        }
+        // OUT: nothing
+        return translation.aggregate(child, TranslationConstraint.of(), new Scalar(source(), child.value()));
     }
 
     @Override
@@ -53,20 +63,5 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         return List.of();
-    }
-
-    /** scalar(): collapse to one value per step, e.g. scalar(sum by (cluster) (metric)). */
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        // The result has no labels, so the child's label set is irrelevant: it exposes none.
-        IntermediateResult child = context.withRequired(Header.EMPTY).translate(child());
-        if (child.value().foldable()) {
-            Expression value = new ToDouble(source(), child.value());
-            return new IntermediateResult(child.plan(), Header.EMPTY, value, child.step(), child.pendingFilter());
-        }
-        var scalarExpr = new Scalar(source(), child.value());
-        return child.kind().afterInitialAggregation
-            ? context.regroup(child, Header.EMPTY, false, scalarExpr)
-            : context.collapse(child, Header.EMPTY, scalarExpr);
     }
 }

@@ -80,6 +80,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName(
         "esql_timeseries_metadata_attribute"
     );
+    public static final TransportVersion ESQL_PROMQL_LABEL_RECORD = TransportVersion.fromName("esql_promql_label_record");
 
     private final String parentName;
     private final EsField field;
@@ -182,7 +183,11 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
-            ((PlanStreamOutput) out).writeCachedString(name());
+            // A packing excluding fields is named `_timeseries$a$b`; a reader without ESQL_PROMQL_LABEL_RECORD only knows the
+            // bare `_timeseries` as the marker that the extra metadata below follows, so it must see that name.
+            boolean packingName = MetadataAttribute.isTimeSeriesAttributeName(name())
+                && out.getTransportVersion().supports(ESQL_PROMQL_LABEL_RECORD) == false;
+            ((PlanStreamOutput) out).writeCachedString(packingName ? MetadataAttribute.TIMESERIES : name());
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }

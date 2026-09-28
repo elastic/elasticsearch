@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,16 +25,13 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 
 /**
  * Dedicated logical node for the PromQL label-manipulation functions {@code label_replace} and {@code label_join}.
@@ -43,7 +39,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContex
  * Both operate purely on a series' labels/identity - never on its sample values - deriving a destination label from one
  * or more source labels and returning an instant vector with the same cardinality as the input. Unlike the other PromQL
  * function families, these are not lowered through the generic function builder: the derivation is wired directly during
- * translation (see {@code TranslatePromqlToEsqlPlan}). The {@code parameters()} carried by this node are the
+ * translation (see {@link #translate}). The {@code parameters()} carried by this node are the
  * keyword-literal arguments after the child instant vector:
  * <ul>
  *     <li>{@code label_replace}: {@code [dst_label, replacement, src_label, regex]}</li>
@@ -139,26 +135,12 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         return child().output();
     }
 
-    @Override
-    public FunctionType functionType() {
-        return FunctionType.METADATA_MANIPULATION;
-    }
-
-    @Override
-    public boolean isIdentityTransparent() {
-        // A relabel passes series identity through unchanged, so a nested relabel is consumed by the same enclosing
-        // consumer as this one.
-        return true;
-    }
-
     /**
-     * Translates a {@code label_replace}/{@code label_join} into a derived label column.
-     * <p>
-     * The child is first collapsed to one row per series (forcing the initial aggregate when it has not happened yet), so
-     * the source labels are materialized as columns to derive from. The destination value is then computed with an
-     * {@link Eval} under the destination's stable id and declared as a label of the result, so the enclosing
-     * {@code by(...)} aggregation groups on it exactly as it would on a stored label. The derived label shadows a stored
-     * label of the same name: any such stored column is projected away so a lookup by name binds to the derived one.
+     * A derived label column. The child is first collapsed to one row per series (forcing the initial aggregate when it
+     * has not happened yet), so the source labels are materialized as columns to derive from. The destination value is
+     * then computed with an {@link Eval} under the destination's stable id and declared as a label of the result, so the
+     * enclosing {@code by(...)} aggregation groups on it exactly as it would on a stored label. The derived label shadows
+     * a stored label of the same name: the old column is projected away and its binding is replaced with the derived one.
      * <p>
      * Because ES|QL treats {@code null} and {@code ""} as distinct grouping keys while Prometheus treats an absent label
      * and an empty label value alike, every "label absent" outcome is normalized to {@code ""}: an absent source is
@@ -166,47 +148,24 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * {@code ""}. All such series therefore fall into the same group, matching Prometheus.
      */
     @Override
-    public IntermediateResult translate(TranslationContext context) {
-        // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires.
-        Header childRequired = context.required().union(finite(sourceLabels()));
-        IntermediateResult child = context.withRequired(childRequired).translate(child());
+    public TranslationResult translate(TranslationContext translation) {
+        // IN: required + the labels the derivation reads
+        TranslationResult child = translation.translate(child(), union(translation.required(), of(sourceLabels())));
         if (child.kind().constant) {
             return child;
         }
-
         // Collapse to one row per series so the source labels exist as columns; this mirrors the seam in
-        // translateIntermediate that forces the initial per-series aggregate for a not-yet-aggregated subtree.
-        IntermediateResult aggregated = child.kind().afterInitialAggregation
-            ? child
-            : context.collapse(child, child.header(), child.value());
+        // TranslationContext#translateIntermediate that forces the initial per-series aggregate for a not-yet-aggregated subtree.
+        TranslationResult table = child.kind().afterInitialAggregation ? child : translation.aggregate(child, child.value());
 
-        Source source = source();
-        Attribute destination = destination();
+        Configuration configuration = translation.configuration();
         Expression destinationValue = definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
-            ? labelReplaceValue(context, source, aggregated)
-            : labelJoinValue(context, source, aggregated);
+            ? labelReplaceValue(table, configuration)
+            : labelJoinValue(table, configuration);
 
-        String name = mapFinite(destination);
-        Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
-        LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(derived));
-        var unshadowed = new ArrayList<NamedExpression>();
-        for (Attribute attribute : plan.output()) {
-            if (attribute.id().equals(derived.id()) || mapFinite(attribute).equals(name) == false) {
-                unshadowed.add(attribute);
-            }
-        }
-        if (unshadowed.size() < plan.output().size()) {
-            plan = new Project(context.cmd().source(), plan, unshadowed);
-        }
-        Header header = aggregated.header().union(finite(List.of(name)));
-        return new IntermediateResult(
-            plan,
-            header,
-            aggregated.value(),
-            aggregated.step(),
-            aggregated.pendingFilter(),
-            Kind.AFTER_INITIAL_AGGREGATE
-        );
+        String name = PromqlLabels.labelName(destination);
+        Alias derived = new Alias(source(), destination.name(), destinationValue, destination.id());
+        return translation.replaceLabel(table, name, derived);
     }
 
     /**
@@ -218,15 +177,15 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * destination overwrites one, or {@code ""} (the "absent" grouping key) when the destination is a new label. A match
      * with an empty expansion (the delete sentinel) resolves to {@code ""}, joining that same "absent" group.
      */
-    private Expression labelReplaceValue(TranslationContext context, Source source, IntermediateResult table) {
+    private Expression labelReplaceValue(TranslationResult table, Configuration configuration) {
         List<Expression> params = parameters();
         String srcLabel = literalString(params.get(2));
         Expression regex = params.get(3);
         Expression replacement = params.get(1);
-        Expression src = sourceLabelValue(context, source, table, srcLabel);
-        Expression extracted = new RegexExpand(source, src, regex, replacement);
-        Expression existingDst = sourceLabelValue(context, source, table, mapFinite(destination()));
-        return new Coalesce(source, extracted, List.of(existingDst));
+        Expression src = sourceLabelValue(table, srcLabel, configuration);
+        Expression extracted = new RegexExpand(source(), src, regex, replacement);
+        Expression existingDst = sourceLabelValue(table, PromqlLabels.labelName(destination), configuration);
+        return new Coalesce(source(), extracted, List.of(existingDst));
     }
 
     /**
@@ -236,37 +195,48 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * separator is inserted between every value, so even all-empty sources yield the separator run (for example a
      * {@code "-"} separator over two absent labels produces {@code "-"}), matching Prometheus.
      */
-    private Expression labelJoinValue(TranslationContext context, Source source, IntermediateResult table) {
+    private Expression labelJoinValue(TranslationResult table, Configuration configuration) {
         List<Expression> params = parameters();
-        Literal separator = Literal.keyword(source, literalString(params.get(1)));
+        Literal separator = Literal.keyword(source(), literalString(params.get(1)));
 
         List<Expression> parts = new ArrayList<>(2 * params.size() + 1);
         for (int i = 2; i < params.size(); i++) {
             if (parts.isEmpty() == false) {
                 parts.add(separator);
             }
-            parts.add(sourceLabelValue(context, source, table, literalString(params.get(i))));
+            parts.add(sourceLabelValue(table, literalString(params.get(i)), configuration));
         }
 
         return switch (parts.size()) {
-            case 0 -> Literal.keyword(source, "");
+            case 0 -> Literal.keyword(source(), "");
             case 1 -> parts.getFirst();
-            default -> new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
+            default -> new Concat(source(), parts.getFirst(), parts.subList(1, parts.size()));
         };
     }
 
     /**
      * The value of a source label as a non-null string: {@code COALESCE(ToString(label), "")}, or {@code ""} if the
-     * table does not carry the label. The lookup reads the table's plan, so it sees stored labels only: a destination an
-     * enclosing {@code by(dst)} requires is a name in the header, never a column here, and cannot resolve to itself.
+     * table does not carry the label. The lookup reads the table's schema, so it sees stored labels only: a destination an
+     * enclosing {@code by(dst)} requires is a name in the requirement, never a column here, and cannot resolve to itself.
      */
-    private Expression sourceLabelValue(TranslationContext context, Source source, IntermediateResult table, String labelName) {
+    private Expression sourceLabelValue(TranslationResult table, String labelName, Configuration configuration) {
         Attribute label = table.label(labelName);
         if (label == null) {
-            return Literal.keyword(source, "");
+            return Literal.keyword(source(), "");
         }
-        Expression stringValue = DataType.isString(label.dataType()) ? label : new ToString(source, label, context.configuration());
-        return new Coalesce(source, stringValue, List.of(Literal.keyword(source, "")));
+        Expression stringValue = DataType.isString(label.dataType()) ? label : new ToString(source(), label, configuration);
+        return new Coalesce(source(), stringValue, List.of(Literal.keyword(source(), "")));
     }
 
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.METADATA_MANIPULATION;
+    }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // A relabel passes series identity through unchanged, so a nested relabel is consumed by the same enclosing
+        // consumer as this one.
+        return true;
+    }
 }

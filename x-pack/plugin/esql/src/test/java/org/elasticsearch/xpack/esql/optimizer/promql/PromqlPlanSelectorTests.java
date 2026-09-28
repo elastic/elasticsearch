@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonRemove;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -32,11 +36,18 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -103,6 +114,31 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
         assertThat(collectHistogramQuantiles(plan), hasSize(1));
+    }
+
+    /** Source-backed projection uses the existing loader and remains serializable to older data nodes. */
+    public void testHistogramSourceProjectionSupportsOlderDataNodes() {
+        var plan = planPromqlClassicHistogram(
+            "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m])))"
+        );
+        var version = TransportVersionUtils.getPreviousVersion(FieldAttribute.ESQL_PROMQL_LABEL_RECORD);
+        var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, version)).optimize(
+            new Mapper().map(new Versioned<>(plan, version))
+        );
+        var edits = new ArrayList<Expression>();
+        physical.forEachExpressionDown(JsonRemove.class, edits::add);
+        assertThat(physical.toString(), edits, empty());
+        var dataNodePlan = physical.collect(ExchangeExec.class).getFirst().child();
+        var fragmentEdits = new ArrayList<Expression>();
+        dataNodePlan.forEachDown(FragmentExec.class, f -> f.fragment().forEachExpressionDown(JsonRemove.class, fragmentEdits::add));
+        assertThat(physical.toString(), fragmentEdits, empty());
+        SerializationTestUtils.serializeDeserialize(dataNodePlan, (out, p) -> {
+            out.setTransportVersion(version);
+            out.writeNamedWriteable(p);
+        }, in -> {
+            in.setTransportVersion(version);
+            return in.readNamedWriteable(PhysicalPlan.class);
+        });
     }
 
     public void testRangeSelector() {

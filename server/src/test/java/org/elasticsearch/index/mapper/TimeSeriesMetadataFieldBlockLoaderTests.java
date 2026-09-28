@@ -332,6 +332,36 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * Two {@code _timeseries} columns with different exclusions can be read from the same document (PromQL {@code topk}
+     * under a {@code without}); the values reader then loads {@code _source} once over the union of their paths. Each
+     * loader must still emit exactly its own dimensions, not whatever the shared source carries.
+     */
+    public void testReadFiltersASourceLoadedForWiderPaths() throws IOException {
+        BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            sourceToParse(json, XContentType.JSON),
+            Set.of("host", "region"),
+            Set.of("host", "env", "region")
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
+    }
+
+    /** A loader that excludes every dimension emits the empty object, never the rest of the document. */
+    public void testReadWithEveryDimensionExcludedEmitsEmptyObject() throws IOException {
+        BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            sourceToParse(json, XContentType.JSON),
+            Set.of("host", "env", "region"),
+            Set.of("host", "env", "region")
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of()));
+    }
+
+    /**
      * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
      * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
      * loader must resolve the alias to the concrete dimension path {@code "attributes.cpu"} (via
@@ -430,6 +460,21 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
         throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, withoutFields, null);
+    }
+
+    /**
+     * Reads the {@code _timeseries} value of one document. {@code loadedSourcePaths} overrides the source paths the loader asks
+     * for: the values reader loads {@code _source} once for every field it reads alongside, over the union of their paths, so
+     * a loader may be handed more of the document than it asked for.
+     */
+    private BytesRef readTimeSeriesValue(
+        Settings settings,
+        String mapping,
+        SourceToParse sourceToParse,
+        Set<String> withoutFields,
+        Set<String> loadedSourcePaths
+    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
@@ -445,6 +490,14 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
+                if (loadedSourcePaths != null) {
+                    loaderSpec = loaderSpec.merge(
+                        StoredFieldsSpec.withSourcePaths(
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+                            loadedSourcePaths
+                        )
+                    );
+                }
                 SourceFilter filter = loaderSpec.requiresSource()
                     ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;

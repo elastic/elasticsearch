@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -81,6 +82,35 @@ public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
         Map<String, Object> metric = response.evaluate("data.result.0.metric");
         assertThat(metric.get("integration"), equalTo("api"));
         assertThat(metric, not(hasKey("le")));
+    }
+
+    /** A source projection must remove le before grouping, even when another column reads it from the same source. */
+    public void testHistogramQuantileSourceProjectionKeepsBucketsTogether() throws Exception {
+        ingestClassicHistogram();
+        Request request = prometheusReadRequest(
+            "/_prometheus/" + DEFAULT_DATA_STREAM + "/api/v1/query_range",
+            new BasicNameValuePair("query", "histogram_quantile(0.5, rate(" + METRIC + "[5m]))"),
+            new BasicNameValuePair("start", "2026-01-01T00:01:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:04:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(response.evaluate("status"), equalTo("success"));
+        assertThat(response.evaluate("data.resultType"), equalTo("matrix"));
+        assertThat(response.evaluate("data.result"), hasSize(1));
+        // This refactor preserves the existing name behavior; name-dropping is a separate bug-family change.
+        assertThat(
+            response.evaluate("data.result.0.metric"),
+            equalTo(Map.of("__name__", METRIC, "job", "test_job", "instance", "localhost:9090"))
+        );
+        List<List<Object>> values = response.evaluate("data.result.0.values");
+        assertThat(values, hasSize(4));
+        for (int step = 1; step <= 4; step++) {
+            List<Object> point = values.get(step - 1);
+            assertThat(point, hasSize(2));
+            assertThat(((Number) point.get(0)).doubleValue(), equalTo(BASE_TIMESTAMP / 1000.0 + step * 60));
+            assertThat(Double.parseDouble(point.get(1).toString()), closeTo(1.0, 1e-10));
+        }
     }
 
     public void testHistogramQuantileWithoutDataReturnsEmpty() throws Exception {

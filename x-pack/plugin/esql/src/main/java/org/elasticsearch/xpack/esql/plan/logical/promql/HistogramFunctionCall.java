@@ -21,14 +21,14 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 
 /**
  * Base class for PromQL histogram functions that evaluate classic histogram buckets grouped by their {@code le} label.
@@ -59,6 +59,47 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         return output;
     }
 
+    /**
+     * Classic histogram functions collapse the {@code le} bucket dimension like a {@code without (le)} would, and read the
+     * bucket bound off the {@code le} column itself, so the child must also expose it by name.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        TranslationConstraint required = translation.required();
+        List<String> le = List.of(LE_LABEL);
+        // IN: any + required - le, plus le itself as a column to read the bound from
+        TranslationConstraint below = union(sub(union(any(), required), of(le)), of(le));
+        TranslationResult result = translation.translate(child(), below);
+        if (result.kind().constant) {
+            return result;
+        }
+
+        // native histograms - distinguishable only at this point in planning - are regular value transformations
+        if (result.value().resolved() && result.value().dataType().isHistogram()) {
+            return new ValueTransformationFunction(source(), child(), definition(), parameters()).translate(translation);
+        }
+
+        // Classic counter-backed histograms need the special treatment below.
+        Attribute upperBound = result.label(LE_LABEL);
+        if (upperBound == null) {
+            // like prometheus, return warning and drop series w/o `le`
+            HeaderWarning.addWarning(functionName() + ": input vector has no le label; no buckets to evaluate");
+            var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
+            var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
+            return translation.aggregate(result.with(skipAllFilter, result.value()), nullGrouping);
+        }
+        if (result.kind().afterInitialAggregation == false) {
+            result = translation.aggregate(result, result.value());
+            upperBound = result.label(LE_LABEL);
+            assert upperBound != null : "[INVARIANT]: [" + LE_LABEL + "] must be delivered by the child";
+        }
+
+        // OUT: child's labels - le; bucket counts read as doubles
+        TranslationConstraint keys = sub(result.shape(), of(le));
+        Expression count = new ToDouble(source(), result.value());
+        return translation.aggregate(result, keys, buildAggregateFunction(count, upperBound), true);
+    }
+
     @Override
     public final FunctionType functionType() {
         return FunctionType.HISTOGRAM;
@@ -82,46 +123,5 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
             return fieldName.substring(PROMETHEUS_LABELS_PREFIX.length());
         }
         return fieldName;
-    }
-
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
-        // bucket bound off the `le` column itself, so the child must also expose it by name.
-        List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        Header childRequired = context.required().subtract(le).union(open(le)).union(finite(le));
-        IntermediateResult result = context.withRequired(childRequired).translate(child());
-        if (result.kind().constant) {
-            return result;
-        }
-
-        // native histograms - distinguishable only at this point in planning are regular value transformations.
-        if (result.value().resolved() && result.value().dataType().isHistogram()) {
-            return new ValueTransformationFunction(source(), child(), definition(), parameters()).translate(context);
-        }
-
-        // Classic counter-backed histograms need the special treatment below.
-        Attribute leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-        if (leColumn == null) {
-            // like prometheus, return warning and drop series w/o `le`
-            HeaderWarning.addWarning(functionName() + ": input vector has no le label; no buckets to evaluate");
-            var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
-            var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
-            IntermediateResult skipped = result.with(skipAllFilter, result.header(), result.value());
-            return skipped.kind().afterInitialAggregation
-                ? context.regroup(skipped, result.header(), false, nullGrouping)
-                : context.collapse(skipped, result.header(), nullGrouping);
-        }
-
-        if (result.kind().afterInitialAggregation == false) {
-            result = context.collapse(result, result.header(), result.value());
-            leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-            assert leColumn != null : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
-        }
-
-        // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        Header header = context.regroupWithout(result.header(), le);
-        Expression count = new ToDouble(source(), result.value());
-        return context.regroup(result, header, true, buildAggregateFunction(count, leColumn));
     }
 }

@@ -174,7 +174,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
         assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -190,7 +190,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -204,7 +204,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -217,7 +217,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -235,7 +235,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
         ReadDimsExec readTimeSeries = localizedDataNodePlan.collect(ReadDimsExec.class)
             .stream()
-            .filter(readDims -> Expressions.names(readDims.dims()).contains(MetadataAttribute.TIMESERIES))
+            .filter(readDims -> Expressions.names(readDims.dims()).stream().anyMatch(MetadataAttribute::isTimeSeriesAttributeName))
             .findFirst()
             .orElse(null);
         assertNotNull(localizedDataNodePlan.toString(), readTimeSeries);

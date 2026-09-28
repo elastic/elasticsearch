@@ -54,6 +54,16 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         return List.of(CsvDataSourcePlugin.class);
     }
 
+    public void testAtTimestampSpecPrunesLikeTs() throws Exception {
+        String dataset = registerAtTimestampTree("spec_at_timestamp");
+        assertPrune(
+            dataset,
+            "WHERE `@timestamp` > \"" + MARCH_15_2024 + "\"::datetime",
+            6,
+            idsWhere((y, m, d) -> folderStart(y, m, d).isAfter(MARCH_15_2024))
+        );
+    }
+
     // docs example 4
     public void testMillisTsRangeCrossingYearKeepsLaterMonths() throws Exception {
         // 2024-01 folders sit entirely before March 15; 2024-06 and all of 2025 overlap.
@@ -236,6 +246,24 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         }
     }
 
+    private String registerAtTimestampTree(String name) throws IOException {
+        Path root = createTempDir().resolve(name);
+        for (int year : YEARS) {
+            for (int month : MONTHS) {
+                for (int day : DAYS) {
+                    writeColumnFile(root, year, month, day, "@timestamp");
+                }
+            }
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        return registerDataset(
+            name,
+            glob,
+            Map.of("partition_detection", "hive", "partition_spec", "year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+    }
+
     private String registerMillisTree(String name) throws IOException {
         return registerMillisLayout(name, Map.of("partition_detection", "hive", "partition_spec", "year(ts), month(ts), day(ts)"));
     }
@@ -324,7 +352,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
                 for (int day : DAYS) {
                     Path dir = root.resolve("yyy=" + year).resolve("month=" + pad2(month)).resolve("day=" + pad2(day));
                     Files.createDirectories(dir);
-                    writeMillisRow(dir, year, month, day);
+                    writeMillisRow(dir, year, month, day, "ts");
                 }
             }
         }
@@ -346,16 +374,20 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
     }
 
     private static void writeMillisFile(Path root, int year, int month, int day) throws IOException {
-        Path dir = root.resolve("year=" + year).resolve("month=" + pad2(month)).resolve("day=" + pad2(day));
-        Files.createDirectories(dir);
-        writeMillisRow(dir, year, month, day);
+        writeColumnFile(root, year, month, day, "ts");
     }
 
-    private static void writeMillisRow(Path dir, int year, int month, int day) throws IOException {
+    private static void writeColumnFile(Path root, int year, int month, int day, String timeColumn) throws IOException {
+        Path dir = root.resolve("year=" + year).resolve("month=" + pad2(month)).resolve("day=" + pad2(day));
+        Files.createDirectories(dir);
+        writeMillisRow(dir, year, month, day, timeColumn);
+    }
+
+    private static void writeMillisRow(Path dir, int year, int month, int day, String timeColumn) throws IOException {
         String ts = folderStart(year, month, day).toString();
         Files.writeString(
             dir.resolve("f.csv"),
-            "id:integer,ts:datetime\n" + idFor(year, month, day) + "," + ts + "\n",
+            "id:integer," + timeColumn + ":datetime\n" + idFor(year, month, day) + "," + ts + "\n",
             StandardCharsets.UTF_8
         );
     }

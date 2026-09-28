@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -67,10 +68,16 @@ public final class PartitionSpec {
 
     private static final String LEGAL_TRANSFORMS = "identity, year, month, day, hour";
     private static final String LEGAL_UNITS = "second, millis, micros";
-    private static final String IDENTIFIER_RULE = "[A-Za-z_][A-Za-z0-9_-]*";
-
-    private static final Pattern IDENTIFIER = Pattern.compile(IDENTIFIER_RULE);
-    private static final Pattern SURFACED_RESERVED = Pattern.compile("_partition\\." + IDENTIFIER_RULE);
+    /**
+     * ES|QL unquoted identifiers ({@code @timestamp} included) plus {@code -} so {@code aws-region} stays bare.
+     * Anything else is a backtick-quoted name.
+     */
+    private static final String IDENTIFIER_BODY = "[A-Za-z0-9_-]";
+    static final String IDENTIFIER_RULE = "[A-Za-z]" + IDENTIFIER_BODY + "*|[@_]" + IDENTIFIER_BODY + "+|`backtick-quoted`";
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z]" + IDENTIFIER_BODY + "*|[@_]" + IDENTIFIER_BODY + "+");
+    private static final Pattern SURFACED_RESERVED = Pattern.compile(
+        "_partition\\.(?:[A-Za-z]" + IDENTIFIER_BODY + "*|[@_]" + IDENTIFIER_BODY + "+)"
+    );
 
     static final int WRONG_UNIT_YEAR_MIN = 1971;
     static final int WRONG_UNIT_YEAR_MAX = 2100;
@@ -233,6 +240,66 @@ public final class PartitionSpec {
     }
 
     /**
+     * Query-time notice when the key is present but {@link #validate} would reject it.
+     * {@link #fromConfig} still returns {@link #EMPTY} for an unreadable string so a stored
+     * dataset does not fail the query. {@code null} when the spec is absent or valid.
+     */
+    @Nullable
+    public static String unusableNotice(@Nullable Map<String, Object> config) {
+        if (config == null || config.containsKey(CONFIG_PARTITION_SPEC) == false) {
+            return null;
+        }
+        try {
+            validate(config);
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+        return null;
+    }
+
+    /**
+     * Closed {@code @timestamp} bounds from the request filter, as listing hints, on paths whose
+     * spec binds that column. Other paths keep {@code hints}. An open range is not represented here:
+     * the extractor only returns bounds when both ends parsed.
+     */
+    public static Map<String, List<PartitionFilterHint>> addTimestampBounds(
+        Map<String, List<PartitionFilterHint>> hints,
+        @Nullable Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Instant start,
+        @Nullable Instant end
+    ) {
+        if (start == null || end == null || start.isAfter(end) || pathConfigs == null || pathConfigs.isEmpty()) {
+            return hints;
+        }
+        Map<String, List<PartitionFilterHint>> withBounds = null;
+        for (Map.Entry<String, Map<String, Object>> entry : pathConfigs.entrySet()) {
+            PartitionSpec spec = fromConfig(entry.getValue());
+            if (spec.bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
+                continue;
+            }
+            if (withBounds == null) {
+                withBounds = new LinkedHashMap<>(hints);
+            }
+            List<PartitionFilterHint> existing = withBounds.getOrDefault(entry.getKey(), List.of());
+            List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
+            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
+            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
+            merged.addAll(existing);
+            withBounds.put(entry.getKey(), List.copyOf(merged));
+        }
+        return withBounds == null ? hints : withBounds;
+    }
+
+    private boolean bindsColumn(String column) {
+        for (Field field : fields) {
+            if (field.column().equals(column)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * PUT-time check. A {@code partition_detection: none} contradiction is
      * reported even when the string is also unparseable.
      */
@@ -359,6 +426,10 @@ public final class PartitionSpec {
         int start = 0;
         for (int i = 0; i < spec.length(); i++) {
             char c = spec.charAt(i);
+            if (c == '`') {
+                i = skipQuoted(spec, i);
+                continue;
+            }
             if (c == '(') {
                 depth++;
             } else if (c == ')') {
@@ -509,6 +580,10 @@ public final class PartitionSpec {
         int depth = 0;
         for (int i = open; i < call.length(); i++) {
             char c = call.charAt(i);
+            if (c == '`') {
+                i = skipQuoted(call, i);
+                continue;
+            }
             if (c == '(') {
                 depth++;
             } else if (c == ')') {
@@ -525,6 +600,10 @@ public final class PartitionSpec {
         int depth = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
+            if (c == '`') {
+                i = skipQuoted(text, i);
+                continue;
+            }
             if (c == '(') {
                 depth++;
             } else if (c == ')') {
@@ -541,6 +620,9 @@ public final class PartitionSpec {
             throw new IllegalArgumentException(
                 "[" + CONFIG_PARTITION_SPEC + "] [" + field + "] has an invalid identifier []; identifiers are [" + IDENTIFIER_RULE + "]"
             );
+        }
+        if (raw.charAt(0) == '`') {
+            return parseQuotedIdentifier(field, raw);
         }
         Matcher reserved = SURFACED_RESERVED.matcher(raw);
         if (reserved.matches()) {
@@ -561,6 +643,41 @@ public final class PartitionSpec {
             );
         }
         return raw;
+    }
+
+    private static String parseQuotedIdentifier(String field, String raw) {
+        int close = skipQuoted(raw, 0);
+        if (close != raw.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITION_SPEC
+                    + "] ["
+                    + field
+                    + "] has leftover text ["
+                    + raw.substring(close + 1)
+                    + "] after the quoted identifier"
+            );
+        }
+        String inner = raw.substring(1, close).replace("``", "`");
+        if (inner.isEmpty()) {
+            throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] [" + field + "] has an empty quoted identifier");
+        }
+        return inner;
+    }
+
+    /** Index of the closing backtick. {@code openTick} points at the opening one. {@code ``} is one escaped backtick. */
+    private static int skipQuoted(String text, int openTick) {
+        for (int i = openTick + 1; i < text.length(); i++) {
+            if (text.charAt(i) != '`') {
+                continue;
+            }
+            if (i + 1 < text.length() && text.charAt(i + 1) == '`') {
+                i++;
+                continue;
+            }
+            return i;
+        }
+        throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] [" + text.trim() + "] has an unclosed backtick quote");
     }
 
     /**
@@ -691,6 +808,7 @@ public final class PartitionSpec {
                     );
                 }
             }
+            emitMissingCoarserGrain(detectedKeys, sink);
         }
         if (hints == null || hints.isEmpty()) {
             return;
@@ -730,6 +848,64 @@ public final class PartitionSpec {
                 }
             }
         }
+    }
+
+    /**
+     * {@code mo=month(ts)} on {@code {yyy}/{mo}} validates (the key is a placeholder) and then
+     * {@code folderInterval} cannot see a year, so every folder is kept. Warn once. A hive folder
+     * literally named {@code year} still satisfies the coarser grain via {@link #keyOf}.
+     */
+    private void emitMissingCoarserGrain(Set<String> detectedKeys, Consumer<String> sink) {
+        for (List<Field> binds : temporalGroups().values()) {
+            boolean anyDetected = false;
+            int finestRank = -1;
+            Field finestField = null;
+            for (Field field : binds) {
+                if (detectedKeys.contains(field.key())) {
+                    anyDetected = true;
+                }
+                int rank = grainRank(field.transform());
+                if (rank > finestRank) {
+                    finestRank = rank;
+                    finestField = field;
+                }
+            }
+            if (anyDetected == false || finestField == null || finestRank <= 0) {
+                continue;
+            }
+            for (Transform coarser : Transform.values()) {
+                if (coarser.isTemporal() == false || grainRank(coarser) >= finestRank) {
+                    continue;
+                }
+                if (coarserSatisfied(binds, coarser, detectedKeys)) {
+                    continue;
+                }
+                sink.accept(
+                    "["
+                        + CONFIG_PARTITION_SPEC
+                        + "] bind ["
+                        + finestField.describe()
+                        + "] needs a ["
+                        + coarser.token()
+                        + "] key to skip folders; add ["
+                        + coarser.token()
+                        + "("
+                        + finestField.column()
+                        + ")] or a path key named ["
+                        + coarser.token()
+                        + "]. The bind does not skip folders"
+                );
+            }
+        }
+    }
+
+    private static boolean coarserSatisfied(List<Field> binds, Transform coarser, Set<String> detectedKeys) {
+        for (Field field : binds) {
+            if (field.transform() == coarser && detectedKeys.contains(field.key())) {
+                return true;
+            }
+        }
+        return detectedKeys.contains(coarser.token());
     }
 
     static List<PartitionFilterHint> hintsFromExpressions(@Nullable List<Expression> filters) {

@@ -1528,6 +1528,11 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) {
+        String unusable = PartitionSpec.unusableNotice(config);
+        if (unusable != null) {
+            pendingListingWarnings.add(unusable);
+            return;
+        }
         PartitionSpec spec = PartitionSpec.fromConfig(config);
         if (spec.isEmpty()) {
             return;

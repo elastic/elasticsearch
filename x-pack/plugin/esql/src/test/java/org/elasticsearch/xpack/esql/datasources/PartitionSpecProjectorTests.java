@@ -225,6 +225,60 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertEquals("eu", values.get("aws-region"));
     }
 
+    public void testHourFolderDropsTheHourBeforeTheBound() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant bound = Instant.parse("2024-06-15T10:30:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, bound));
+
+        assertFalse(spec.overlaps(hourFolder(9), hints));
+        assertTrue(spec.overlaps(hourFolder(10), hints));
+        assertTrue(spec.overlaps(hourFolder(11), hints));
+    }
+
+    public void testRenamedMonthWithoutYearWarnsAndKeepsFolders() {
+        PartitionSpec spec = PartitionSpec.parse("mo=month(ts)");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("yyy", "mo"), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024)), notices::add);
+        assertThat(notices, hasItem(containsString("needs a [year]")));
+        assertTrue(spec.overlaps(Map.of("yyy", 2024, "mo", 1), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024))));
+    }
+
+    public void testHiveMonthWithoutYearBindStillUsesYearFolder() {
+        PartitionSpec spec = PartitionSpec.parse("month(ts)");
+        List<String> notices = new ArrayList<>();
+        spec.emitListingNotices(Set.of("year", "month"), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024)), notices::add);
+        assertThat(notices, empty());
+        assertFalse(spec.overlaps(Map.of("year", 2024, "month", 2), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024))));
+    }
+
+    public void testTimestampBoundsBecomeYearInForAtTimestamp() {
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
+        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
+            Map.of(),
+            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
+            start,
+            end
+        );
+        assertEquals(
+            List.of(
+                hint("@timestamp", Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("@timestamp", Operator.LESS_THAN_OR_EQUAL, end),
+                hint("year", Operator.IN, 2024, 2025)
+            ),
+            spec.projectListingHints(hints.get("s3://logs/**"))
+        );
+        assertTrue(
+            PartitionSpec.addTimestampBounds(
+                Map.of(),
+                Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(ts)")),
+                start,
+                end
+            ).isEmpty()
+        );
+    }
+
     public void testAliasIdentityValuesDoesNotOverwriteExistingColumn() {
         PartitionSpec spec = PartitionSpec.parse("aws-region=region");
         Map<String, Object> values = new HashMap<>(Map.of("aws-region", "eu", "region", "us"));
@@ -234,6 +288,10 @@ public class PartitionSpecProjectorTests extends ESTestCase {
 
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
+    }
+
+    private static Map<String, Object> hourFolder(int hour) {
+        return Map.of("year", 2024, "month", 6, "day", 15, "hour", hour);
     }
 
     private static Map<String, Object> folder(int year, int month, Integer day) {

@@ -32,7 +32,7 @@ In practice, this can make a significant difference. A filtered query over a Par
 
 When a dataset's resource path uses Hive-style partitioning (for example, `year=2024/month=3/`), the engine detects partition keys automatically and promotes them to queryable columns. A `WHERE` condition on a partition column evaluates during file discovery, before any data is read. On a two-year monthly-partitioned dataset, `WHERE year = 2024 AND month = 3` skips 23 out of 24 partitions at zero I/O cost.
 
-A filter on a column inside the file can skip folders too, when the dataset sets [`partition_spec`](esql-data-federation-partition-spec.md). `WHERE ts > "2024-03-15T00:00:00Z"::datetime` drops folders whose time range cannot overlap that filter. Path keys you do not list in the spec still prune on their own name.
+A filter on a column inside the file can skip folders too, when the dataset sets [`partition_spec`](esql-data-federation-partition-spec.md). `WHERE ts > "2024-03-15T00:00:00Z"::datetime` skips folders whose time range does not overlap that filter. Path keys you do not list in the spec still prune on their own name.
 
 Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
 

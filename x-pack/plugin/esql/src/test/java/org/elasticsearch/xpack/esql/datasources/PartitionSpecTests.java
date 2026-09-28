@@ -55,6 +55,34 @@ public class PartitionSpecTests extends ESTestCase {
         assertEquals(List.of(new Field("region", Transform.IDENTITY, "region", Unit.MILLIS)), PartitionSpec.parse("region").fields());
     }
 
+    public void testParseAtTimestampAndQuotedName() {
+        assertEquals(
+            List.of(new Field("year", Transform.YEAR, "@timestamp", Unit.MILLIS)),
+            PartitionSpec.parse("year(@timestamp)").fields()
+        );
+        assertEquals(
+            List.of(new Field("year", Transform.YEAR, "event time", Unit.MILLIS)),
+            PartitionSpec.parse("year(`event time`)").fields()
+        );
+        assertEquals(
+            List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.MILLIS)),
+            PartitionSpec.parse("`aws-region`=region").fields()
+        );
+        PartitionSpec.validate(
+            Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")
+        );
+    }
+
+    public void testUnusableNoticeForBadSpecAndNone() {
+        assertNull(PartitionSpec.unusableNotice(Map.of()));
+        assertNull(PartitionSpec.unusableNotice(Map.of(CONFIG_PARTITION_SPEC, "year(ts)")));
+        assertThat(PartitionSpec.unusableNotice(Map.of(CONFIG_PARTITION_SPEC, "nope(ts)")), containsString("unknown transform"));
+        assertThat(
+            PartitionSpec.unusableNotice(Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none", CONFIG_PARTITION_SPEC, "year(ts)")),
+            containsString("partition detection is disabled")
+        );
+    }
+
     public void testParseIdentityRemap() {
         assertEquals(
             List.of(new Field("aws-region", Transform.IDENTITY, "region", Unit.MILLIS)),
@@ -332,7 +360,7 @@ public class PartitionSpecTests extends ESTestCase {
         assertEquals(Set.of(CONFIG_PARTITION_SPEC), PartitionSpec.CONFIG_KEYS);
     }
 
-    private static final String IDENTIFIER_HINT = "[A-Za-z_][A-Za-z0-9_-]*";
+    private static final String IDENTIFIER_HINT = PartitionSpec.IDENTIFIER_RULE;
 
     private static void assertReject(String spec, String badToken, String fix) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse(spec));

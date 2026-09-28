@@ -1,6 +1,6 @@
 ---
-navigation_title: "Partition spec"
-description: "Map a file-column filter onto path keys so ES|QL Data Federation can skip folders that cannot overlap the query."
+navigation_title: "Skip folders by filtering files"
+description: "Use partition_spec to skip folders when filtering on columns inside your files, reducing I/O for time-partitioned datasets."
 applies_to:
   stack: experimental 9.6+
   serverless: unavailable
@@ -8,24 +8,24 @@ products:
   - id: elasticsearch
 ---
 
-# Project a file column onto path keys
+# Skip folders with file column filters in {{esql}} Data Federation
 
-[`partition_detection`](esql-data-federation-datasets.md#common-settings) and
-[`partition_path`](esql-data-federation-datasets.md#common-settings) name the keys in the object path. They do
-not say how a payload clock projects onto those keys. `partition_spec` is that overlay: a filter on a file
-column can skip folders whose UTC interval cannot overlap the filter.
+`partition_spec` maps a file column to your folder structure so that filters on the column skip
+non-matching folders. Filtering on a partition key such as `WHERE year == 2024` already skips
+folders, but filtering on a file column like `WHERE ts > "2024-03-15T00:00:00Z"::datetime` normally
+opens every file.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-Unlisted path keys stay identity. `WHERE year == 2024` still skips other years when a spec is set, and
-`WHERE region == "eu"` still skips other regions on a VPC tree whose spec only binds `year`, `month`, and
-`day`. A spec is not a list of the only keys that may prune. Remaps stay explicit: `aws-region=region` is how
-a filter on `region` matches the folder `aws-region`.
+[`partition_detection`](esql-data-federation-datasets.md#common-settings) and
+[`partition_path`](esql-data-federation-datasets.md#common-settings) still decide how the folder
+names are found.
 
-## Syntax
+## Define a partition spec
 
-The value is a comma-separated list of binds:
+Set `partition_spec` in your dataset settings as a comma-separated list of bindings. Each binding
+maps a path key to a transform on a file column:
 
 ```text
 [key=]transform(column[, unit])
@@ -37,37 +37,49 @@ column
 (default `millis`) and applies only to temporal transforms. Transforms and units are case-insensitive. Keys
 and column names are case-sensitive.
 
-Omitted `key=` uses the transform name (`year(ts)` binds path `year`). Bare `region` is `identity(region)`.
-`{second}` in `partition_path` is a folder name, not this unit. Refer to
+Omitted `key=` uses the transform name (`year(ts)` maps path `year`). Bare `region` is `identity(region)`.
+`@timestamp` is a legal column name. A name that is not an ES|QL identifier goes in backticks, as in
+`` year(`event time`) ``. `{second}` in `partition_path` is a folder name, not this unit. Refer to
 [Resource patterns](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders).
 
-When `partition_path` is set, every spec key must be a `{name}` placeholder in that template. A Hive key is
-not known until list time. A bind whose key was not detected is ignored and the query emits a warning. The
-query does not drop folders from that bind.
+Path keys you leave out of the spec still filter on their own name. `WHERE year == 2024` still skips
+other years when a spec is set, and `WHERE region == "eu"` still skips other regions when the spec only
+maps `year`, `month`, and `day`. The spec is not the list of the only keys that can skip folders. A folder
+named `aws-region` needs `aws-region=region` before `WHERE region == "eu"` matches it.
 
-Omit `partition_spec` to keep path-key filters and skip this overlay. That is the default.
+When `partition_path` is set, every spec key must be a `{name}` placeholder in that template. A Hive key is
+not known until list time. A binding whose key was not detected is ignored and the query emits a warning.
+The query does not skip folders from that binding. A spec that does not parse warns on the query and does
+not skip folders. Registration still rejects it.
+
+Omit `partition_spec` to keep path-key filters and skip this mapping. That is the default.
 [`partition_detection`](esql-data-federation-datasets.md#common-settings) set to `none` turns path keys off.
 A spec in that mode is rejected. `template` keeps `partition_path` and does not read Hive `key=value` names.
 `hive` reads those names only.
 
-## What skips, and where
+## How folder pruning works
 
-An open filter such as `WHERE ts > T` skips folders at **split** time. Listing rewrites a `year IN (...)`
-glob only when the filter range has both ends, or when the filter is already `year ==` or `year IN`. Several
-temporal binds on the same column are one **joint** overlap at the finest declared grain. A folder is kept
-when its UTC interval overlaps the filter. Independent `year >= 2024 AND month >= 3` is not what the spec
-does: that would drop January of a later year. An exclusive end that lands on a grain boundary does not
-include the next folder. Temporal columns are read as UTC.
+A filter like `WHERE ts > T` skips folders whose UTC time range falls entirely outside the filter. A filter
+with only a start does this while files are chosen. A filter with both a start and an end, or `year ==` /
+`year IN`, can also narrow the `year` folders in the listing. When you map several granularities to the
+same column (`year(ts), month(ts), day(ts)`), the engine evaluates them as one combined range at the finest
+declared grain, not as independent conditions. This means `WHERE ts >= "2024-03-01"` correctly keeps
+January 2025, even though month `01` is numerically less than `03`. An exclusive boundary that falls
+exactly on a folder boundary does not include the next folder. Temporal columns are read as UTC.
 
-`YEAR(ts) > 2024` with `year(ts)` in the spec inverts to a range on `ts`, then that range overlaps the
-folders. The same query **without** a spec still returns the 2025 rows and opens every file. `YEAR(ts)` does
-not become `WHERE year > 2024`. `MONTH(ts) == 6` does not invert: the scan opens every file and the row
-filter keeps June. A literal is the other direction: `year == YEAR("2024-01-01")` folds to `year == 2024`
-and prunes the path key.
+When you write `YEAR(ts) > 2024` and the spec includes `year(ts)`, the engine converts this to a range
+on `ts` and uses that range to skip folders. It does not become `WHERE year > 2024`. Without the spec, the
+query returns the same rows but opens every file. `MONTH(ts) == 6` does not convert because June appears
+in every year: the query opens every file and filters rows after reading. A literal like
+`year == YEAR("2024-01-01")` folds to `year == 2024` and prunes the path key directly.
+
+## Account for a delivery date
 
 CloudTrail and VPC Flow Logs often land under a **delivery** date that lags the event time in the file. A
-filter on the payload clock can miss a folder that still holds matching rows. Widen the range, or filter the
-path keys, when the tree is organized by delivery.
+filter on the event-time column can miss a folder that still holds matching rows. Widen the range, or
+filter the path keys directly, when the folder tree is organized by delivery time.
+
+The following example registers a VPC Flow Logs dataset and maps the `start` column (unix seconds) to date folders.
 
 ```console
 PUT /_query/dataset/vpc_flow
@@ -82,26 +94,28 @@ PUT /_query/dataset/vpc_flow
 }
 ```
 
-`account` and `region` are not in the spec, so they stay identity. `WHERE region == "eu-west-1"` still
-prunes those folders.
+`account` and `region` are not in the spec, so they stay on their own names. `WHERE region == "eu-west-1"` still
+skips those folders.
 
 Renamed folders need an explicit key. `yyy=year(ts), mo=month(ts)` with `partition_path: {yyy}/{mo}` maps
-the payload clock onto those names. `year(ts)` alone would look for a key named `year` and miss `yyy`.
+the file column onto those folder names. `year(ts)` alone would look for a key named `year` and miss `yyy`.
+`mo=month(ts)` alone also misses: a month folder needs a year, either as `yyy=year(ts)` or as a path key
+named `year`. The query warns and opens every folder.
 
-## Ladder
+## Check which queries skip folders
 
-Each row is a shape the engine is tested for. Rows and files scanned are both checked.
+The following table shows how different query patterns interact with `partition_spec`.
 
 | | Query | Spec | What is skipped |
 |---|---|---|---|
-| 1 | `WHERE year == 2024` | none | Other years. Layout identity. No spec. |
+| 1 | `WHERE year == 2024` | none | Other years. No spec. |
 | 2 | `WHERE year == 2024` | `year(ts), month(ts), day(ts)` | Same as row 1. The spec does not turn this off. |
 | 3 | `WHERE region == "EU"` | `aws-region=region` | Other `aws-region` folders. |
-| 4 | `WHERE ts > T` crossing a year | `year(ts), month(ts), day(ts)` | Folders whose UTC interval misses the range. Split, not a listing `year IN`. |
-| 5 | `WHERE start > T` | `year(start, second), month(start, second), day(start, second)` | Same joint overlap. `start` is unix seconds. |
-| 6 | `WHERE year == YEAR("2024-01-01")` | `year(ts), month(ts), day(ts)` | Listing fold to `year == 2024`. `DATE_EXTRACT("year", ...)` on a literal is the same fold. |
-| 7 | `WHERE YEAR(ts) > 2024` | `year(ts), month(ts), day(ts)` | 2025 folders, after invert. Without the spec, the same rows, every file opened. |
+| 4 | `WHERE ts > T` crossing a year | `year(ts), month(ts), day(ts)` | Folders whose UTC time range misses the filter. A start-only filter does not narrow the `year` folders in the listing. |
+| 5 | `WHERE start > T` | `year(start, second), month(start, second), day(start, second)` | Same combined range. `start` is unix seconds. |
+| 6 | `WHERE year == YEAR("2024-01-01")` | `year(ts), month(ts), day(ts)` | Becomes `year == 2024` before listing. `DATE_EXTRACT("year", ...)` on a literal does the same. |
+| 7 | `WHERE YEAR(ts) > 2024` | `year(ts), month(ts), day(ts)` | 2025 folders. Without the spec, the same rows, every file opened. |
 | 8 | `WHERE MONTH(ts) == 6` | `year(ts), month(ts), day(ts)` | Nothing. Every file is opened. June rows remain. |
-| 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | No prune from that bind. Warning: the key was not detected. |
-| 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `millis`) | No false prune. Warning: the unit is likely wrong. |
-| 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same joint overlap as row 4, on the renamed keys. |
+| 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | Nothing from that binding. Warning: the key was not detected. |
+| 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `millis`) | Nothing. Warning: the unit is likely wrong. |
+| 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |

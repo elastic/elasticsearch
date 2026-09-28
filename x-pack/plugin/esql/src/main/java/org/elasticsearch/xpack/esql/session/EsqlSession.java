@@ -1817,7 +1817,7 @@ public class EsqlSession {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
-                }), configuration, functionRegistry)
+                }), configuration, functionRegistry, timestampBounds)
             )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -2064,6 +2064,19 @@ public class EsqlSession {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry
     ) {
+        preAnalyzeExternalSources(externalSourceResolver, plan, preAnalysis, result, listener, configuration, functionRegistry, null);
+    }
+
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
+        LogicalPlan plan,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds timestampBounds
+    ) {
         if (preAnalysis.icebergPaths().isEmpty()) {
             listener.onResponse(result);
             return;
@@ -2073,7 +2086,15 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        var filterHints = projectPartitionSpecs(PartitionFilterHintExtractor.extract(listingPlan), pathConfigs);
+        var filterHints = projectPartitionSpecs(
+            PartitionSpec.addTimestampBounds(
+                PartitionFilterHintExtractor.extract(listingPlan),
+                pathConfigs,
+                timestampBounds == null ? null : timestampBounds.start(),
+                timestampBounds == null ? null : timestampBounds.end()
+            ),
+            pathConfigs
+        );
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at

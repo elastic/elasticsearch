@@ -298,7 +298,7 @@ The following settings apply to all file-based data sources:
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_sample_size` {applies_to}`stack: experimental 9.6+` | `1000` | File paths sampled to infer partition columns and their types. Determines whether late-appearing partition values get a column. `union_by_name` and `strict` list every file regardless. |
-| `partition_spec` {applies_to}`stack: experimental 9.6+` | (none) | Optional overlay that maps a file-column filter onto path keys so `WHERE start > T` can skip folders. Layout (`partition_detection` / `partition_path`) still finds the keys. Refer to [Project a file column onto path keys](esql-data-federation-partition-spec.md). |
+| `partition_spec` {applies_to}`stack: experimental 9.6+` | (none) | Maps a file column to path keys so that a filter like `WHERE start > T` can skip folders. `partition_detection` and `partition_path` still control how the keys are found. Refer to [Skip folders with file column filters](esql-data-federation-partition-spec.md). |
 | `schema_resolution` | `first_file_wins` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. New datasets that omit this setting store `"first_file_wins"`. Existing datasets created before `"first_file_wins"` became the default continue to use `"union_by_name"` when the setting is absent. Refer to [schema merge strategies](#schema-merge-strategies). |
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. Under `skip_row` the entire row is dropped. Under `null_field` the failing value is replaced with null and the row is kept. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. {applies_to}`stack: experimental 9.6+` Requires an explicit `error_mode` of `skip_row` or `null_field`; cannot be combined with `fail_fast`. A dataset registered before this requirement took effect and stored with a bare `max_errors` continues to read as `skip_row` and emits a `Warning` header identifying the inferred mode. |
@@ -323,15 +323,15 @@ partition column or on `_file.*`, and so does a dataset that sets `file_sort_by`
 default. In each of those cases raising the sample size has no effect.
 :::
 
-### Projecting a file column onto path keys
+### Skip folders with file column filters
 
 ```{applies_to}
 stack: experimental 9.6+
 ```
 
-`partition_detection` and `partition_path` name the keys in the object path. `partition_spec` says how a file
-column projects onto a subset of those keys, so a filter on the column can skip folders. Refer to
-[Project a file column onto path keys](esql-data-federation-partition-spec.md).
+Filtering on a partition key already skips non-matching folders. `partition_spec` extends this to columns
+inside your files, so a filter like `WHERE ts > T` can skip folders too. Refer to
+[Skip folders with file column filters](esql-data-federation-partition-spec.md).
 
 ### Excluding non-data objects
 

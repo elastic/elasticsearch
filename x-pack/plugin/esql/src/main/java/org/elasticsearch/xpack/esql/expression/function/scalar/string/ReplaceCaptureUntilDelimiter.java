@@ -471,16 +471,16 @@ final class ReplaceCaptureUntilDelimiter {
             }
         }
 
-        int hostStart = pos;
+        int captureStart = pos;
         byte delimiter = idiom.delimiter();
         int delimIdx = -1;
-        for (int j = hostStart; j < len; j++) {
+        for (int j = captureStart; j < len; j++) {
             if (b[off + j] == delimiter) {
                 delimIdx = j;
                 break;
             }
         }
-        if (delimIdx <= hostStart) {
+        if (delimIdx <= captureStart) {
             // [^C]+ needs >=1 char; the greedy pass above consumed an optional segment right up to the
             // delimiter (rare) -- fall back to trying every prefix combination.
             return processWithBacktracking(str, idiom, parts, b, off, len);
@@ -494,14 +494,14 @@ final class ReplaceCaptureUntilDelimiter {
 
         byte[] pre = idiom.replacementPrefix();
         byte[] suf = idiom.replacementSuffix();
-        int hostLen = delimIdx - hostStart;
+        int captureLen = delimIdx - captureStart;
         if (pre.length == 0 && suf.length == 0) {
-            return new BytesRef(b, off + hostStart, hostLen);
+            return new BytesRef(b, off + captureStart, captureLen);
         }
-        byte[] out = new byte[pre.length + hostLen + suf.length];
+        byte[] out = new byte[pre.length + captureLen + suf.length];
         System.arraycopy(pre, 0, out, 0, pre.length);
-        System.arraycopy(b, off + hostStart, out, pre.length, hostLen);
-        System.arraycopy(suf, 0, out, pre.length + hostLen, suf.length);
+        System.arraycopy(b, off + captureStart, out, pre.length, captureLen);
+        System.arraycopy(suf, 0, out, pre.length + captureLen, suf.length);
         return new BytesRef(out);
     }
 
@@ -539,10 +539,10 @@ final class ReplaceCaptureUntilDelimiter {
             if (ok == false) {
                 continue;
             }
-            int hostStart = pos;
-            int delimIdx = findDelimiter(b, off, len, hostStart, idiom.delimiter());
-            if (delimIdx > hostStart) {
-                return finishCaptureMatch(str, idiom, b, off, len, hostStart, delimIdx);
+            int captureStart = pos;
+            int delimIdx = findDelimiter(b, off, len, captureStart, idiom.delimiter());
+            if (delimIdx > captureStart) {
+                return finishCaptureMatch(str, idiom, b, off, len, captureStart, delimIdx);
             }
         }
         return str; // no combination matched: REPLACE returns the input unchanged (no regex match).
@@ -575,25 +575,25 @@ final class ReplaceCaptureUntilDelimiter {
         return -1;
     }
 
-    private static BytesRef finishCaptureMatch(BytesRef str, Idiom idiom, byte[] b, int off, int len, int hostStart, int delimIdx) {
+    private static BytesRef finishCaptureMatch(BytesRef str, Idiom idiom, byte[] b, int off, int len, int captureStart, int delimIdx) {
         // See the identical check in process() -- applies even without a trailing $, see there for why.
         if (idiom.tailDotAll() == false && hasLineTerminator(b, off, delimIdx + 1, len)) {
             return Replace.safeReplace(str, idiom.originalPattern(), idiom.originalNewStr());
         }
-        return buildCaptureReplacement(idiom, b, off, hostStart, delimIdx);
+        return buildCaptureReplacement(idiom, b, off, captureStart, delimIdx);
     }
 
-    private static BytesRef buildCaptureReplacement(Idiom idiom, byte[] b, int off, int hostStart, int hostEnd) {
+    private static BytesRef buildCaptureReplacement(Idiom idiom, byte[] b, int off, int captureStart, int captureEnd) {
         byte[] pre = idiom.replacementPrefix();
         byte[] suf = idiom.replacementSuffix();
-        int hostLen = hostEnd - hostStart;
+        int captureLen = captureEnd - captureStart;
         if (pre.length == 0 && suf.length == 0) {
-            return new BytesRef(b, off + hostStart, hostLen);
+            return new BytesRef(b, off + captureStart, captureLen);
         }
-        byte[] out = new byte[pre.length + hostLen + suf.length];
+        byte[] out = new byte[pre.length + captureLen + suf.length];
         System.arraycopy(pre, 0, out, 0, pre.length);
-        System.arraycopy(b, off + hostStart, out, pre.length, hostLen);
-        System.arraycopy(suf, 0, out, pre.length + hostLen, suf.length);
+        System.arraycopy(b, off + captureStart, out, pre.length, captureLen);
+        System.arraycopy(suf, 0, out, pre.length + captureLen, suf.length);
         return new BytesRef(out);
     }
 

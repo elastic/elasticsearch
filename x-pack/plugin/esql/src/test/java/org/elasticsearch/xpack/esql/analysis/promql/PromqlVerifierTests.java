@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.time.Instant;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -194,7 +196,29 @@ public class PromqlVerifierTests extends ESTestCase {
         String tooManyOperands = String.join(" or ", Collections.nCopies(maxOperands + 1, "network.bytes_in"));
         tsdb.error(
             "PROMQL index=test step=5m " + tooManyOperands,
-            containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]")
+            allOf(
+                containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]"),
+                containsString("exceeding the limit set by the [" + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey() + "] cluster setting")
+            )
+        );
+    }
+
+    public void testUnionBranchLimitHonorsPragma() {
+        int cap = 2;
+        TestAnalyzer analyzer = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), cap).build())));
+        String atLimit = String.join(" or ", Collections.nCopies(cap, "network.bytes_in"));
+        assertTrue(analyzer.query("PROMQL index=test step=5m " + atLimit).resolved());
+
+        String tooManyOperands = String.join(" or ", Collections.nCopies(cap + 1, "network.bytes_in"));
+        analyzer.error(
+            "PROMQL index=test step=5m " + tooManyOperands,
+            allOf(
+                containsString("PromQL set operator [or] supports up to [" + cap + "] operands, got [" + (cap + 1) + "]"),
+                containsString("[max_branch_count] query pragma")
+            )
         );
     }
 

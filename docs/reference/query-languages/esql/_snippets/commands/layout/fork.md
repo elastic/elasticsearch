@@ -58,7 +58,7 @@ interleaved. Use `SORT _fork` to group results by branch.
 
 ## Limitations
 
-- `FORK` supports at most 8 execution branches.
+- `FORK` supports at most 20 execution branches by default. The limit is the `esql.query.max_branch_count` cluster setting. A `max_branch_count` query pragma overrides it.
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 

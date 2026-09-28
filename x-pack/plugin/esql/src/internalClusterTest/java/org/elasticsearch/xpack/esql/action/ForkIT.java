@@ -1047,8 +1047,21 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMaxBranchCountSucceeds() {
+        int limit = currentMaxBranchCount();
+        StringBuilder query = new StringBuilder("FROM test | FORK");
+        for (int i = 0; i < limit; i++) {
+            query.append(" (WHERE true)");
+        }
+        query.append(" | STATS c = COUNT(*) BY _fork | STATS c = COUNT(*)");
+        try (var resp = run(query.toString())) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertValues(resp.values(), List.of(List.of((long) limit)));
+        }
+    }
+
     public void testWithTooManySubqueries() {
-        int limit = EsqlFlags.ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+        int limit = currentMaxBranchCount();
         StringBuilder query = new StringBuilder("FROM test | FORK");
         for (int i = 0; i < limit + 1; i++) {
             query.append(" (WHERE true)");
@@ -1455,5 +1468,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
 
     static Iterator<Iterator<Object>> valuesFilter(Iterator<Iterator<Object>> values, Predicate<Iterator<Object>> filter) {
         return getValuesList(values).stream().filter(row -> filter.test(row.iterator())).map(List::iterator).toList().iterator();
+    }
+
+    private int currentMaxBranchCount() {
+        return clusterService().getClusterSettings().get(EsqlFlags.ESQL_MAX_BRANCH_COUNT);
     }
 }

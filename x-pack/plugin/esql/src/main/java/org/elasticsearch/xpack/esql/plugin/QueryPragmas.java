@@ -128,13 +128,14 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
-     * The total number of leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
-     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many run at
-     * once, this limits how many producer branches there are: each leaf becomes a data node query (or a coordinator-local source). Nested
-     * {@code UnionAll}s are merge segments, not leaves — they are bounded separately by {@link #MAX_BRANCH_LEVEL}. Subqueries nest,
-     * The same cap bounds the direct children of one merge ({@code FORK}, subquery union, view union, dataset
-     * {@code FROM}, PromQL {@code or}). Subqueries nest, so without a query-wide limit the leaf total grows as
-     * a power of the nesting depth.
+     * Cap on how many branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many
+     * run at once, this limits how many there are.
+     * <p>
+     * The same value bounds both the query-wide leaf total and the direct children of one merge ({@code FORK}, subquery union,
+     * view union, dataset {@code FROM}, PromQL {@code or}). Each leaf becomes a data node query (or a coordinator-local source).
+     * Nested {@code UnionAll}s are merge segments, not leaves — they are bounded separately by {@link #MAX_BRANCH_LEVEL}.
+     * Subqueries nest, so without a query-wide leaf limit the total grows as a power of the nesting depth.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.

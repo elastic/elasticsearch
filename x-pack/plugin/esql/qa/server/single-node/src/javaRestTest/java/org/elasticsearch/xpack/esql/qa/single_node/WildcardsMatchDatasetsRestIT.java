@@ -34,9 +34,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting. With the setting off, a wildcard
- * means index-likes only and the query returns the index rows. With the setting on, a wildcard that names a dataset
- * reaches that dataset.
+ * End-to-end REST coverage for the {@code wildcards_match_datasets} query setting, against the scenario reported on a 9.5.2
+ * cluster in elastic/elasticsearch#158472: enough registered datasets make every {@code FROM *} fail, because a
+ * wildcard sweeps them all in and each becomes its own plan branch.
  *
  * <p>This is the layer that can register a data source, so it sits beside {@link DataSourceCrudRestIT} rather than in
  * the {@code x-pack:plugin:esql} unit suites.
@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.hasSize;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
 
-    /** Stays under the default {@code esql.query.max_branch_count} once the matching index contributes its own branch. */
     private static final int DATASET_COUNT = 8;
     private static final String INDEX = "logs-000001";
     private static final String DATA_SOURCE = "lake";
@@ -107,6 +106,31 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
         assertThat(body, containsString("Failed to resolve external source [s3://bucket/1/*.csv]"));
+    }
+
+    public void testWildcardMatchingDatasetsRespectsBranchCountLimit() throws IOException {
+        // Lower the cap below DATASET_COUNT so expanding lake_* to all registered datasets triggers the protection.
+        int lowCap = DATASET_COUNT - 2;
+        Request lowerCap = new Request("PUT", "/_cluster/settings");
+        lowerCap.setJsonEntity(Strings.format("""
+            {"persistent": {"esql.query.max_branch_count": %d}}
+            """, lowCap));
+        assertOK(client().performRequest(lowerCap));
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> query("SET wildcards_match_datasets = true; FROM lake_* | LIMIT 1")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            String body = EntityUtils.toString(ex.getResponse().getEntity());
+            assertThat(body, containsString("FROM [lake_*] resolved to " + DATASET_COUNT + " branches, exceeding the limit of " + lowCap));
+        } finally {
+            Request cleanup = new Request("PUT", "/_cluster/settings");
+            cleanup.setJsonEntity("""
+                {"persistent": {"esql.query.max_branch_count": null}}
+                """);
+            client().performRequest(cleanup);
+        }
     }
 
     private static Map<String, Object> query(String esql) throws IOException {

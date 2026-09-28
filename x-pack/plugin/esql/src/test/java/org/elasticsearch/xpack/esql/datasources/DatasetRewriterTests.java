@@ -819,9 +819,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardAtUnionAllCapSucceeds() {
-        // A wildcard expanding to exactly the default cluster cap stays within max_branch_count.
-        int cap = EsqlFlags.DEFAULTS.maxBranchCount();
+    public void testWildcardAtMaxBranchCountSucceeds() {
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < cap; i++) {
@@ -832,16 +831,18 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        EsqlFlags flags = EsqlFlags.withMaxBranchLimits(cap, EsqlFlags.DEFAULTS.maxBranchLevel());
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, QueryPragmas.EMPTY, flags);
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(cap));
     }
 
-    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more datasets than the cluster cap is rejected before the UnionAll is built.
-        int cap = EsqlFlags.DEFAULTS.maxBranchCount();
+    public void testWildcardOverMaxBranchCountRejectsWithUserFacingMessage() {
+        // A wildcard matching more datasets than the cap is rejected before the UnionAll is built. Uses a small constant
+        // so the test stays cheap regardless of what the production default is.
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < cap + 1; i++) {
@@ -852,7 +853,11 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
+        EsqlFlags flags = EsqlFlags.withMaxBranchLimits(cap, EsqlFlags.DEFAULTS.maxBranchLevel());
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, QueryPragmas.EMPTY, flags)
+        );
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
         assertThat(ex.getMessage(), containsString("resolved to " + (cap + 1) + " branches"));
         assertThat(ex.getMessage(), containsString("the limit of " + cap));
@@ -860,7 +865,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
     }
 
-    public void testWildcardOverPragmaBranchCountRejectsWithPragmaMessage() {
+    public void testWildcardOverMaxBranchCountPragmaRejectsWithPragmaMessage() {
         int cap = 2;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
@@ -886,29 +891,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("resolved to 3 branches"));
         assertThat(ex.getMessage(), containsString("the limit of 2"));
         assertThat(ex.getMessage(), containsString("[max_branch_count] query pragma"));
-    }
-
-    public void testWildcardOverClusterSettingBranchCountRejectsWithClusterSettingMessage() {
-        // A live cluster setting below EsqlFlags.DEFAULTS must be honored when the pragma is unset.
-        int cap = 2;
-        EsqlFlags flags = EsqlFlags.withMaxBranchLimits(cap, EsqlFlags.DEFAULTS.maxBranchLevel());
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < cap + 1; i++) {
-            datasets.put(
-                "logs_" + i,
-                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
-            );
-        }
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
-
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, QueryPragmas.EMPTY, flags)
-        );
-        assertThat(ex.getMessage(), containsString("resolved to 3 branches"));
-        assertThat(ex.getMessage(), containsString("the limit of " + cap));
-        assertThat(ex.getMessage(), containsString("[" + EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey() + "] cluster setting"));
     }
 
     public void testDateMathPatternReachesSlowPath() {

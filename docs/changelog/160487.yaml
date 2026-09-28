@@ -1,0 +1,5 @@
+pr: 160487
+summary: Charge keyword doc value string reads
+area: Infra/Scripting
+type: enhancement
+issues: []

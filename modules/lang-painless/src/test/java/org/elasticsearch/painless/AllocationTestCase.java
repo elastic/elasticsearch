@@ -74,7 +74,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
         return ((PainlessScript) script).getAllocBytes();
     }
 
-    /** Runs {@code source} with {@code params} under a 1mb limit and returns the running allocation total afterwards. */
+    /** Runs {@code source} with {@code params} under a 1mb limit and returns what it charged. */
     protected long allocatedBytes(String source, Map<String, Object> params) {
         PainlessTestScript script = compile(source, "1mb", params);
         script.execute();
@@ -86,7 +86,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
         assertTripsLimit(source, "1b");
     }
 
-    /** Asserts that running {@code source} with {@code params} under {@code limit} trips the allocation limit. */
+    /** Asserts {@code source} with {@code params} trips {@code limit}. */
     protected void assertTripsLimit(String source, String limit, Map<String, Object> params) {
         assertTripsLimit(compile(source, limit, params), source, limit);
     }

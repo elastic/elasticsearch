@@ -101,11 +101,7 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
         return count;
     }
 
-    /**
-     * Returns the byte length of the value at {@code index}, or {@code -1} when {@code index} is out of
-     * range. The Painless allocation estimators call this to size the copy a read is about to make.
-     * It is not on any Painless allowlist, so scripts cannot call it.
-     */
+    /** The byte length of the value at {@code index}, or {@code -1} when out of range. For the Painless allocation estimators. */
     @Override
     public int getInternalByteLength(int index) {
         if (index < 0 || index >= count) {

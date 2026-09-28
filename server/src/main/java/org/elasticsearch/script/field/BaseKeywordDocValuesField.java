@@ -102,11 +102,7 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return count;
     }
 
-    /**
-     * Returns the byte length of the term at {@code index}, or {@code -1} when {@code index} is out of
-     * range. The Painless allocation estimators call this to size the string a read is about to build.
-     * It is not on any Painless allowlist, so scripts cannot call it.
-     */
+    /** The byte length of the term at {@code index}, or {@code -1} when out of range. For the Painless allocation estimators. */
     @Override
     public int getInternalByteLength(int index) {
         if (index < 0 || index >= count) {

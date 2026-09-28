@@ -128,12 +128,12 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             retValues[i] = new ByteBuffer[binaryDocValuesField.size()];
             for (int j = 0; j < retValues[i].length; j++) {
                 retValues[i][j] = binaryDocValuesField.get(j, null);
-                // The length the Painless allocation estimators read ahead of a read must match what the read returns.
+                // The length reported ahead of a read must match what the read returns.
                 assertEquals(retValues[i][j].array().length, binaryDocValuesField.getInternalByteLength(j));
             }
         }
 
-        // An index with no value reports an unknown length rather than throwing, which the estimators rely on.
+        // An index with no value reports -1 rather than throwing.
         assertEquals(-1, binaryDocValuesField.getInternalByteLength(-1));
         assertEquals(-1, binaryDocValuesField.getInternalByteLength(binaryDocValuesField.size()));
         assertEquals(2, retValues[0].length);

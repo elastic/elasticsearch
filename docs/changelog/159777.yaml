@@ -1,0 +1,6 @@
+pr: 159777
+summary: Add OCI Generative AI inference service
+area: Inference
+type: enhancement
+issues:
+ - 159776

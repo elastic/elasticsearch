@@ -27,6 +27,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomSet;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 
 /**
  * Utility class providing factory and random-instance methods for EsField subtype testing.
@@ -145,15 +146,15 @@ public class EsFieldTestUtils {
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
         String analyzerName = null;
         int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
-        TextEsField.UnknownAnalyzer unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
+        TextEsField.UnknownAnalyzer unknownAnalyzer = TextEsField.UnknownAnalyzer.NOT_REPORTED;
         List<IndexAnalyzerGroup> analyzerGroups = null;
         if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
             analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
             if (analyzerName != null) {
+                unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
                 positionIncrementGap = randomBoolean() ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : between(0, 1000);
             } else {
-                // Only meaningful when the field has no shared analyzer name; the resolver never sets both.
-                unknownAnalyzer = randomFrom(TextEsField.UnknownAnalyzer.values());
+                unknownAnalyzer = randomUnknownAnalyzer();
                 if (unknownAnalyzer == TextEsField.UnknownAnalyzer.CONFLICT && randomBoolean()) {
                     analyzerGroups = randomAnalyzerGroups();
                 }
@@ -170,6 +171,11 @@ public class EsFieldTestUtils {
             unknownAnalyzer,
             analyzerGroups
         );
+    }
+
+    /** Why a {@link TextEsField} has no analyzer name: anything but {@link TextEsField.UnknownAnalyzer#NONE}. */
+    public static TextEsField.UnknownAnalyzer randomUnknownAnalyzer() {
+        return randomValueOtherThan(TextEsField.UnknownAnalyzer.NONE, () -> randomFrom(TextEsField.UnknownAnalyzer.values()));
     }
 
     /** Which indices use which analyzer when they disagree. Meant for serialization: unlike the resolver's, groups may repeat an analyzer. */

@@ -39,14 +39,20 @@ public class TextEsField extends EsField {
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
     public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
-    /** Why {@link #analyzerName} is absent. Only meaningful when the name is {@code null}. */
+    /** Why {@link #analyzerName} is absent. {@link #NONE} exactly when the name is known. */
     public enum UnknownAnalyzer {
-        /** The name is known, or the field has no analyzer to name. */
+        /** The name is known. */
         NONE,
         /** Indices disagree on the name or {@code position_increment_gap}. */
         CONFLICT,
-        /** Every reported name was withheld because it is defined under {@code index.analysis}. */
+        /** No index reported a name, and at least one withheld it because it is defined under {@code index.analysis}. */
         INDEX_LOCAL,
+        /**
+         * No index reported a name and none withheld one as {@code index.analysis}: the mapper hard-codes its analyzer
+         * (like {@code pattern_text}), the field has no index analyzer (like {@code semantic_text}), or the node predates
+         * {@link TextEsField#FIELD_CAPS_INDEX_ANALYZER}.
+         */
+        NOT_REPORTED,
         /**
          * FORK or UNION ALL branches disagree on the mapping of a column they merge, or one computes it. Only set on the
          * mappings HIGHLIGHT carries across a merge, never by field caps.
@@ -75,7 +81,7 @@ public class TextEsField extends EsField {
             timeSeriesFieldType,
             null,
             DEFAULT_POSITION_INCREMENT_GAP,
-            UnknownAnalyzer.NONE,
+            UnknownAnalyzer.NOT_REPORTED,
             null
         );
     }
@@ -92,7 +98,8 @@ public class TextEsField extends EsField {
         @Nullable List<IndexAnalyzerGroup> analyzerGroups
     ) {
         super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
-        assert analyzerName == null || unknownAnalyzer == UnknownAnalyzer.NONE;
+        assert (analyzerName != null) == (unknownAnalyzer == UnknownAnalyzer.NONE)
+            : "analyzer [" + analyzerName + "] with unknown reason [" + unknownAnalyzer + "]";
         assert analyzerGroups == null || unknownAnalyzer == UnknownAnalyzer.CONFLICT;
         this.analyzerName = analyzerName;
         this.positionIncrementGap = analyzerName == null ? DEFAULT_POSITION_INCREMENT_GAP : positionIncrementGap;
@@ -113,7 +120,7 @@ public class TextEsField extends EsField {
             readTimeSeriesFieldType(in),
             hasAnalyzer ? in.readOptionalString() : null,
             hasAnalyzer ? in.readVInt() : DEFAULT_POSITION_INCREMENT_GAP,
-            hasAnalyzer ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NONE,
+            hasAnalyzer ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NOT_REPORTED,
             hasAnalyzer ? in.readOptionalCollectionAsList(IndexAnalyzerGroup::new) : null
         );
     }

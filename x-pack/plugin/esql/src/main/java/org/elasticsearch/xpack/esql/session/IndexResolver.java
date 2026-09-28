@@ -624,7 +624,7 @@ public class IndexResolver {
         } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
             unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
         } else {
-            unknown = TextEsField.UnknownAnalyzer.NONE;
+            unknown = TextEsField.UnknownAnalyzer.NOT_REPORTED;
         }
         return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown, groups);
     }

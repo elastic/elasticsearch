@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomAnalyzerGroups;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomUnknownAnalyzer;
 
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
     /**
@@ -32,7 +33,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         for (Case c : List.of(
             new Case("english", 0, TextEsField.UnknownAnalyzer.NONE, null),
             new Case(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.CONFLICT, randomAnalyzerGroups()),
-            new Case(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.INDEX_LOCAL, null)
+            new Case(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.INDEX_LOCAL, null),
+            new Case(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.NOT_REPORTED, null)
         )) {
             var field = new TextEsField(
                 "title",
@@ -79,6 +81,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
                 if (analyzerName != null) {
                     unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
                     analyzerGroups = null;
+                } else {
+                    unknownAnalyzer = randomUnknownAnalyzer();
                 }
             }
             case 6 -> {
@@ -91,7 +95,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
                 // The resolver never sets both a name and a reason it is unknown; keep the invariant when changing one.
                 analyzerName = null;
                 positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
-                unknownAnalyzer = randomValueOtherThan(unknownAnalyzer, () -> randomFrom(TextEsField.UnknownAnalyzer.values()));
+                unknownAnalyzer = randomValueOtherThan(unknownAnalyzer, EsFieldTestUtils::randomUnknownAnalyzer);
                 analyzerGroups = unknownAnalyzer == TextEsField.UnknownAnalyzer.CONFLICT ? analyzerGroups : null;
             }
             case 8 -> {

@@ -585,7 +585,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new ExternalClientException(Condition.METADATA_UNAVAILABLE, path, GcsFailureDetail.of(e), "", e);
+                logger.debug("GCS metadata unavailable for [{}]", path.objectName(), e);
+                throw new ExternalClientException(Condition.METADATA_UNAVAILABLE, path, GcsFailureDetail.of(e), "");
             }
         }
     }
@@ -604,12 +605,12 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
                 return;
             }
+            logger.debug("GCS metadata unavailable (range read also failed) for [{}]", path.objectName(), e);
             ExternalClientException metadataEx = new ExternalClientException(
                 Condition.METADATA_UNAVAILABLE,
                 path,
                 GcsFailureDetail.of(e),
-                "",
-                e
+                ""
             );
             metadataEx.setDetail("metadata access denied and range read also failed");
             throw metadataEx;

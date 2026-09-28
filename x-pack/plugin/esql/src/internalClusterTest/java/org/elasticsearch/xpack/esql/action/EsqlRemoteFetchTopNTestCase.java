@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -20,6 +24,7 @@ import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -37,11 +42,29 @@ import static org.hamcrest.Matchers.not;
 public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestCase {
     private String indexName;
 
+    /**
+     * Registers {@code xpack.security.enabled}, which only the security plugin registers in production.
+     * These tests do not load that plugin, but still need to disable the setting so remote-fetch
+     * retain can proceed without an authentication.
+     */
+    public static class SecuritySettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(XPackSettings.SECURITY_ENABLED);
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), SecuritySettingPlugin.class);
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true)
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
     }
 
@@ -446,6 +469,58 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testRemoteFetchDeferredSource() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " METADATA _source | SORT unique_sort DESC | LIMIT 3 | KEEP _source"
+            )
+        ) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (int row = 0; row < rows.size(); row++) {
+                Map<?, ?> source = (Map<?, ?>) rows.get(row).getFirst();
+                assertThat(((Number) source.get("unique_sort")).longValue(), equalTo(63L - row));
+                assertThat(source.get("payload"), equalTo("payload-" + (63 - row)));
+            }
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_source");
+        }
+    }
+
+    public void testRemoteFetchDeferredSyntheticSource() {
+        String syntheticIndex = indexName + "_synthetic";
+        client().admin()
+            .indices()
+            .prepareCreate(syntheticIndex)
+            .setSettings(indexSettings(4, 0).put("index.mapping.source.mode", "synthetic"))
+            .setMapping("unique_sort", "type=long", "payload", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 8; i++) {
+            bulk.add(prepareIndex(syntheticIndex).setId(Integer.toString(i)).setSource("unique_sort", i, "payload", "payload-" + i));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + syntheticIndex + " METADATA _source | SORT unique_sort DESC | LIMIT 3 | KEEP _source"
+            )
+        ) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (int row = 0; row < rows.size(); row++) {
+                Map<?, ?> source = (Map<?, ?>) rows.get(row).getFirst();
+                assertThat(((Number) source.get("unique_sort")).longValue(), equalTo(7L - row));
+                assertThat(source.get("payload"), equalTo("payload-" + (7 - row)));
+            }
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_source");
+        }
+    }
+
     public void testNoRemoteFetchAfterAggregation() {
         try (
             EsqlQueryResponse response = runQuery(
@@ -613,6 +688,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         assertThat(remoteFetchRowsEmitted(response), equalTo((long) rowsEmitted));
         assertThat(statuses.stream().mapToLong(RemoteFetchOperator.Status::batchesSent).sum(), greaterThan(0L));
         assertThat(statuses.stream().mapToInt(RemoteFetchOperator.Status::exchangesOpened).sum(), greaterThan(0));
+        assertThat(statuses.stream().mapToLong(status -> status.profile().totalSetupNanos()).sum(), greaterThan(0L));
+        assertThat(statuses.stream().mapToLong(status -> status.profile().fetchNanos()).sum(), greaterThan(0L));
     }
 
     private static long remoteFetchRowsEmitted(EsqlQueryResponse response) {

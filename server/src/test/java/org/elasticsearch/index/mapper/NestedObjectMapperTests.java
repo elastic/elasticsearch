@@ -814,14 +814,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         createMapperService(mapping.apply("_doc"));
 
         // explicitly setting limit to 0 prevents nested fields
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build();
             createMapperService(settings, mapping.apply("_doc"));
         });
         assertThat(e.getMessage(), containsString("Limit of nested fields [0] has been exceeded"));
 
         // setting limit to 1 with 2 nested fields fails
-        e = expectThrows(IllegalArgumentException.class, () -> {
+        e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build();
             createMapperService(settings, mapping.apply("_doc"));
         });

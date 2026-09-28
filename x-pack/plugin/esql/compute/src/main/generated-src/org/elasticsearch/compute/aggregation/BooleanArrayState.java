@@ -78,8 +78,24 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         trackGroupId(groupId);
     }
 
-    boolean getOrDefault(int groupId) {
-        return groupId < capacity ? get(groupId) : init;
+    void min(int groupId, boolean value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        if (value == false) {
+            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] &= ~(1L << groupId);
+        }
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, boolean value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        if (value) {
+            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] |= 1L << groupId;
+        }
+        trackGroupId(groupId);
     }
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {

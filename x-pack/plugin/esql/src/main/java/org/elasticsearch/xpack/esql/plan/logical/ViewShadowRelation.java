@@ -57,10 +57,6 @@ import java.util.Objects;
  *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
  *       <em>(landed)</em></li>
  * </ol>
- * The strict, default-options field-caps path on the local cluster keeps {@code resolveViews(true)}
- * unchanged, so a remote project that has a <em>view</em> with the same name still fails the query
- * with {@code RemoteViewNotSupportedException}. This node only enables lookup of remote
- * <em>indices</em> with the same name as a local view.
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 

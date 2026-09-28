@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 157968
-summary: Guard against protobuf label/attribute fan-out
-type: bug

@@ -33,6 +33,9 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.LongSwissHash;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import java.util.BitSet;
 // end generated imports
 
@@ -40,7 +43,7 @@ import java.util.BitSet;
  * Maps a {@link IntBlock} column to group ids.
  * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
-final class IntBlockHash extends BlockHash {
+final class IntBlockHash extends PartitionedBlockHash {
     private final int channel;
     final LongHashTable hash;
 
@@ -177,6 +180,101 @@ final class IntBlockHash extends BlockHash {
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
+    }
+
+    /**
+     * Carries the {@code seenNull} flag through the split/combine round-trip alongside the delegate keys.
+     * <p>
+     * This hash reserves group ordinal 0 for null and stores null outside its Swiss hash; Swiss ordinals are
+     * therefore offset by 1 from group IDs. When {@code seenNull} is {@code true}, null's aggregation state
+     * was emitted as one extra entry in partition 0 of the aggregation split, and {@link #keysInPartition(int)}
+     * returns +1 for partition 0 so the combiner allocates space for it.
+     */
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashTable.PartitionedHashKeys delegate, boolean seenNull)
+        implements
+            PartitionedHashTable.PartitionedHashKeys {
+
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition) + (seenNull && partition == 0 ? 1 : 0);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        if (hash instanceof LongSwissHash swiss) {
+            // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
+            // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
+            var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
+            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            boolean success = false;
+            try {
+                if (seenNull) {
+                    // Emit null's aggregation state (group ID 0) as one extra entry appended to partition 0.
+                    int nullOffset = keys.keysInPartition(0);
+                    int[] singleNullCounts = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    singleNullCounts[0] = 1;
+                    int[] singleNullOffsets = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    singleNullOffsets[0] = nullOffset;
+                    // shiftedIds needs only 1 element: null is the sole entry in partition 0 (shifted ID = 0)
+                    partitionSplitter.split(0, new short[1], 1, singleNullCounts, singleNullOffsets);
+                }
+                success = true;
+                return new PartitionedHashKeysWithSeenNull(keys, seenNull);
+            } finally {
+                if (success == false) {
+                    keys.releaseAll(breaker);
+                }
+            }
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof LongSwissHash swiss) {
+            PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+            int numNonNullKeys = withSeenNull.delegate().keysInPartition(partitionIndex);
+            boolean appendOnly = swiss.combinePartition(withSeenNull.delegate(), partitionIndex, resultIds);
+            // Shift all result IDs by 1: Swiss ordinals (0-indexed) → group IDs (1-indexed, null reserved at 0)
+            for (int i = 0; i < numNonNullKeys; i++) {
+                resultIds[i]++;
+            }
+            if (withSeenNull.seenNull() && partitionIndex == 0) {
+                // Only mark seenNull on the target hash for the one partition that carries null's state.
+                seenNull = true;
+                resultIds[numNonNullKeys] = 0; // null's group ID
+                return false; // can't use appendOnly with the null entry mixed in
+            }
+            return appendOnly;
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        seenNull = false;
+        hash.clear();
     }
 
     @Override

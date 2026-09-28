@@ -18,13 +18,15 @@ package org.elasticsearch.columnar.string;
  * what the survey holds while it is choosing. The width of an ordinal does not enter into it: a block is
  * packed to the widest ordinal it actually contains.
  *
- * <p>Whether to keep it is then two questions. {@link #minCoverage} asks whether enough of the column's
- * values are in the dictionary for an ordinal to be worth reading. {@link #maxShareOfColumn} asks whether
+ * <p>Whether to keep it is then two questions. {@link #minCoverage} asks what share of the column's values
+ * a read can answer through an ordinal. The rest escape, and escaped values share one ordinal, so a filter
+ * for a term the dictionary names rules them all out by it while a filter for one that escaped has to read
+ * and compare their bytes. {@link #maxShareOfColumn} asks whether
  * the dictionary is small against the data it describes — a dictionary as large as the values it stands in
  * for has bought nothing, however well it covers them.
  *
  * @param maxBytes         the most term bytes a dictionary may hold
- * @param minCoverage      the share of a column's values the dictionary must account for
+ * @param minCoverage      the share of a column's values the dictionary must name
  * @param maxShareOfColumn the largest share of the column's value bytes the dictionary may occupy
  */
 public record DictionaryPolicy(int maxBytes, double minCoverage, double maxShareOfColumn) {

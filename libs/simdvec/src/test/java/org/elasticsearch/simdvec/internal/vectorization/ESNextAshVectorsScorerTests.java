@@ -60,13 +60,13 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
         // Also include small nDims cases (below 128 bits / 16 planeBytes) to exercise fall-through to scalar
         var bitCombinations = List.of(
             new Object[] { 1, 0 },
+            new Object[] { 1, 1 },
             new Object[] { 1, 4 },
             new Object[] { 2, 4 },
-            new Object[] { 4, 4 },
             new Object[] { 3, 4 },
-            new Object[] { 8, 4 },
-            new Object[] { 1, 1 },
-            new Object[] { 2, 1 }
+            new Object[] { 4, 4 },
+            new Object[] { 4, 8 },
+            new Object[] { 8, 8 }
         );
         return () -> bitCombinations.stream()
             .flatMap(bits -> Arrays.stream(DirectoryType.values()).map(d -> ArrayUtils.prepend(d, bits)))

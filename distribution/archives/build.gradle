@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.VersionProperties
+
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -97,10 +99,12 @@ distribution_archives {
     }
   }
 
-  darwinTar {
-    archiveClassifier = 'darwin-x86_64'
-    content {
-      archiveFiles('tar', 'darwin', 'x64', false)
+  if (Integer.parseInt(VersionProperties.bundledJdkMajorVersion) < 27) {
+    darwinTar {
+      archiveClassifier = 'darwin-x86_64'
+      content {
+        archiveFiles('tar', 'darwin', 'x64', false)
+      }
     }
   }
 
@@ -128,7 +132,9 @@ distribution_archives {
 
 subprojects {
   apply plugin: 'distribution'
-  apply plugin: 'elasticsearch.internal-distribution-archive-check'
+  if (it.name != 'darwin-tar' || Integer.parseInt(VersionProperties.bundledJdkMajorVersion) < 27) {
+    apply plugin: 'elasticsearch.internal-distribution-archive-check'
+  }
 
   group = "org.elasticsearch.distribution.default"
 }

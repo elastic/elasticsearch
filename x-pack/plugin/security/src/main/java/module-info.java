@@ -23,10 +23,6 @@ module org.elasticsearch.security {
     requires org.elasticsearch.xcore;
 
     requires org.apache.commons.codec;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires org.apache.lucene.core;
@@ -56,6 +52,7 @@ module org.elasticsearch.security {
     requires org.elasticsearch.logging;
     requires org.apache.httpcomponents.client5.httpclient5;
     requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.apache.httpcomponents.core5.httpcore5.h2;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;

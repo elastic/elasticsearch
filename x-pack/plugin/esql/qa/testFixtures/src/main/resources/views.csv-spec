@@ -353,6 +353,27 @@ LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           |
 LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | null
 ;
 
+classAndNameOnAViewAlongsideAnIndex
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: metadata_class_and_name
+
+// A view has no relation left to ask by execution, so its rows answer NULL for both columns --
+// the same disposition _index already has above. The index row answers for itself.
+FROM airports_mp_filtered, airports METADATA _class, _name
+| WHERE abbrev == "LUH"
+| KEEP abbrev, _class, _name
+| SORT _name
+;
+
+abbrev:keyword | _class:keyword | _name:keyword
+LUH            | index          | airports
+LUH            | null           | null
+;
+
 airportsLookupJoinViewAirportsStats
 skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12

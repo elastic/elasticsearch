@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -132,10 +133,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + overWatermarkCommitmentBytes
-                    + "] bytes already exceeds the low "
-                    + "watermark ["
-                    + LOW_WATERMARK_BYTES
+                    + ByteSizeValue.ofBytes(overWatermarkCommitmentBytes)
+                    + "] already exceeds the low watermark ["
+                    + ByteSizeValue.ofBytes(LOW_WATERMARK_BYTES)
                     + "]"
             )
         );
@@ -192,7 +192,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         assertThat(
             decision.getExplanation(),
             containsString(
-                "would raise its cache commitment from [" + belowWatermarkCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes"
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(belowWatermarkCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newCommitmentBytes)
+                    + "]"
             )
         );
     }
@@ -222,7 +226,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         assertThat(
             decision.getExplanation(),
             containsString(
-                "would raise its cache commitment from [" + belowWatermarkCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes"
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(belowWatermarkCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newCommitmentBytes)
+                    + "]"
             )
         );
     }
@@ -262,7 +270,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         assertThat(
             boostedDecision.getExplanation(),
             containsString(
-                "would raise its cache commitment from [" + lowBoostedCommitmentBytes + "] to [" + newBoostedCommitmentBytes + "] bytes"
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(lowBoostedCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newBoostedCommitmentBytes)
+                    + "]"
             )
         );
 
@@ -278,10 +290,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + totalSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + totalCommitmentBytes
-                    + "] bytes already exceeds the low watermark "
-                    + "["
-                    + LOW_WATERMARK_BYTES
+                    + ByteSizeValue.ofBytes(totalCommitmentBytes)
+                    + "] already exceeds the low watermark ["
+                    + ByteSizeValue.ofBytes(LOW_WATERMARK_BYTES)
                     + "]"
             )
         );
@@ -314,7 +325,13 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         // The sentinel boosted requirement must contribute zero bytes to the total, not be treated as -1.
         assertThat(
             decision.getExplanation(),
-            containsString("would raise its cache commitment from [" + unboostedCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes")
+            containsString(
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(unboostedCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newCommitmentBytes)
+                    + "]"
+            )
         );
     }
 
@@ -426,10 +443,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + overWatermarkCommitmentBytes
-                    + "] bytes exceeds the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(overWatermarkCommitmentBytes)
+                    + "] exceeds the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )
@@ -469,10 +486,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + belowHighWatermarkCommitmentBytes
-                    + "] bytes is below the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(belowHighWatermarkCommitmentBytes)
+                    + "] is below the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )
@@ -515,10 +532,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + boostedSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + lowBoostedCommitmentBytes
-                    + "] bytes is below the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(lowBoostedCommitmentBytes)
+                    + "] is below the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )
@@ -541,10 +558,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + totalSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + totalCommitmentBytes
-                    + "] bytes exceeds the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(totalCommitmentBytes)
+                    + "] exceeds the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )

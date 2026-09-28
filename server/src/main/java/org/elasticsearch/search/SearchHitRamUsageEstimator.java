@@ -11,8 +11,8 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -21,7 +21,6 @@ import java.util.Map;
 public final class SearchHitRamUsageEstimator {
 
     private static final long SEARCH_HIT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SearchHit.class);
-    private static final long HASH_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
     private static final long SEARCH_HITS_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SearchHits.class);
     private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
@@ -37,8 +36,8 @@ public final class SearchHitRamUsageEstimator {
         size += estimateFields(hit.getMetadataFields());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
-            size += HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size() * (HASH_MAP_NODE_SIZE
-                + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()
+                * (HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
             for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
                 size += RamUsageEstimator.sizeOf(entry.getKey());
                 SearchHit[] innerHitsArray = entry.getValue().getHits();
@@ -56,8 +55,8 @@ public final class SearchHitRamUsageEstimator {
         if (fields == null || fields.isEmpty()) {
             return 0L;
         }
-        long size = HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fields.size() * (HASH_MAP_NODE_SIZE
-            + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        long size = RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) fields.size()
+            * (HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         for (DocumentField field : fields.values()) {
             size += field.ramBytesUsedEstimate();
         }

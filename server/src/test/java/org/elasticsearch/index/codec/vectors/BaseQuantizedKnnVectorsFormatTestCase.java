@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public abstract class BaseQuantizedKnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
+public abstract class BaseQuantizedKnnVectorsFormatTestCase extends ESBaseKnnVectorsFormatTestCase {
 
     public void testRescoreUsesRawVectorSlice() throws IOException {
         // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; subclasses may randomly pick bits=4.

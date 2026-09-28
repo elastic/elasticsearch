@@ -498,6 +498,24 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("v", DataType.KEYWORD));
     }
 
+    /**
+     * An invalid bare token (e.g. {@code not_json}) immediately followed by a valid record — with no blank
+     * cushion line between them — must not cause the following record's columns to be lost from the inferred
+     * schema. Exercises the streaming-path guard added for elastic/esql-planning#1704: without the fix,
+     * {@link NdJsonUtils#moveToNextLine} consumes the following record as the remainder of the bad line, so
+     * its columns never reach the schema sampler.
+     * <p>
+     * The existing {@link #testIgnoreEmptyAndInvalidLines} and {@link #testLineEndingVariations} tests do not
+     * catch this because their bad-line fixtures are followed by a blank line (the cushion), which is what
+     * the over-eager forward scan eats — the subsequent good record is unharmed.
+     */
+    public void testInvalidBareTokenWithoutCushionLine() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        // {"a":1} and {"b":2} are on consecutive lines with no blank between them.
+        // Without the fix, "b" is never seen by the inferrer.
+        check("{\"a\":1}\nnot_json\n{\"b\":2}\n", field("a", DataType.INTEGER, true), field("b", DataType.INTEGER, true));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);

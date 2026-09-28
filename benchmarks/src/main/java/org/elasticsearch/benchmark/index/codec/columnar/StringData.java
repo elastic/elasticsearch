@@ -222,6 +222,28 @@ public enum StringData {
     },
 
     /** A trace id: entirely distinct, and long enough that the values dominate the column. */
+    /**
+     * An opaque session identifier, with as many distinct values as a segment holds documents. A term is
+     * held about once per segment and about once per segment in every other segment too, which is the band
+     * where a segment's summary records nothing and the merged column holds the term often enough to name
+     * it. Its bytes do not compress, so escaping one costs its full length once per occurrence.
+     */
+    SESSION_ID {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final String[] vocabulary = new String[100_000];
+            final char[] alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+            final char[] chars = new char[32];
+            for (int i = 0; i < vocabulary.length; i++) {
+                for (int c = 0; c < chars.length; c++) {
+                    chars[c] = alphabet[random.nextInt(alphabet.length)];
+                }
+                vocabulary[i] = new String(chars);
+            }
+            return skewed(vocabulary, count, random, 0.0);
+        }
+    },
+
     TRACE_ID {
         @Override
         BytesRef[] generate(int count, Random random) {
@@ -233,6 +255,28 @@ public enum StringData {
                 values[i] = bytes(builder.toString());
             }
             return values;
+        }
+    },
+
+    /**
+     * The same vocabulary and value multiset as {@link #CLUSTERED_POD_NAME}, with document order
+     * permuted uniformly at random. Cardinality, value length, and vocabulary size are identical to
+     * {@code CLUSTERED_POD_NAME}; the only difference is that no value clusters near similar values in
+     * document order. Comparing the two isolates the contribution of doc-order clustering from the
+     * contribution of cardinality and value length, which no existing pair of shapes does.
+     */
+    SHUFFLED_POD_NAME {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] clustered = CLUSTERED_POD_NAME.generate(count, random);
+            // Fisher-Yates shuffle: each position i swaps with a uniformly chosen position in [i, count).
+            for (int i = count - 1; i > 0; i--) {
+                final int j = random.nextInt(i + 1);
+                final BytesRef tmp = clustered[i];
+                clustered[i] = clustered[j];
+                clustered[j] = tmp;
+            }
+            return clustered;
         }
     };
 

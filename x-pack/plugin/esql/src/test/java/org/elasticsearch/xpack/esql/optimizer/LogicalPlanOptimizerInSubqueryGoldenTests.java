@@ -36,10 +36,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
-    private static void requireMultiColumnInSubquerySupport() {
-        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
             FROM employees
@@ -627,7 +623,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN / NOT IN subqueries: WHERE (field1, field2) IN (subquery) --
 
     public void testMultiColumnInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages)
@@ -635,7 +630,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages)
@@ -643,7 +637,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
@@ -651,7 +644,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryInsideFromSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000 | KEEP emp_no)
@@ -659,7 +651,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnNotInSubqueryInsideFromSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees
@@ -669,7 +660,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedDisjunctiveMultiColumnInSubqueries() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (
@@ -681,7 +671,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryWithFork() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
@@ -690,7 +679,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testSortWithLimitInMultiColumnInSubqueryIsAllowed() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no, languages)
@@ -698,7 +686,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWithSortLimitInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | STATS m = MAX(emp_no) BY languages | SORT m | LIMIT 3 | KEEP m, languages)
@@ -706,7 +693,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleFiltersInMultiColumnInSubqueryCombined() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | WHERE salary > 50000 | WHERE languages > 2 | KEEP emp_no, languages)
@@ -714,7 +700,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCombineDisjunctionsInsideMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no, languages)
@@ -722,7 +707,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryReferencingView() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM emps_view)
@@ -731,7 +715,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryReferencingView() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) NOT IN (FROM emps_view)
@@ -742,7 +725,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
 
     public void testMultiColumnInSubqueryInCase() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -750,7 +732,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryInCase() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -758,7 +739,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInCoalesce() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
@@ -766,7 +746,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInIsNotNull() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
@@ -774,7 +753,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInIsNull() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
@@ -782,7 +760,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseAndEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), "yes", "no") == "yes"
@@ -790,7 +767,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceAndNotEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false) != false
@@ -798,7 +774,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testComplexBooleanWithMultiColumnInSubqueryInExpressions() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (salary > 50000 AND (((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL))
@@ -807,7 +782,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -815,7 +789,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInNotEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) != false
@@ -823,7 +796,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -831,7 +803,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInStatsWhere() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -839,7 +810,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInInlineStatsWhere() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | INLINE STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -847,7 +817,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
@@ -1002,7 +971,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInTsSubqueryInEval() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             TS k8s
             | EVAL m = (pod, cluster) IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY pod, cluster | KEEP pod, cluster)
@@ -1019,7 +987,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInRowSubqueryInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = (emp_no, languages) IN (ROW emp_no = 1, languages = 2)
@@ -1027,7 +994,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -1035,7 +1001,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
@@ -1043,7 +1008,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
@@ -1051,7 +1015,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNotNullInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
@@ -1285,7 +1248,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnRowInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -1293,7 +1255,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, gender) IN (TS k8s
@@ -1304,7 +1265,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereInSubqueryInComplexNesting() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS count = COUNT(*) WHERE COALESCE(
@@ -1497,7 +1457,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInInlineStatsWhereWithRow() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (salary, languages) IN (ROW a = 1, b = 2 | KEEP a, b)

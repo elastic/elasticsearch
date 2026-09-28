@@ -23,7 +23,6 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<PutDatasetAction.Request> {
     private final DatasetService datasetService;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutDatasetAction(
@@ -45,24 +44,6 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.datasetService = datasetService;
-        this.projectResolver = projectResolver;
-    }
-
-    @Override
-    protected void doExecute(Task task, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: parent lookup + validator dispatch against local (possibly stale)
-        // cluster state. Fails fast without a master round-trip on unknown type, missing parent,
-        // or validator rejection. The task body re-validates against master's authoritative state.
-        var projectId = projectResolver.getProjectId();
-        var project = clusterService.state().metadata().getProject(projectId);
-        try {
-            datasetService.validatePutDataset(project, request);
-        } catch (Exception e) {
-            datasetService.recordRejected(project, request.dataSource(), e);
-            listener.onFailure(e);
-            return;
-        }
-        super.doExecute(task, request, listener);
     }
 
     @Override

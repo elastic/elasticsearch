@@ -28,10 +28,12 @@ public class DockerAvailability {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerAvailability.class);
 
-    private static final boolean EXCLUDED_OS = isExcludedOs();
-    private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
-    private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
+    private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"))
+        || System.getenv("BUILDKITE_BUILD_URL") != null
+        || System.getenv("JENKINS_URL") != null;
+    private static final boolean EXCLUDED_OS = isExcludedOs(CI);
+    private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
 
     public static void assumeDockerIsAvailable() {
         org.junit.Assume.assumeFalse("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
@@ -56,8 +58,8 @@ public class DockerAvailability {
         }
     }
 
-    private static boolean isExcludedOs() {
-        if (CI == false) {
+    private static boolean isExcludedOs(boolean ci) {
+        if (ci == false) {
             // we dont exclude OS outside of CI environment
             return false;
         }

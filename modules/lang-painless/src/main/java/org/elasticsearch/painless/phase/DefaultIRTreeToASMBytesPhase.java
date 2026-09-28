@@ -11,6 +11,7 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.AllocSizes;
+import org.elasticsearch.painless.AllocationEstimators;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
@@ -179,6 +180,7 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
@@ -859,9 +861,26 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
         if (painlessMethod == null) {
+            // DefBootstrap.ITERATOR carries no annotation, so there is no estimator to replay. The size is the same either
+            // way, a collection iterator or the ValueIterator wrapper for an array, so charge the constant inline.
+            writeAllocationCheck(writeScope, AllocSizes.ITERATOR_BYTES);
+
             Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
+            java.lang.reflect.Method iteratorEstimator = irForEachSubIterableNode.getDecorationValue(IRDAllocationEstimator.class);
+
+            if (iteratorEstimator != null && isAllocationTrackingActive(writeScope)) {
+                Variable[] operands = writeDynamicAllocationCheck(
+                    writeScope,
+                    methodWriter,
+                    "iteratorOperand",
+                    painlessMethod.methodType().parameterArray(),
+                    iteratorEstimator
+                );
+                loadCallOperands(methodWriter, operands);
+            }
+
             methodWriter.invokeMethodCall(painlessMethod);
         }
 
@@ -1163,6 +1182,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irRightNode, writeScope);
             methodWriter.push(irBinaryMathNode.getDecorationValue(IRDRegexLimit.class));
             visit(irLeftNode, writeScope);
+
+            // Augmentation.matcher builds a Matcher, and a ReadLimitedCharSequence around the input when a regex limit
+            // factor is set. A Matcher sizes three arrays from its pattern's capturing groups. A regex literal is a
+            // compile-time constant, so read its group count here and charge exactly; any other Pattern expression is
+            // only known at runtime and falls back to the assumed bound. The pre-check leaves the stack as it found it,
+            // so the operands already pushed above stay in place for the real call. The regex literal itself is a static
+            // constant on the script class and is not charged.
+            long matcherBytes = AllocSizes.MATCHER_BYTES;
+
+            if (irRightNode instanceof ConstantNode irPatternNode
+                && irPatternNode.getDecorationValue(IRDConstant.class) instanceof Pattern pattern) {
+                matcherBytes = AllocSizes.matcherBytes(pattern.matcher("").groupCount());
+            }
+
+            writeAllocationCheck(writeScope, matcherBytes);
+
             methodWriter.invokeStatic(Type.getType(Augmentation.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
@@ -1585,6 +1620,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irListInitializationNode.getLocation());
 
         PainlessConstructor painlessConstructor = irListInitializationNode.getDecorationValue(IRDConstructor.class);
+
+        // A list literal emits the constructor and the adds directly, so it never reaches the estimator path. The type is
+        // always ArrayList and the element count is known here, so charge the shell plus the array the adds grow to.
+        writeAllocationCheck(writeScope, AllocationEstimators.listLiteralBytes(irListInitializationNode.getArgumentNodes().size()));
+
         methodWriter.newInstance(MethodWriter.getType(irListInitializationNode.getDecorationValue(IRDExpressionType.class)));
         methodWriter.dup();
         methodWriter.invokeConstructor(
@@ -1606,6 +1646,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irMapInitializationNode.getLocation());
 
         PainlessConstructor painlessConstructor = irMapInitializationNode.getDecorationValue(IRDConstructor.class);
+
+        // Same gap as a list literal. The type is always HashMap and the entry count is known here, so charge the shell,
+        // the table the puts grow to, and one node per entry.
+        writeAllocationCheck(writeScope, AllocationEstimators.mapLiteralBytes(irMapInitializationNode.getArgumentsSize()));
+
         methodWriter.newInstance(MethodWriter.getType(irMapInitializationNode.getDecorationValue(IRDExpressionType.class)));
         methodWriter.dup();
         methodWriter.invokeConstructor(
@@ -1785,6 +1830,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irDefInterfaceReferenceNode.getLocation());
 
+        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
+        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
+
+        // The functional interface is picked at runtime, but the capture object is allocated either way: one slot per captured
+        // value, plus one for the script instance when it is captured. Charge it the same way the typed path does. The check
+        // leaves nothing on the stack, so it can go first.
+        int captureCount = (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class) ? 1 : 0) + (captureNames == null
+            ? 0
+            : captureNames.size());
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(captureCount));
+
         // place holder for functional interface receiver
         // which is resolved and replace at runtime
         methodWriter.push((String) null);
@@ -1792,9 +1848,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
-
-        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
-        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
 
         if (captureNames != null) {
             for (String captureName : captureNames) {

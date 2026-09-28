@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.StreamReadFeature;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -113,9 +114,18 @@ class NdJsonUtils {
      * stream at the following record — running the scan loop would consume that record through its
      * own terminator, silently dropping it. Jackson increments its line counter on {@code '\n'} and
      * bare {@code '\r'}, so the comparison is accurate for LF, CR, and CRLF line endings.
+     * <p>
+     * Invalid bare tokens (e.g. {@code not_json}, lone {@code -}) follow a different Jackson path
+     * ({@code _reportInvalidToken} / {@code _parseNegNumber}) that also consumes the line terminator
+     * but does NOT increment the line counter. The line-number comparison misses this class. When
+     * {@code input} is a {@link LineTerminatorTrackingStream}, its lookbehind buffer provides a
+     * second detection: after {@link JsonParser#releaseBuffered}, the byte at position
+     * {@code totalDelivered - releasedSize - 1} in the delivered stream is the last byte the parser
+     * actually processed; if it is {@code '\n'} or {@code '\r'}, the parser has already crossed the
+     * line and the forward scan must be skipped.
      *
      * @param parser the JSON parser
-     * @param input  the stream the parser reads from
+     * @param input  the stream the parser reads from (typically a {@link LineTerminatorTrackingStream})
      * @return a new stream to read from
      */
     static InputStream moveToNextLine(JsonParser parser, InputStream input) throws IOException {
@@ -124,24 +134,140 @@ class NdJsonUtils {
         parser.releaseBuffered(baos);
         parser.close();
 
+        if (alreadyCrossedLine == false && input instanceof LineTerminatorTrackingStream tracker) {
+            alreadyCrossedLine = tracker.wasLastConsumedByteTerminator(baos.size());
+        }
+
+        // Unwrap the tracker so RecoveredStream.prependReleasedBuffer can coalesce across recoveries,
+        // and the scan reads directly from the underlying stream without disturbing tracking state.
+        LineTerminatorTrackingStream outerTracker = null;
+        InputStream base = input;
+        if (input instanceof LineTerminatorTrackingStream ltt) {
+            outerTracker = ltt;
+            base = ltt.baseStream();
+        }
+
         if (baos.size() > 0) {
-            if (input instanceof RecoveredStream recoveredStream) {
+            if (base instanceof RecoveredStream recoveredStream) {
                 recoveredStream.prependReleasedBuffer(baos);
             } else {
-                input = new RecoveredStream(baos, input);
+                base = new RecoveredStream(baos, base);
             }
         }
 
         if (alreadyCrossedLine == false) {
             int c;
-            while ((c = input.read()) != -1) {
+            while ((c = base.read()) != -1) {
                 if (c == '\n' || c == '\r') {
                     break;
                 }
             }
         }
 
-        return input;
+        // Reset and reuse the tracker (resets totalDelivered to 0 so the next parser starts fresh).
+        if (outerTracker != null) {
+            outerTracker.reset(base);
+            return outerTracker;
+        }
+        return base;
+    }
+
+    /**
+     * A {@link FilterInputStream} that maintains a circular lookbehind buffer of the last
+     * {@link #RING_SIZE} bytes delivered to any reader (i.e. to the Jackson parser). Used by
+     * {@link #moveToNextLine} to detect whether an invalid bare token consumed the line terminator
+     * without bumping Jackson's line counter.
+     * <p>
+     * After {@link JsonParser#releaseBuffered} the released buffer contains unprocessed bytes from
+     * Jackson's internal buffer. The byte at stream position
+     * {@code totalDelivered - releasedSize - 1} is the last byte Jackson actually processed. If it
+     * is {@code '\n'} or {@code '\r'}, the parser already crossed the line boundary and the forward
+     * scan in {@link #moveToNextLine} must not run.
+     * <p>
+     * Ring buffer size: Jackson's internal input buffer does not exceed 8192 bytes. The released
+     * buffer is a suffix of that internal buffer, so {@code releasedSize <= 8192}. A ring of 8193
+     * bytes therefore always covers the position we need.
+     */
+    static final class LineTerminatorTrackingStream extends FilterInputStream {
+        private static final int RING_SIZE = 8193;
+        private final byte[] ring = new byte[RING_SIZE];
+        private long totalDelivered = 0;
+
+        LineTerminatorTrackingStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            if (b != -1) {
+                ring[(int) (totalDelivered % RING_SIZE)] = (byte) b;
+                totalDelivered++;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                // If n exceeds the ring, only the tail (last RING_SIZE bytes) matters for lookbehind.
+                int toCopy = Math.min(n, RING_SIZE);
+                int srcOff = off + n - toCopy;
+                int start = (int) ((totalDelivered + n - toCopy) % RING_SIZE);
+                int end = start + toCopy;
+                if (end <= RING_SIZE) {
+                    System.arraycopy(b, srcOff, ring, start, toCopy);
+                } else {
+                    int firstPart = RING_SIZE - start;
+                    System.arraycopy(b, srcOff, ring, start, firstPart);
+                    System.arraycopy(b, srcOff + firstPart, ring, 0, toCopy - firstPart);
+                }
+                totalDelivered += n;
+            }
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = 0;
+            byte[] buf = new byte[(int) Math.min(n, 4096)];
+            while (skipped < n) {
+                int toRead = (int) Math.min(n - skipped, buf.length);
+                int r = read(buf, 0, toRead);
+                if (r < 0) break;
+                skipped += r;
+            }
+            return skipped;
+        }
+
+        InputStream baseStream() {
+            return in;
+        }
+
+        void reset(InputStream newIn) {
+            this.in = newIn;
+            this.totalDelivered = 0;
+        }
+
+        /**
+         * Returns {@code true} when the byte at position
+         * {@code totalDelivered - releasedSize - 1} in the delivered stream was a line
+         * terminator ({@code '\n'} or {@code '\r'}), indicating that the Jackson parser
+         * consumed the bad line's terminator and is already positioned at the start of the
+         * next line.
+         *
+         * @param releasedSize the value of {@code baos.size()} after
+         *                     {@link JsonParser#releaseBuffered}
+         */
+        boolean wasLastConsumedByteTerminator(int releasedSize) {
+            long pos = totalDelivered - releasedSize - 1;
+            if (pos < 0 || pos < totalDelivered - RING_SIZE) {
+                return false;
+            }
+            byte b = ring[(int) (pos % RING_SIZE)];
+            return b == '\n' || b == '\r';
+        }
     }
 
     private static class RecoveredStream extends InputStream {

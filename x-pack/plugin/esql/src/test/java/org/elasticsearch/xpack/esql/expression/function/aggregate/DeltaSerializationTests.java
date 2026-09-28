@@ -21,7 +21,7 @@ public class DeltaSerializationTests extends AbstractExpressionSerializationTest
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new Delta(source, field, filter, window, timestamp);
+        return new Delta(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -37,6 +37,6 @@ public class DeltaSerializationTests extends AbstractExpressionSerializationTest
             case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Delta(source, field, filter, window, timestamp);
+        return new Delta(source, field, timestamp, filter, window);
     }
 }

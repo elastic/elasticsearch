@@ -65,22 +65,18 @@ public class MappingBuilder {
     }
 
     /**
-     * Merges another {@link MappingBuilder} into this one, mutating this builder in place.
-     *
-     * @param incoming the incoming mapping builder to merge
-     * @param reason the reason for the merge
-     * @param newFieldsBudget how many new fields may be added during the merge
+     * Merges another {@link MappingBuilder} into this one, mutating this builder in place,
+     * enforcing all limits in the provided {@link ParseFieldLimits}.
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(
-            isSourceSynthetic(),
-            false,
+    public void merge(MappingBuilder incoming, MergeReason reason, ParseFieldLimits fieldLimits) {
+        mergeWith(
+            incoming,
             reason,
-            newFieldsBudget,
-            isStrictColumnar,
-            isSourceColumnarStored()
+            MapperMergeContext.root(isSourceSynthetic(), false, reason, fieldLimits, isStrictColumnar, isSourceColumnarStored())
         );
+    }
 
+    private void mergeWith(MappingBuilder incoming, MergeReason reason, MapperMergeContext mergeContext) {
         // Merge root object builders
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
         rootBuilder.merge(incoming.rootBuilder, objectMergeContext, rootBuilder.leafName());

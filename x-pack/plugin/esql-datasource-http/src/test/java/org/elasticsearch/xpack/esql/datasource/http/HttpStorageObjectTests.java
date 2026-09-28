@@ -583,50 +583,57 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * Each {@code mapReadFailure} form names the object by its URL without user info or query string; the
-     * client-error form brackets it like the other two.
+     * Each {@code mapReadFailure} form names the object by its safe name (last path segment) without the storage URI,
+     * credentials, or query parameters.
      */
     public void testReadFailureRedactsUrl() throws Exception {
         IOException clientError = expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN).newStream());
-        assertEquals("Failed to read object from [https://host:8443/a/b.csv] (HTTP 403)", clientError.getMessage());
+        assertEquals("Failed to read object from [b.csv] (HTTP 403)", clientError.getMessage());
 
         ExternalUnavailableException unavailable = expectThrows(
             ExternalUnavailableException.class,
             () -> objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE).newStream()
         );
-        HttpUrlsTests.assertRedacted(unavailable.getMessage());
+        assertSafeMessage(unavailable.getMessage());
 
         ExternalObjectChangedException changed = expectThrows(
             ExternalObjectChangedException.class,
             () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED).newStream(1, 2)
         );
-        HttpUrlsTests.assertRedacted(changed.getMessage());
+        assertSafeMessage(changed.getMessage());
     }
 
-    /** Both {@code observeEtag} failures name the object by its redacted URL. */
+    /** Both {@code observeEtag} failures name the object by its safe name (last path segment). */
     public void testEtagMismatchRedactsUrl() throws Exception {
         ExternalObjectChangedException changed = expectThrows(
             ExternalObjectChangedException.class,
             () -> readTwiceWithEtags("\"gen-1\"", "\"gen-2\"")
         );
-        assertEquals("Object changed during read of [https://host:8443/a/b.csv]", changed.getMessage());
+        assertEquals("External data object [b.csv] was modified during read", changed.getMessage());
 
         ExternalObjectChangedException unverifiable = expectThrows(
             ExternalObjectChangedException.class,
             () -> readTwiceWithEtags("\"gen-1\"", null)
         );
-        HttpUrlsTests.assertRedacted(unverifiable.getMessage());
+        assertSafeMessage(unverifiable.getMessage());
     }
 
-    /** The async send failures that are not already typed are wrapped with the redacted URL. */
+    /** The async send failures that are not already typed are wrapped with the object name, not the storage URI. */
     public void testAsyncSendFailureRedactsUrl() throws Exception {
         for (Throwable failure : List.of(new CompletionException(new IOException("closed")), new IllegalArgumentException("boom"))) {
             HttpClient mockClient = mock(HttpClient.class);
             doReturn(CompletableFuture.failedFuture(failure)).when(mockClient).sendAsync(any(), any());
             StoragePath path = StoragePath.of(HttpUrlsTests.SECRET_URL);
             HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
-            HttpUrlsTests.assertRedacted(readAsyncFailure(object, 10).getMessage());
+            assertSafeMessage(readAsyncFailure(object, 10).getMessage());
         }
+    }
+
+    private static void assertSafeMessage(String message) {
+        assertThat(message, containsString("b.csv"));
+        assertThat(message, not(containsString("user:pass")));
+        assertThat(message, not(containsString("X-Amz-Signature")));
+        assertThat(message, not(containsString("https://")));
     }
 
     /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with an empty body. */

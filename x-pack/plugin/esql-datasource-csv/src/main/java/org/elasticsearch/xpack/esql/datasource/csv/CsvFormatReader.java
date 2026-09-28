@@ -1342,8 +1342,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (headerLine == null) {
                 // Names the format the user asked for, not the reader's class. This reader serves tsv as well as
                 // csv, so a hard-coded "CSV" told someone querying a .tsv about a format they never mentioned.
+                // Includes the object name when known so the user can identify which file in a glob caused the error.
+                String objectPart = sourceLocation.isEmpty() ? "" : " [" + sourceLocation + "]";
                 throw new IOException(
-                    format.toUpperCase(Locale.ROOT) + " file has no schema line: the object is empty or contains only comments"
+                    format.toUpperCase(Locale.ROOT)
+                        + " file"
+                        + objectPart
+                        + " has no schema line: the object is empty or contains only comments"
                 );
             }
             List<Attribute> typedSchema = parseSchema(headerLine);

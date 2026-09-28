@@ -188,7 +188,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             ex.setDetail("HTTP " + statusCode + suffix);
             return ex;
         }
-        return new IOException(context + " [" + HttpUrls.redact(path) + "] (HTTP " + statusCode + ")" + suffix);
+        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")" + suffix);
     }
 
     /**
@@ -287,7 +287,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + HttpUrls.redact(path));
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -298,7 +298,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + HttpUrls.redact(path));
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLastModified;
     }
@@ -664,7 +664,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return client.send(request, bodyHandler);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + HttpUrls.redact(path), e);
+            throw new IOException("HTTP request interrupted for " + path.objectName(), e);
         } catch (IOException e) {
             throw typeTransportFailure(e);
         } catch (IllegalStateException e) {
@@ -684,8 +684,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
-        // unwrapBreakerTrip renders the path it is handed into its message, so it gets the redacted form.
-        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", HttpUrls.redact(path));
+        // unwrapBreakerTrip renders the path it is handed into its message, so it gets the object name.
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path.objectName());
         if (breakerTrip != null) {
             return breakerTrip;
         }
@@ -697,7 +697,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof IOException || cause instanceof IllegalStateException) {
             return typeTransportFailure((Exception) cause);
         }
-        return new IOException("HTTP read failed for " + HttpUrls.redact(path), throwable);
+        return new IOException("HTTP read failed for " + path.objectName(), throwable);
     }
 
     private ExternalUnavailableException typeTransportFailure(Exception e) {
@@ -716,7 +716,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // Extract Content-Length
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent() == false) {
-                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + HttpUrls.redact(path));
+                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path.objectName());
                 }
                 // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
                 // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
@@ -735,7 +735,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 cachedLength = 0L;
                 cachedLastModified = null;
             } else {
-                throw new IOException("HEAD request failed for " + HttpUrls.redact(path) + ", HTTP status: " + statusCode);
+                throw new IOException("HEAD request failed for " + path.objectName() + ", HTTP status: " + statusCode);
             }
             return null;  // Void return
         });

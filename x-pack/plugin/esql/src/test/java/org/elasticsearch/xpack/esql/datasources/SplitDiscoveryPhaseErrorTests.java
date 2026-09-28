@@ -52,7 +52,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.parquet"));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString("parquet"));
         assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
         assertThat(e.getCause().getCause().getMessage(), containsString("connection reset by peer"));
@@ -67,7 +67,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
         assertThat(e.getCause(), instanceOf(RuntimeException.class));
     }
@@ -89,7 +89,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals("a user-caused split-discovery failure is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
         assertSame("the original failure must be preserved as the cause", original, e.getCause());
     }
@@ -171,7 +171,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(e)
         );
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.ndjson"));
+        assertThat(e.getMessage(), containsString("*.ndjson"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(namedInMessage));
     }
@@ -219,7 +219,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("s3://secure-bucket/private/*.parquet"));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getCause(), instanceOf(SecurityException.class));
     }
 

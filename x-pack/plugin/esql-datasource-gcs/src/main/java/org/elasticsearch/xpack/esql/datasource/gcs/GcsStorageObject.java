@@ -648,6 +648,6 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "GcsStorageObject[" + path.objectName() + "]";
+        return "GcsStorageObject[" + bucket + "/" + objectName + "]";
     }
 }

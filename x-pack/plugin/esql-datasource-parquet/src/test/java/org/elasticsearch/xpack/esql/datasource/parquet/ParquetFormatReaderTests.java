@@ -3790,7 +3790,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory),
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("x"), 2)) {
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, iterator::next);
                 assertThat(e.getMessage(), allOf(containsString("ARROW-GH-45185.parquet"), containsString("column [x]")));
@@ -3807,7 +3807,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new ParquetFormatReader(blockFactory).withBaselinePath()
             )) {
                 List<String> warnings = new ArrayList<>();
-                StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+                StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
                 List<Attribute> attributes = reader.metadata(storageObject).schema();
                 ErrorPolicy policy = new ErrorPolicy(mode, Long.MAX_VALUE, 0.0, false);
                 int expectedRow = 0;
@@ -3848,7 +3848,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory),
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             List<Attribute> attributes = reader.metadata(storageObject).schema();
             try (
                 CloseableIterator<Page> iterator = reader.readRange(
@@ -3868,7 +3868,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ParquetFormatReader(blockFactory).withBaselinePath()
         )) {
             List<String> warnings = new ArrayList<>();
-            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory:///ARROW-GH-45185.parquet");
             List<Attribute> attributes = reader.metadata(storageObject).schema();
             FormatReadContext context = FormatReadContext.builder()
                 .projectedColumns(List.of("x"))

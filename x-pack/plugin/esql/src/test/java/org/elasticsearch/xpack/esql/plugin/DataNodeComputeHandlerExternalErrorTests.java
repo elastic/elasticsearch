@@ -111,7 +111,7 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of(sourceType, factory))
         );
 
-        assertThat(e.getMessage(), containsString(sourcePath));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString(sourceType));
         assertNotNull(e.getCause());
     }

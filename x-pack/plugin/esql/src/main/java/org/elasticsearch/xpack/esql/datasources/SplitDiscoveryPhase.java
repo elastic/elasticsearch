@@ -508,25 +508,27 @@ public final class SplitDiscoveryPhase {
         if (e instanceof ElasticsearchException ee) {
             return ee;
         }
+        String label = sourceLabel(exec);
         if (e instanceof IllegalArgumentException) {
             return new IllegalArgumentException(
-                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
+                "failed to discover splits for external source [" + label + "] of type [" + exec.sourceType() + "]",
                 e
             );
         }
         RuntimeException surfaced = ExternalFailures.surface(
             e,
-            "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
+            "failed to discover splits for external source [" + label + "] of type [" + exec.sourceType() + "]"
         );
         if (surfaced != e) {
             return surfaced;
         }
-        return new ElasticsearchException(
-            "failed to discover splits for external source [{}] of type [{}]",
-            e,
-            exec.sourcePath(),
-            exec.sourceType()
-        );
+        return new ElasticsearchException("failed to discover splits for external source [{}] of type [{}]", e, label, exec.sourceType());
+    }
+
+    private static String sourceLabel(ExternalSourceExec exec) {
+        String raw = exec.sourcePath();
+        int lastSlash = raw.lastIndexOf('/');
+        return lastSlash >= 0 ? raw.substring(lastSlash + 1) : raw;
     }
 
     private static PhysicalPlan applyDiscoveryResult(

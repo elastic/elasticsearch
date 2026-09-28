@@ -14,13 +14,18 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -42,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -750,6 +756,105 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         } finally {
             masterATransport.clearAllRules();
         }
+    }
+
+    public void testRetryHandoffBlocksClusterStateCreateUntilRetryRuns() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterTransport);
+
+            RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
+            Gate recoveryGate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            recoveryGate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            recoveryGate.await();
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+            // Block applier thread -> The retry attempt waits in gap between failing the shard and dispatching the new creation attempt
+            // In this gap, a cluster state update should see the shard not existing on the node, but should still not recreate it
+            // because shard creation is owned by recovery retry
+            var applier = internalCluster().getInstance(ClusterService.class, dataNode).getClusterApplierService();
+            Gate applierGate = new Gate("ApplierGate");
+            applierGate.block();
+            applier.runOnApplierThread("block-applier", Priority.IMMEDIATE, clusterState -> {
+                applierGate.enter();
+                applierGate.exit();
+            }, ActionListener.noop());
+            applierGate.await();
+
+            // Recovery retry enqueued behind the IMMEDIATE blocker
+            recoveryGate.release();
+            assertBusy(
+                () -> assertTrue(
+                    "expected NORMAL retry-recovery task on data-node applier",
+                    hasPending(applier, Priority.NORMAL, "retry recovery")
+                )
+            );
+
+            // Trigger a cluster state update which should be scheduled on HIGH priority
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
+                ActionListener.noop()
+            );
+            assertBusy(
+                () -> assertTrue(
+                    "expected HIGH ApplyCommitRequest on data-node applier",
+                    hasPending(applier, Priority.HIGH, "ApplyCommitRequest")
+                )
+            );
+
+            // Runs after CS update and before retry due to HIGH priority and later insertion
+            // Assert that CS didn't create shard
+            CountDownLatch afterCs = new CountDownLatch(1);
+            AtomicReference<AssertionError> afterCsFailure = new AtomicReference<>();
+            applier.runOnApplierThread("assert-cs-skipped-create", Priority.HIGH, clusterState -> {
+                try {
+                    assertThat(
+                        "cluster-state apply must not have created/recovered the shard while handoff owns recreate",
+                        RetryRecoveryTestPlugin.recoveryCounter.get(),
+                        equalTo(1)
+                    );
+                    assertNull(
+                        "cluster-state apply must not create the shard while handoff owns recreate",
+                        internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId)
+                    );
+                } catch (AssertionError e) {
+                    afterCsFailure.set(e);
+                } finally {
+                    afterCs.countDown();
+                }
+            }, ActionListener.noop());
+
+            // Release applier gate -> execute the queued up tasks
+            // 1. HIGH CS apply (should not create shard)
+            // 2. HIGH verify shard not created by CS apply
+            // 3. Recovery retry (should create shard)
+            applierGate.release();
+            safeAwait(afterCs);
+            if (afterCsFailure.get() != null) {
+                throw afterCsFailure.get();
+            }
+
+            ensureGreen(indexName);
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            masterTransport.clearAllRules();
+        }
+    }
+
+    private static boolean hasPending(ClusterApplierService applier, Priority priority, String sourceSubstring) {
+        for (var pending : applier.pendingTasks()) {
+            if (pending.priority == priority && pending.executing == false && pending.task.toString().contains(sourceSubstring)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Local recovery retries is about preventing the round trip to master on a failed recovery

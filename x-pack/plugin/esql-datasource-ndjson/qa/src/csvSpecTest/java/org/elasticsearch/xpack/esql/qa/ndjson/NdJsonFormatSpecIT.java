@@ -34,8 +34,8 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
     /**
      * STRICT multi-file NDJSON tests still muted: the fixture's per-file schemas intentionally
-     * diverge, which STRICT resolution rejects at resolution time ("Schema mismatch ... use
-     * schema_resolution = union_by_name") before any page reaches the engine. A pre-existing
+     * diverge, which STRICT resolution rejects at resolution time ("... set [schema_resolution] to
+     * [union_by_name] to merge schemas") before any page reaches the engine. A pre-existing
      * fixture/STRICT-semantics gap, unrelated to the empty-projection fix. The empty-projection
      * multi-file tests ({@code COUNT(*)} / {@code _file.*}-only) previously muted here now run.
      */

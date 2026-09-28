@@ -37,6 +37,11 @@ import java.util.function.BooleanSupplier;
  * @param metadataColumnNames names bound to engine-generated metadata in the resolved output,
  *        not data columns that happen to share a metadata name. This binding is relation-wide
  *        and must not be reinterpreted based on each file's physical schema.
+ * @param retainedPartitionKeys keys to keep on each survivor's partition map after filter
+ *        evaluation. {@code null} means the projection is unknown, so the full Hive and
+ *        {@code _file.*} map is kept. A non-null set, including empty, is authoritative.
+ *        {@link org.elasticsearch.xpack.esql.datasources.ExternalSchema#EMPTY} does not imply an
+ *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -53,7 +58,8 @@ public record SplitDiscoveryContext(
     // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
-    Set<String> metadataColumnNames
+    Set<String> metadataColumnNames,
+    @Nullable Set<String> retainedPartitionKeys
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -137,7 +143,8 @@ public record SplitDiscoveryContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             DeclaredReadSpec.NONE,
-            metadataColumnNames
+            metadataColumnNames,
+            null
         );
     }
 
@@ -169,7 +176,8 @@ public record SplitDiscoveryContext(
             maxRecordBytes,
             isCancelled,
             declaredReadSpec,
-            Set.of()
+            Set.of(),
+            null
         );
     }
 
@@ -187,5 +195,7 @@ public record SplitDiscoveryContext(
         isCancelled = isCancelled != null ? isCancelled : () -> false;
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
         metadataColumnNames = Set.copyOf(metadataColumnNames);
+        // null stays null: unknown projection keeps today's full map. A provided set is authoritative.
+        retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
     }
 }

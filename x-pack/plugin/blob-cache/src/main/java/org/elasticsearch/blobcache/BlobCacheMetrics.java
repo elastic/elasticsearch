@@ -9,9 +9,10 @@ package org.elasticsearch.blobcache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.TimeRangeBucket;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -69,6 +70,52 @@ public class BlobCacheMetrics {
     public static final String EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY = "es_eviction_scan_outcome";
     public static final String BLOB_CACHE_LOCK_ACQUIRE_TIME = "es.blob_cache.lock_acquire_time.histogram";
     public static final String LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY = "es_lock_acquire_site";
+    public static final String BLOB_CACHE_READ_TOTAL = "es.blob_cache.read.total";
+    public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
+    /**
+     * Age of each cache-path read in hours, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Intended for <em>search-node</em> observability: indexing-tier region timestamps are not
+     * fully supported, so dashboards should filter these histograms to search nodes.
+     * Warming does not record here (same as {@link #BLOB_CACHE_READ_TOTAL}). Sentinel timestamps
+     * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
+     * reflects region ages that hit the cache. Those events still increment {@link #BLOB_CACHE_READ_TOTAL};
+     * {@code read.total} minus this histogram's count is sentinels plus bypasses.
+     */
+    public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
+    /**
+     * Age of each cache-path miss in hours, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Intended for <em>search-node</em> observability: indexing-tier region timestamps are not
+     * fully supported, so dashboards should filter these histograms to search nodes.
+     * Warming does not record here (same as {@link #BLOB_CACHE_MISS_TOTAL}). Sentinel timestamps
+     * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
+     * reflects region ages that missed the cache. Those events still increment {@link #BLOB_CACHE_MISS_TOTAL};
+     * {@code miss.total} minus this histogram's count is sentinels plus bypasses.
+     */
+    public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
+
+    /** A {@link TimeProvider} with all methods returning {@code 0L}. Used by {@link #NOOP} and by tests. */
+    public static final TimeProvider NOOP_TIME_PROVIDER = new TimeProvider() {
+        @Override
+        public long relativeTimeInMillis() {
+            return 0L;
+        }
+
+        @Override
+        public long relativeTimeInNanos() {
+            return 0L;
+        }
+
+        @Override
+        public long rawRelativeTimeInMillis() {
+            return 0L;
+        }
+
+        @Override
+        public long absoluteTimeInMillis() {
+            return 0L;
+        }
+    };
+    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER);
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -83,9 +130,12 @@ public class BlobCacheMetrics {
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
+    private final DoubleHistogram readAgeHourHistogram;
+    private final DoubleHistogram missAgeHourHistogram;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
+    private final TimeProvider timeProvider;
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
 
@@ -156,7 +206,7 @@ public class BlobCacheMetrics {
         Decay
     }
 
-    public BlobCacheMetrics(MeterRegistry meterRegistry) {
+    public BlobCacheMetrics(MeterRegistry meterRegistry, TimeProvider timeProvider) {
         this(
             meterRegistry.registerLongCounter(
                 "es.blob_cache.miss_that_triggered_read.total",
@@ -241,20 +291,37 @@ public class BlobCacheMetrics {
                     + LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY
                     + "]",
                 "microseconds"
-            )
+            ),
+            meterRegistry.registerDoubleHistogram(
+                BLOB_CACHE_READ_AGE,
+                "The age of data served by a cache read (warming not included), in hours; "
+                    + "use for search-node observability only (indexing-tier timestamps are not fully supported); "
+                    + "sentinel timestamps and bypasses are omitted",
+                "hours",
+                TimeRangeBucket.histogramHourBoundaries()
+            ),
+            meterRegistry.registerDoubleHistogram(
+                BLOB_CACHE_MISS_AGE,
+                "The age of data that missed the cache (warming not included), in hours; "
+                    + "use for search-node observability only (indexing-tier timestamps are not fully supported); "
+                    + "sentinel timestamps and bypasses are omitted",
+                "hours",
+                TimeRangeBucket.histogramHourBoundaries()
+            ),
+            timeProvider
         );
 
-        meterRegistry.registerLongAsyncGauge(
-            "es.blob_cache.read.total",
-            "The number of cache reads (warming not included)",
-            "count",
-            () -> new LongWithAttributes(readCount.longValue())
-        );
         // notice that this is different from `miss_that_triggered_read` in that `miss_that_triggered_read` will count once per gap
         // filled for a single read. Whereas this one only counts whenever a read provoked populating data from the object store, though
         // once per region for multi-region reads. This allows reasoning about hit ratio too.
         meterRegistry.registerLongAsyncGauge(
-            "es.blob_cache.miss.total",
+            BLOB_CACHE_READ_TOTAL,
+            "The number of cache reads (warming not included)",
+            "count",
+            () -> new LongWithAttributes(readCount.longValue())
+        );
+        meterRegistry.registerLongAsyncGauge(
+            BLOB_CACHE_MISS_TOTAL,
             "The number of cache misses (warming not included)",
             "count",
             () -> new LongWithAttributes(missCount.longValue())
@@ -285,7 +352,10 @@ public class BlobCacheMetrics {
         LongCounter prefetchCounter,
         DoubleHistogram evictionScanTime,
         LongHistogram evictionScannedEntries,
-        DoubleHistogram lockAcquireTime
+        DoubleHistogram lockAcquireTime,
+        DoubleHistogram readAgeHourHistogram,
+        DoubleHistogram missAgeHourHistogram,
+        TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -302,9 +372,10 @@ public class BlobCacheMetrics {
         this.evictionScanTime = evictionScanTime;
         this.evictionScannedEntries = evictionScannedEntries;
         this.lockAcquireTime = lockAcquireTime;
+        this.readAgeHourHistogram = readAgeHourHistogram;
+        this.missAgeHourHistogram = missAgeHourHistogram;
+        this.timeProvider = timeProvider;
     }
-
-    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     public LongCounter getCacheMissCounter() {
         return cacheMissCounter;
@@ -381,22 +452,46 @@ public class BlobCacheMetrics {
         epochChanges.increment();
     }
 
-    public void recordRead() {
-        readCount.increment();
+    /**
+     * Record a cache read for a region carrying the given data timestamp.
+     *
+     * @param regionTimestampMillis the representative data timestamp of the region (epoch millis), or one of
+     *                              the sentinel values defined in {@code SharedBlobCacheService} which
+     *                              are negative and are omitted from the age histogram; non-negative values
+     *                              are recorded as {@code (now - timestamp)} hours. Bypass reads are
+     *                              recorded via {@link #recordBypassRead()} and are also omitted.
+     */
+    public void recordRead(long regionTimestampMillis) {
+        // Region timestamps are epoch millis; relativeTimeInMillis() is not comparable to them.
+        recordAccess(readCount, readAgeHourHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
-    public void recordMiss() {
-        missCount.increment();
+    /**
+     * Record a cache miss for a region carrying the given data timestamp.
+     *
+     * @param regionTimestampMillis see {@link #recordRead(long)}
+     */
+    public void recordMiss(long regionTimestampMillis) {
+        recordAccess(missCount, missAgeHourHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
     /**
      * Record metrics for a read that bypassed the cache entirely (e.g. due to eviction or no free region).
-     * This counts as both a read and a miss, in addition to incrementing the bypass counter.
+     * This counts as both a read and a miss and increments the bypass counter, but does <em>not</em>
+     * record on the age histograms: those measure cache-path hit/miss age so we can tell whether
+     * region ages help or obstruct cache efficiency.
      */
     public void recordBypassRead() {
-        recordRead();
-        recordMiss();
+        readCount.increment();
+        missCount.increment();
         cacheBypassCounter.increment();
+    }
+
+    private static void recordAccess(LongAdder count, DoubleHistogram ageHourHistogram, long regionTimestampMillis, long nowMillis) {
+        count.increment();
+        if (regionTimestampMillis >= 0) {
+            ageHourHistogram.record(TimeRangeBucket.toHours(nowMillis - regionTimestampMillis));
+        }
     }
 
     /**

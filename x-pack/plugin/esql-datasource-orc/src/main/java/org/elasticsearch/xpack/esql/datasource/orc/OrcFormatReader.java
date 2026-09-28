@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -168,7 +170,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
-    private final OrcReaderCounters counters = new OrcReaderCounters();
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -211,6 +212,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         );
     }
 
+    /**
+     * The node-shared footer caches are always forwarded — never reallocated per copy — so copies
+     * do not multiply their heap footprint.
+     */
     private OrcFormatReader(
         BlockFactory blockFactory,
         SearchArgument pushedFilter,
@@ -377,7 +382,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
      */
     private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
-        OrcTail tail = loadTail(fs, path);
+        return openReaderCached(fs, path, null);
+    }
+
+    private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path, @Nullable OrcReaderCounters counters) throws IOException {
+        OrcTail tail = loadTail(fs, path, counters);
         return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
     }
 
@@ -387,7 +396,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
      */
-    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path, @Nullable OrcReaderCounters counters) throws IOException {
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
@@ -411,7 +420,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
-            counters.recordFooterCache(missed[0] == false);
+            if (counters != null) {
+                counters.recordFooterCache(missed[0] == false);
+            }
             return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
@@ -553,23 +564,26 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
+        OrcReaderCounters counters = context.readCounters() instanceof OrcReaderCounters c ? c : null;
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         long footerStartNanos = System.nanoTime();
-        Reader reader = openReaderCached(fs, path);
+        Reader reader = openReaderCached(fs, path, counters);
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
 
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
         long stripeCount = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
-        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
-        counters.addStripesTotal(stripeCount);
-        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        if (counters != null) {
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
+            counters.addStripesTotal(stripeCount);
+            counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        }
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(
@@ -583,7 +597,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -680,6 +695,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         List<Attribute> resolvedAttributes = context.resolvedAttributes();
+        OrcReaderCounters counters = context.readCounters() instanceof OrcReaderCounters c ? c : null;
 
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
@@ -697,7 +713,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (context.fileContext() instanceof OrcTail cached) {
             tail = cached;
         } else {
-            tail = loadTail(fs, path);
+            tail = loadTail(fs, path, counters);
             context.setFileContext(tail);
         }
         Reader reader = OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
@@ -710,14 +726,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
         long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
         long stripesInFile = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
-        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
-        counters.addStripesTotal(stripesInRange);
-        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        if (counters != null) {
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
+            counters.addStripesTotal(stripesInRange);
+            counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        }
         RecordReader rows = reader.rows(readOptions);
 
         return new OrcPageIterator(
@@ -731,7 +749,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -849,7 +868,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
     }
 
-    private Reader.Options configureReadOptions(Reader reader, int batchSize, boolean[] include, TypeDescription schema) {
+    private Reader.Options configureReadOptions(
+        Reader reader,
+        int batchSize,
+        boolean[] include,
+        TypeDescription schema,
+        @Nullable OrcReaderCounters counters
+    ) {
         Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
         if (include != null) {
             readOptions.include(include);
@@ -862,8 +887,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 nameSet.add(leaf.getColumnName());
             }
             readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
-            counters.markPredicatePushdownUsed();
-            counters.addPredicateColumns(nameSet);
+            if (counters != null) {
+                counters.markPredicatePushdownUsed();
+                counters.addPredicateColumns(nameSet);
+            }
         }
         return readOptions;
     }
@@ -942,14 +969,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return contextPolicy != null ? contextPolicy : defaultErrorPolicy();
     }
 
-    /**
-     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
-     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
-     * has run.
-     */
     @Override
-    public OrcReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new OrcReaderCounters();
     }
 
     @Override
@@ -1399,6 +1421,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          */
         private long batchStartRow;
 
+        @Nullable
         private final OrcReaderCounters counters;
 
         OrcPageIterator(
@@ -1535,30 +1558,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 if (compatible == false) {
                     if (skipWarnings == null) {
                         skipWarnings = new SkipWarnings(
-                            "ORC file ["
-                                + fileLocation
-                                + "] has columns whose on-disk type is incompatible with planner type; "
-                                + "they are returned as null",
+                            "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                             warningSink
                         );
                     }
                     skipWarnings.add(
-                        "Column ["
+                        "column ["
                             + attr.name()
-                            + "] in file ["
-                            + fileLocation
-                            + "] has type ["
-                            + actualInFile
-                            + "] incompatible with planner type ["
-                            + planner
-                            + "]; returning nulls for this column"
+                            + "]: ["
+                            + actualInFile.typeName()
+                            + "] in the file, ["
+                            + planner.typeName()
+                            + "] in the query"
                     );
                     LOGGER.warn(
-                        "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}]; " + "returning nulls for this column",
+                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                         attr.name(),
                         fileLocation,
-                        actualInFile,
-                        planner
+                        actualInFile.typeName(),
+                        planner.typeName()
                     );
                     fieldNameToPath.remove(attr.name());
                     leafTypes[col] = null;
@@ -1670,13 +1688,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (rowDropHelper != null) {
                 rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
                 try {
-                    rowDropHelper.checkBudget(coercionWarnings());
+                    rowDropHelper.checkBudget();
                 } catch (Exception e) {
                     page.releaseBlocks();
                     throw e;
                 }
             }
-            counters.addRowsEmitted(page.getPositionCount());
+            if (counters != null) {
+                counters.addRowsEmitted(page.getPositionCount());
+            }
             emitAbsentColumnWarningsOnce();
             return page;
         }
@@ -1855,11 +1875,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }
@@ -2250,8 +2268,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 failed = true;
                             }
@@ -2513,8 +2530,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 if (skipRow) failedPositionSink.accept(i);
                                 builder.appendNull();

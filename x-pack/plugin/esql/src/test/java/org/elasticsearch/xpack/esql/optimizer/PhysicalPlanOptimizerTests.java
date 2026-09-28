@@ -213,6 +213,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
@@ -296,7 +297,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
          * A logical optimizer configured for the same minimum transport version as the analyzer.
          */
         LogicalPlanOptimizer logicalOptimizer() {
-            return new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion()));
+            return new LogicalPlanOptimizer(logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion()));
         }
 
         /**
@@ -4458,6 +4459,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
             }
         }
+    }
+
+    /**
+     * Verifies the fix for https://github.com/elastic/elasticsearch/issues/141300.
+     * When {@code TO_STRING(location)} is used in an EVAL alongside {@code ST_CENTROID_AGG(location)},
+     * the doc-values extraction optimization must NOT be applied to {@code location}. Without the fix,
+     * {@code SpatialDocValuesExtraction} would mark {@code location} for doc-values extraction (producing
+     * a {@code LongBlock}), while {@code ToStringFromGeoPointEvaluator} expects a {@code BytesRefBlock},
+     * causing a {@code ClassCastException} at runtime.
+     */
+    public void testSpatialToStringPreventsDocValuesExtraction() {
+        // TO_STRING(location) in an EVAL combined with ST_CENTROID_AGG(location) in STATS must not
+        // trigger doc-values extraction for location, even when doc-values are available.
+        var query = """
+            FROM airports
+            | EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+            | STATS centroid = ST_CENTROID_AGG(location) BY location_str""";
+
+        var plan = physicalPlan(query, airports);
+        var optimized = optimizedPlan(plan, airports.stats);
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        // Below the exchange (in data node) the aggregation must also NOT use doc-values,
+        // because the location field is used in TO_STRING(location) which cannot handle LongBlock.
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var evalExec = as(agg.child(), EvalExec.class);
+        // The FieldExtractExec must not extract location from doc-values
+        assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.NONE);
     }
 
     /**

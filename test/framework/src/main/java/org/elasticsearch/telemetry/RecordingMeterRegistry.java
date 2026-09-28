@@ -11,27 +11,26 @@ package org.elasticsearch.telemetry;
 
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * A {@link MeterRegistry} that records all instrument invocations.
@@ -75,24 +74,15 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleAsyncGauge registerDoublesAsyncGauge(
+    public DoubleAsyncGauge registerDoubleAsyncGauge(
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Consumer<DoubleAsyncMeasurement> callback
     ) {
-        DoubleAsyncGauge instrument = buildDoubleGauge(name, description, unit, observer);
+        DoubleAsyncGauge instrument = new RecordingInstruments.RecordingDoubleAsyncGauge(name, recorder, callback);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    protected DoubleAsyncGauge buildDoubleGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
-    ) {
-        return new RecordingInstruments.RecordingDoubleAsyncGauge(name, observer, recorder);
     }
 
     @Override
@@ -119,25 +109,25 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncCounter registerLongsAsyncCounter(
+    public LongAsyncCounter registerLongAsyncCounter(
         String name,
         String description,
         String unit,
-        Supplier<Collection<LongWithAttributes>> observer
+        Consumer<LongAsyncMeasurement> callback
     ) {
-        LongAsyncCounter instrument = new RecordingInstruments.RecordingAsyncLongCounter(name, observer, recorder);
+        LongAsyncCounter instrument = new RecordingInstruments.RecordingAsyncLongCounter(name, recorder, callback);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
     }
 
     @Override
-    public DoubleAsyncCounter registerDoublesAsyncCounter(
+    public DoubleAsyncCounter registerDoubleAsyncCounter(
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Consumer<DoubleAsyncMeasurement> callback
     ) {
-        DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
+        DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, recorder, callback);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
     }
@@ -165,24 +155,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncGauge registerLongsAsyncGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<LongWithAttributes>> observer
-    ) {
-        LongAsyncGauge instrument = buildLongGauge(name, description, unit, observer);
+    public LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback) {
+        LongAsyncGauge instrument = new RecordingInstruments.RecordingLongAsyncGauge(name, recorder, callback);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    protected LongAsyncGauge buildLongGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<LongWithAttributes>> observer
-    ) {
-        return new RecordingInstruments.RecordingLongAsyncGauge(name, observer, recorder);
     }
 
     @Override

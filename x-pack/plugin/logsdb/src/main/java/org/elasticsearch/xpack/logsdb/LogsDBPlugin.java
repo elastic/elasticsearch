@@ -134,6 +134,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.LOGSDB_COLUMNAR, LogsDBColumnarUsageTransportAction.class));
         actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB_COLUMNAR, LogsDBColumnarInfoTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.COLUMNAR, ColumnarUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.COLUMNAR, ColumnarInfoTransportAction.class));
         return actions;
     }
 

@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -1289,11 +1291,32 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
     }
 
+    public void testDenseVectorEmbeddingUsesInternalIngestInputType() throws IOException {
+        EmbeddingOperator.Factory embedding = (EmbeddingOperator.Factory) denseVectorOperatorFactory(
+            "my-own-embedding-endpoint",
+            null,
+            TaskType.EMBEDDING
+        );
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
     /**
      * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
      * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
      */
     private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize) throws IOException {
+        TextEmbeddingOperator.Factory embedding = (TextEmbeddingOperator.Factory) denseVectorOperatorFactory(
+            inferenceId,
+            configuredBatchSize,
+            TaskType.TEXT_EMBEDDING
+        );
+        assertThat(embedding.inferenceId(), equalTo(inferenceId));
+        assertThat(embedding.batchSize(), equalTo(expectedBatchSize));
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    private Operator.OperatorFactory denseVectorOperatorFactory(String inferenceId, Integer configuredBatchSize, TaskType endpointTaskType)
+        throws IOException {
         ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
         ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
@@ -1310,7 +1333,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(generated),
             null,
             org.elasticsearch.inference.DataType.TEXT,
-            TaskType.TEXT_EMBEDDING
+            endpointTaskType
         );
 
         LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, inferenceService(configuredBatchSize)).plan(
@@ -1325,14 +1348,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
             .driverSupplier()
             .physicalOperation().intermediateOperatorFactories;
-        TextEmbeddingOperator.Factory embedding = factories.stream()
-            .filter(TextEmbeddingOperator.Factory.class::isInstance)
-            .map(TextEmbeddingOperator.Factory.class::cast)
+        Class<?> expectedFactory = endpointTaskType == TaskType.EMBEDDING
+            ? EmbeddingOperator.Factory.class
+            : TextEmbeddingOperator.Factory.class;
+        return factories.stream()
+            .filter(expectedFactory::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no embedding operator factory in " + factories));
-
-        assertThat(embedding.inferenceId(), equalTo(inferenceId));
-        assertThat(embedding.batchSize(), equalTo(expectedBatchSize));
     }
 
     /**

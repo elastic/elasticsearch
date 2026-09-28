@@ -42,18 +42,21 @@ import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODU
 class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     private final DataType dataType;
+    private final InputType inputType;
     private final TimeValue timeout;
 
     EmbeddingRequestIterator(
         String inferenceId,
         BytesRefBlock textBlock,
         DataType dataType,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Warnings warnings
     ) {
         super(inferenceId, TaskType.EMBEDDING, textBlock, batchSize, warnings);
         this.dataType = dataType;
+        this.inputType = inputType;
         this.timeout = timeout;
     }
 
@@ -65,9 +68,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         List<InferenceStringGroup> inputs = texts.stream()
             .map(text -> new InferenceStringGroup(new InferenceString(dataType, text)))
             .toList();
-        // Document mode, stated explicitly: with no input type the Elastic Inference Service embeds a lone input as a query
-        // and two or more as documents, so a row's vector would otherwise depend on how many rows shared its batch.
-        EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+        EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, inputType, Map.of());
         return new BulkInferenceRequestItem(
             new EmbeddingAction.Request(
                 inferenceId,
@@ -88,6 +89,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         TaskType taskType,
         ExpressionEvaluator textEvaluator,
         DataType dataType,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Warnings warnings
@@ -99,6 +101,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
                 inferenceId,
                 (BytesRefBlock) textEvaluator.eval(inputPage),
                 dataType,
+                inputType,
                 batchSize,
                 timeout,
                 warnings

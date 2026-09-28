@@ -34,10 +34,19 @@ import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODU
  */
 class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
+    private final InputType inputType;
     private final TimeValue timeout;
 
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize, TimeValue timeout, Warnings warnings) {
+    TextEmbeddingRequestIterator(
+        String inferenceId,
+        BytesRefBlock textBlock,
+        InputType inputType,
+        int batchSize,
+        TimeValue timeout,
+        Warnings warnings
+    ) {
         super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock, batchSize, warnings);
+        this.inputType = inputType;
         this.timeout = timeout;
     }
 
@@ -46,12 +55,9 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (texts.isEmpty()) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        // The rows are documents, and the mode is stated rather than left to the service: given no input type, the Elastic
-        // Inference Service embeds a lone input as a query and two or more as documents, so the vector a row received would
-        // otherwise depend on how many rows shared its batch.
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType)
             .setInput(texts)
-            .setInputType(InputType.INTERNAL_INGEST)
+            .setInputType(inputType)
             .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
@@ -66,6 +72,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         String inferenceId,
         TaskType taskType,
         ExpressionEvaluator textEvaluator,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Warnings warnings
@@ -76,6 +83,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             return new TextEmbeddingRequestIterator(
                 inferenceId,
                 (BytesRefBlock) textEvaluator.eval(inputPage),
+                inputType,
                 batchSize,
                 timeout,
                 warnings

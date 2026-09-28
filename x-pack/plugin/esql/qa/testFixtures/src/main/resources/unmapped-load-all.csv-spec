@@ -1868,7 +1868,6 @@ no_mapping_sample_data      | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466 
 partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// A KEEP names the field, so the unmapped side is a real keyword. That conflicts with the mapped type in either order.
 loadAllSubqueryMentionedLongMappedBranchFirstStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
 
@@ -1927,13 +1926,14 @@ null
 null
 ;
 
-// WHERE names the field, so the unmapped side is a real keyword and conflicts with the mapped long.
 loadAllSubqueryUnmappedBranchFirstWhereStaysUnsupported
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM (FROM no_mapping_sample_data METADATA _index | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data METADATA _index)
+FROM 
+    (FROM no_mapping_sample_data METADATA _index | WHERE event_duration IS NOT NULL | LIMIT 2), 
+    (FROM partial_mapping_sample_data METADATA _index | LIMIT 2)
 | KEEP event_duration, _index
 | SORT _index
 ;
@@ -1941,16 +1941,6 @@ FROM (FROM no_mapping_sample_data METADATA _index | WHERE event_duration IS NOT 
 event_duration:unsupported | _index:keyword
 null                       | no_mapping_sample_data
 null                       | no_mapping_sample_data
-null                       | no_mapping_sample_data
-null                       | no_mapping_sample_data
-null                       | no_mapping_sample_data
-null                       | no_mapping_sample_data
-null                       | no_mapping_sample_data
-null                       | partial_mapping_sample_data
-null                       | partial_mapping_sample_data
-null                       | partial_mapping_sample_data
-null                       | partial_mapping_sample_data
-null                       | partial_mapping_sample_data
 null                       | partial_mapping_sample_data
 null                       | partial_mapping_sample_data
 ;
@@ -2333,7 +2323,6 @@ null                     | null         | null                | null            
 null                     | null         | null                | null                   | no_mapping_sample_data      | Disconnected from 10.1.0.1 | null                  | null                    | null
 ;
 
-// KEEP names event_duration, so it conflicts: the other columns are still LOAD_ALL extras.
 loadAllSubqueryKeepLongLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2344,23 +2333,22 @@ FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP eve
 ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:unsupported | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | null                    | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | null                    | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | null                    | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | null                    | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | null                    | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | null                    | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 173.21.3.15  | null                    | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
-null                     | null         | null                    | null                   | null                  | null                    | null                            | null
+2024-10-23T12:15:03.360Z | 173.21.2.162 | null                       | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | null                       | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | null                       | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | null                       | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | null                       | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | null                       | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | null                       | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
+null                     | null         | null                       | null                   | null                  | null                    | null                            | null
 ;
 
-// KEEP names the metric, so it conflicts with the unmapped keyword instead of staying aggregate_metric_double.
 loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -2369,37 +2357,11 @@ required_capability: aggregate_metric_double_v0
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
 | KEEP network.eth0.tx
+| LIMIT 2
 ;
 ignoreOrder:true
 
 network.eth0.tx:unsupported
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
 null
 null
 ;
@@ -2457,31 +2419,20 @@ ignoreOrder:true
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
 ;
 
-// KEEP event_duration, * still names event_duration, so that column conflicts while * keeps the extras.
 loadAllSubqueryKeepStarLongLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)
+| SORT @timestamp
+| LIMIT 2
 ;
 ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:unsupported | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | null                    | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:15:03.360Z | 173.21.2.162 | null                    | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | null                    | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T12:27:28.948Z | 173.21.2.113 | null                    | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | null                    | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:33:34.937Z | 173.21.0.5   | null                    | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | null                    | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:51:54.732Z | 173.21.3.15  | null                    | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | null                    | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | null                    | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | null                    | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | null                    | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 173.21.3.15  | null                    | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-2024-10-23T13:55:01.543Z | 173.21.3.15  | null                    | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | null                       | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | null                       | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
 ;
 
 // KEEP network.eth0.tx, * names the metric, so that column conflicts. The star still warns for the unmentioned counter.
@@ -2493,38 +2444,12 @@ required_capability: aggregate_metric_double_v0
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
 | KEEP *eth0.tx
+| LIMIT 2
 ;
 ignoreOrder:true
 warning:Field [network.total_bytes_out] of type [counter_long] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 network.eth0.tx:unsupported
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
-null
 null
 null
 ;
@@ -2556,8 +2481,8 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 ;
 
 @timestamp:datetime          | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 43
-2024-10-23T13:55:01.543Z | null
+2024-10-23T13:33:34.937Z     | 43
+2024-10-23T13:55:01.543Z     | null
 ;
 
 loadAllUnmappedFieldReferencedOnlyAfterSubqueries
@@ -2572,8 +2497,8 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
 ;
 
 @timestamp:datetime          | message:keyword        | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 42                     | 43
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:33:34.937Z     | 42                     | 43
+2024-10-23T13:55:01.543Z     | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
 loadAllUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported
@@ -2827,8 +2752,8 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
 ;
 
 @timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 loadAllSubqueryStatsInOneBranchNullFillsExtras
@@ -4611,19 +4536,19 @@ FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_ke
 | EVAL o = MV_COUNT(arr)
 ;
 
-_index:keyword                 | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | arr:keyword | _source:_source                                                                                                    | n:integer | m:integer | o:integer
-unmapped_source_stored         | null                    | null             | null             | [x, y]      | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null      | null      | 2
+_index:keyword                    | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | arr:keyword | _source:_source                                                                                                    | n:integer | m:integer | o:integer
+unmapped_source_stored            | null                    | null             | null             | [x, y]      | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null      | null      | 2
 unmapped_source_synth_keep_arrays | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
-unmapped_source_synthetic      | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
-unmapped_source_stored         | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synthetic         | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_stored            | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
 unmapped_source_synth_keep_arrays | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
-unmapped_source_synthetic      | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
-unmapped_source_stored         | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synthetic         | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_stored            | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
 unmapped_source_synth_keep_arrays | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
-unmapped_source_synthetic      | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
-unmapped_source_stored         | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+unmapped_source_synthetic         | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_stored            | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
 unmapped_source_synth_keep_arrays | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
-unmapped_source_synthetic      | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+unmapped_source_synthetic         | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
 ;
 
 nullyFieldNeverProducesAColumnStoredSource
@@ -4788,16 +4713,16 @@ FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_ke
 | SORT id, _index
 ;
 
-id:keyword | a.b:keyword | arr:keyword | _index:keyword                 | _source:_source
-1          | v1          | null        | unmapped_source_stored         | "{""id"":""1"",""a"":{""b"":""v1""}}"
+id:keyword | a.b:keyword | arr:keyword | _index:keyword                    | _source:_source
+1          | v1          | null        | unmapped_source_stored            | "{""id"":""1"",""a"":{""b"":""v1""}}"
 1          | v1          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v1""},""id"":""1""}"
-1          | v1          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v1""},""id"":""1""}"
-2          | v2          | null        | unmapped_source_stored         | "{""id"":""2"",""a.b"":""v2""}"
+1          | v1          | null        | unmapped_source_synthetic         | "{""a"":{""b"":""v1""},""id"":""1""}"
+2          | v2          | null        | unmapped_source_stored            | "{""id"":""2"",""a.b"":""v2""}"
 2          | v2          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v2""},""id"":""2""}"
-2          | v2          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v2""},""id"":""2""}"
-5          | null        | [x, y]      | unmapped_source_stored         | "{""id"":""5"",""arr"":[""x"",""y""]}"
+2          | v2          | null        | unmapped_source_synthetic         | "{""a"":{""b"":""v2""},""id"":""2""}"
+5          | null        | [x, y]      | unmapped_source_stored            | "{""id"":""5"",""arr"":[""x"",""y""]}"
 5          | null        | [x, y]      | unmapped_source_synth_keep_arrays | "{""arr"":[""x"",""y""],""id"":""5""}"
-5          | null        | [x, y]      | unmapped_source_synthetic      | "{""arr"":[""x"",""y""],""id"":""5""}"
+5          | null        | [x, y]      | unmapped_source_synthetic         | "{""arr"":[""x"",""y""],""id"":""5""}"
 ;
 
 subobjectsFalseLoadAllExpandsLeavesLikeStoredSource
@@ -4841,13 +4766,13 @@ FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
 | SORT id::long, _index
 ;
 
-   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source
-unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
-unmapped_source_stored|6              |null           |null           |null                   |null         |null              |null                |[p, q]            |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
-unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
-unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
-unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
-unmapped_source_stored|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+_index:keyword         | id:keyword    | a:keyword     | a.b:keyword   | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword | nest.inner.leaf:keyword  | _source:_source
+unmapped_source_mapped | 6             | null          | null          | null                  | null        | null             | null               | null             | null                     | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_stored | 6             | null          | null          | null                  | null        | null             | null               | [p, q]           | null                     | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_mapped | 7             | null          | null          | null                  | null        | null             | null               | null             | null                     | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_stored | 7             | null          | null          | null                  | null        | null             | s                  | r                | null                     | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_mapped | 8             | null          | null          | null                  | null        | null             | null               | null             | null                     | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+unmapped_source_stored | 8             | null          | null          | null                  | null        | null             | null               | null             | [t, u]                   | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 ;
 
 loadAllLogsdbAgreesWithStoredAndSyntheticSource

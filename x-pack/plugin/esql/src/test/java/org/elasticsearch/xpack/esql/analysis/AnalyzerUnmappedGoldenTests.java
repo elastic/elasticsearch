@@ -1360,7 +1360,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // KEEP names the field, so the keyword conflicts with the mapped long instead of being cast.
     public void testLoadAllSubqueryKeepLongLoadsOnUnmappedSibling() throws Exception {
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration)
@@ -1368,7 +1367,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // KEEP names the field, so the unmapped keyword conflicts with the mapped long in either branch order.
     public void testLoadAllSubqueryUnmappedBranchFirstKeepStaysUnsupported() throws Exception {
         loadAll("""
             FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
@@ -1376,7 +1374,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // WHERE names the field, so it conflicts the same way a KEEP does.
     public void testLoadAllSubqueryUnmappedBranchFirstWhereStaysUnsupported() throws Exception {
         loadAll("""
             FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
@@ -1384,7 +1381,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // KEEP names the metric, so it conflicts with the unmapped keyword.
     public void testLoadAllSubqueryKeepAmdLoadsOnUnmappedSibling() throws Exception {
         loadAll("""
             FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
@@ -1392,7 +1388,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // KEEP x, * still mentions x (sibling loads it) but extras stay enabled.
     public void testLoadAllSubqueryKeepStarUnmappedLoadsOnSibling() throws Exception {
         loadAll("""
             FROM (FROM no_mapping_sample_data | KEEP unmapped_message, *), (FROM partial_mapping_sample_data)
@@ -1405,7 +1400,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // KEEP event_duration, * names event_duration, so that column conflicts while * still loads the extras.
     public void testLoadAllSubqueryKeepStarLongLoadsOnUnmappedSibling() throws Exception {
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)

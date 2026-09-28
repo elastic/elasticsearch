@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -37,19 +42,37 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         return config;
     }
 
+    /** A data source as stored, with its secrets marked secret. */
+    private static DataSource sourceWithToken(String sessionToken) {
+        Map<String, DataSourceSetting> settings = new LinkedHashMap<>();
+        settings.put("auth", new DataSourceSetting("static_credentials", false));
+        settings.put("access_key", new DataSourceSetting("AKIAEXAMPLE", true));
+        settings.put("session_token", new DataSourceSetting(sessionToken, true));
+        return new DataSource("src", "s3", null, settings);
+    }
+
     /**
-     * The case from the security report: one bucket, one prefix, two identities differing only in the
-     * session token. Their definitions differ, so their versions differ, so they address different
-     * listings — without {@code session_token} having to appear on any list.
+     * The case from the security report, computed rather than assumed: one bucket, one prefix, two
+     * identities differing only in the session token. The version is derived from each definition by
+     * {@link DefinitionVersion#of}, so this fails if that value stops distinguishing them — which
+     * asserting two different literals could not detect.
+     * <p>
+     * {@code session_token} appears on no list anywhere. That is the point: a version computed from the
+     * definitions in full has no list to omit a name from.
      */
     public void testTwoIdentitiesOverOneBucketDoNotShareAListing() {
+        Dataset dataset = new Dataset("parts", new DataSourceReference("src"), "s3://warehouse/data/*.parquet", null, Map.of());
+        String readerVersion = DefinitionVersion.of(dataset, sourceWithToken("READERTOKEN"));
+        String auditorVersion = DefinitionVersion.of(dataset, sourceWithToken("AUDITORTOKEN"));
+        assertNotEquals("two identities must not compute one definition version", readerVersion, auditorVersion);
+
         Map<String, Object> reader = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "READERTOKEN");
         Map<String, Object> auditor = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "AUDITORTOKEN");
-
-        ListingCacheKey readerKey = ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config("v-reader", reader), "");
-        ListingCacheKey auditorKey = ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config("v-auditor", auditor), "");
-
-        assertNotEquals("two identities over one prefix must not address one listing", readerKey, auditorKey);
+        assertNotEquals(
+            "two identities over one prefix must not address one listing",
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config(readerVersion, reader), ""),
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config(auditorVersion, auditor), "")
+        );
     }
 
     /** The same identity reaching the same prefix must still hit, or the listing cache never warms. */

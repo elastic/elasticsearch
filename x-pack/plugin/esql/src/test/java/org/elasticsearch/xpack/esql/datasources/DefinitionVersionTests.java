@@ -172,21 +172,63 @@ public class DefinitionVersionTests extends ESTestCase {
         );
     }
 
-    /** No credential value may appear in what the version is, since the version reaches a cache key. */
+    /**
+     * No credential value may appear in what the version is, since the version reaches a cache key.
+     * <p>
+     * Asserted structurally, because the digest is hexadecimal: searching its output for a secret would
+     * be false for every implementation including one that folded the secret in verbatim, so it would
+     * prove nothing. What is checked instead is that the whole value is hexadecimal — nothing that is
+     * not a digest can survive into it.
+     */
     public void testTheVersionCarriesNoCredentialValue() {
         String plaintext = DefinitionVersion.of(
             dataset("s3://b/*.csv", Map.of("format", "csv")),
             source(Map.of("endpoint", "https://s3.example", "access_key", "AKIAEXAMPLESECRET", "secret_key", "sh4redS3cret"))
         );
-        assertFalse("a credential must not survive into the version", plaintext.contains("AKIAEXAMPLESECRET"));
-        assertFalse("a credential must not survive into the version", plaintext.contains("sh4redS3cret"));
+        assertTrue("the version must be nothing but a digest, got [" + plaintext + "]", plaintext.matches("[0-9a-f]{32}"));
 
         String encrypted = DefinitionVersion.of(
             dataset("s3://b/*.csv", Map.of("format", "csv")),
             encryptedSource("https://s3.example", "project-key-1", "ciphertext-material")
         );
-        assertFalse("not even the ciphertext survives into the version", encrypted.contains("ciphertext-material"));
-        assertFalse("nor the encryption key id", encrypted.contains("project-key-1"));
+        assertTrue("the version must be nothing but a digest, got [" + encrypted + "]", encrypted.matches("[0-9a-f]{32}"));
+    }
+
+    /**
+     * A value can arrive as a {@code byte[]} — generic serialization round-trips one, which is why
+     * {@code DataSourceSetting.equals} compares them by content. Rendered by identity instead, every
+     * deserialization would mint a new version and the dataset would never warm.
+     */
+    public void testAByteArrayValueIsRenderedByContent() {
+        Map<String, Object> settings = Map.of("format", "csv");
+        DataSource first = new DataSource(
+            "src",
+            "s3",
+            null,
+            Map.of("endpoint", new DataSourceSetting("https://s3.example".getBytes(StandardCharsets.UTF_8), false))
+        );
+        DataSource second = new DataSource(
+            "src",
+            "s3",
+            null,
+            Map.of("endpoint", new DataSourceSetting("https://s3.example".getBytes(StandardCharsets.UTF_8), false))
+        );
+        assertEquals(
+            "two equal byte[] values must produce one version, or nothing is ever warm",
+            DefinitionVersion.of(dataset("s3://b/*.csv", settings), first),
+            DefinitionVersion.of(dataset("s3://b/*.csv", settings), second)
+        );
+        DataSource different = new DataSource(
+            "src",
+            "s3",
+            null,
+            Map.of("endpoint", new DataSourceSetting("https://other.example".getBytes(StandardCharsets.UTF_8), false))
+        );
+        assertNotEquals(
+            "a differing byte[] value must change the version",
+            DefinitionVersion.of(dataset("s3://b/*.csv", settings), first),
+            DefinitionVersion.of(dataset("s3://b/*.csv", settings), different)
+        );
     }
 
     /**

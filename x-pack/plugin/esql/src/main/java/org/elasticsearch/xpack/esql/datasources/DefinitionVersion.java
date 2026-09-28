@@ -117,6 +117,12 @@ public final class DefinitionVersion {
         if (rawValue instanceof EncryptedData encrypted) {
             return encrypted.keyId() + ':' + Base64.getEncoder().encodeToString(encrypted.payload());
         }
+        // A value can arrive as a byte[] — generic serialization round-trips one, which is why
+        // DataSourceSetting.equals compares them by content. Object.toString would render an identity hash
+        // here, so every deserialization would mint a new version and the dataset would never warm.
+        if (rawValue instanceof byte[] bytes) {
+            return Base64.getEncoder().encodeToString(bytes);
+        }
         return rawValue.toString();
     }
 

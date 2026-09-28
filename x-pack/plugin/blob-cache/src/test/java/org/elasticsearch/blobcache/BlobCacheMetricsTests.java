@@ -389,6 +389,9 @@ public class BlobCacheMetricsTests extends ESTestCase {
             randomFrom(BlobCacheMetrics.EvictionScanOutcome.values())
         );
         BlobCacheMetrics.NOOP.recordLockAcquire(randomNonNegativeLong(), randomFrom(BlobCacheMetrics.LockAcquireSite.values()));
+
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
     }
 
     private static void assertEvictionScanAttributes(

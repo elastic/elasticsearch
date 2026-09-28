@@ -2259,10 +2259,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
-     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. Over a
-     * prefix that is the dataset's first key; over the whole glob it is the matching file. Bounding under such a hint
-     * therefore answers a schema request from a different file than the query that reads rows resolves, which under
-     * FIRST_FILE_WINS is a different schema. The bound must be declined.
+     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. So a
+     * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
+     * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
      */
     public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
         List<StorageEntry> listing = List.of(
@@ -2297,11 +2296,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A partition-pruning hint narrows the listing before any bound applies: the pruned listing descends only the
-     * folders the hint admits, while a bounded flat listing keeps the first keys of the whole dataset. Honouring a
-     * bound under such a hint would answer FIRST_FILE_WINS from a different file than the unhinted query reads, so
-     * the resolver declines it. This is the sole statement of that rule; the expander is told the extents and
-     * honours them.
+     * A partition-pruning hint would narrow the listing to the folders it admits, while an unhinted listing keeps
+     * the first keys of the whole dataset. Under FIRST_FILE_WINS that is a different first file and so a different
+     * schema, which is why the filters are withheld from this listing rather than the bound being declined.
      */
     public void testAPartitionHintDoesNotPruneTheSchemasListing() throws Exception {
         List<StorageEntry> listing = List.of(
@@ -4629,7 +4626,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Loops {@link #MULTI_FILE_STRATEGIES}: file-count is the assertion the IT cannot make, and default
      * UNION_BY_NAME is the product rail.
      */
-    public void testAFileMetadataHintCannotNarrowTheSchemasListing() throws Exception {
+    public void testAHintNarrowsTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
         Map<String, List<Attribute>> schemas = new HashMap<>();
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -4652,13 +4649,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // The schema's listing applies no query filter, so a hint cannot narrow what is listed or cached,
-                // and one query's filter can no longer be served to another. The files the filtered query reads are
-                // split discovery's to find.
+                // Whether a hint may narrow the schema's listing turns on where the schema comes from. Under
+                // FIRST_FILE_WINS one file defines it, so a hint that chose that file would make the dataset's
+                // columns a function of the query: the listing stays whole and split discovery finds what the
+                // query reads. Under UNION_BY_NAME the schema is a fold over the files listed, which are the files
+                // this query reads, so narrowing it changes no answer and saves a footer read per excluded file.
+                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 3 : 1;
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] a hint does not narrow the schema's listing",
-                    3,
+                    "[" + strategy + "] the schema's listing is narrowed only where the schema folds over it",
+                    expected,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 
@@ -4677,7 +4677,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
      * narrowed listing.
      */
-    public void testAPartitionHintCannotNarrowTheSchemasListing() throws Exception {
+    public void testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -4700,12 +4700,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // No query filter reaches the schema's listing, so a hint can neither prune it nor be cached as
-                // though it had. What the filtered query reads is split discovery's to find.
+                // Same rule as the file-metadata hint above: a partition hint prunes the schema's listing only
+                // where the schema is a fold over what it lists. Under FIRST_FILE_WINS it must not, or the folder
+                // the query filtered to would decide the dataset's columns.
+                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 2 : 1;
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] a hint does not prune the schema's listing",
-                    2,
+                    "[" + strategy + "] the schema's listing is pruned only where the schema folds over it",
+                    expected,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 

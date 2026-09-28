@@ -1455,14 +1455,16 @@ public class ExternalSourceResolver {
         ResolutionDemand demand
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
-        // The schema's listing, so the query's filters are not applied to it: which file defines the columns is a
-        // property of the dataset and its listing order, and a filter that moved the anchor would make a dataset's
-        // schema depend on the query that asked. The files this query reads are discovered separately, with the
-        // filters, by split discovery.
         ListingExtents extents = listingExtentsFor(demand, schemaResolution, config);
+        // Whether this query's filters may narrow the schema's listing turns on where the schema comes from. When
+        // one file defines it, they may not: the filter would choose that file, and which file defines a dataset's
+        // columns is a property of the dataset rather than of who asked. When the schema is a fold over every file
+        // the listing returns, they narrow it as they always have - the fold is over the files this query reads
+        // either way, and dropping the filters would only buy a footer read per file the query had excluded.
+        List<PartitionFilterHintExtractor.PartitionFilterHint> schemaHints = schemaAnswerableFromAPrefix(schemaResolution) ? null : hints;
         FileList listing = cacheable && extents.boundsFileSet() == false
-            ? cachedListing(path, storagePath, provider, null, config)
-            : expandAndCompact(path, provider, null, config, storagePath, extents);
+            ? cachedListing(path, storagePath, provider, schemaHints, config)
+            : expandAndCompact(path, provider, schemaHints, config, storagePath, extents);
         assert listing.isTruncated() == false || extents.boundsFileSet()
             : "a listing was truncated without a file-set extent being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
@@ -1478,10 +1480,12 @@ public class ExternalSourceResolver {
      * cache, because the two are one decision: a bound revoked after the cache was bypassed lists the whole glob
      * and neither reads nor writes the cache.
      *
-     * <p>All three must hold. The query reads no rows from this path, since split discovery takes its file set
-     * from this listing. The mode's schema does not span every file. And nothing else already narrows the
-     * listing — a dataset-chosen file order or partition pruning each make the listing something other than the
-     * whole glob in provider order, so a prefix of it would move the file {@code FIRST_FILE_WINS} reads.
+     * <p>Three things must hold, and the query's filters are not among them — those are handled separately, by
+     * withholding them from a listing whose schema comes from one file. The mode's schema must not span every
+     * file, so a prefix of the listing can answer it. The query must not want dataset-wide statistics, which are
+     * a fold over every file whatever the schema needs. And the dataset must not have chosen its own file order:
+     * a prefix is a prefix in provider order, and any other order makes the listing something other than the
+     * whole glob's front, which would move the file {@code FIRST_FILE_WINS} reads.
      */
     private ListingExtents listingExtentsFor(
         ResolutionDemand demand,
@@ -3736,11 +3740,15 @@ public class ExternalSourceResolver {
         // forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping is bounded only
         // under first_file_wins, the default.
         ListingExtents extents = listingExtentsFor(demand, null, config);
+        // Same rule as the inferred rail, and here it always answers the same way: a declared mapping is read from
+        // no file, so what is left for this listing to answer - the file count, the partition columns, and which
+        // file the coercibility check opens - is the dataset's rather than this query's.
+        List<PartitionFilterHintExtractor.PartitionFilterHint> schemaHints = null;
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,
                 provider,
-                hints,
+                schemaHints,
                 config,
                 maxDiscoveredFiles.getAsInt(),
                 maxGlobExpansion.getAsInt(),
@@ -3748,9 +3756,9 @@ public class ExternalSourceResolver {
                 extents
             );
         } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
-            listing = cachedListing(path, storagePath, provider, hints, config);
+            listing = cachedListing(path, storagePath, provider, schemaHints, config);
         } else {
-            listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
+            listing = expandAndCompact(path, provider, schemaHints, config, storagePath, extents);
         }
         // No file defines a declared schema, so this listing answers two narrower questions: how many files the
         // dataset holds, and which paths partition detection folds over. It is not the query's file set - split

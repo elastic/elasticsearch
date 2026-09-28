@@ -1072,7 +1072,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[splits=").append(splits.size()).append("]");
         }
         if (datasetName != null) {
-            sb.append("[dataset=").append(datasetName).append("]");
+            sb.append("[dataset=").append(mapper.opaque(datasetName)).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }

@@ -884,7 +884,14 @@ public class ExternalSourceResolver {
                 ? iaeMsg
                 : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
             // Wrap in ExternalClientException so the caller can annotate with dataset context.
-            return new ExternalClientException(safeMsg);
+            ExternalClientException iaeEx = new ExternalClientException(
+                ExternalException.Condition.MALFORMED_DATA,
+                StoragePath.NONE,
+                "",
+                ""
+            );
+            iaeEx.setDetail(safeMsg);
+            return iaeEx;
         }
         // Recover a typed client exception from behind a transparent wrapper for the same reason the IAE arm above
         // does. Storage connectors now throw ExternalClientException (400) directly for access-denied and
@@ -911,10 +918,15 @@ public class ExternalSourceResolver {
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            // Pass empty detailCode: rootDetail(ioError) may contain a storage URI from an un-migrated
-            // throw site; the log line above preserves it for diagnosis. StoragePath.of(path) contributes
-            // only objectName() (the last segment), so the directory/bucket prefix stays hidden.
-            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.of(path), "", "", ioError);
+            // Use objectName(path) — the safe static that never throws and never returns the full URI —
+            // as the detailCode so the filename appears in the message while the directory stays hidden.
+            return new ExternalClientException(
+                ExternalException.Condition.METADATA_UNAVAILABLE,
+                StoragePath.NONE,
+                StoragePath.objectName(path),
+                "",
+                ioError
+            );
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the

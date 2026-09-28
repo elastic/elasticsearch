@@ -3909,7 +3909,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
             ).close()
         );
-        assertThat(e.getMessage(), Matchers.containsString("[memory://test.csv] has [2] columns, the schema has [3]"));
+        assertThat(e.getMessage(), Matchers.containsString("[test.csv] has [2] columns, the schema has [3]"));
         assertThat(e.getMessage(), Matchers.containsString("] has [2] columns, the schema has [3]"));
 
         // A 2-column pinned schema matches the two real columns and reads.
@@ -6291,7 +6291,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://test.csv");
+                return StoragePath.of("memory://host/test.csv");
             }
         };
     }
@@ -6363,7 +6363,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue(
             "expected a row error naming the file, got: " + e.getMessage(),
-            e.getMessage().startsWith("Row [") && e.getMessage().contains("] of [memory://test.csv]: ")
+            e.getMessage().startsWith("Row [") && e.getMessage().contains("] of [test.csv]: ")
         );
         assertTrue(
             "expected skip_row hint, got: " + e.getMessage(),

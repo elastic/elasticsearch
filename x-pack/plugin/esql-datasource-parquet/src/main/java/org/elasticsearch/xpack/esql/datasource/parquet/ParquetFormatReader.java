@@ -1284,14 +1284,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         return invalidParquet("short read of footer: expected " + expected + " bytes, got " + actual);
     }
 
-    /**
-     * Object name for user-facing messages. Falls back to the full path string for in-memory test
-     * URIs where the identifier is in the authority component and {@link StoragePath#objectName()}
-     * returns an empty string.
-     */
     private static String safeObjectName(StoragePath path) {
-        String name = path.objectName();
-        return name.isEmpty() ? path.toString() : name;
+        return path.objectName();
     }
 
     /**

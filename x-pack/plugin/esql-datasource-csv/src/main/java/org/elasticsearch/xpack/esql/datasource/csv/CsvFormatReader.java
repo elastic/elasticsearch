@@ -1307,8 +1307,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        String objectName = object.path().objectName();
-        String sourceLocation = objectName.isEmpty() ? object.path().toString() : objectName;
+        String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1819,15 +1818,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause) {
         Exception e = cause instanceof Exception ex ? ex : null;
-        return new ExternalClientException(
-            e,
-            "{}",
+        ExternalClientException result = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            e
+        );
+        result.setDetail(
             "CSV schema sampling failed at row ["
                 + row
                 + "]: "
                 + rowErrorReason(cause != null ? cause.getMessage() : "(no message)")
                 + "; set [error_mode] to [skip_row] to skip the row instead"
         );
+        return result;
     }
 
     private static ExternalClientException budgetExceededSamplingError(
@@ -2349,11 +2354,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
-            String objectName = object.path().objectName();
-            String loc = objectName.isEmpty() ? object.path().toString() : objectName;
             throw new IllegalArgumentException(
                 "["
-                    + loc
+                    + object.path().objectName()
                     + "] has ["
                     + fields.length
                     + "] columns, the schema has ["
@@ -3722,8 +3725,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            String objectName = objectPath.objectName();
-            this.messageLocation = objectName.isEmpty() ? objectPath.toString() : objectName;
+            this.messageLocation = objectPath.objectName();
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -6848,9 +6850,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 String hint = structural
                     ? "; set [error_mode] to [skip_row] to skip the row instead"
                     : "; set [error_mode] to [null_field] to return null instead";
-                throw new ExternalClientException(
+                throw ExternalFailures.rowError(
                     cause,
-                    "{}",
                     "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
@@ -6896,13 +6897,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                throw new ExternalClientException(
+                throw ExternalFailures.rowError(
                     cause,
-                    "[{}] errors in [{}] rows of [{}]; {}",
-                    errorCount,
-                    totalRowCount,
-                    messageLocation,
-                    errorPolicy.trippedLimit(errorCount)
+                    "["
+                        + errorCount
+                        + "] errors in ["
+                        + totalRowCount
+                        + "] rows of ["
+                        + messageLocation
+                        + "]; "
+                        + errorPolicy.trippedLimit(errorCount)
                 );
             }
         }

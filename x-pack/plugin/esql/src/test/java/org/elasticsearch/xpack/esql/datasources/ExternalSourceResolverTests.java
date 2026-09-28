@@ -4430,7 +4430,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertEquals(FormatNameResolver.listedFormatConflictMessage("parquet", "csv"), e.getMessage());
+        assertEquals(FormatNameResolver.listedFormatConflictMessage("b.parquet", "parquet", "csv"), e.getMessage());
         assertThat(e.getMessage(), not(containsString("s3://bucket")));
     }
 

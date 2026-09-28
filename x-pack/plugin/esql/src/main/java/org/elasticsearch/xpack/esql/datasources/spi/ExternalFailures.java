@@ -90,12 +90,10 @@ public final class ExternalFailures {
      * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
      * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
      * <p>
-     * Scope: covers object-store schemes (S3, GCS, Azure Blob) and generic HTTP/HTTPS endpoints.
-     * The Flight/gRPC datasource ({@code esql-datasource-grpc}) is explicitly out of scope for
-     * this PR: Flight provider messages embed location/endpoint strings but use non-HTTP schemes
-     * (e.g. {@code grpc://}, {@code grpcs://}). Hardening that module is tracked separately.
-     * When that work lands, add {@code "grpc://"} and {@code "grpcs://"} to this array so the
-     * {@code assert} guard in {@link #classify} catches Flight path leaks too.
+     * Covers object-store schemes (S3, GCS, Azure Blob) and generic HTTP/HTTPS endpoints.
+     * Flight/gRPC ({@code esql-datasource-grpc}) uses non-HTTP schemes ({@code grpc://},
+     * {@code grpcs://}) and is hardened separately; add those schemes here when that module
+     * migrates to structured exceptions.
      */
     private static final String[] STORAGE_URI_SCHEMES = {
         "s3://",
@@ -146,6 +144,24 @@ public final class ExternalFailures {
      */
     public static boolean safeForUserMessage(String message) {
         return containsStoragePath(message) == false;
+    }
+
+    /**
+     * Wraps a row-level parse failure in an {@link ExternalClientException} using the
+     * caller-supplied {@code safeMessage} verbatim as the exception message. Use this when the
+     * message is already self-descriptive (e.g. {@code "Row [N] of [file.csv]: ..."}) and the
+     * structured {@link ExternalException.Condition#MALFORMED_DATA} prefix would be redundant.
+     *
+     * @param cause the parse exception that triggered the row failure; {@code null} is accepted.
+     *     Verified by assertion via {@link #noStoragePathLeaked} (which walks the full cause chain).
+     * @param safeMessage a caller-controlled message verified to be free of storage-URI schemes
+     */
+    public static ExternalClientException rowError(Throwable cause, String safeMessage) {
+        Exception e = cause instanceof Exception ex ? ex : null;
+        ExternalClientException result = new ExternalClientException(e, "{}", safeMessage);
+        assert containsStoragePath(safeMessage) == false : "storage path in row error message: " + safeMessage;
+        assert noStoragePathLeaked(result) : "storage path leaked via row error cause chain: " + result.getMessage();
+        return result;
     }
 
     /**
@@ -232,10 +248,7 @@ public final class ExternalFailures {
         } else {
             result = new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
         }
-        // Only check the failure's own message — it is the part that can embed a URI from a third-party
-        // or un-migrated throw site. fallbackMessage is our own controlled code and is not checked here.
-        assert containsStoragePath(detail(failure)) == false
-            : "storage path leaked via IOException message in surface(): " + detail(failure);
+        assert noStoragePathLeaked(result) : "storage path leaked in surfaced exception: " + result.getMessage();
         return result;
     }
 

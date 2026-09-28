@@ -91,9 +91,8 @@ public class DatasetService {
 
     /**
      * Validate the put-dataset request against the supplied project metadata and build the domain
-     * {@link Dataset}. Callable from the coordinator (pre-check, possibly against stale state) and
-     * from inside the CAS task (authoritative, against master's current state). Throws cleanly on
-     * missing parent, unknown validator, or validation failure.
+     * {@link Dataset}. Called inside the CAS task against authoritative master state. Throws cleanly
+     * on missing parent, unknown validator, or validation failure.
      */
     Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
@@ -136,9 +135,8 @@ public class DatasetService {
                 throwShadowError(key);
             }
         }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
-        // and the _id.path reference. A `path` column rename is honored by all formats (translation is centralized at
-        // the reader boundary).
+        // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
+        // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
         return new Dataset(
             request.name(),
@@ -157,25 +155,11 @@ public class DatasetService {
     }
 
     /**
-     * Create or replace a dataset. Validation is expected to have run on the coordinator (via
-     * {@link #validatePutDataset}); the task re-validates under CAS to guard against the parent
-     * being delete-recreated between coord-validate and task-execute.
+     * Create or replace a dataset. Validation and the identical-dataset check run inside the CAS
+     * task against authoritative master state.
      */
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
-        final Dataset dataset;
-        try {
-            dataset = validatePutDataset(projectMetadata, request);
-        } catch (Exception e) {
-            recordRejected(parentType(projectMetadata, request.dataSource()), e);
-            listener.onFailure(e);
-            return;
-        }
-        // No-op if identical to the registered dataset — skip the cluster-state update (mirrors ViewService.putView).
-        if (dataset.equals(getMetadata(projectMetadata).get(dataset.name()))) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
         final AtomicReference<String> pendingOp = new AtomicReference<>();
         final String type = parentType(projectMetadata, request.dataSource());
@@ -188,14 +172,9 @@ public class DatasetService {
         taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    /** Records a pre-submit or transport pre-check refusal. Used by PUT transport {@code doExecute}. */
+    /** Records a PUT refusal (unknown parent, validation failure, and similar). */
     public void recordRejected(String type, Exception e) {
         ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASET, type, e);
-    }
-
-    /** Like {@link #recordRejected(String, Exception)}, resolving type from the parent data source. */
-    public void recordRejected(ProjectMetadata project, String dataSourceName, Exception e) {
-        recordRejected(parentType(project, dataSourceName), e);
     }
 
     private static String parentType(ProjectMetadata project, String dataSourceName) {
@@ -219,7 +198,7 @@ public class DatasetService {
         final DatasetMetadata metadata = getMetadata(project);
         final Dataset current = metadata.get(dataset.name());
         if (dataset.equals(current)) {
-            // Became a no-op between the coordinator check and the task — nothing to write.
+            // No-op if identical to the registered dataset (mirrors ViewService.putView).
             return currentState;
         }
         if (current == null && metadata.datasets().size() >= maxDatasetsCount) {

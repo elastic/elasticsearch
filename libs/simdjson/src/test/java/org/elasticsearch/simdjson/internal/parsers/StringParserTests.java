@@ -14,18 +14,18 @@ import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.makeJsonString;
+import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytesAtOffset;
 
 // Unit tests for StringParser (JSON string unescaping with SIMD + scalar tail).
 public class StringParserTests extends ESTestCase {
 
     @BeforeClass
     public static void requireVectorSupport() {
-        SimdJsonSupport.isSupported();
-        assumeTrue("jdk.incubator.vector required for StringParser", SimdJsonVectorSupport.isAvailable());
+        assumeTrue("simdjson not supported on this platform", SimdJsonSupport.isSupported());
     }
 
     private final StringParser parser = new StringParser();
@@ -34,7 +34,7 @@ public class StringParserTests extends ESTestCase {
         byte[] buf = makeJsonString(content);
         byte[] dst = new byte[buf.length];
         int len = parser.parseString(buf, 0, dst);
-        return new String(dst, 0, len, StandardCharsets.UTF_8);
+        return new String(dst, 0, len, UTF_8);
     }
 
     private byte[] parseToBytes(String content) {
@@ -387,6 +387,87 @@ public class StringParserTests extends ESTestCase {
             assertEquals((byte) 0x9F, result[prefix + 1]);
             assertEquals((byte) 0x98, result[prefix + 2]);
             assertEquals((byte) 0x80, result[prefix + 3]);
+        }
+    }
+
+    // ---- scanUnescapedLength ----
+    // Direct coverage for the vectorized quote/backslash scan the walker uses to size and copy
+    // escape-free string values without a full parseString() call. It has its own loop bound
+    // and its own combined-mask (quote-or-backslash) disambiguation logic, so it gets the same
+    // kind of SIMD-boundary coverage as parseString above, rather than relying solely on the
+    // indirect coverage exercised via SimdJsonDirectWalkerTests.
+
+    private int scanLen(String content) {
+        byte[] json = makeJsonString(content);
+        if (randomBoolean()) {
+            int offset = randomIntBetween(1, 128);
+            return parser.scanUnescapedLength(toBytesAtOffset(new String(json, UTF_8), offset), offset);
+        } else {
+            return parser.scanUnescapedLength(json, 0);
+        }
+    }
+
+    public void testScanUnescapedLength() {
+        assertEquals(0, scanLen(""));
+        assertEquals(1, scanLen("x"));
+        assertEquals(5, scanLen("hello"));
+        for (int len = 0; len <= 256; len++) {
+            assertEquals("len=" + len, len, scanLen(randomAlphaOfLength(len)));
+        }
+    }
+
+    public void testScanUnescapedLengthReturnsNegativeOneOnBackslash() {
+        assertEquals(-1, scanLen("a\\nb"));
+        assertEquals(-1, scanLen("ab\\ncd"));
+        assertEquals(-1, scanLen("\\\"quoted\\\""));
+        assertEquals(-1, scanLen("prefix\\uD83D\\uDE00suffix"));
+        assertEquals(-1, scanLen("a".repeat(50) + "\\n" + "b".repeat(50)));
+        for (int len = 0; len <= 256; len++) {
+            assertEquals(-1, scanLen(randomAlphaOfLength(len) + "\\n" + "z"));
+            assertEquals(-1, scanLen(randomAlphaOfLength(len) + "\\n" + randomAlphaOfLength(len)));
+            assertEquals(-1, scanLen("a" + "\\n" + randomAlphaOfLength(len)));
+        }
+    }
+
+    // For any escape-free string, scanUnescapedLength must agree with the parseString()
+    public void testScanUnescapedLengthMatchesParseStringForEscapeFreeContent() {
+        for (int len = 0; len <= 256; len++) {
+            String content = randomAlphaOfLength(len);
+            assertEquals("len=" + len, len, scanLen(content));
+            assertEquals("len=" + len, len, parse(content).length());
+        }
+    }
+
+    // ---- Raw (unescaped) multi-byte UTF-8 ----
+    // scanUnescapedLength only ever compares bytes against '"' (0x22) and '\' (0x5C); every byte
+    // of a valid UTF-8 multi-byte sequence has its high bit set, so it can never alias with
+    // either, even split across a chunk boundary. These confirm that -- and, unlike the
+    // escape-free sweep above, use content whose byte length differs from its char length, so
+    // the expected value must come from getBytes(UTF_8).length, not String.length().
+
+    public void testScanUnescapedLengthWithRawMultiByteUtf8() {
+        String content = "café 世界 😀 done";
+        assertEquals(content.getBytes(UTF_8).length, scanLen(content));
+    }
+
+    // Sweeps a 2/3/4-byte character across every prefix length so its lead/continuation bytes
+    // land at every alignment relative to common SIMD chunk boundaries (16/32/64 bytes).
+    public void testScanUnescapedLengthMultiByteCharacterSweep() {
+        for (String ch : new String[] { "é", "世", "😀" }) {
+            for (int prefix = 0; prefix <= 80; prefix++) {
+                String content = "a".repeat(prefix) + ch + "a".repeat(prefix);
+                assertEquals("char=" + ch + " prefix=" + prefix, content.getBytes(UTF_8).length, scanLen(content));
+            }
+        }
+    }
+
+    // A trailing backslash immediately follows the closing quote, as if this field were
+    // immediately followed by another field's escaped string value.
+    public void testScanUnescapedLengthQuoteBeforeBackslashInSameVectorChunk() {
+        String filler = "x".repeat(80);
+        for (int count = 0; count <= 256; count++) {
+            byte[] buf = ("\"" + "a".repeat(count) + "\"" + "\\" + filler).getBytes(UTF_8);
+            assertEquals(count, parser.scanUnescapedLength(buf, 0));
         }
     }
 }

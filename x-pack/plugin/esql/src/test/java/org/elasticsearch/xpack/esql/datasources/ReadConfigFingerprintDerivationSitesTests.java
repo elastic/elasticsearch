@@ -17,16 +17,21 @@ import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * The census of {@link ReadConfigFingerprint#of} derivation sites, and the agreement each site owes another.
@@ -125,34 +130,10 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
      */
     public void testEveryDerivationSiteIsDeclared() throws IOException {
         Path pluginRoot = findPluginRoot();
-        Map<String, Integer> found = new TreeMap<>();
-        List<String> staticImports = new java.util.ArrayList<>();
-        try (Stream<Path> walk = Files.walk(pluginRoot)) {
-            for (Path p : (Iterable<Path>) walk::iterator) {
-                String rel = pluginRoot.relativize(p).toString().replace('\\', '/');
-                if (rel.endsWith(".java") == false || rel.startsWith("esql") == false || rel.contains("/src/main/java/") == false) {
-                    continue;
-                }
-                if (rel.endsWith(DEFINITION_FILE)) {
-                    continue;
-                }
-                String content = Files.readString(p);
-                if (STATIC_IMPORT.matcher(content).find()) {
-                    staticImports.add(rel);
-                }
-                int count = 0;
-                Matcher m = DERIVATION.matcher(content);
-                while (m.find()) {
-                    count++;
-                }
-                if (count > 0) {
-                    found.put(rel, count);
-                }
-            }
-        }
+        Census census = scanDerivationSites(pluginRoot);
         assertThat(
             "static import of ReadConfigFingerprint hides derivation sites from this census — import the class instead",
-            staticImports,
+            census.staticImports,
             empty()
         );
         Map<String, Integer> declared = new TreeMap<>();
@@ -166,10 +147,65 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
                 + "declaration names; for a REMOVED site delete its declaration. Declared per file: "
                 + declared
                 + ", found per file: "
-                + found,
+                + census.found,
             declared,
-            found
+            census.found
         );
+    }
+
+    /**
+     * {@code Files.walk} over {@code x-pack/plugin} races concurrent tests: Gradle deletes
+     * {@code build/testrun} temp directories mid-walk and the stream throws {@link NoSuchFileException}.
+     * The census still has to see every {@code esql*} {@code src/main/java} tree; it must not
+     * descend into {@code build} or {@code snapshots}, and it must keep walking when an entry
+     * vanishes.
+     */
+    public void testCensusWalkSkipsEphemeralTreesAndVanishedFiles() throws IOException {
+        Path pluginRoot = createTempDir();
+        Path realSite = pluginRoot.resolve("esql/src/main/java/org/elasticsearch/RealSite.java");
+        Files.createDirectories(realSite.getParent());
+        Files.writeString(realSite, "class RealSite { void x() { ReadConfigFingerprint.of(schema, spec); } }\n");
+
+        Path siblingSite = pluginRoot.resolve("esql-core/src/main/java/org/elasticsearch/CoreSite.java");
+        Files.createDirectories(siblingSite.getParent());
+        Files.writeString(siblingSite, "class CoreSite { void x() { ReadConfigFingerprint.of(schema, spec); } }\n");
+
+        Path buildTemp = pluginRoot.resolve(
+            "esql/build/testrun/test/temp/org.elasticsearch.xpack.esql.datasources.ExternalSchemaTests-001" + "/src/main/java/Fake.java"
+        );
+        Files.createDirectories(buildTemp.getParent());
+        Files.writeString(buildTemp, "class Fake { void x() { ReadConfigFingerprint.of(schema, spec); } }\n");
+
+        Path snapshotSite = pluginRoot.resolve("esql/snapshots/src/main/java/Snap.java");
+        Files.createDirectories(snapshotSite.getParent());
+        Files.writeString(snapshotSite, "class Snap { void x() { ReadConfigFingerprint.of(schema, spec); } }\n");
+
+        Path otherPlugin = pluginRoot.resolve("security/src/main/java/Other.java");
+        Files.createDirectories(otherPlugin.getParent());
+        Files.writeString(otherPlugin, "class Other { void x() { ReadConfigFingerprint.of(schema, spec); } }\n");
+
+        assertTrue(skipSubtree(pluginRoot, pluginRoot.resolve("esql/build")));
+        assertTrue(skipSubtree(pluginRoot, pluginRoot.resolve("esql/snapshots")));
+        assertTrue(skipSubtree(pluginRoot, pluginRoot.resolve("security")));
+        assertFalse(skipSubtree(pluginRoot, pluginRoot.resolve("esql-core")));
+
+        Census census = scanDerivationSites(pluginRoot);
+        assertThat(
+            census.found,
+            equalTo(
+                Map.of(
+                    "esql/src/main/java/org/elasticsearch/RealSite.java",
+                    1,
+                    "esql-core/src/main/java/org/elasticsearch/CoreSite.java",
+                    1
+                )
+            )
+        );
+        assertThat(census.staticImports, empty());
+
+        CensusVisitor visitor = new CensusVisitor(pluginRoot, new TreeMap<>(), new ArrayList<>());
+        assertEquals(FileVisitResult.CONTINUE, visitor.visitFileFailed(buildTemp, new NoSuchFileException(buildTemp.toString())));
+        expectThrows(IOException.class, () -> visitor.visitFileFailed(realSite, new IOException("not a vanish")));
     }
 
     /**
@@ -202,6 +238,96 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
 
     private static ReferenceAttribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private record Census(Map<String, Integer> found, List<String> staticImports) {}
+
+    private static Census scanDerivationSites(Path pluginRoot) throws IOException {
+        Map<String, Integer> found = new TreeMap<>();
+        List<String> staticImports = new ArrayList<>();
+        Files.walkFileTree(pluginRoot, new CensusVisitor(pluginRoot, found, staticImports));
+        return new Census(found, staticImports);
+    }
+
+    /**
+     * Walks {@code esql*} main sources for {@code ReadConfigFingerprint.of} call sites. Skips Gradle {@code build}
+     * trees and {@code snapshots} paths so concurrent test temp-dir deletion cannot abort the census, and continues
+     * when a listed entry vanishes between {@code readdir} and {@code stat}/{@code read}.
+     */
+    private static final class CensusVisitor extends SimpleFileVisitor<Path> {
+        private final Path pluginRoot;
+        private final Map<String, Integer> found;
+        private final List<String> staticImports;
+
+        CensusVisitor(Path pluginRoot, Map<String, Integer> found, List<String> staticImports) {
+            this.pluginRoot = pluginRoot;
+            this.found = found;
+            this.staticImports = staticImports;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+            return skipSubtree(pluginRoot, dir) ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            String rel = pluginRoot.relativize(file).toString().replace('\\', '/');
+            if (rel.endsWith(".java") == false || rel.startsWith("esql") == false || rel.contains("/src/main/java/") == false) {
+                return FileVisitResult.CONTINUE;
+            }
+            if (rel.endsWith(DEFINITION_FILE)) {
+                return FileVisitResult.CONTINUE;
+            }
+            String content;
+            try {
+                content = Files.readString(file);
+            } catch (NoSuchFileException e) {
+                return FileVisitResult.CONTINUE;
+            }
+            if (STATIC_IMPORT.matcher(content).find()) {
+                staticImports.add(rel);
+            }
+            int count = 0;
+            Matcher m = DERIVATION.matcher(content);
+            while (m.find()) {
+                count++;
+            }
+            if (count > 0) {
+                found.put(rel, count);
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+            if (exc instanceof NoSuchFileException) {
+                return FileVisitResult.CONTINUE;
+            }
+            throw exc;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            if (exc instanceof NoSuchFileException) {
+                return FileVisitResult.CONTINUE;
+            }
+            if (exc != null) {
+                throw exc;
+            }
+            return FileVisitResult.CONTINUE;
+        }
+    }
+
+    private static boolean skipSubtree(Path pluginRoot, Path dir) {
+        if (pluginRoot.equals(dir)) {
+            return false;
+        }
+        String name = dir.getFileName().toString();
+        if (name.equals("build") || name.equals("snapshots")) {
+            return true;
+        }
+        return pluginRoot.equals(dir.getParent()) && name.startsWith("esql") == false;
     }
 
     /**

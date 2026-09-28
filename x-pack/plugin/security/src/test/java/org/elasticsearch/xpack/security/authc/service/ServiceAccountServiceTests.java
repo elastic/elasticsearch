@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -680,7 +682,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final UserManagedServiceAccount account = new UserManagedServiceAccount(
             USER_MANAGED_ACCOUNT_ID,
             List.of("deploy_bot_role_a", "deploy_bot_role_b"),
-            true
+            true,
+            "Deploys things"
         );
         stubUserManagedAccount(account);
         stubIndexTokenAuthentication(true);
@@ -716,7 +719,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
      * effect immediately, rather than once the token cache expires.
      */
     public void testDisablingAnAccountDeniesItsTokensWithoutConsultingTheTokenStore() {
-        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false));
+        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false, null));
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
@@ -813,7 +816,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreatingATokenIgnoresWhetherTheUserManagedAccountIsEnabled() {
         for (boolean enabled : List.of(true, false)) {
             clearInvocations(indexServiceAccountTokenStore);
-            stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), enabled));
+            stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), enabled, null));
 
             final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
             final CreateServiceAccountTokenRequest request = newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID);
@@ -858,36 +861,53 @@ public class ServiceAccountServiceTests extends ESTestCase {
         stubHasTokensFor(false);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        final String description = randomDescription();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         stubPutAccount(UserManagedServiceAccountStore.PutResult.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, refreshPolicy, future);
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, description, refreshPolicy, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
         verify(indexServiceAccountTokenStore).hasTokensFor(eq(USER_MANAGED_ACCOUNT_ID), any());
-        verify(userManagedServiceAccountStore).putAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(roles), eq(enabled), eq(refreshPolicy), any());
+        verify(userManagedServiceAccountStore).putAccount(
+            eq(USER_MANAGED_ACCOUNT_ID),
+            eq(roles),
+            eq(enabled),
+            eq(description),
+            eq(refreshPolicy),
+            any()
+        );
     }
 
     public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenReplacingAnExistingAccount() {
-        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("old_role"), true));
+        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("old_role"), true, "old description"));
         stubHasTokensFor(true);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        // A replacement carries whatever description the caller gave, including none: the old one is not kept.
+        final String description = randomDescription();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         stubPutAccount(UserManagedServiceAccountStore.PutResult.UPDATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, refreshPolicy, future);
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, description, refreshPolicy, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
         verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
-        verify(userManagedServiceAccountStore).putAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(roles), eq(enabled), eq(refreshPolicy), any());
+        verify(userManagedServiceAccountStore).putAccount(
+            eq(USER_MANAGED_ACCOUNT_ID),
+            eq(roles),
+            eq(enabled),
+            eq(description),
+            eq(refreshPolicy),
+            any()
+        );
     }
 
     public void testPutUserManagedAccountIsRefusedWhenLeftoverTokensExist() {
         stubHasTokensFor(true);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, RefreshPolicy.NONE, future);
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, null, RefreshPolicy.NONE, future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
@@ -898,17 +918,17 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     + "] because it has leftover service tokens; delete the tokens first"
             )
         );
-        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any());
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any());
     }
 
     public void testPutUserManagedAccountFailsWhereTheAccountStoreIsNotConfigured() {
         final ServiceAccountService service = newServiceAccountService(null);
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        service.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, RefreshPolicy.NONE, future);
+        service.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, null, RefreshPolicy.NONE, future);
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(e.getMessage(), equalTo("user-managed service accounts are not available in this cluster configuration"));
-        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any());
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any());
     }
 
     /**
@@ -966,11 +986,17 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetUserManagedAccountInfosReportsWhatTheStoreHolds() {
-        final UserManagedServiceAccount enabled = new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("role_a", "role_b"), true);
+        final UserManagedServiceAccount enabled = new UserManagedServiceAccount(
+            USER_MANAGED_ACCOUNT_ID,
+            List.of("role_a", "role_b"),
+            true,
+            "Deploys things"
+        );
         final UserManagedServiceAccount disabled = new UserManagedServiceAccount(
             new ServiceAccountId("engineering", "audit_bot"),
             List.of(),
-            false
+            false,
+            null
         );
         stubListAccounts(List.of(enabled, disabled));
 
@@ -980,8 +1006,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(
             future.actionGet(),
             contains(
-                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("role_a", "role_b"), true),
-                new ServiceAccountInfo.UserManaged("engineering/audit_bot", List.of(), false)
+                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("role_a", "role_b"), true, "Deploys things"),
+                new ServiceAccountInfo.UserManaged("engineering/audit_bot", List.of(), false, null)
             )
         );
         verify(userManagedServiceAccountStore).listAccounts(eq("engineering"), eq("deploy_bot"), any());
@@ -997,6 +1023,73 @@ public class ServiceAccountServiceTests extends ESTestCase {
         service.getUserManagedAccountInfos(randomFrom("engineering", null), randomFrom("deploy_bot", null), future);
         assertThat(future.actionGet(), empty());
         verify(userManagedServiceAccountStore, never()).listAccounts(any(), any(), any());
+    }
+
+    public void testQueryUserManagedAccountsReportsThePageTheStoreFoundWithItsSortValues() {
+        final UserManagedServiceAccount enabled = new UserManagedServiceAccount(
+            USER_MANAGED_ACCOUNT_ID,
+            List.of("role_a", "role_b"),
+            true,
+            "Deploys things"
+        );
+        final UserManagedServiceAccount disabled = new UserManagedServiceAccount(
+            new ServiceAccountId("engineering", "audit_bot"),
+            List.of(),
+            false,
+            null
+        );
+        final SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().size(2).sort("username");
+        doAnswer(invocation -> {
+            assertThat(invocation.getArguments()[0], is(searchSource));
+            @SuppressWarnings("unchecked")
+            final ActionListener<UserManagedServiceAccountStore.QueryResult> listener = (ActionListener<
+                UserManagedServiceAccountStore.QueryResult>) invocation.getArguments()[1];
+            listener.onResponse(
+                new UserManagedServiceAccountStore.QueryResult(
+                    List.of(
+                        new UserManagedServiceAccountStore.QueryResult.Item(enabled, new Object[] { "engineering/deploy_bot" }),
+                        new UserManagedServiceAccountStore.QueryResult.Item(disabled, new Object[] { "engineering/audit_bot" })
+                    ),
+                    5
+                )
+            );
+            return null;
+        }).when(userManagedServiceAccountStore).queryAccounts(any(), any());
+
+        final PlainActionFuture<QueryServiceAccountResponse> future = new PlainActionFuture<>();
+        serviceAccountService.queryUserManagedAccounts(searchSource, future);
+
+        assertThat(
+            future.actionGet(),
+            equalTo(
+                new QueryServiceAccountResponse(
+                    5,
+                    List.of(
+                        new QueryServiceAccountResponse.Item(
+                            new ServiceAccountInfo.UserManaged(
+                                "engineering/deploy_bot",
+                                List.of("role_a", "role_b"),
+                                true,
+                                "Deploys things"
+                            ),
+                            new Object[] { "engineering/deploy_bot" }
+                        ),
+                        new QueryServiceAccountResponse.Item(
+                            new ServiceAccountInfo.UserManaged("engineering/audit_bot", List.of(), false, null),
+                            new Object[] { "engineering/audit_bot" }
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testQueryUserManagedAccountsIsEmptyWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        final PlainActionFuture<QueryServiceAccountResponse> future = new PlainActionFuture<>();
+        service.queryUserManagedAccounts(SearchSourceBuilder.searchSource(), future);
+        assertThat(future.actionGet(), is(QueryServiceAccountResponse.EMPTY));
+        verify(userManagedServiceAccountStore, never()).queryAccounts(any(), any());
     }
 
     public void testFindTokensFor() {
@@ -1087,7 +1180,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     private UserManagedServiceAccount enabledAccount() {
-        return new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true);
+        return new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, null);
     }
 
     private ServiceAccountToken newTokenFor(ServiceAccountId accountId) {
@@ -1193,10 +1286,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final ActionListener<UserManagedServiceAccountStore.PutResult> listener = (ActionListener<
-                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[4];
+                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[5];
             listener.onResponse(result);
             return null;
-        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any());
+        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any(), any());
+    }
+
+    private static String randomDescription() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
     }
 
     private void stubDeleteAccount(boolean found) {

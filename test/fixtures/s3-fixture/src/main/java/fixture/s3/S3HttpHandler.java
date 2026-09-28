@@ -134,7 +134,9 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         try (exchange) {
-            if (request.isHeadObjectRequest()) {
+            if (request.isHeadBucketRequest()) {
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            } else if (request.isHeadObjectRequest()) {
                 final BlobEntry blobEntry = blobs.get(request.path());
                 if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
@@ -913,6 +915,10 @@ public class S3HttpHandler implements HttpHandler {
 
         private boolean isUnderBucketRootAndBasePath() {
             return path.startsWith("/" + bucketAndBasePath + "/");
+        }
+
+        public boolean isHeadBucketRequest() {
+            return "HEAD".equals(method) && isBucketRootPath();
         }
 
         public boolean isHeadObjectRequest() {

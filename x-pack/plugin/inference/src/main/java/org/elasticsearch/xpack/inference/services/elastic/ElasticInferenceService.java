@@ -26,6 +26,8 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -423,11 +425,13 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             case ElasticInferenceServiceDenseEmbeddingsModel denseModel -> new EmbeddingRequestChunker<>(
                 inputs,
                 DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                getRegexReadLimitFactor(),
                 denseModel.getConfigurations().getChunkingSettings()
             );
             case ElasticInferenceServiceSparseEmbeddingsModel sparseModel -> new EmbeddingRequestChunker<>(
                 inputs,
                 Optional.ofNullable(sparseModel.getServiceSettings().maxBatchSize()).orElse(DEFAULT_SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE),
+                getRegexReadLimitFactor(),
                 sparseModel.getConfigurations().getChunkingSettings()
             );
             default -> null;
@@ -553,6 +557,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setName(SERVICE_NAME)
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
+            .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
             .build();
     }
 

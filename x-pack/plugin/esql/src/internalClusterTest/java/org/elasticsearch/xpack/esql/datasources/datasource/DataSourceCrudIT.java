@@ -273,7 +273,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
      * Regression: {@code DataSourceService.putDataSource} must re-validate against the authoritative state it
      * reads inside the cluster-state-update task, not just the pre-encryption snapshot taken before submitting
      * it. Races two PUTs behind a blocked master task queue (mirrors {@link #testDispatchVsTaskExecuteRace}):
-     * both are coordinator-pre-validated against the same state (secret still present), but the one that
+     * both are validated against the same master snapshot (secret still present), but the one that
      * clears the secret is submitted first, so by the time the second PUT's task actually runs, the secret it
      * was relying on to carry forward is gone. That PUT must fail, not silently persist an incomplete data
      * source.
@@ -304,8 +304,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         });
         safeAwait(barrier); // master is now blocked inside the no-op task
 
-        // Both requests are coordinator-pre-validated against the same pre-block state, where the data source
-        // (and its secret) still exists, so the PUT's pre-check passes. Submission order controls processing
+        // Both requests are validated against the same pre-block master state, where the data source
+        // (and its secret) still exists, so pre-submit validation passes. Submission order controls processing
         // order once the barrier releases: the delete runs first, so by the time the PUT's task actually runs,
         // the entry it was relying on to carry the secret forward from is already gone.
         ActionFuture<AcknowledgedResponse> deleteFuture = client().execute(

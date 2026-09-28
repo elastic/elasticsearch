@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -828,20 +829,25 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
 
         if (model instanceof ElasticsearchInternalModel esModel) {
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                input,
-                EMBEDDING_MAX_BATCH_SIZE,
-                esModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
+            try {
+                List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                    input,
+                    EMBEDDING_MAX_BATCH_SIZE,
+                    getClusterService().getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING),
+                    esModel.getConfigurations().getChunkingSettings()
+                ).batchRequestsWithListeners(listener);
 
-            if (batchedRequests.isEmpty()) {
-                listener.onResponse(List.of());
-            } else {
-                timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
-                // Avoid filling the inference queue by executing the batches in series
-                // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
-                var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
-                sequentialRunner.run();
+                if (batchedRequests.isEmpty()) {
+                    listener.onResponse(List.of());
+                } else {
+                    timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
+                    // Avoid filling the inference queue by executing the batches in series
+                    // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
+                    var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
+                    sequentialRunner.run();
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         } else {
             listener.onFailure(notElasticsearchModelException(model));

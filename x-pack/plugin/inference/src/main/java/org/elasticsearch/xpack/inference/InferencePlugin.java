@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
@@ -211,6 +212,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
@@ -725,6 +727,7 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new TencentCloudService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context));
@@ -903,6 +906,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
         settings.addAll(RetrySettings.getSettingsDefinitions());
         settings.addAll(Truncator.getSettingsDefinitions());
+        settings.addAll(RecursiveChunkingSettings.getSettingsDefinitions());
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);

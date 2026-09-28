@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 160492
+summary: Handle routing without current node in `TransportSingleShardAction`
+type: bug

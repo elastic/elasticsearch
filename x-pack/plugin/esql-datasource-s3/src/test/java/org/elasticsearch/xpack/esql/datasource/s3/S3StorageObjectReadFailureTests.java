@@ -87,7 +87,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(ise, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
     }
@@ -100,9 +100,8 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(wrapped, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
-        assertNotNull(ExceptionsHelper.unwrap(eue, IllegalStateException.class));
     }
 
     public void testSdkClientExceptionWrappingTransportIoExceptionIsUnavailable503() {
@@ -113,7 +112,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(wrapped, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
@@ -127,7 +126,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(wrapped, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
@@ -141,7 +140,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(wrapped, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
     }
@@ -154,7 +153,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
-        assertSame(wrapped, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
     }
@@ -361,7 +360,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
-        assertSame(ise, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
     }
@@ -375,7 +374,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
-        assertSame(ise, eue.getCause());
+        assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
     }
 

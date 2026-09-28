@@ -288,8 +288,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L,
-                cause
+                0L
             );
         }
         if (isSdkClientTransportFailure(cause)) {
@@ -300,8 +299,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L,
-                cause
+                0L
             );
         }
         if (cause instanceof IllegalStateException ise) {

@@ -458,13 +458,16 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
                 long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
                 Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
-                return new ExternalUnavailableException(condition, path, "HTTP " + se.getCode(), "", throttling, retryAfterMs, cause);
+                logger.debug("GCS {} for [{}]", condition, path.objectName(), cause);
+                return new ExternalUnavailableException(condition, path, "HTTP " + se.getCode(), "", throttling, retryAfterMs);
             }
             if (se.getCode() == 412) {
-                return new ExternalObjectChangedException(path, cause);
+                logger.debug("GCS precondition failed for [{}]", path.objectName(), cause);
+                return new ExternalObjectChangedException(path);
             }
             if (se.getCode() == 404) {
-                return new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "", cause);
+                logger.debug("GCS object not found for [{}]", path.objectName(), cause);
+                return new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
             }
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);

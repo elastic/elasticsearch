@@ -165,18 +165,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             if (throttling && bse.getResponse() != null) {
                 retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
             }
-            return new ExternalUnavailableException(
-                throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
-                path,
-                "HTTP " + bse.getStatusCode(),
-                "",
-                throttling,
-                retryAfterMs,
-                cause
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            logger.debug("Azure {} for [{}]", condition, path.objectName(), cause);
+            return new ExternalUnavailableException(condition, path, "HTTP " + bse.getStatusCode(), "", throttling, retryAfterMs);
         }
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
-            return new ExternalObjectChangedException(path, cause);
+            logger.debug("Azure precondition failed for [{}]", path.objectName(), cause);
+            return new ExternalObjectChangedException(path);
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
         return new IOException(context + " [" + path.objectName() + "]", cause);

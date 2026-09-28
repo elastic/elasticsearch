@@ -211,6 +211,13 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * Conditions whose message is knowingly still not distinguishing, with the reason. An entry here is a decision
      * on record, not a silenced failure — delete it when the underlying issue is fixed and the gate will hold the
      * new behaviour.
+     *
+     * <p>Note: "bucket does not exist", "key is a prefix, not an object", and "object key does not exist" are
+     * absent from this map even though their messages do not semantically distinguish a missing bucket from a
+     * missing prefix from a missing key. The probes avoid colliding only because they use different object names,
+     * which {@link #normalize} does not strip — not because the messages carry genuinely distinct diagnoses.
+     * Improving these messages to name the specific failure (missing bucket, prefix mismatch, missing key) is a
+     * known gap; restore these entries if that fix is reverted.
      */
     private static final Map<String, String> KNOWN_OPEN = Map.of();
 

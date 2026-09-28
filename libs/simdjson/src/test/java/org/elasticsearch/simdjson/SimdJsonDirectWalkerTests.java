@@ -12,6 +12,8 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -193,6 +195,37 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("string(a=hello\nworld)", events.get(0));
     }
 
+    /**
+     * Unescaped values stay readable after later calls in the same document.
+     */
+    public void testRetainedUnescapedValuesDoNotAlias() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
+
+        byte[] buffer = "{\"a\":[\"x\\ny\",\"p\\nq\"],\"b\":\"r\\ns\"}".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            walker.walkDocument(buffer, parser, handler);
+        }
+
+        List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+        assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
+    }
+
     public void testNegativeNumber() {
         List<String> events = walkJson("{\"n\":-42}");
         assertEquals(List.of("long(n=-42,fitsInt=true)"), events);
@@ -315,6 +348,17 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
             List.of("bigInteger(n=99999999999999999999)"),
             walkJson("{\"n\":99999999999999999999}")
         );
+        for (int i = 0; i < 20; i++) {
+            boolean negative = randomBoolean();
+            String digits = randomNumericOfLength(randomIntBetween(20, 40));
+            String sign = negative ? "-" : "";
+            String expected = new BigInteger(sign + digits).toString();
+            assertEquals(
+                "digitCount=" + digits.length() + ", negative=" + negative + ": always BigInteger regardless of value",
+                List.of("bigInteger(n=" + expected + ")"),
+                walkJson("{\"n\":" + sign + digits + "}")
+            );
+        }
     }
 
     // Same digitCount-at-19 boundaries as array elements.
@@ -333,6 +377,103 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
                 "{\"a\":[" + Long.MAX_VALUE + "," + Long.MIN_VALUE + ",9223372036854775808,-9223372036854775809,99999999999999999999]}"
             )
         );
+    }
+
+    // ---- Leading zeros in the integer part are rejected (RFC 8259: "0" or [1-9][0-9]*) ----
+
+    // A lone "0" is legal, whether or not it's followed by a fraction/exponent.
+    public void testLoneZeroIsNotALeadingZero() {
+        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":0}"));
+        assertEquals(List.of("long(n=0,fitsInt=true)"), walkJson("{\"n\":-0}"));
+        assertTrue(walkJson("{\"n\":0.5}").get(0).startsWith("double(n=0.5,"));
+        assertTrue(walkJson("{\"n\":-0.5}").get(0).startsWith("double(n=-0.5,"));
+        assertTrue(walkJson("{\"n\":0e5}").get(0).startsWith("double(n=0.0,"));
+        assertTrue(walkJson("{\"n\":0e05}").get(0).startsWith("double(n=0.0,"));
+        assertTrue(walkJson("{\"n\":1e05}").get(0).startsWith("double(n=100000.0,"));
+        assertTrue(walkJson("{\"n\":1E06}").get(0).startsWith("double(n=1000000.0,"));
+    }
+
+    // Verifies that json is rejected specifically for a leading zero, not some other parse error.
+    private void assertLeadingZeroRejected(String json) {
+        JsonParsingException e = expectThrows(JsonParsingException.class, () -> walkJson(json));
+        assertTrue("message: " + e.getMessage(), e.getMessage().contains("Leading zero"));
+    }
+
+    // Two digits starting with '0': caught by handleNumber's 2-digit fast path.
+    public void testLeadingZeroRejectedAtTwoDigits() {
+        assertLeadingZeroRejected("{\"n\":00}");
+        assertLeadingZeroRejected("{\"n\":01}");
+        assertLeadingZeroRejected("{\"n\":-00}");
+        assertLeadingZeroRejected("{\"n\":-01}");
+    }
+
+    // Three or more digits starting with '0': caught by the general/SWAR path.
+    public void testLeadingZeroRejectedAtThreeOrMoreDigits() {
+        assertLeadingZeroRejected("{\"n\":007}");
+        assertLeadingZeroRejected("{\"n\":-0123}");
+        assertLeadingZeroRejected("{\"n\":00000000000000000009}"); // digitCount > 19 too
+    }
+
+    // A leading zero is rejected regardless of what follows the integer part.
+    public void testLeadingZeroRejectedBeforeFractionOrExponent() {
+        assertLeadingZeroRejected("{\"n\":00.5}");
+        assertLeadingZeroRejected("{\"n\":01.5}");
+        assertLeadingZeroRejected("{\"n\":01e5}");
+        assertLeadingZeroRejected("{\"n\":-01.5}");
+    }
+
+    // Leading zeros are legal in the fraction and exponent, since the rule only applies to the
+    // integer part.
+    public void testLeadingZeroAllowedInFractionAndExponent() {
+        assertTrue(walkJson("{\"n\":1.007}").get(0).startsWith("double(n=1.007,"));
+        assertTrue(walkJson("{\"n\":1e007}").get(0).startsWith("double(n=1.0E7,"));
+    }
+
+    // Same leading-zero rejections as array elements.
+    public void testLeadingZeroRejectedAsArrayElement() {
+        assertLeadingZeroRejected("{\"a\":[00]}");
+        assertLeadingZeroRejected("{\"a\":[01]}");
+        assertLeadingZeroRejected("{\"a\":[12, 01]}");
+        assertLeadingZeroRejected("{\"a\":[-01]}");
+        assertLeadingZeroRejected("{\"a\":[13, -01]}");
+        assertLeadingZeroRejected("{\"a\":[007]}");
+        assertLeadingZeroRejected("{\"a\":[00.5]}");
+        assertLeadingZeroRejected("{\"a\":[01e5]}");
+    }
+
+    // ---- computeLineAndColumn: [line:column] location in the leading-zero message ----
+
+    // Verifies the "[line:column]" location prefix of the leading-zero exception message.
+    private void assertLeadingZeroLocation(String json, int expectedLine, int expectedColumn) {
+        JsonParsingException e = expectThrows(JsonParsingException.class, () -> walkJson(json));
+        String prefix = "[" + expectedLine + ":" + expectedColumn + "]";
+        assertTrue("message: " + e.getMessage(), e.getMessage().startsWith(prefix));
+    }
+
+    public void testLineAndColumnOnSingleLine() {
+        assertLeadingZeroLocation("{\"n\":00}", 1, 6);
+    }
+
+    // Each '\n' starts a new line; the column resets relative to it.
+    public void testLineAndColumnAfterNewlines() {
+        assertLeadingZeroLocation("{\n\"n\":00}", 2, 5);
+        assertLeadingZeroLocation("{\n\n\"n\":00}", 3, 5);
+    }
+
+    // "\r", "\n", and "\r\n" each count as exactly one line break, matching Jackson: a lone
+    // "\r" starts a new line just like "\n" does, but a "\r\n" pair only starts one, not two.
+    public void testLineAndColumnAcrossCarriageReturns() {
+        assertLeadingZeroLocation("{\r\"n\":00}", 2, 5);
+        assertLeadingZeroLocation("{\r\n\"n\":00}", 2, 5);
+        assertLeadingZeroLocation("{\r\r\"n\":00}", 3, 5);
+        assertLeadingZeroLocation("{\n\r\n\"n\":00}", 3, 5);
+    }
+
+    // "x" is one UTF-8 byte and "é" is two, both a single code point; the column counts
+    // bytes, so replacing "x" with "é" in the same position advances it by one.
+    public void testColumnCountsUtf8BytesNotCodePoints() {
+        assertLeadingZeroLocation("{\"a\":\"x\",\"n\":00}", 1, 14);
+        assertLeadingZeroLocation("{\"a\":\"\u00e9\",\"n\":00}", 1, 15);
     }
 
     public void testNegativeDouble() {

@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -4457,6 +4458,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
             }
         }
+    }
+
+    /**
+     * Verifies the fix for https://github.com/elastic/elasticsearch/issues/141300.
+     * When {@code TO_STRING(location)} is used in an EVAL alongside {@code ST_CENTROID_AGG(location)},
+     * the doc-values extraction optimization must NOT be applied to {@code location}. Without the fix,
+     * {@code SpatialDocValuesExtraction} would mark {@code location} for doc-values extraction (producing
+     * a {@code LongBlock}), while {@code ToStringFromGeoPointEvaluator} expects a {@code BytesRefBlock},
+     * causing a {@code ClassCastException} at runtime.
+     */
+    public void testSpatialToStringPreventsDocValuesExtraction() {
+        // TO_STRING(location) in an EVAL combined with ST_CENTROID_AGG(location) in STATS must not
+        // trigger doc-values extraction for location, even when doc-values are available.
+        var query = """
+            FROM airports
+            | EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+            | STATS centroid = ST_CENTROID_AGG(location) BY location_str""";
+
+        var plan = physicalPlan(query, airports);
+        var optimized = optimizedPlan(plan, airports.stats);
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        // Below the exchange (in data node) the aggregation must also NOT use doc-values,
+        // because the location field is used in TO_STRING(location) which cannot handle LongBlock.
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var evalExec = as(agg.child(), EvalExec.class);
+        // The FieldExtractExec must not extract location from doc-values
+        assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.NONE);
     }
 
     /**
@@ -10302,7 +10335,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reason, aggField.dataType(), equalTo(fieldType));
     }
 
-    private static AggregateFunction assertAggregation(PhysicalPlan plan, String aliasName, Class<? extends AggregateFunction> aggClass) {
+    private static UnaryAggregateFunction assertAggregation(
+        PhysicalPlan plan,
+        String aliasName,
+        Class<? extends AggregateFunction> aggClass
+    ) {
         var agg = as(plan, AggregateExec.class);
         var aggExp = agg.aggregates().stream().filter(a -> {
             var alias = as(a, Alias.class);
@@ -10310,7 +10347,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }).findFirst().orElseThrow(() -> new AssertionError("Expected aggregation " + aliasName + " not found"));
         var alias = as(aggExp, Alias.class);
         assertThat(alias.name(), is(aliasName));
-        var aggFunc = as(alias.child(), AggregateFunction.class);
+        var aggFunc = as(alias.child(), UnaryAggregateFunction.class);
         assertThat(aggFunc, instanceOf(aggClass));
         return aggFunc;
     }

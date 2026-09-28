@@ -54,11 +54,13 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -138,22 +140,23 @@ public class S3StorageProvider implements StorageProvider {
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+    private final EsqlContainerCredentialsProvider containerCredentialsProvider;
     /**
      * Managed-identity credentials providers that this instance creates in
-     * {@link #managedIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
-     * and {@link InstanceProfileCredentialsProvider}, each of which opens a background credential-refresh
-     * resource. Closed by {@link #close()}. The IRSA provider is excluded — it is a node-level singleton
-     * owned by {@code S3DataSourcePlugin}.
+     * {@link #managedIdentityProviders()} and therefore owns: the stock {@link ContainerCredentialsProvider}
+     * (ECS path only) and {@link InstanceProfileCredentialsProvider}, each of which opens a background
+     * credential-refresh resource. Closed by {@link #close()}. The IRSA and Pod Identity providers are
+     * excluded — they are node-level singletons owned by {@code S3DataSourcePlugin}.
      */
     private final List<SdkAutoCloseable> ownedManagedIdentityProviders = new ArrayList<>();
 
     /**
-     * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
+     * Test-friendly constructor: no IRSA / Pod Identity providers available, async pool sized at the
      * {@code esql.external.max_concurrent_requests} default. Equivalent to production behavior on a node where
-     * {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
+     * the EKS workload-identity environment variables are unset.
      */
     public S3StorageProvider(S3Configuration config) {
-        this(config, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
+        this(config, null, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
@@ -165,13 +168,15 @@ public class S3StorageProvider implements StorageProvider {
     public S3StorageProvider(
         S3Configuration config,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider,
         int maxConnections
     ) {
         this.config = config;
         this.maxConnections = maxConnections;
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
-        // the MANAGED_IDENTITY path) can read it.
+        // the MANAGED_IDENTITY path) can read them.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         StsAsyncClient sts = null;
         S3Client s3 = null;
         boolean success = false;
@@ -225,11 +230,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Test-only constructor that accepts pre-built clients plus an IRSA provider.
+     * Test-only constructor that accepts pre-built clients plus workload-identity providers.
      * <p>
-     * Single 3-arg form on purpose: a 2-arg test constructor with two nullable reference args
-     * would be ambiguous against the 2-arg production constructor at {@code null, null} call
-     * sites. Tests without IRSA pass {@code null} for the third arg, or use the
+     * Tests without IRSA / Pod Identity pass {@code null} for those args, or use the
      * {@link #forTesting(S3Client, S3AsyncClient)} sugar.
      */
     S3StorageProvider(
@@ -237,10 +240,20 @@ public class S3StorageProvider implements StorageProvider {
         S3AsyncClient s3AsyncClient,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
     ) {
+        this(s3Client, s3AsyncClient, webIdentityTokenCredentialsProvider, null);
+    }
+
+    S3StorageProvider(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider
+    ) {
         this.config = null;
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
@@ -249,6 +262,22 @@ public class S3StorageProvider implements StorageProvider {
     /** Test-only sugar: a 2-arg form with no IRSA provider. */
     static S3StorageProvider forTesting(S3Client s3Client, S3AsyncClient s3AsyncClient) {
         return new S3StorageProvider(s3Client, s3AsyncClient, null);
+    }
+
+    /**
+     * Test-only: accepts a configuration and pre-built (or null) S3 client.
+     * Pass {@code null} for the client when the test expects testConnection() to short-circuit
+     * before any client call (e.g. {@code auth=anonymous}).
+     */
+    S3StorageProvider(S3Configuration config, S3Client s3Client) {
+        this.config = config;
+        this.credentials = null;
+        this.stsAsyncClient = null;
+        this.webIdentityTokenCredentialsProvider = null;
+        this.containerCredentialsProvider = null;
+        this.s3Client = s3Client;
+        this.s3AsyncClient = null;
+        this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
     }
 
     /**
@@ -562,10 +591,19 @@ public class S3StorageProvider implements StorageProvider {
      *       singleton exists and {@link CustomWebIdentityTokenCredentialsProvider#isActive()}.
      *       Wrapped in {@link ErrorLoggingCredentialsProvider} so STS unreachability surfaces in
      *       logs before the chain falls through.</li>
-     *   <li>{@link ContainerCredentialsProvider} — covers ECS task roles and EKS Pod Identity
-     *       (the latter requires the JVM sysprop {@code aws.containerAuthorizationTokenFile} to
-     *       be redirected at the entitled symlink, done in {@code S3DataSourcePlugin}).</li>
-     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback.</li>
+     *   <li>EKS Pod Identity via {@link EsqlContainerCredentialsProvider} when that singleton is
+     *       active; otherwise the stock {@link ContainerCredentialsProvider} for ECS task roles.
+     *       When the Pod Identity env vars are set but the entitled symlink is missing or
+     *       unreadable: if no earlier provider is already in the chain, fails loudly naming the
+     *       file rather than falling through to the stock provider; if IRSA is already present,
+     *       skips the container link. Unlike IRSA (missing symlink → inactive / soft skip), Pod
+     *       Identity treats a present env + missing symlink as a hard misconfiguration for the
+     *       container link — matching the Azure AKS pattern — so we never open the
+     *       entitlement-blocked Kubernetes token path.</li>
+     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback, only when neither
+     *       IRSA nor Pod Identity is active. On EKS those providers are the intended auth path and
+     *       IMDS is typically blocked; appending instance-profile there would turn a failing
+     *       workload-identity call into a ~15s timeout rather than a fast failure.</li>
      * </ol>
      * Env-var and system-property providers are excluded — they are a dev/CI convention and open
      * a JVM-global-state override on servers. Profile-file loading is excluded (file read, blocked
@@ -594,19 +632,49 @@ public class S3StorageProvider implements StorageProvider {
      */
     List<AwsCredentialsProvider> managedIdentityProviders() {
         List<AwsCredentialsProvider> providers = new ArrayList<>(3);
-        if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
+        boolean irsaActive = webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive();
+        boolean podIdentityActive = containerCredentialsProvider != null && containerCredentialsProvider.isActive();
+        if (irsaActive) {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        // Created per S3StorageProvider, so this instance owns them and must close them in close(). Track each in
-        // ownedManagedIdentityProviders the instant it is created, before the next create() runs — if the second
-        // create() throws, the first is still tracked for cleanup by the constructor's finally block.
-        ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(containerCredentialsProvider);
-        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
-        providers.add(containerCredentialsProvider);
-        providers.add(instanceProfileCredentialsProvider);
+        if (podIdentityActive) {
+            // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
+            providers.add(new ErrorLoggingCredentialsProvider(containerCredentialsProvider, LOGGER));
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isMisconfigured()) {
+            // Pod Identity env is present but the entitled symlink is missing/unreadable (or the
+            // node Environment was unavailable). Do not fall through to
+            // ContainerCredentialsProvider.create() (entitlement-blocked K8s path). If IRSA is
+            // already in the chain, skip the container link and continue.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException(containerCredentialsProvider.misconfigurationMessage());
+            }
+            LOGGER.warn(
+                "Skipping EKS Pod Identity for S3 data sources: {}; continuing with earlier managed-identity providers",
+                containerCredentialsProvider.misconfigurationMessage()
+            );
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isClosedAfterConfiguration()) {
+            // Was successfully configured then closed (plugin shutdown). Do not fall through to
+            // the ECS task-role endpoint, which is unreachable on EKS.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException("EKS Pod Identity credentials provider has been closed");
+            }
+            LOGGER.warn("Skipping closed EKS Pod Identity provider; continuing with earlier managed-identity providers");
+        } else {
+            // ECS task-role (and any other container-credentials shape that does not use a token
+            // file). Created per S3StorageProvider, so this instance owns it.
+            ContainerCredentialsProvider stockContainerCredentialsProvider = ContainerCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(stockContainerCredentialsProvider);
+            providers.add(stockContainerCredentialsProvider);
+        }
+        // Skip IMDS when an EKS workload-identity provider is active: IMDS is usually blocked in
+        // Kubernetes, and with reuseLastProviderEnabled(false) a failing IRSA/Pod Identity call
+        // would otherwise burn ~15s on IMDS retries before surfacing the real error.
+        if (irsaActive == false && podIdentityActive == false) {
+            InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
+            providers.add(instanceProfileCredentialsProvider);
+        }
         return providers;
     }
 
@@ -807,6 +875,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             if (allowRegionRetry && shouldAttemptRegionRetry() && isAuthorizationHeaderMalformed(e)) {
                 String discoveredRegion = discoverRegionViaHeadBucket(client, bucket);
                 if (discoveredRegion != null) {
@@ -836,6 +908,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             ExternalUnavailableException unavailable = mapResolveFailure(path, e);
             if (unavailable != null) {
                 throw unavailable;
@@ -945,6 +1021,56 @@ public class S3StorageProvider implements StorageProvider {
         return key;
     }
 
+    /**
+     * Tests connectivity by attempting {@code ListBuckets}.
+     * <p>
+     * A {@code 403 AccessDenied} response means the credentials are valid but bucket-scoped — they
+     * signed and delivered the request, so authentication works; the IAM policy just does not grant
+     * {@code s3:ListAllMyBuckets}. Under the false-negative avoidance principle, this returns
+     * {@link TestConnectionNotSupportedException} (untestable) rather than success or failure:
+     * the same as GCS and Azure when facing bucket/container-scoped credentials. The user is
+     * directed to create a dataset to verify access at the bucket level.
+     *
+     * <p>An {@code AuthorizationHeaderMalformed} error (HTTP 400) means the request was signed for
+     * the wrong region. Queries avoid this via a one-shot HeadBucket region-discovery retry
+     * ({@link #shouldAttemptRegionRetry}), but {@code ListBuckets} has no bucket to discover the
+     * region from, so the probe cannot perform the same recovery. Because the data source works fine
+     * for queries, this is also reported as {@code untestable} rather than {@code failure}.
+     *
+     * <p>Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "S3 anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
+        try {
+            s3Client.listBuckets();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 403 && e.awsErrorDetails() != null && "AccessDenied".equals(e.awsErrorDetails().errorCode())) {
+                // Credentials are valid but bucket-scoped; cannot verify at the data-source level.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned 403 AccessDenied on ListBuckets; credentials may be bucket-scoped",
+                    "Bucket-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            if (isAuthorizationHeaderMalformed(e)) {
+                // Custom endpoint with no region: ListBuckets fails with AuthorizationHeaderMalformed
+                // because the request was signed for the wrong region. Region is a dataset-level setting,
+                // not a data-source-level one, so the probe cannot discover it here. Queries recover via
+                // HeadBucket region-discovery, but that retry needs a bucket name from the dataset URI.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned AuthorizationHeaderMalformed on ListBuckets; region cannot be determined at the data source level",
+                    "Create a dataset with the region configured to validate access."
+                );
+            }
+            throw e;
+        }
+    }
+
     public S3Client s3Client() {
         return s3Client;
     }
@@ -1043,6 +1169,13 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
+                    e,
+                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
+                );
+                if (expired != null) {
+                    throw expired;
+                }
                 if (retryClientFactory != null && isAuthorizationHeaderMalformed(e)) {
                     // Discover the correct region via HeadBucket and retry once.
                     Function<String, S3Client> factory = retryClientFactory;

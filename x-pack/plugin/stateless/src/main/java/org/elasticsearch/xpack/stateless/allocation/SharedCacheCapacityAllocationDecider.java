@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Strings;
@@ -221,10 +222,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         if (currentCommitmentBytes > thresholdBytes) {
             if (isDebugEnabled || allocation.debugDecision()) {
                 final String message = Strings.format(
-                    "node [%s] cache commitment [%d] bytes already exceeds the low watermark [%d] bytes (accounting mode [%s])",
+                    "node [%s] cache commitment [%s] already exceeds the low watermark [%s] (accounting mode [%s])",
                     node.getShortNodeDescription(),
-                    currentCommitmentBytes,
-                    thresholdBytes,
+                    ByteSizeValue.ofBytes(currentCommitmentBytes),
+                    ByteSizeValue.ofBytes(thresholdBytes),
                     accountingMode
                 );
                 if (isDebugEnabled) {
@@ -244,12 +245,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "no cache requirement data available for shard [%s], node [%s] cache commitment [%d] bytes is below the low watermark "
-                    + "[%d] bytes",
+                "no cache requirement data available for shard [%s], node [%s] cache commitment [%s] is below the low watermark [%s]",
                 shardRouting.shardId(),
                 node.getShortNodeDescription(),
-                currentCommitmentBytes,
-                thresholdBytes
+                ByteSizeValue.ofBytes(currentCommitmentBytes),
+                ByteSizeValue.ofBytes(thresholdBytes)
             );
         }
 
@@ -259,13 +259,13 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         if (newCommitmentBytes > thresholdBytes) {
             if (isDebugEnabled || allocation.debugDecision()) {
                 final String message = Strings.format(
-                    "allocating shard [%s] to node [%s] would raise its cache commitment from [%d] to [%d] bytes, exceeding the low "
-                        + "watermark [%d] bytes (accounting mode [%s])",
+                    "allocating shard [%s] to node [%s] would raise its cache commitment from [%s] to [%s], exceeding the low "
+                        + "watermark [%s] (accounting mode [%s])",
                     shardRouting.shardId(),
                     node.getShortNodeDescription(),
-                    currentCommitmentBytes,
-                    newCommitmentBytes,
-                    thresholdBytes,
+                    ByteSizeValue.ofBytes(currentCommitmentBytes),
+                    ByteSizeValue.ofBytes(newCommitmentBytes),
+                    ByteSizeValue.ofBytes(thresholdBytes),
                     accountingMode
                 );
                 if (isDebugEnabled) {
@@ -280,13 +280,13 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.YES,
             NAME,
-            "allocating shard [%s] to node [%s] would raise its cache commitment from [%d] to [%d] bytes, which remains below the low "
-                + "watermark [%d] bytes (accounting mode [%s])",
+            "allocating shard [%s] to node [%s] would raise its cache commitment from [%s] to [%s], which remains below the low "
+                + "watermark [%s] (accounting mode [%s])",
             shardRouting.shardId(),
             node.getShortNodeDescription(),
-            currentCommitmentBytes,
-            newCommitmentBytes,
-            thresholdBytes,
+            ByteSizeValue.ofBytes(currentCommitmentBytes),
+            ByteSizeValue.ofBytes(newCommitmentBytes),
+            ByteSizeValue.ofBytes(thresholdBytes),
             accountingMode
         );
     }
@@ -332,10 +332,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         if (currentCommitmentBytes > thresholdBytes) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
-                    "node [%s] cache commitment [%d] bytes exceeds the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
+                    "node [%s] cache commitment [%s] exceeds the high watermark [%s] ([%.2f%%], accounting mode [%s])",
                     node.getShortNodeDescription(),
-                    currentCommitmentBytes,
-                    thresholdBytes,
+                    ByteSizeValue.ofBytes(currentCommitmentBytes),
+                    ByteSizeValue.ofBytes(thresholdBytes),
                     highWatermark.getAsPercent(),
                     accountingMode
                 );
@@ -351,10 +351,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.YES,
             NAME,
-            "node [%s] cache commitment [%d] bytes is below the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
+            "node [%s] cache commitment [%s] is below the high watermark [%s] ([%.2f%%], accounting mode [%s])",
             node.getShortNodeDescription(),
-            currentCommitmentBytes,
-            thresholdBytes,
+            ByteSizeValue.ofBytes(currentCommitmentBytes),
+            ByteSizeValue.ofBytes(thresholdBytes),
             highWatermark.getAsPercent(),
             accountingMode
         );

@@ -1,0 +1,140 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        index.mapping.synthetic_source_keep controls how faithfully synthetic source rebuilds a MAPPED
+        field: with "none" an array comes back sorted and deduplicated from doc values, with "arrays"
+        (logsdb's default) the raw array is kept, and field-level "all" keeps single values too. The
+        conclusion for LOAD_ALL is that the setting is orthogonal to it - an unmapped field under
+        dynamic:false already has its raw XContent stored wholesale in _ignored_source, so it is
+        byte-faithful under every keep mode. These tests pin that orthogonality, and alongside it the
+        contrast that does matter: a MAPPED array reaches ES|QL through doc values (sorted, deduplicated)
+        while a DISCOVERED array reaches it through _source (source order, duplicates intact). Only the
+        existing unmapped_source_synth_keep_arrays csv-spec dataset covers any of this today, and only for
+        the index-level "arrays" value.
+
+  # Standard mode defaults synthetic_source_keep to "none".
+  - do:
+      indices.create:
+        index: la_keep_none
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+                synthetic_source_keep: none
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              m_arr:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: la_keep_arrays
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+                synthetic_source_keep: arrays
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              m_arr:
+                type: keyword
+
+  # "all" is only accepted at field level, never as an index setting, so it is declared on m_arr itself.
+  - do:
+      indices.create:
+        index: la_keep_field_all
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              m_arr:
+                type: keyword
+                synthetic_source_keep: all
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_keep_none", "_id": "1" } }
+          - { "id": "1", "m_arr": [ "z", "a", "z" ], "u_arr": [ "z", "a", "z" ], "u_obj": { "k": [ "y", "x" ] } }
+          - { "index": { "_index": "la_keep_arrays", "_id": "1" } }
+          - { "id": "1", "m_arr": [ "z", "a", "z" ], "u_arr": [ "z", "a", "z" ], "u_obj": { "k": [ "y", "x" ] } }
+          - { "index": { "_index": "la_keep_field_all", "_id": "1" } }
+          - { "id": "1", "m_arr": [ "z", "a", "z" ], "u_arr": [ "z", "a", "z" ], "u_obj": { "k": [ "y", "x" ] } }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_keep_none,la_keep_arrays,la_keep_field_all
+        ignore_unavailable: true
+
+---
+'synthetic_source_keep=none: a mapped array is sorted and deduplicated, a discovered one is not':
+  # The same three JSON elements, two different paths into ES|QL. m_arr is mapped, so it is read from its
+  # SORTED_SET doc values and loses both its order and its duplicate. u_arr is discovered, so it is read from
+  # _source and keeps both.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_none | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.1.name: m_arr }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: u_arr }
+  - match: { columns.3.name: u_obj.k }
+  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+
+---
+'synthetic_source_keep=arrays does not change what LOAD_ALL sees':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_arrays | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+
+---
+'field-level synthetic_source_keep=all does not change what LOAD_ALL sees':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_field_all | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+
+---
+'all three keep modes agree in one query':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_* METADATA _index | KEEP _index, m_arr, u_arr*, u_obj.* | SORT _index | LIMIT 5'
+  - length: { columns: 4 }
+  - length: { values: 3 }
+  - match: { values.0: [ "la_keep_arrays", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - match: { values.1: [ "la_keep_field_all", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - match: { values.2: [ "la_keep_none", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }

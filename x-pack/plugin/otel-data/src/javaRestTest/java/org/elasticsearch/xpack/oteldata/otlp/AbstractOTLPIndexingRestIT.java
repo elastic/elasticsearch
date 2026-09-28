@@ -66,6 +66,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     @Before
     public void waitForOtlpTemplates() throws Exception {
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
+        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/exemplars-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/traces-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
     }

@@ -125,10 +125,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
-                try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
-                    return completionInfo;
-                }))) {
+                try (
+                    Releasable taskScope = groupTask == rootTask ? () -> {} : transportService.getTaskManager().withTaskContext(groupTask);
+                    var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
+                        updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
+                        return completionInfo;
+                    }))
+                ) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {

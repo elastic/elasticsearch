@@ -13,6 +13,9 @@ base {
 }
 
 dependencies {
+  ['sdk', 'sdk-trace', 'sdk-common', 'sdk-metrics', 'sdk-logs', 'sdk-testing'].each { component ->
+    testImplementation "io.opentelemetry:opentelemetry-${component}:${versions.opentelemetry}"
+  }
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))

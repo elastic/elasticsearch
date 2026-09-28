@@ -14,6 +14,9 @@ base {
 }
 
 dependencies {
+  ['sdk', 'sdk-trace', 'sdk-common', 'sdk-metrics', 'sdk-logs', 'sdk-testing'].each { component ->
+    testImplementation "io.opentelemetry:opentelemetry-${component}:${versions.opentelemetry}"
+  }
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:reindex')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -46,4 +49,3 @@ restResources {
     includeXpack 'enrich'
   }
 }
-

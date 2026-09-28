@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -226,8 +227,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             groupTask = parentTask;
                             onGroupFailure = runOnTaskFailure;
                         }
+                        l = ContextPreservingActionListener.wrapPreservingContext(l, threadPool.getThreadContext());
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
-                        try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))) {
+                        try (
+                            Releasable taskScope = groupTask == parentTask
+                                ? () -> {}
+                                : transportService.getTaskManager().withTaskContext(groupTask);
+                            var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
+                        ) {
                             final boolean sameNodeAsCoordinator = transportService.getLocalNode()
                                 .getId()
                                 .equals(connection.getNode().getId());
@@ -369,19 +376,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     // into a dedicated parentComputeListener.acquireCompute() slot.
                     final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
-                    try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
-                        try {
-                            profileSlot.onResponse(info);
-                        } finally {
-                            outerL.onResponse(null);
-                        }
-                    }, e -> {
-                        try {
-                            profileSlot.onFailure(e);
-                        } finally {
-                            outerL.onFailure(e);
-                        }
-                    }))) {
+                    try (
+                        Releasable taskScope = groupTask == parentTask
+                            ? () -> {}
+                            : transportService.getTaskManager().withTaskContext(groupTask);
+                        var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
+                            try {
+                                profileSlot.onResponse(info);
+                            } finally {
+                                outerL.onResponse(null);
+                            }
+                        }, e -> {
+                            try {
+                                profileSlot.onFailure(e);
+                            } finally {
+                                outerL.onFailure(e);
+                            }
+                        }))
+                    ) {
                         var dataNodeRequest = new DataNodeRequest(
                             childSessionId,
                             configuration,

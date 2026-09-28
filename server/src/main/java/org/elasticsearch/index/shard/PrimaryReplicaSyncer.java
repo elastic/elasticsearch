@@ -164,7 +164,7 @@ public class PrimaryReplicaSyncer {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
 
-        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+        try (var ignored = transportService.getThreadPool().getThreadContext().newStoredContextPreservingResponseHeaders()) {
             doResync(
                 shardId,
                 primaryAllocationId,
@@ -193,22 +193,26 @@ public class PrimaryReplicaSyncer {
         TaskManager taskManager
     ) {
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
+        var parentListener = org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            transportService.getThreadPool().getThreadContext()
+        );
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override
             public void onResponse(Void ignore) {
                 resyncTask.setPhase("finished");
                 taskManager.unregister(resyncTask);
-                listener.onResponse(resyncTask);
+                parentListener.onResponse(resyncTask);
             }
 
             @Override
             public void onFailure(Exception e) {
                 resyncTask.setPhase("finished");
                 taskManager.unregister(resyncTask);
-                listener.onFailure(e);
+                parentListener.onFailure(e);
             }
         };
-        try {
+        try (var scope = taskManager.withTaskContext(resyncTask)) {
             new SnapshotSender(
                 syncAction,
                 resyncTask,

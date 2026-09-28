@@ -6,25 +6,122 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
+import org.elasticsearch.xpack.enrich.ExecuteEnrichPolicyTask;
 import org.junit.Before;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class InternalExecutePolicyActionTests extends ESTestCase {
+    /** Only the heavyweight policy runner and transport registration are mocked; execution, scheduling, tasks and spans are real. */
+    public void testBackgroundPolicyOwnsScheduledDescendants() throws Exception {
+        var pool = new TestThreadPool(getTestName());
+        var exporter = InMemorySpanExporter.create();
+        var localNode = newNode("local");
+        try (
+            var clusterService = ClusterServiceUtils.createClusterService(pool, localNode);
+            var sdk = OpenTelemetrySdk.builder()
+                .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build())
+                .build()
+        ) {
+            var taskManager = new TaskManager(Settings.EMPTY, pool, Set.of(), sdk);
+            var service = mock(TransportService.class);
+            Mockito.when(service.getThreadPool()).thenReturn(pool);
+            Mockito.when(service.getTaskManager()).thenReturn(taskManager);
+            var executor = mock(EnrichPolicyExecutor.class);
+            var pending = new AtomicReference<Runnable>();
+            var policyTask = new AtomicReference<ExecuteEnrichPolicyTask>();
+            Mockito.doAnswer(invocation -> {
+                ExecuteEnrichPolicyTask task = invocation.getArgument(1);
+                ActionListener<ExecuteEnrichPolicyStatus> listener = invocation.getArgument(4);
+                policyTask.set(task);
+                assertEquals(Span.fromContext(task.getTraceContext()).getSpanContext(), Span.current().getSpanContext());
+                pending.set(pool.getThreadContext().preserveContext(() -> {
+                    sdk.getTracer("policy-worker").spanBuilder("policy-step").startSpan().end();
+                    listener.onResponse(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE));
+                }));
+                return null;
+            })
+                .when(executor)
+                .runPolicyLocally(
+                    ArgumentMatchers.any(),
+                    ArgumentMatchers.any(),
+                    ArgumentMatchers.anyString(),
+                    ArgumentMatchers.anyString(),
+                    ArgumentMatchers.any()
+                );
+            var action = new InternalExecutePolicyAction.Transport(
+                service,
+                ActionFilters.EMPTY,
+                clusterService,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                executor
+            );
+            var parent = sdk.getTracer("test").spanBuilder("submit").startSpan();
+            var request = new InternalExecutePolicyAction.Request(TimeValue.THIRTY_SECONDS, "policy", "enrich-index");
+            request.setWaitForCompletion(false);
+            var initial = new PlainActionFuture<ExecuteEnrichPolicyAction.Response>();
+            try (var scope = parent.makeCurrent()) {
+                action.doExecute(null, request, ActionListener.wrap(response -> {
+                    assertEquals(parent.getSpanContext(), Span.current().getSpanContext());
+                    initial.onResponse(response);
+                }, initial::onFailure));
+                assertEquals(parent.getSpanContext(), Span.current().getSpanContext());
+            }
+            initial.actionGet();
+            parent.end();
+            assertTrue(Span.fromContext(policyTask.get().getTraceContext()).isRecording());
+            var completed = new PlainActionFuture<Void>();
+            pool.generic().execute(() -> {
+                pending.get().run();
+                assertFalse(Span.current().getSpanContext().isValid());
+                completed.onResponse(null);
+            });
+            completed.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(taskManager.getTasks().isEmpty());
+            var spans = exporter.getFinishedSpanItems();
+            var policy = spans.stream().filter(span -> span.getName().equals(policyTask.get().getAction())).findFirst().orElseThrow();
+            var step = spans.stream().filter(span -> span.getName().equals("policy-step")).findFirst().orElseThrow();
+            assertEquals(parent.getSpanContext().getSpanId(), policy.getParentSpanId());
+            assertEquals(policy.getSpanId(), step.getParentSpanId());
+            assertEquals(3, spans.size());
+        } finally {
+            terminate(pool);
+        }
+    }
 
     private InternalExecutePolicyAction.Transport transportAction;
 

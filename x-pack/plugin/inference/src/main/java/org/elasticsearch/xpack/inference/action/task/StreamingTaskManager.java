@@ -82,7 +82,7 @@ public class StreamingTaskManager {
             if (task != null) {
                 task.updateStatus(FlowTask.FlowStatus.CONNECTED);
             } else {
-                try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                     task = (FlowTask) taskManager.register(taskType, taskAction, new TaskAwareRequest() {
                         @Override
                         public void setParentTask(TaskId taskId) {

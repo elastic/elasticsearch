@@ -27,9 +27,22 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Probability that an eligible kNN search is captured. Each search is an independent coin flip, so
+     * the captured stream is a uniform sample of the traffic regardless of how requests arrive in time.
+     */
+    public static final Setting<Double> CAPTURE_RATE = Setting.doubleSetting(
+        "xpack.query_sampling.capture_rate",
+        0.01,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private QuerySamplingSettings() {}
 
     public static List<Setting<?>> getSettings() {
-        return List.of(ENABLED);
+        return List.of(ENABLED, CAPTURE_RATE);
     }
 }

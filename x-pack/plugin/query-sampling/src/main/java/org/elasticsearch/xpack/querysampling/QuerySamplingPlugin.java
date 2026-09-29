@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.querysampling;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -17,10 +24,30 @@ import java.util.List;
  * estimated without replaying all traffic. The pipeline runs on the coordinating node and is designed
  * to stay off the search critical path.
  */
-public class QuerySamplingPlugin extends Plugin {
+public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
+
+    private static final Logger logger = LogManager.getLogger(QuerySamplingPlugin.class);
+
+    private final SetOnce<QueryCaptureFilter> captureFilter = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
         return QuerySamplingSettings.getSettings();
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        captureFilter.set(
+            new QueryCaptureFilter(
+                services.clusterService().getClusterSettings(),
+                captured -> logger.trace("captured kNN search on field [{}] of {}", captured.field(), captured.indices())
+            )
+        );
+        return List.of();
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        return List.of(captureFilter.get());
     }
 }

@@ -1,0 +1,106 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.querysampling.capture;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+
+import java.util.List;
+import java.util.function.Consumer;
+
+/**
+ * Stage 1 of the pipeline: picks kNN searches on the coordinating node and hands a copy of them to the
+ * rest of the pipeline. The search itself always proceeds unchanged, and the work done for a search
+ * that is not captured is a couple of field reads and one random draw.
+ * <p>
+ * For now only searches with a single top-level {@code knn} section and a literal float query vector
+ * are eligible. Searches with a parent task are skipped: those are the remote side of a cross-cluster
+ * search or searches issued internally by other features, not user traffic arriving at this node.
+ */
+public final class QueryCaptureFilter implements MappedActionFilter {
+
+    private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
+
+    private final Consumer<CapturedQuery> consumer;
+    private volatile boolean enabled;
+    private volatile double captureRate;
+
+    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedQuery> consumer) {
+        this.consumer = consumer;
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, value -> this.captureRate = value);
+    }
+
+    @Override
+    public String actionName() {
+        return TransportSearchAction.NAME;
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
+        if (enabled && request instanceof SearchRequest searchRequest && task.getParentTaskId().isSet() == false) {
+            KnnSearchBuilder knn = eligibleKnn(searchRequest);
+            if (knn != null && Randomness.get().nextDouble() < captureRate) {
+                try {
+                    consumer.accept(capture(task, searchRequest, knn));
+                } catch (Exception e) {
+                    // capturing must never fail the search
+                    logger.debug("failed to capture kNN search", e);
+                }
+            }
+        }
+        chain.proceed(task, action, request, listener);
+    }
+
+    private static KnnSearchBuilder eligibleKnn(SearchRequest request) {
+        SearchSourceBuilder source = request.source();
+        if (source == null || source.knnSearch().size() != 1) {
+            return null;
+        }
+        KnnSearchBuilder knn = source.knnSearch().get(0);
+        VectorData vector = knn.getQueryVector();
+        if (knn.getQueryVectorBuilder() != null || vector == null || vector.isFloat() == false) {
+            return null;
+        }
+        return knn;
+    }
+
+    private static CapturedQuery capture(Task task, SearchRequest request, KnnSearchBuilder knn) {
+        return new CapturedQuery(
+            request.indices().clone(),
+            knn.getField(),
+            knn.getQueryVector().floatVector().clone(),
+            knn.k(),
+            knn.getNumCands(),
+            knn.getVisitPercentage(),
+            knn.getRescoreVectorBuilder() == null ? null : knn.getRescoreVectorBuilder().oversample(),
+            List.copyOf(knn.getFilterQueries()),
+            task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)
+        );
+    }
+}

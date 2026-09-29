@@ -1169,6 +1169,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
             if (type != MoveType.REBALANCE) {
+                assert type == MoveType.CANNOT_REMAIN || type == MoveType.NOT_PREFERRED;
                 final boolean isNotPreferred = type == MoveType.NOT_PREFERRED;
                 final Decision canAllocateDecision = moveDecision.getCanAllocateDecision();
                 cannotRemainMoveCounter.incrementBy(

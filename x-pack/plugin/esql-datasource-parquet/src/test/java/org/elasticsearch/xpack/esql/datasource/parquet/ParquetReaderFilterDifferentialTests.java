@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -49,6 +50,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -223,6 +229,77 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         // still produce the right rows whether the row group is fully matching, fully
         // non-matching, or mixed.
         runDifferential(eq(STATUS, 200L, DataType.LONG));
+    }
+
+    public void testMvContainsIsEqualsBound() throws IOException {
+        // What a DSL `term` on a non-date field becomes. Same stats bound as status = 200.
+        runDifferential(mvContains(STATUS, 200L, DataType.LONG));
+    }
+
+    public void testMvContainsOnNullableColumn() throws IOException {
+        // The null contract, which is where mv_ and its scalar sibling part company: a null column is the empty
+        // set, so this is FALSE per row where opt_label = 'red' would be null. The pushed EQ predicate must still
+        // not prune a row group the unpushed read would have produced rows from.
+        runDifferential(mvContains(OPT_LABEL, "red", DataType.KEYWORD));
+    }
+
+    public void testMvIntersectsIsInBound() throws IOException {
+        // What a DSL `terms` becomes — one list-valued literal, not a list of literals.
+        runDifferential(mvIntersects(CATEGORY, DataType.KEYWORD, "alpha", "gamma"));
+    }
+
+    public void testMvInRangeIsRangeBound() throws IOException {
+        // What a time range filter becomes, and also what equality on a date field becomes.
+        runDifferential(mvInRange(ID, DataType.LONG, 100L, 400L));
+    }
+
+    public void testMvInRangeWithExclusiveBoundsPushesInclusiveSuperset() throws IOException {
+        // The open interval (100, 400): both boundary values are false. The statistics predicate and the page index
+        // take the bound inclusively whatever the options say, while the row mask reads it exactly. The superset at the
+        // chunk level must cost pruning, never rows. The mv_in_range analogue of the strict-truth cases below.
+        runDifferential(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L));
+    }
+
+    public void testNotOverExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // Negation inverts which direction is safe. The row arm pushes both bounds inclusive, which is a superset
+        // on positive polarity; negated, a superset mask becomes a SUBSET of the true complement, so a row sitting
+        // on an excluded bound is dropped in the reader and the retained FilterExec never gets the chance to
+        // restore it.
+        runDifferential(new Not(Source.EMPTY, mvInRangeExclusive(ID, DataType.LONG, 100L, 400L)));
+    }
+
+    public void testNotOverAndContainingExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // The De Morgan branch of evaluateNot reaches the same arm.
+        runDifferential(new Not(Source.EMPTY, and(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L), eq(STATUS, 200L, DataType.LONG))));
+    }
+
+    public void testNotOverOptionlessMvInRangeIsExact() throws IOException {
+        // The control that localises the defect: with no options both bounds are inclusive by definition, so the
+        // mask is exact rather than a superset and negating it is correct.
+        runDifferential(new Not(Source.EMPTY, mvInRange(ID, DataType.LONG, 100L, 400L)));
+    }
+
+    public void testMvGreaterPushesInclusiveOverStrictTruth() throws IOException {
+        // include_bound defaults to false, so truth is id > 100 while the pushed predicate is id >= 100. The
+        // superset prunes one value less than it could; it must never prune one it should not.
+        runDifferential(mvGreater(ID, 100L, DataType.LONG));
+    }
+
+    public void testMvLessPushesInclusiveOverStrictTruth() throws IOException {
+        runDifferential(mvLess(ID, 400L, DataType.LONG));
+    }
+
+    public void testMvInRangeAndedWithNonPushableLike() throws IOException {
+        // The time-AND-other shape. The LIKE arm does not translate, so the AND silently drops it and the pushed
+        // predicate is the range alone — looser, which is safe. The retained filter restores the LIKE.
+        runDifferential(and(mvInRange(ID, DataType.LONG, 100L, 400L), like(URL, "*google*")));
+    }
+
+    public void testNotOverMvContainsDoesNotPush() throws IOException {
+        // mv_ is absent from isExactlyTranslatable, so the Not branch builds no FilterPredicate. The conjunct is
+        // still pushed as RECHECK and still evaluated by the retained filter — what is absent is the statistics
+        // predicate. A superset under negation is an under-match, and a pruned row group has no safety net.
+        runDifferential(new Not(Source.EMPTY, mvContains(STATUS, 200L, DataType.LONG)));
     }
 
     public void testRangeOnSortedColumn() throws IOException {
@@ -488,6 +565,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         assertMvSurvivors(bytes, like(tags, "Sen*"), Set.of(0L));
         // NOT(tags LIKE "Sen*"): row1 MV → excluded by MV semantics in NOT; row3 "Manager" survives
         assertMvSurvivors(bytes, not(like(tags, "Sen*")), Set.of(3L));
+
+        // mv_in_range over the same list column: the row arm must DECLINE, so every row reaches the retained
+        // filter, which computes the real any-value answer (rows 0, 1 and 3 each hold a value in [2, 6]).
+        // This is what makes block.mayHaveMultivaluedFields() a gate rather than decoration: without it
+        // evaluateRange keeps only positions holding exactly one value and this returns row 1 alone, losing
+        // rows 0 and 3 inside the reader where nothing downstream can recover them. Contrast the scalar Range
+        // over the same bounds above, which legitimately yields row 1 only.
+        assertMvSurvivors(
+            bytes,
+            new MvInRange(Source.EMPTY, v, lit(2, DataType.INTEGER), lit(6, DataType.INTEGER)),
+            Set.of(0L, 1L, 2L, 3L)
+        );
     }
 
     /**
@@ -921,6 +1010,62 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             String regex = wl.pattern().asJavaRegex();
             int flags = wl.caseInsensitive() ? Pattern.CASE_INSENSITIVE : 0;
             return Pattern.compile(regex, flags).matcher((String) v).matches();
+        }
+        // ---- multivalue comparison functions ----------------------------------------------
+        // These are the shapes the out-of-band request filter translates into. Their null contract differs from
+        // the scalar siblings and is pinned from MvContains.process, which is annotated
+        // @Evaluator(allNullsIsNull = false) and returns false when the superset holds no matching value: a null
+        // column is the empty set, so mv_contains(f, v) is FALSE where f == v would be null. Getting this wrong in
+        // the oracle would not be caught by the production-vs-oracle comparison, because every path here shares this
+        // evaluator — what the comparison does prove is that pushing the predicate never drops a row the unpushed
+        // read would have kept.
+        if (expr instanceof MvContains mvContains) {
+            Boolean equal = cmpEq(row, mvContains.left(), mvContains.right());
+            return equal == null ? Boolean.FALSE : equal;
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            String name = ((ReferenceAttribute) mvIntersects.left()).name();
+            Object v = row.get(name);
+            if (v == null) {
+                return Boolean.FALSE;
+            }
+            Object literal = ((Literal) mvIntersects.right()).value();
+            List<?> values = literal instanceof List<?> list ? list : List.of(literal);
+            for (Object item : values) {
+                Object comparable = item instanceof BytesRef br ? br.utf8ToString() : item;
+                if (comparable instanceof Number n && v instanceof Number nv) {
+                    if (Double.compare(n.doubleValue(), nv.doubleValue()) == 0) {
+                        return Boolean.TRUE;
+                    }
+                } else if (comparable.equals(v)) {
+                    return Boolean.TRUE;
+                }
+            }
+            return Boolean.FALSE;
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            if (row.get(((ReferenceAttribute) mvInRange.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            // include_lower / include_upper default to true. The chunk-level bound goes in inclusive whatever they say,
+            // so an exclusive option is where the pushed superset is strictly wider than the truth; the row mask is exact.
+            Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, boundOption(mvInRange.options(), "include_lower"));
+            Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
+            return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);
+        }
+        if (expr instanceof MvGreater mvGreater) {
+            if (row.get(((ReferenceAttribute) mvGreater.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            // include_bound defaults to FALSE (MvCompare.includeBound), so the truth is STRICT while the pushed
+            // predicate is GTE. That gap is the point: the superset must never lose a row.
+            return cmpOrdered(row, mvGreater.field(), mvGreater.bound(), 1, false);
+        }
+        if (expr instanceof MvLess mvLess) {
+            if (row.get(((ReferenceAttribute) mvLess.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            return cmpOrdered(row, mvLess.field(), mvLess.bound(), -1, false);
         }
         throw new AssertionError("oracle does not handle expression: " + expr.getClass());
     }
@@ -1366,6 +1511,53 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             return new Literal(Source.EMPTY, new BytesRef(s), type);
         }
         return new Literal(Source.EMPTY, value, type);
+    }
+
+    private static Expression mvContains(ReferenceAttribute a, Object v, DataType t) {
+        return new MvContains(Source.EMPTY, a, lit(v, t));
+    }
+
+    /** {@code mv_intersects} carries ONE list-valued literal, unlike {@code In}. */
+    private static Expression mvIntersects(ReferenceAttribute a, DataType t, Object... values) {
+        List<Object> raw = new ArrayList<>(values.length);
+        for (Object v : values) {
+            raw.add(t == DataType.KEYWORD && v instanceof String str ? new BytesRef(str) : v);
+        }
+        return new MvIntersects(Source.EMPTY, a, new Literal(Source.EMPTY, raw, t));
+    }
+
+    private static Expression mvInRange(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t));
+    }
+
+    /** {@code mv_in_range} over the open interval {@code (lower, upper)} — both bounds exclusive. */
+    private static Expression mvInRangeExclusive(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        Expression options = new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+        return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t), options);
+    }
+
+    /** Reads an {@code include_lower} / {@code include_upper} option. Both default to true. */
+    private static boolean boundOption(Expression options, String key) {
+        if (options instanceof MapExpression map && map.keyFoldedMap().get(key) instanceof Literal literal) {
+            return (Boolean) literal.value();
+        }
+        return true;
+    }
+
+    private static Expression mvGreater(ReferenceAttribute a, Object v, DataType t) {
+        return new MvGreater(Source.EMPTY, a, lit(v, t));
+    }
+
+    private static Expression mvLess(ReferenceAttribute a, Object v, DataType t) {
+        return new MvLess(Source.EMPTY, a, lit(v, t));
     }
 
     private static Expression eq(ReferenceAttribute a, Object v, DataType t) {

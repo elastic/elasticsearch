@@ -117,6 +117,23 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
+    /** The length-mismatch messages are built by {@code KnownLengthBodyFill}, which is handed the redacted URL. */
+    public void testShortBodyFailureRedactsUrl() {
+        StoragePath secret = StoragePath.of(HttpUrlsTests.SECRET_URL);
+        List<HttpResponse.BodySubscriber<DirectReadBuffer>> subscribers = List.of(
+            new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(8, FACTORY, secret),
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(2, 8, FACTORY, secret)
+        );
+        for (HttpResponse.BodySubscriber<DirectReadBuffer> subscriber : subscribers) {
+            subscriber.onSubscribe(new TestSubscription());
+            subscriber.onNext(List.of(ByteBuffer.wrap(new byte[4])));
+            subscriber.onComplete();
+            ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().toCompletableFuture().get());
+            assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+            HttpUrlsTests.assertRedacted(ex.getCause().getMessage());
+        }
+    }
+
     public void testFixedLengthOverflowFails() {
         byte[] payload = randomByteArrayOfLength(32);
         DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length - 1);

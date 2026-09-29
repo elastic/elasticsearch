@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -387,10 +388,11 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     /**
      * Executes a Replace without surpassing the memory limit.
      */
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         try {
             return doReplace(strBytesRef, regex, newStrBytesRef);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
@@ -443,6 +445,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
@@ -453,7 +456,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
                 Pattern regexPattern;
                 try {
                     regexPattern = Pattern.compile(regexString);
-                } catch (PatternSyntaxException | StackOverflowError e) {
+                } catch (PatternSyntaxException | StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
                     // warnExceptions only wraps process(), so throwing here would fail the query.
                     // Fall through to the per-row evaluator, which turns these into a warning and null.
                     regexPattern = null;

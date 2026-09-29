@@ -378,17 +378,18 @@ The added entry is matched against paths relative to the listing prefix `s3://lo
 `backup_2024/**` drops everything under that one directory. To drop directories of that name at any depth,
 write `**/backup_2024/**` instead.
 
-Whenever exclusion drops something, the response carries a warning saying how many of the objects your
-`resource` selected were excluded, naming one of them and the entry that matched it:
+Whenever exclusion drops something, the node log records at `DEBUG` level how many of the objects your
+`resource` selected were skipped, naming one of them and the entry that matched it:
 
 ```
-2 of 4 objects matching the resource under [s3://logs-bucket/access/] were excluded by the
-[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]
+[2] of [4] files under [s3://logs-bucket/access/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])
 ```
 
-The warning is emitted for the default list as well as for one you set, because a dataset that never
-configured exclusion is exactly the one where a missing file is hardest to explain. It is a single warning per
-listing however many objects were dropped, so it does not grow with the size of the prefix.
+The line is logged for the default list as well as for one you set, once per listing however many objects were
+dropped. It is not a response warning, because the default list fires it for every folder a Spark or Hadoop job
+wrote. The exception is a wildcard segment whose every match was excluded: the query's "matched no files" error
+names the exclusion as the reason, and when such a segment is one entry of a comma-separated resource whose other
+entries did match, the response carries the same text as a warning.
 
 To turn exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still skipped
 (see below), so this reads every object the resource pattern matches except those.

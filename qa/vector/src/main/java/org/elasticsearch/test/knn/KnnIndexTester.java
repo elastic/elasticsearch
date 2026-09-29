@@ -306,7 +306,8 @@ public class KnnIndexTester {
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault()
+                        IvfMergeConfigResolver.useCodecDefault(),
+                        false
                     );
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
@@ -326,7 +327,8 @@ public class KnnIndexTester {
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        mergeConfigResolver
+                        mergeConfigResolver,
+                        false
                     );
                 }
             }
@@ -351,7 +353,8 @@ public class KnnIndexTester {
                     elementType,
                     mergeWorkers,
                     exec,
-                    args.flatVectorThreshold()
+                    args.flatVectorThreshold(),
+                    false
                 );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
@@ -360,7 +363,8 @@ public class KnnIndexTester {
                     false,
                     mergeWorkers,
                     exec,
-                    args.flatVectorThreshold()
+                    args.flatVectorThreshold(),
+                    false
                 );
                 default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
@@ -370,13 +374,14 @@ public class KnnIndexTester {
                     false,
                     mergeWorkers,
                     exec,
-                    args.flatVectorThreshold()
+                    args.flatVectorThreshold(),
+                    false
                 );
             };
             case FLAT -> switch (quantizeBits) {
-                case null -> new ES93FlatVectorFormat(elementType);
-                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
+                case null -> new ES93FlatVectorFormat(elementType, false);
+                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false, false);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false, false);
             };
         };
 

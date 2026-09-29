@@ -32,6 +32,11 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
         return DataSourceMetadata.TYPE;
     }
 
+    @Override
+    public boolean hasData(DataSourceMetadata current) {
+        return current != null && current.dataSources().isEmpty() == false;
+    }
+
     /**
      * On destructive reset, wipe only the encrypted credential values while preserving the rest of
      * each data source's configuration (name, type, description, non-secret settings). Users will

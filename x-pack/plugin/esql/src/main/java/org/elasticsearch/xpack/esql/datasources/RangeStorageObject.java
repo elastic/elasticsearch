@@ -111,6 +111,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long offsetForFooterCache(long position) {
+        return Math.addExact(offset, position);
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }

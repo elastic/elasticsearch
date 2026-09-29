@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 157951
-pr: 158296
-summary: Fix `knn` query pre-filtering for `exists` queries on inference fields
-type: bug

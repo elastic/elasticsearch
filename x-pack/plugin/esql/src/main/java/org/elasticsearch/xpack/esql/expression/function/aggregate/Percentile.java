@@ -182,11 +182,6 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         );
     }
 
-    @Override
-    public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, window(), percentile, tDigestStateCompression);
-    }
-
     public Expression percentile() {
         return percentile;
     }

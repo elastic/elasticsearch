@@ -35,6 +35,8 @@ public class FileOrderConfigTests extends ESTestCase {
         assertEquals(FileOrderConfig.DEFAULT, FileOrderConfig.fromConfig(Map.of()));
         assertEquals(FileOrderConfig.DEFAULT, FileOrderConfig.fromConfig(Map.of(SCHEMA_RESOLUTION, FFW)));
         assertEquals(FileOrderConfig.DEFAULT, FileOrderConfig.forListing(Map.of(SCHEMA_RESOLUTION, FFW)));
+        assertEquals(FileOrderConfig.DEFAULT, FileOrderConfig.forListing(null));
+        assertEquals(FileOrderConfig.DEFAULT, FileOrderConfig.forListing(Map.of()));
     }
 
     public void testEitherKeyAloneDefaultsTheOther() {
@@ -74,16 +76,12 @@ public class FileOrderConfigTests extends ESTestCase {
     }
 
     public void testForListingWithoutFfwIsNameAsc() {
-        assertEquals(FileOrderConfig.NAME_ASC, FileOrderConfig.forListing(null));
-        assertEquals(FileOrderConfig.NAME_ASC, FileOrderConfig.forListing(Map.of()));
         assertEquals(FileOrderConfig.NAME_ASC, FileOrderConfig.forListing(Map.of(SCHEMA_RESOLUTION, "union_by_name")));
         assertEquals(FileOrderConfig.NAME_ASC, FileOrderConfig.forListing(Map.of(SCHEMA_RESOLUTION, "strict")));
     }
 
     public void testKnobsWithoutFfwAreRejected() {
         for (Map<String, Object> config : List.of(
-            Map.<String, Object>of(CONFIG_FILE_SORT_BY, "list"),
-            Map.<String, Object>of(CONFIG_FILE_ORDER, "desc"),
             Map.<String, Object>of(SCHEMA_RESOLUTION, "union_by_name", CONFIG_FILE_SORT_BY, "list"),
             Map.<String, Object>of(SCHEMA_RESOLUTION, "strict", CONFIG_FILE_ORDER, "asc"),
             Map.<String, Object>of(SCHEMA_RESOLUTION, "banana", CONFIG_FILE_SORT_BY, "name")
@@ -100,6 +98,8 @@ public class FileOrderConfigTests extends ESTestCase {
         FileOrderConfig.validate(Map.of(SCHEMA_RESOLUTION, FFW, CONFIG_FILE_SORT_BY, "mtime"));
         FileOrderConfig.validate(Map.of(SCHEMA_RESOLUTION, FFW, CONFIG_FILE_ORDER, "desc"));
         FileOrderConfig.validate(Map.of(SCHEMA_RESOLUTION, FFW, CONFIG_FILE_SORT_BY, "name", CONFIG_FILE_ORDER, "desc"));
+        FileOrderConfig.validate(Map.of(CONFIG_FILE_SORT_BY, "mtime"));
+        FileOrderConfig.validate(Map.of(CONFIG_FILE_ORDER, "desc"));
     }
 
     public void testApplyListAscIsNoOp() {

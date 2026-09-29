@@ -341,11 +341,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         FormatReader configured = reader.withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "\"")).value();
         assertThat(
             configured.configWarnings(),
-            contains(
-                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                    + "keep it to parse quoted fields instead."
-            )
+            contains("[quote] turns off the [escaped] mode's \\N and \\t decoding; remove [quote] to decode them")
         );
     }
 

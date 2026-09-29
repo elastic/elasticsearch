@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Respon
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
 import java.util.List;
@@ -95,67 +96,82 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response mutateInstanceForVersion(Response instance, TransportVersion version) {
-        if (version.supports(MEMORY_STAT_TRANSPORT_VERSION) == false) {
-            return new Response(
-                new QueryPage<>(
-                    instance.getResources()
-                        .results()
-                        .stream()
-                        .map(
-                            stats -> new Response.TrainedModelStats(
-                                stats.getModelId(),
-                                stats.getModelSizeStats(),
-                                stats.getIngestStats(),
-                                stats.getPipelineCount(),
-                                stats.getInferenceStats(),
-                                stats.getDeploymentStats() == null
-                                    ? null
-                                    : new AssignmentStats(
-                                        stats.getDeploymentStats().getDeploymentId(),
-                                        stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getThreadsPerAllocation(),
-                                        stats.getDeploymentStats().getNumberOfAllocations(),
-                                        stats.getDeploymentStats().getAdaptiveAllocationsSettings(),
-                                        stats.getDeploymentStats().getQueueCapacity(),
-                                        stats.getDeploymentStats().getCacheSize(),
-                                        stats.getDeploymentStats().getStartTime(),
-                                        stats.getDeploymentStats()
-                                            .getNodeStats()
-                                            .stream()
-                                            .map(
-                                                nodeStats -> new AssignmentStats.NodeStats(
-                                                    nodeStats.getNode(),
-                                                    nodeStats.getInferenceCount().orElse(null),
-                                                    nodeStats.getAvgInferenceTime().orElse(null),
-                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
-                                                    nodeStats.getLastAccess(),
-                                                    nodeStats.getPendingCount(),
-                                                    nodeStats.getErrorCount(),
-                                                    nodeStats.getCacheHitCount().orElse(null),
-                                                    nodeStats.getRejectedExecutionCount(),
-                                                    nodeStats.getTimeoutCount(),
-                                                    nodeStats.getRoutingState(),
-                                                    nodeStats.getStartTime(),
-                                                    nodeStats.getThreadsPerAllocation(),
-                                                    nodeStats.getNumberOfAllocations(),
-                                                    nodeStats.getPeakThroughput(),
-                                                    nodeStats.getThroughputLastPeriod(),
-                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null),
-                                                    null  // avgInferenceProcessMemoryRssBytes is null for old versions
-                                                )
-                                            )
-                                            .toList(),
-                                        stats.getDeploymentStats().getPriority()
-                                    )
-                            )
-                        )
-                        .toList(),
-                    instance.getResources().count(),
-                    RESULTS_FIELD
-                )
-            );
+        boolean supportsAvgRss = version.supports(MEMORY_STAT_TRANSPORT_VERSION);
+        // The runtime/peak native memory fields (on TrainedModelSizeStats) and the peak per-node RSS field
+        // (on AssignmentStats.NodeStats) are gated by the same transport version.
+        boolean supportsRuntimeRss = version.supports(AssignmentStats.PEAK_MEMORY_STAT_TRANSPORT_VERSION);
+        if (supportsAvgRss && supportsRuntimeRss) {
+            return instance;
         }
-        return instance;
+        return new Response(
+            new QueryPage<>(
+                instance.getResources()
+                    .results()
+                    .stream()
+                    .map(
+                        stats -> new Response.TrainedModelStats(
+                            stats.getModelId(),
+                            downgradeModelSizeStats(stats.getModelSizeStats(), supportsRuntimeRss),
+                            stats.getIngestStats(),
+                            stats.getPipelineCount(),
+                            stats.getInferenceStats(),
+                            stats.getDeploymentStats() == null
+                                ? null
+                                : new AssignmentStats(
+                                    stats.getDeploymentStats().getDeploymentId(),
+                                    stats.getDeploymentStats().getModelId(),
+                                    stats.getDeploymentStats().getThreadsPerAllocation(),
+                                    stats.getDeploymentStats().getNumberOfAllocations(),
+                                    stats.getDeploymentStats().getAdaptiveAllocationsSettings(),
+                                    stats.getDeploymentStats().getQueueCapacity(),
+                                    stats.getDeploymentStats().getCacheSize(),
+                                    stats.getDeploymentStats().getStartTime(),
+                                    stats.getDeploymentStats()
+                                        .getNodeStats()
+                                        .stream()
+                                        .map(
+                                            nodeStats -> new AssignmentStats.NodeStats(
+                                                nodeStats.getNode(),
+                                                nodeStats.getInferenceCount().orElse(null),
+                                                nodeStats.getAvgInferenceTime().orElse(null),
+                                                nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                nodeStats.getLastAccess(),
+                                                nodeStats.getPendingCount(),
+                                                nodeStats.getErrorCount(),
+                                                nodeStats.getCacheHitCount().orElse(null),
+                                                nodeStats.getRejectedExecutionCount(),
+                                                nodeStats.getTimeoutCount(),
+                                                nodeStats.getRoutingState(),
+                                                nodeStats.getStartTime(),
+                                                nodeStats.getThreadsPerAllocation(),
+                                                nodeStats.getNumberOfAllocations(),
+                                                nodeStats.getPeakThroughput(),
+                                                nodeStats.getThroughputLastPeriod(),
+                                                nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                nodeStats.getCacheHitCountLastPeriod().orElse(null),
+                                                // avgInferenceProcessMemoryRssBytes is null before the memory stat transport version
+                                                supportsAvgRss ? nodeStats.getAvgInferenceProcessMemoryRssBytes().orElse(null) : null,
+                                                // maxInferenceProcessMemoryRssBytes is null before the runtime memory transport version
+                                                supportsRuntimeRss ? nodeStats.getMaxInferenceProcessMemoryRssBytes().orElse(null) : null
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getDeploymentStats().getPriority()
+                                )
+                        )
+                    )
+                    .toList(),
+                instance.getResources().count(),
+                RESULTS_FIELD
+            )
+        );
+    }
+
+    private static TrainedModelSizeStats downgradeModelSizeStats(TrainedModelSizeStats sizeStats, boolean supportsRuntimeRss) {
+        if (sizeStats == null || supportsRuntimeRss) {
+            return sizeStats;
+        }
+        // The runtime/peak native memory fields read back as 0 on nodes that predate the runtime memory transport version.
+        return new TrainedModelSizeStats(sizeStats.getModelSizeBytes(), sizeStats.getRequiredNativeMemoryBytes(), 0L, 0L);
     }
 }

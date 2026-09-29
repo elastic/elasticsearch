@@ -177,7 +177,14 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     public void testValidateDatasetErrorBudget() {
-        assertEquals("100", validator.validateDataset(Map.of(), "gs://b/p", Map.of("max_errors", "100")).get("max_errors"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("max_errors", "100")));
+        // Budget with an explicit mode is accepted.
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "gs://b/p", Map.of("max_errors", "100", "error_mode", "skip_row")).get("max_errors")
+        );
+        // fail_fast combined with a budget is still refused.
         expectThrows(
             ValidationException.class,
             () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("error_mode", "fail_fast", "max_errors", "10"))

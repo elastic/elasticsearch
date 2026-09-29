@@ -1118,7 +1118,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
             }
             try {
-                return decideMove(index, storedShardMovement.shardRouting(), ignored -> true);
+                return decideMove(index, storedShardMovement.shardRouting());
             } finally {
                 allocation.setDebugMode(oldDebugMode);
             }

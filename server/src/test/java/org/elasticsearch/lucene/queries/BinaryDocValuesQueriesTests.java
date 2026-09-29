@@ -105,18 +105,13 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
     // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
     private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
 
-    public void testColumnarCircuitBreakerConsultedForCaseSensitiveWildcard() {
+    public void testColumnarCircuitBreakerConsultedForWildcard() {
         final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
-        final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        queries.wildcard(FIELD, COMPLEX_WILDCARD, false, breaker);
-        assertTrue("circuit breaker should be consulted during case-sensitive wildcard automaton construction", breaker.wasCalled());
-    }
-
-    public void testColumnarCircuitBreakerConsultedForCaseInsensitiveWildcard() {
-        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
-        final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        queries.wildcard(FIELD, COMPLEX_WILDCARD, true, breaker);
-        assertTrue("circuit breaker should be consulted during case-insensitive wildcard automaton construction", breaker.wasCalled());
+        for (boolean caseInsensitive : new boolean[] { false, true }) {
+            final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            queries.wildcard(FIELD, COMPLEX_WILDCARD, caseInsensitive, breaker);
+            assertTrue("circuit breaker should be consulted for caseInsensitive=" + caseInsensitive, breaker.wasCalled());
+        }
     }
 
     /** A columnar field is answered by its column, so asking for a scan of one fails where it is asked. */

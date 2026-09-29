@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -248,6 +249,66 @@ public class PartitionMetadataTests extends ESTestCase {
         assertNull(
             "[hour=00] must not come back as the string [0], which is what re-casting a parsed value would give",
             valued.filePartitionValues().get(padded).get("hour")
+        );
+    }
+
+    /**
+     * The reviewer's case, at the unit the defect lived in. A sample of two integral folders types the column
+     * {@code INTEGER}; the full listing also holds {@code x=5e1}, which is not an integral token, so detection over
+     * it answers {@code DOUBLE} and every value arrives as a {@code Double}. Conforming those through their text
+     * asked {@code Integer.parseInt("1.0")} and nulled the whole column — every row of every folder, including the
+     * six that fit perfectly well.
+     */
+    public void testANumericColumnSurvivesAWiderScanType() {
+        List<StorageEntry> sample = List.of(
+            new StorageEntry(StoragePath.of("s3://b/x=1/a.parquet"), 1, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/x=2/b.parquet"), 1, Instant.EPOCH)
+        );
+        List<StorageEntry> everything = new ArrayList<>(sample);
+        everything.add(new StorageEntry(StoragePath.of("s3://b/x=5e1/c.parquet"), 1, Instant.EPOCH));
+
+        PartitionMetadata declared = HivePartitionDetector.INSTANCE.detect(sample, WarningSinks.FAILING);
+        PartitionMetadata scanned = HivePartitionDetector.INSTANCE.detect(everything, WarningSinks.FAILING);
+        assertEquals("the sample types it integral", DataType.INTEGER, declared.partitionColumns().get("x"));
+        assertEquals("the whole listing does not", DataType.DOUBLE, scanned.partitionColumns().get("x"));
+
+        PartitionMetadata valued = declared.valuedOver(scanned);
+
+        assertEquals(1, valued.filePartitionValues().get(sample.get(0).path()).get("x"));
+        assertEquals(2, valued.filePartitionValues().get(sample.get(1).path()).get("x"));
+        assertEquals(
+            "and a folder the sample missed keeps the value its number holds exactly",
+            50,
+            valued.filePartitionValues().get(everything.get(2).path()).get("x")
+        );
+    }
+
+    /** A number the declared type cannot hold exactly still has no value under it. */
+    public void testANumberTheDeclaredTypeCannotHoldExactlyHasNoValue() {
+        // Dotless on purpose: HivePartitionDetector#segmentKey rejects a segment containing a dot, so x=1.5
+        // is not a partition folder at all. 5e-1 is the same value spelled in a way the detector accepts.
+        StoragePath fraction = StoragePath.of("s3://b/x=5e-1/a.parquet");
+        StoragePath huge = StoragePath.of("s3://b/x=99999999999/b.parquet");
+        PartitionMetadata declaredInteger = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(StoragePath.of("s3://b/x=1/z.parquet"), 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        PartitionMetadata scannedFraction = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(fraction, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        PartitionMetadata scannedHuge = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(huge, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+
+        assertNull(
+            "a fraction is not an integer",
+            declaredInteger.valuedOver(scannedFraction).filePartitionValues().get(fraction).get("x")
+        );
+        assertNull(
+            "and neither is a magnitude outside the type",
+            declaredInteger.valuedOver(scannedHuge).filePartitionValues().get(huge).get("x")
         );
     }
 }

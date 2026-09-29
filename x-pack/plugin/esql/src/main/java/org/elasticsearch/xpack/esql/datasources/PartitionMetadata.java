@@ -12,6 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -98,22 +100,61 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      * One value under the type the dataset's schema declares for its column, rather than the type the listing it
      * came from inferred. Same type, or no value: nothing to do.
      * <p>
-     * Otherwise the value is re-cast through its text, and that is exact in one direction only. A listing that
-     * typed the column as text still holds the path's own token, so casting it to a narrower declared type asks
-     * the same question the detector asked and gets the same answer. Going the other way it is not: a listing
-     * that typed the column numerically has already parsed the token away, and {@code 0} cannot say whether the
-     * folder was {@code hour=0} or {@code hour=00}. Under a declared {@link DataType#KEYWORD} the spelling is
-     * the value, so rather than invent one, the file has no value for that column.
+     * Which medium the conversion goes through is the whole of it. A listing that typed the column as text still
+     * holds the path's own token, so casting that text to the declared type asks the same question the detector
+     * asked and gets the same answer. A listing that typed it as a number has already parsed the token away, and
+     * its text is the number's spelling rather than the path's - {@code 1.0} where the folder said {@code 1} -
+     * so casting that text to a narrower numeric type fails on every value rather than on the one that did not
+     * fit. A number is therefore converted as a number, exactly, and only a value the declared type cannot hold
+     * exactly has none under it.
+     * <p>
+     * Under a declared {@link DataType#KEYWORD} nothing can be recovered: the spelling is the value, a parsed
+     * number cannot say whether the folder read {@code 0} or {@code 00}, so the file has no value for that column.
      */
     private static Object conform(@Nullable Object value, DataType declared, @Nullable DataType detected) {
         if (value == null || declared == detected) {
             return value;
         }
-        if (declared == DataType.KEYWORD && detected != DataType.KEYWORD) {
-            return null;
+        if (declared == DataType.KEYWORD) {
+            return detected == DataType.KEYWORD ? value : null;
+        }
+        if (value instanceof Number number) {
+            return exactlyAs(number, declared);
         }
         try {
             return HivePartitionDetector.castValue(String.valueOf(value), declared);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The same number under {@code declared}, or no value when that type cannot hold it exactly. A fraction under
+     * an integral type and a magnitude outside its range are the two ways that happens; neither invents a value
+     * and neither loses one that fits.
+     */
+    @Nullable
+    private static Object exactlyAs(Number number, DataType declared) {
+        if (declared == DataType.DOUBLE) {
+            return number.doubleValue();
+        }
+        BigInteger integral;
+        try {
+            integral = new BigDecimal(number.toString()).toBigIntegerExact();
+        } catch (NumberFormatException | ArithmeticException e) {
+            // Not finite, or a fraction no integral type holds.
+            return null;
+        }
+        try {
+            if (declared == DataType.INTEGER) {
+                return integral.intValueExact();
+            }
+            if (declared == DataType.LONG) {
+                return integral.longValueExact();
+            }
+            // UNSIGNED_LONG and anything else a number could be: the detector's own coercion decides, from a
+            // spelling that is now an integer literal rather than a float's.
+            return HivePartitionDetector.castValue(integral.toString(), declared);
         } catch (RuntimeException e) {
             return null;
         }

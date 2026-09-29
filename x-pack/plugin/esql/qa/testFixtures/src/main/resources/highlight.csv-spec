@@ -1958,6 +1958,361 @@ TS k8s
 ;
 
 
+# MATCH's analyzer applies to the query string; HIGHLIGHT tokenizes values with TO_TEXT's analyzer. They agree here,
+# so highlighting stems "Rings" without restating the name as WITH.
+highlightUniformAnalyzerFromExplicitMatch
+required_capability: highlight_implicit_query_and_fields
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Two leaves and both ON columns declare the same values analyzer, so highlighting stems both fields.
+highlightUniformAnalyzerAcrossFields
+required_capability: highlight_implicit_query_and_fields
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings", {"analyzer": "english"}), bio = to_text("J.R.R. Tolkien wrote about rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(bio, "ring", { "analyzer": "english" }) ON title, bio
+| KEEP highlight_title, highlight_bio
+;
+
+highlight_title:keyword        | highlight_bio:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
+;
+
+
+# An implicit query's MATCH analyzer must match HIGHLIGHT WITH; mapped fields have no TO_TEXT analyzer to agree with.
+highlightUniformAnalyzerFromImplicitWhere
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "shadow", { "analyzer": "english" })
+| HIGHLIGHT WITH { "analyzer": "english" }
+| KEEP title, highlight_title
+;
+
+title:text            | highlight_title:keyword
+Return of the Shadow  | Return of the <em>Shadow</em>
+;
+
+
+implicitQueryBareForm
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# The derived query targets title, so title is highlighted; the extra ON field description that the query does not
+# target is left null rather than failing (a query that names *only* untargeted fields is rejected at analysis, see
+# AnalyzerTests#testHighlightRejectsDerivedQueryTargetingOnlyDroppedField).
+implicitQueryUntargetedOnFieldIsNull
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON title, description
+| KEEP title, highlight_title, highlight_description
+| SORT title
+;
+
+title:text | highlight_title:keyword | highlight_description:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | null
+Return of the Shadow                                             | <em>Return</em> of the Shadow                                             | null
+;
+
+
+implicitQueryTwoWheresOrTogether
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT
+| KEEP title, author, highlight_title, highlight_author
+| SORT title
+;
+
+title:text | author:text | highlight_title:keyword | highlight_author:keyword
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien                                 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | <em>Tolkien</em>
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien] | <em>Return</em> of the Shadow                                             | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>]
+;
+
+
+# A derived query borrows every full-text conjunct of the WHERE, including MATCH on a numeric field. That conjunct
+# still selects rows - only the 2012 edition survives - but it contributes no spans, so the derived ON list is just
+# the text field the WHERE named.
+implicitQueryIgnoresNonTextConjunct
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return") AND MATCH(year, 2012)
+| HIGHLIGHT
+| KEEP title, year, highlight_title
+| SORT title
+;
+
+title:text | year:integer | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2012 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+;
+
+
+# The same leniency over runtime columns, where the numeric conjunct is matched row by row rather than in Lucene.
+implicitQueryOnRuntimeColumnsIgnoresNonTextConjunct
+required_capability: highlight_implicit_query_and_fields
+
+ROW msg = "On-call found it after a search ranking", year = 1989
+| EVAL note = TO_TEXT(msg)
+| WHERE MATCH(note, "On") AND MATCH(year, 1989)
+| HIGHLIGHT
+| KEEP note, highlight_note
+;
+
+note:text | highlight_note:keyword
+On-call found it after a search ranking | <em>On</em>-call found it after a search ranking
+;
+
+
+# A borrowed QSTR that names a field outside ON is lenient: the qualifier becomes match-none
+# against the ON field. MATCH still highlights title.
+implicitQueryQstrNonOnFieldIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("author:Tolkien") AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# Same leniency for a borrowed KQL qualifier on a non-ON field.
+implicitQueryKqlNonOnFieldIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE KQL("author:Tolkien") AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# A QSTR that names only a non-ON field still selects the row, but the derived highlight query is
+# match-none against ON, so the generated column is null rather than a verification error.
+implicitQueryQstrOnlyNonOnFieldIsNull
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("author:Tolkien") AND book_no == "2714"
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# INLINE STATS appends aggregates without collapsing rows, so HIGHLIGHT can still borrow MATCH(title).
+implicitQueryDescendsThroughInlineStats
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| INLINE STATS c = COUNT(*)
+| HIGHLIGHT ON title
+| KEEP title, c, highlight_title
+| SORT title
+;
+
+title:text | c:long | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | 2 | <em>Return</em> of the Shadow
+;
+
+
+# Both WHEREs sit below a single HIGHLIGHT, so it borrows MATCH(title) and MATCH(author) across INLINE STATS.
+implicitQueryBorrowsWheresAroundInlineStats
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| INLINE STATS c = COUNT(*)
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT
+| KEEP title, c, highlight_*
+| SORT title
+;
+
+title:text | c:long | highlight_author:keyword | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2 | <em>Tolkien</em> | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | 2 | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>] | <em>Return</em> of the Shadow
+;
+
+
+# The optimizer moves a WHERE after HIGHLIGHT below it, so each HIGHLIGHT highlights its own field. An INLINE STATS
+# whose output is kept between them blocks that move and the query is rejected instead
+# (OptimizerVerificationTests#testFullTextWhereAfterHighlightBlockedByInlineStats).
+implicitQueryTwoHighlightsEachHighlightTheirField
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON title
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT ON author
+| KEEP title, highlight_*
+| SORT title
+;
+
+title:text | highlight_title:keyword | highlight_author:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | <em>Tolkien</em>
+Return of the Shadow                                             | <em>Return</em> of the Shadow                                             | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>]
+;
+
+
+# Common commands between the WHERE and HIGHLIGHT keep one row per document, so MATCH(title) is still borrowed.
+implicitQueryPassesCommonCommands
+required_capability: highlight_implicit_query_and_fields
+required_capability: esql_limit_by
+required_capability: esql_topn_by
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL t = title
+| DROP description
+| KEEP book_no, title, year, t
+| SORT book_no
+| LIMIT 5 BY year
+| SORT title
+| LIMIT 1 BY book_no
+| HIGHLIGHT
+| KEEP title, highlight_*
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# IN subqueries keep the outer rows, so HIGHLIGHT borrows the outer MATCH(title). The subquery's MATCH(author) selects
+# other documents and is not borrowed, so there is no highlight_author column.
+implicitQueryDescendsThroughInSubquery
+required_capability: highlight_implicit_query_and_fields
+required_capability: where_in_subquery_without_view
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE book_no IN (FROM books | WHERE MATCH(author, "Christopher") | KEEP book_no)
+| HIGHLIGHT
+| KEEP title, highlight_*
+;
+
+title:text | highlight_title:keyword
+Return of the Shadow | <em>Return</em> of the Shadow
+;
+
+
+implicitQueryDescendsThroughNotInSubquery
+required_capability: highlight_implicit_query_and_fields
+required_capability: where_in_subquery_without_view
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE book_no NOT IN (FROM books | WHERE MATCH(author, "Christopher") | KEEP book_no)
+| HIGHLIGHT
+| KEEP title, highlight_*
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+;
+
+
+# A borrowed MATCH follows RENAME so HIGHLIGHT targets the current column.
+implicitQueryFollowsRename
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| RENAME title AS t
+| HIGHLIGHT
+| KEEP t, highlight_t
+| SORT t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# MV_EXPAND keeps the name but mints a new attribute id; the borrowed MATCH still highlights it.
+implicitQueryFollowsMvExpand
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| MV_EXPAND title
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# ON * includes multi-fields (author.keyword); a borrowed conjunct targeting it highlights a non-null value too.
+highlightOnStar
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return") AND MATCH(`author.keyword`, "J. R. R. Tolkien")
+| HIGHLIGHT ON *
+| KEEP highlight_*
+| SORT highlight_title
+;
+
+highlight_author:keyword | highlight_author.keyword:keyword                   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+null                     | <em>J</em>. <em>R</em>. <em>R</em>. <em>Tolkien</em> | null                      | null                         | null                          | null                        | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+;
+
+
 explicitQueryNoOnFallsBackToAllFields
 skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
 required_capability: highlight_implicit_query_and_fields
@@ -2148,3 +2503,37 @@ highlight_author:keyword
 null
 ;
 
+
+implicitOnSemanticTextViaStar
+required_capability: highlight_implicit_query_and_fields
+
+FROM semantic_text
+| WHERE MATCH(semantic_text_field, "prosper")
+| HIGHLIGHT ON *
+| KEEP semantic_text_field, highlight_semantic_text_field
+| SORT semantic_text_field
+;
+
+semantic_text_field:text | highlight_semantic_text_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
+;
+
+
+# Same as above but on a dense-inference semantic_text field, to cover both inference kinds.
+implicitOnSemanticTextDenseViaStar
+required_capability: highlight_implicit_query_and_fields
+
+FROM semantic_text
+| WHERE MATCH(semantic_text_dense_field, "prosper")
+| HIGHLIGHT ON *
+| KEEP semantic_text_dense_field, highlight_semantic_text_dense_field
+| SORT semantic_text_dense_field
+;
+
+semantic_text_dense_field:text | highlight_semantic_text_dense_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
+;

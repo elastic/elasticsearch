@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -89,7 +89,7 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
     protected volatile CountDownLatch clientWaitLatch;
     protected volatile CountDownLatch invokerWaitLatch;
     protected ClusterService clusterService;
-    protected final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+    protected final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
     protected final Set<Index> downsamplingIndices = new HashSet<>();
@@ -135,7 +135,7 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
             errorStore,
             allocationService,
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            globalRetentionSettings,
+            dataStreamLifecycleSettings,
             ignored -> downsamplingIndices
         );
         clientWaitLatch = null;

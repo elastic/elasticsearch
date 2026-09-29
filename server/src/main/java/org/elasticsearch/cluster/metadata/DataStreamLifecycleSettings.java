@@ -22,17 +22,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * This class holds the data stream global retention settings. It defines, validates and monitors the settings.
+ * This class holds the data stream lifecycle cluster wide settings. It defines, validates and monitors the configuration
+ * for the following:
  * <p>
- * The global retention settings apply to non-system data streams that are managed by the data stream lifecycle. They consist of:
+ * <b>Global retention</b> apply to non-system data streams that are managed by the data stream lifecycle. They consist of:
  * - The default retention which applies to the backing indices of data streams that do not have a retention defined.
  * - The max retention which applies to backing and failure indices of data streams that do not have retention or their
  * retention has exceeded this value.
  * - The failures default retention which applied to the failure indices of data streams that do not have retention defined.
  */
-public class DataStreamGlobalRetentionSettings {
+public class DataStreamLifecycleSettings {
 
-    private static final Logger logger = LogManager.getLogger(DataStreamGlobalRetentionSettings.class);
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleSettings.class);
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
 
     public static final Setting<TimeValue> DATA_STREAMS_DEFAULT_RETENTION_SETTING = Setting.timeSetting(
@@ -119,7 +120,7 @@ public class DataStreamGlobalRetentionSettings {
     @Nullable
     private volatile DataStreamGlobalRetention failuresGlobalRetention;
 
-    private DataStreamGlobalRetentionSettings() {
+    private DataStreamLifecycleSettings() {
 
     }
 
@@ -151,15 +152,15 @@ public class DataStreamGlobalRetentionSettings {
      * Creates an instance and initialises the cluster settings listeners
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes
      */
-    public static DataStreamGlobalRetentionSettings create(ClusterSettings clusterSettings) {
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings();
-        clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setDefaultRetention);
-        clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setMaxRetention);
+    public static DataStreamLifecycleSettings create(ClusterSettings clusterSettings) {
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = new DataStreamLifecycleSettings();
+        clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamLifecycleSettings::setDefaultRetention);
+        clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamLifecycleSettings::setMaxRetention);
         clusterSettings.initializeAndWatch(
             FAILURE_STORE_DEFAULT_RETENTION_SETTING,
-            dataStreamGlobalRetentionSettings::setFailuresDefaultRetention
+            dataStreamLifecycleSettings::setFailuresDefaultRetention
         );
-        return dataStreamGlobalRetentionSettings;
+        return dataStreamLifecycleSettings;
     }
 
     private void setMaxRetention(TimeValue maxRetention) {
@@ -212,8 +213,8 @@ public class DataStreamGlobalRetentionSettings {
      * @return the global retention of backing indices
      */
     @Nullable
-    public DataStreamGlobalRetention get() {
-        return get(false);
+    public DataStreamGlobalRetention getGlobalRetention() {
+        return getGlobalRetention(false);
     }
 
     /**
@@ -221,13 +222,13 @@ public class DataStreamGlobalRetentionSettings {
      * @param failureStore, true if we are retrieving the global retention that applies to failure store, false otherwise.
      */
     @Nullable
-    public DataStreamGlobalRetention get(boolean failureStore) {
+    public DataStreamGlobalRetention getGlobalRetention(boolean failureStore) {
         return failureStore ? failuresGlobalRetention : dataGlobalRetention;
     }
 
     @Nullable
     private DataStreamGlobalRetention createDataStreamGlobalRetention(boolean failureStore) {
-        if (areDefined(failureStore) == false) {
+        if (isGlobalRetentionDefined(failureStore) == false) {
             return null;
         }
         TimeValue defaultRetention = getDefaultRetention(failureStore);
@@ -252,7 +253,7 @@ public class DataStreamGlobalRetentionSettings {
         return value == null || value.equals(TimeValue.MINUS_ONE) ? null : value;
     }
 
-    private boolean areDefined(boolean failureStore) {
+    private boolean isGlobalRetentionDefined(boolean failureStore) {
         return getDefaultRetention(failureStore) != null || getMaxRetention() != null;
     }
 }

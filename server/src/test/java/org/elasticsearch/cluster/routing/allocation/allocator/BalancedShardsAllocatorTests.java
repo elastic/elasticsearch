@@ -1937,7 +1937,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
         allocator.allocate(allocation);
         final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CANNOT_REMAIN_MOVE_METRIC);
         assertThat(measurements, hasSize(1));
         final var measurement = measurements.getFirst();
         assertThat(measurement.getLong(), is(1L));

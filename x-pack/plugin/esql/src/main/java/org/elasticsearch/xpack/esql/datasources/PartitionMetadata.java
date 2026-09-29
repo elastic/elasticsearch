@@ -471,6 +471,18 @@ public final class PartitionMetadata {
         return columnar(partitionColumns, byColumn, fileCount);
     }
 
+    /** Whether every row is already empty, so there is nothing left to strip and stripping is a no-op. */
+    private boolean carriesNoEvidence() {
+        for (Object[] column : valuesByColumn) {
+            for (Object value : column) {
+                if (value != null) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * These partition columns with no per-file values.
      * <p>
@@ -478,10 +490,13 @@ public final class PartitionMetadata {
      * prefix rather than about the dataset. The columns still stand; the values do not travel.
      */
     public PartitionMetadata withoutPerFileEvidence() {
-        if (partitionColumns.isEmpty() || fileCount == 0) {
+        if (partitionColumns.isEmpty() || fileCount == 0 || carriesNoEvidence()) {
             return this;
         }
-        return columnar(partitionColumns, new Object[partitionColumns.size()][0], 0);
+        // The rows stay and their values go. Dropping the rows instead would leave metadata that no longer covers
+        // the listing it hangs off (coversFileCount), and would turn a harmless absent value into an index out of
+        // bounds for anything that asks a stripped listing what a file's partition value is.
+        return columnar(partitionColumns, new Object[partitionColumns.size()][fileCount], fileCount);
     }
 
     /**

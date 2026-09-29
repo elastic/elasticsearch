@@ -403,6 +403,26 @@ public class PartitionMetadataTests extends ESTestCase {
 
     private static final PartitionConfig HIVE = new PartitionConfig(PartitionConfig.Strategy.HIVE, null);
 
+    /**
+     * Stripping a truncated listing's per-file evidence keeps the rows and empties them. Dropping the rows would
+     * leave metadata that no longer covers the listing it hangs off, and would turn "this file has no value" into
+     * an index out of bounds for anyone who asked.
+     */
+    public void testStrippingPerFileEvidenceKeepsTheListingsShape() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/hour=00/a.parquet"), 1, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/hour=07/b.parquet"), 1, Instant.EPOCH)
+        );
+        PartitionMetadata detected = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+
+        PartitionMetadata stripped = detected.withoutPerFileEvidence();
+
+        assertEquals("the columns are the schema's answer and stay", detected.partitionColumns(), stripped.partitionColumns());
+        assertTrue("and it still covers the listing it hangs off", stripped.coversFileCount(entries.size()));
+        assertNull("but says nothing about any file", stripped.getValue(0, "hour"));
+        assertNull(stripped.getValue(1, "hour"));
+    }
+
     /** The file set a scan would hold over these paths. */
     private static FileList filesOf(StoragePath... paths) {
         List<StorageEntry> entries = new ArrayList<>();

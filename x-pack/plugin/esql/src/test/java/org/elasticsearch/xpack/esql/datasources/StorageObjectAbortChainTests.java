@@ -15,14 +15,22 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -85,6 +93,62 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
+    }
+
+    /**
+     * Full read of a gzip object in production order: {@link DecompressingStorageObject} over the provider's
+     * {@link RetryableStorageObject}. The release's end-of-body read must pass through the retry layer's resuming
+     * stream to the raw body before the abort, so S3 pools the connection instead of discarding it.
+     */
+    public void testFullGzipReadReachesEndOfBodyBeforeAbortThroughDecoratorChain() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        int rows = between(1, 200_000);
+        for (int i = 0; i < rows; i++) {
+            csv.append("id_").append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] original = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(compressed, tracking);
+        StorageObject chain = new DecompressingStorageObject(
+            new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10)),
+            new GzipDecompressionCodec()
+        );
+
+        try (InputStream stream = chain.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals(compressed.length, tracking.bytesConsumed.get());
+    }
+
+    /**
+     * The release's end-of-body read is best effort: if the connection resets on it, the retry layer must not
+     * resume (backoff sleep plus a new GET inside {@code close()}) for a stream that is aborted right after.
+     */
+    public void testEndOfBodyReadFaultAfterFullGzipReadDoesNotResume() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 10_000; i++) {
+            csv.append("id_").append(i).append(",name_").append(i).append("\n");
+        }
+        byte[] original = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+
+        ResetAtEndOfBodyStorageObject raw = new ResetAtEndOfBodyStorageObject(compressed);
+        RetryableStorageObject retryable = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
+        StorageObject chain = new DecompressingStorageObject(retryable, new GzipDecompressionCodec());
+
+        try (InputStream stream = chain.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertTrue("the end-of-body read must have hit the reset", raw.endOfBodyFaulted.get());
+        assertEquals("a fault on the end-of-body read must not re-open the object", 1, raw.opens.get());
+        assertEquals("a fault on the end-of-body read must not count a retry", 0L, retryable.metrics().retryCount());
+        assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
     }
 
     /**
@@ -202,6 +266,87 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );
+    }
+
+    /**
+     * Serves {@code bytes} in full, then throws a connection reset instead of returning {@code -1}: the shape of
+     * an S3 connection that drops just as the client reads the end of the body. Resume opens return an empty body.
+     */
+    private static final class ResetAtEndOfBodyStorageObject implements StorageObject {
+        private final byte[] bytes;
+        final AtomicInteger opens = new AtomicInteger();
+        final AtomicInteger abortCalls = new AtomicInteger();
+        final AtomicBoolean endOfBodyFaulted = new AtomicBoolean();
+
+        ResetAtEndOfBodyStorageObject(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        @Override
+        public InputStream newStream() {
+            opens.incrementAndGet();
+            ByteArrayInputStream body = new ByteArrayInputStream(bytes);
+            return new InputStream() {
+                @Override
+                public int read() throws IOException {
+                    byte[] one = new byte[1];
+                    int n = read(one, 0, 1);
+                    return n == -1 ? -1 : (one[0] & 0xFF);
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    int n = body.read(b, off, len);
+                    if (n == -1) {
+                        endOfBodyFaulted.set(true);
+                        throw new SocketException("Connection reset");
+                    }
+                    return n;
+                }
+            };
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            opens.incrementAndGet();
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public void abortStream(InputStream stream) throws IOException {
+            abortCalls.incrementAndGet();
+            stream.close();
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/reset-at-end.csv.gz");
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(opens.get(), 0, 0, 0);
+        }
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

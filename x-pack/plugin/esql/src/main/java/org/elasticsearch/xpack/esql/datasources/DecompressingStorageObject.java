@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -37,6 +40,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * split decompression.
  */
 final class DecompressingStorageObject implements StorageObject {
+
+    private static final Logger logger = LogManager.getLogger(DecompressingStorageObject.class);
+
+    /**
+     * Upper bound on the raw bytes {@link DecompressedStream} reads past the decoder's end-of-stream so the
+     * provider sees the end of the body. Matches the gzip codec's raw read buffer: a well-formed object has
+     * nothing left, so this only bounds the tail of a malformed one.
+     */
+    static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
@@ -83,7 +95,7 @@ final class DecompressingStorageObject implements StorageObject {
             InputStream guarded = maxDecompressionRatio > 0
                 ? new LimitGuardInputStream(decompressed, delegate.knownLength(), rawToCodec, maxDecompressionRatio, codec.name())
                 : decompressed;
-            return new DecompressedStream(guarded, raw, delegate);
+            return new DecompressedStream(guarded, raw, delegate, codec.name());
         } catch (IOException | RuntimeException e) {
             try {
                 // Abort rather than close so providers like S3 skip the draining connection teardown.
@@ -179,19 +191,56 @@ final class DecompressingStorageObject implements StorageObject {
      * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where
      * providers like S3 perform the connection-discard via {@code Abortable.abort()}.
      * <p>
-     * {@link #close()} always aborts the raw GET. Gzip/zstd/lz4/brotli text files are one
-     * whole-object GET; discarding the connection is cheaper than draining unread compressed
-     * bytes. Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
+     * Release always ends with an abort of the raw GET, but what that abort does depends on how the
+     * read ended:
+     * <ul>
+     *   <li>Stopped early (LIMIT, cancellation, schema sample, error): the raw body still has unread
+     *   bytes. Gzip/zstd/lz4/brotli text files are one whole-object GET, so discarding the connection
+     *   is cheaper than draining them.</li>
+     *   <li>Read to the decoder's end-of-stream: the raw body is (normally) exhausted, but whether the
+     *   provider has seen its end depends on the decoder. Zstd reads its input until {@code -1}; the JDK
+     *   gzip decoder stops after the trailer without that read, so Apache HttpClient still holds the
+     *   connection and the abort would destroy it. Reading raw to its end first (bounded by
+     *   {@link #MAX_TRAILING_DRAIN_BYTES}) returns the connection to the pool and turns the abort into a
+     *   no-op.</li>
+     * </ul>
+     * Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
      */
     private static final class DecompressedStream extends FilterInputStream {
         private final InputStream raw;
         private final StorageObject rawOwner;
+        private final String codecName;
         private final AtomicBoolean closed = new AtomicBoolean();
+        /**
+         * Set when the decoder returns {@code -1}. Volatile because release can run on a different thread
+         * (operator close) than the reader. Reads that bypass the overrides below leave it unset, which falls
+         * back to a plain abort.
+         */
+        private volatile boolean decoderEof;
 
-        DecompressedStream(InputStream decompressed, InputStream raw, StorageObject rawOwner) {
+        DecompressedStream(InputStream decompressed, InputStream raw, StorageObject rawOwner, String codecName) {
             super(decompressed);
             this.raw = raw;
             this.rawOwner = rawOwner;
+            this.codecName = codecName;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            if (b == -1) {
+                decoderEof = true;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n == -1) {
+                decoderEof = true;
+            }
+            return n;
         }
 
         InputStream decompressed() {
@@ -223,7 +272,12 @@ final class DecompressingStorageObject implements StorageObject {
                 // later close/abortStream cannot recover the raw GET.
                 primary = e;
             }
+            if (primary == null && decoderEof) {
+                drainTrailingRawBytes();
+            }
             try {
+                // Unconditional: after a drain that reached the end of the body the provider has already
+                // pooled the connection and this is a no-op; otherwise it discards the connection.
                 owner.abortStream(raw);
             } catch (Exception e) {
                 if (primary == null) {
@@ -244,6 +298,43 @@ final class DecompressingStorageObject implements StorageObject {
                 throw runtime;
             }
             throw new IOException(primary);
+        }
+
+        /**
+         * Reads {@code raw} to its end, up to {@link #MAX_TRAILING_DRAIN_BYTES}, so providers that recycle a
+         * connection only on an end-of-body read (S3 via Apache HttpClient) can pool it. After a complete
+         * decode this is a single read returning {@code -1} with no network I/O. Best effort: the logical
+         * read already succeeded, so a failure here only leaves the connection to the abort that follows.
+         * Reads past the retry layer's resume: a fault here must fall through to the abort, not sleep through a
+         * backoff and re-open a GET inside {@code close()}.
+         */
+        private void drainTrailingRawBytes() {
+            InputStream body = RetryableStorageObject.withoutResume(raw);
+            byte[] scratch = new byte[8192];
+            long trailing = 0;
+            try {
+                while (trailing <= MAX_TRAILING_DRAIN_BYTES) {
+                    int n = body.read(scratch, 0, scratch.length);
+                    if (n == -1) {
+                        break;
+                    }
+                    trailing += n;
+                }
+            } catch (IOException | RuntimeException e) {
+                logger.debug(() -> Strings.format("failed to read [%s] to its end after decompression; aborting", rawOwner.path()), e);
+                return;
+            }
+            if (trailing > 0) {
+                // Bytes after the decoder's end-of-stream are not decoded. For gzip this is either trailing
+                // padding/garbage or members the JDK decoder did not detect (esql-planning#2121).
+                logger.debug(
+                    "[{}] has [{}]{} undecoded bytes after the [{}] decoder's end of stream",
+                    rawOwner.path(),
+                    trailing,
+                    trailing > MAX_TRAILING_DRAIN_BYTES ? " or more" : "",
+                    codecName
+                );
+            }
         }
     }
 

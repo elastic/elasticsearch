@@ -35,6 +35,16 @@ public final class DrainSimulatingStorageObject {
         /** Set when {@code close()} fires on any stream returned by this storage object. */
         public final AtomicBoolean closed = new AtomicBoolean();
         public final AtomicInteger abortCalls = new AtomicInteger();
+        /**
+         * Set when a caller's read returns {@code -1}: the point where Apache HttpClient returns the connection
+         * to the pool. The fixture's own close-time drain does not set it.
+         */
+        public final AtomicBoolean endOfBodyRead = new AtomicBoolean();
+        /**
+         * {@link #endOfBodyRead} as of the first {@code abortStream}. {@code true} means the abort arrived after
+         * the connection was released (a no-op on S3); {@code false} means it discarded the connection.
+         */
+        public final AtomicBoolean endOfBodyReadBeforeAbort = new AtomicBoolean();
     }
 
     public static StorageObject create(byte[] bytes, Tracking tracking) {
@@ -57,7 +67,9 @@ public final class DrainSimulatingStorageObject {
 
             @Override
             public void abortStream(InputStream stream) throws IOException {
-                tracking.aborted.set(true);
+                if (tracking.aborted.getAndSet(true) == false) {
+                    tracking.endOfBodyReadBeforeAbort.set(tracking.endOfBodyRead.get());
+                }
                 tracking.abortCalls.incrementAndGet();
                 stream.close();
             }
@@ -91,6 +103,8 @@ public final class DrainSimulatingStorageObject {
                 int b = delegate.read();
                 if (b >= 0) {
                     tracking.bytesConsumed.incrementAndGet();
+                } else {
+                    tracking.endOfBodyRead.set(true);
                 }
                 return b;
             }
@@ -100,6 +114,8 @@ public final class DrainSimulatingStorageObject {
                 int n = delegate.read(buf, off, len);
                 if (n > 0) {
                     tracking.bytesConsumed.addAndGet(n);
+                } else if (n < 0) {
+                    tracking.endOfBodyRead.set(true);
                 }
                 return n;
             }

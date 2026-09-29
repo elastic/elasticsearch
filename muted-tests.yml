@@ -424,9 +424,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159678
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   issue: https://github.com/elastic/elasticsearch/issues/159683
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testSimulatedSearchRejectionLoad
-  issue: https://github.com/elastic/elasticsearch/issues/158625
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
@@ -478,3 +475,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/160408
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testTermVectorsApiRealtimeGet
+  issue: https://github.com/elastic/elasticsearch/issues/153282
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=downsample/10_basic/Downsample to existing index}
+  issue: https://github.com/elastic/elasticsearch/issues/160524

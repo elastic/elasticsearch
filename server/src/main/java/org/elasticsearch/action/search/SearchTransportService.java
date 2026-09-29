@@ -422,7 +422,12 @@ public class SearchTransportService {
                 connection.getNode(),
                 headers,
                 requestBytesConsumer,
-                resultBytesConsumer
+                resultBytesConsumer,
+                // Chunked fetch is on by default, so without the flag a chunk trip would start failing searches
+                // on the default path, which is what the flag is there to hold back.
+                FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled()
+                    ? e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e)
+                    : e -> {}
             );
             transportService.sendChildRequest(
                 localConnection,

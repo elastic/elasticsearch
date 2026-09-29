@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 
 import java.time.Instant;
 import java.time.Period;
@@ -404,6 +407,113 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals("year", hints.get(0).columnName());
     }
 
+    /**
+     * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
+     * {@code METADATA} clause. Without the clause the name is an ordinary data column.
+     */
+    public void testFileMetadataHintRequiresMetadataClause() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+
+        assertTrue(
+            "no METADATA clause: the storage-stat predicate is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.SIZE);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, sizeFilter);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.SIZE, hints.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN, hints.get(0).operator());
+    }
+
+    /**
+     * The parser wraps {@code FROM ... METADATA ...} in {@link UnresolvedMetadata}. That wrapper introduces only the
+     * names from the clause, so a hint collected above it still names the storage column.
+     */
+    public void testHintsCrossUnresolvedMetadata() {
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.SIZE);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan sizePlan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, rel, List.of(requested)),
+            new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100))
+        );
+        List<PartitionFilterHint> sizeHints = PartitionFilterHintExtractor.extract(sizePlan).get(PATH);
+        assertNotNull(sizeHints);
+        assertEquals(1, sizeHints.size());
+        assertEquals(FileMetadataColumns.SIZE, sizeHints.get(0).columnName());
+
+        LogicalPlan yearPlan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, externalRelation(PATH), List.of(requested)),
+            new Equals(SRC, unresolved("year"), intLiteral(2024))
+        );
+        List<PartitionFilterHint> yearHints = PartitionFilterHintExtractor.extract(yearPlan).get(PATH);
+        assertNotNull(yearHints);
+        assertEquals(1, yearHints.size());
+        assertEquals("year", yearHints.get(0).columnName());
+    }
+
+    /**
+     * Crossing the wrapper does not bypass the clause gate: a {@code _file.*} predicate is a hint only when the
+     * relation itself requested that field.
+     */
+    public void testUnresolvedMetadataDoesNotHintUnrequestedFileColumn() {
+        LogicalPlan plan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, externalRelation(PATH), List.of(MetadataAttribute.create(SRC, FileMetadataColumns.PATH))),
+            new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100))
+        );
+        assertTrue(PartitionFilterHintExtractor.extract(plan).isEmpty());
+    }
+
+    /**
+     * {@code MetadataAttribute.create} returns {@code UnresolvedMetadataAttributeExpression} for
+     * {@code _file.*} names, whose {@code name()} throws. The extractor must read the clause through
+     * {@link MetadataAttribute#metadataName}.
+     */
+    public void testFileMetadataClauseNameDoesNotUseThrowingAccessor() {
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.PATH);
+        expectThrows(Exception.class, requested::name);
+        assertEquals(FileMetadataColumns.PATH, MetadataAttribute.metadataName(requested));
+    }
+
+    /**
+     * One listing serves every occurrence of a path. A branch that omits {@code METADATA _file.size}
+     * must veto a listing prune the other branch would have applied.
+     */
+    public void testUnboundOccurrenceVetoesFileMetadataListingHint() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+        UnresolvedExternalRelation bound = new UnresolvedExternalRelation(
+            SRC,
+            Literal.keyword(SRC, PATH),
+            Map.of(),
+            List.of(MetadataAttribute.create(SRC, FileMetadataColumns.SIZE))
+        );
+        UnresolvedExternalRelation unbound = externalRelation(PATH);
+        LogicalPlan left = new Filter(SRC, bound, sizeFilter);
+        LogicalPlan right = new Filter(SRC, unbound, sizeFilter);
+        LogicalPlan fork = new Fork(SRC, List.of(left, right), List.of());
+
+        assertTrue(
+            "an occurrence without METADATA _file.size must keep the shared listing unpruned",
+            PartitionFilterHintExtractor.extract(fork).isEmpty()
+        );
+    }
+
+    public void testUnboundFileSizeInHintIsNotExtracted() {
+        Expression sizeFilter = new In(SRC, unresolved(FileMetadataColumns.SIZE), List.of(intLiteral(10), intLiteral(100)));
+
+        assertTrue(
+            "no METADATA clause: an IN predicate on storage size is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+    }
+
     /** Branches wanting different years between them need every folder, so nothing may be skipped. */
     public void testForkDisagreeingBranchesKeepNoHint() {
         UnresolvedExternalRelation rel = externalRelation(PATH);
@@ -473,6 +583,35 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertSame("nothing folded, so the listing copy is the original plan", plan, foldForListing(plan));
     }
 
+    /**
+     * Fold + hint are real. {@link Operator#canRewriteGlob} is EQUALS/IN only, so this
+     * GREATER_THAN is the same as {@code year > 2024}: list every prefix, drop files at
+     * split-discovery. Do not teach the glob ranges here.
+     */
+    public void testPreprocessorFoldsYearGreaterThanLiteral() {
+        Expression condition = new GreaterThan(SRC, unresolved("year"), yearFn(keywordLiteral("2024-01-01")));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.GREATER_THAN, List.of(2024L))), hints);
+    }
+
+    public void testPreprocessorFoldsYearEqualsParam() {
+        Expression condition = new Equals(SRC, yearFn(datetimeLiteral(DASHBOARD_TS)), unresolved("year"));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
+    }
+
+    public void testPreprocessorFoldsMonthEqualsLiteral() {
+        Expression condition = new Equals(SRC, unresolved("month"), monthFn(keywordLiteral("2024-06-15")));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertEquals(List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(6L))), hints);
+    }
+
     public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
         UnresolvedFunction trunc = new UnresolvedFunction(
             SRC,
@@ -516,6 +655,14 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedFunction dateExtract(String chrono, Expression date) {
         return new UnresolvedFunction(SRC, "DATE_EXTRACT", List.of(Literal.keyword(SRC, chrono), date));
+    }
+
+    private static UnresolvedFunction yearFn(Expression date) {
+        return new UnresolvedFunction(SRC, "YEAR", List.of(date));
+    }
+
+    private static UnresolvedFunction monthFn(Expression date) {
+        return new UnresolvedFunction(SRC, "MONTH", List.of(date));
     }
 
     private static LogicalPlan foldForListing(LogicalPlan plan) {

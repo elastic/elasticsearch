@@ -63,6 +63,8 @@ final class GenericFileList implements FileList {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(files.size())
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + files.size() + "]";
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;

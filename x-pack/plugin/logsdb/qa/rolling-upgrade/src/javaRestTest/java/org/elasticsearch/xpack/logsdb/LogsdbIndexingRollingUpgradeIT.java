@@ -144,7 +144,11 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
         String methodName = "method" + j % 5;
         String ip = NetworkAddress.format(randomIp(true));
-        String message = randomAlphaOfLength(128);
+        // Every ~100th document uses a message that exceeds the binary doc-values block threshold
+        // (512 KB). The text field value is stored as binary doc values in its fallback field for
+        // synthetic source reconstruction, so the oversized value lands in a single-doc block and
+        // exercises the verbatim-copy path in addRawBlock during force merges.
+        String message = (j % 100 == 0) ? randomAlphaOfLength(1024 * 1024) : randomAlphaOfLength(128);
         long length = randomLong();
         double factor = randomDouble();
         String tag = randomAlphaOfLengthBetween(3, 8);

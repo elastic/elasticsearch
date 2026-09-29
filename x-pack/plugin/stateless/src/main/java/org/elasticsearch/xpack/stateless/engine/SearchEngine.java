@@ -569,6 +569,7 @@ public class SearchEngine extends Engine {
     private void processCommitNotifications() {
         AbstractRunnable processCommitNotification = new AbstractRunnable() {
             private final RefCounted finish = AbstractRefCounted.of(this::finish);
+            NewCommitNotification latestNotification;
             int batchSize = 0;
 
             @Override
@@ -579,19 +580,19 @@ public class SearchEngine extends Engine {
 
                 assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
                 final SegmentInfos current = segmentInfosAndCommit.segmentInfos();
-                NewCommitNotification latestNotification = findLatestNotification(current);
+                latestNotification = findLatestNotification(current);
                 if (latestNotification == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
                     return;
                 }
-                StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 if (searchDirectory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
                     return;
                 }
 
+                final var latestCommit = latestNotification.compoundCommit();
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
                 if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
@@ -669,7 +670,11 @@ public class SearchEngine extends Engine {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof AlreadyClosedException == false) {
-                    failEngine("failed to refresh segments", e);
+                    var reason = "failed to refresh segments";
+                    if (latestNotification != null) {
+                        reason += " from commit notification " + latestNotification.toShortDescription();
+                    }
+                    failEngine(reason, e);
                 } else {
                     logger.debug("failed to process commit notification, engine is closed", e);
                 }

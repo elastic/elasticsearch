@@ -32,7 +32,7 @@ import java.util.Set;
  * <p>
  * In {@code FROM idx | ...} this corresponds to the {@code FROM}.
  */
-public class EsRelation extends LeafPlan {
+public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
 

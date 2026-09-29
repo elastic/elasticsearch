@@ -28,9 +28,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -481,10 +481,10 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         var indexObjectStore = getObjectStoreService(indexNode);
         for (var blob : commitsContainer.listBlobs(operationPurpose).entrySet()) {
             var blobName = blob.getKey();
-            if (StatelessCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
                 continue;
             }
-            var generation = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+            var generation = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
             var iterator = indexObjectStore.readBatchedCompoundCommitFromStoreIncrementally(
                 shardId,
                 new PrimaryTermAndGeneration(primaryTerm, generation),

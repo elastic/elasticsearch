@@ -1,0 +1,4 @@
+FROM all_types
+| STATS c = count(*) BY k = long, keyword
+| SORT k NULLS FIRST, keyword
+| LIMIT 10

@@ -227,9 +227,6 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
                 throw new IndexSearcher.TooManyNestedClauses();
             }
             chargeBytesFor(parent);
-            // Ignores subqueries, including a BinaryDocValuesScanCost random-access side (e.g. an IP range query with
-            // both points and binary DV). That side only runs when the points side loses the cost comparison, so
-            // undercharging it here is a known, accepted gap rather than a miss in this estimate.
             return QueryVisitor.EMPTY_VISITOR;
         }
         // Return this instance even for MUST_NOT and not an empty QueryVisitor

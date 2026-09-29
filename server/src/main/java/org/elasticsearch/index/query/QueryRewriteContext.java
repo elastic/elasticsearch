@@ -444,6 +444,10 @@ public class QueryRewriteContext {
         this.allowUnmappedFields = allowUnmappedFields;
     }
 
+    /**
+     * Sets the field visibility predicate for this context.
+     * The default value allows all fields, so contexts requiring restricted visibility must set this before resolving fields.
+     */
     public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
         this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }

@@ -2743,6 +2743,29 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of()));
     }
 
+    public void testLookupJoinConstantKeywordRespectsFieldLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        putConstantKeywordMapping("lookup-user2", "hidden_value");
+
+        String query = "ROW value = 40.0 | LOOKUP JOIN lookup-user2 ON value";
+
+        Response admin = runESQLCommand("test-admin", query);
+        assertOK(admin);
+        EsqlResult adminResult = esqlResult(admin);
+        assertThat(adminResult.values("org"), equalTo(List.of("sales")));
+        assertThat(adminResult.values("test_constant"), equalTo(List.of("hidden_value")));
+
+        Response restricted = runESQLCommand("fls_user2", query);
+        assertOK(restricted);
+        EsqlResult restrictedResult = esqlResult(restricted);
+        assertThat(restrictedResult.values("org"), equalTo(List.of("sales")));
+        assertThat(restrictedResult.columnNames(), not(hasItem("test_constant")));
+    }
+
     public void testFromLookupIndexForbidden() throws Exception {
         var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));

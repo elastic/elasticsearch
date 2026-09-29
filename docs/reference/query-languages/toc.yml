@@ -214,7 +214,10 @@ toc:
                   - file: esql/functions-operators/date-time-functions/date_format.md
                   - file: esql/functions-operators/date-time-functions/date_parse.md
                   - file: esql/functions-operators/date-time-functions/date_trunc.md
+                  - file: esql/functions-operators/date-time-functions/day.md
                   - file: esql/functions-operators/date-time-functions/day_name.md
+                  - file: esql/functions-operators/date-time-functions/hour.md
+                  - file: esql/functions-operators/date-time-functions/month.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
                   - file: esql/functions-operators/date-time-functions/range_max.md
@@ -223,6 +226,7 @@ toc:
                   - file: esql/functions-operators/date-time-functions/range_contains.md
                   - file: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
+                  - file: esql/functions-operators/date-time-functions/year.md
               - file: esql/functions-operators/ip-functions.md
                 children:
                   - file: esql/functions-operators/ip-functions/cidr_match.md

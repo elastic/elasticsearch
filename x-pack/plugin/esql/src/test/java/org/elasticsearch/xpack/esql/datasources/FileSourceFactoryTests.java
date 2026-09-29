@@ -115,7 +115,7 @@ public class FileSourceFactoryTests extends ESTestCase {
     }
 
     /**
-     * {@link FileSourceFactory#validateConfig} is the query-time validator for inline {@code FROM "..." WITH {...}}
+     * {@link FileSourceFactory#validateConfig} is the query-time validator for inline-config
      * queries. It must emit the same value-aware deprecation warning as the CRUD-time path
      * ({@link FileDataSourceValidator#validateDataset}) — inline queries have no CRUD path, so this is the only
      * site that fires for them.
@@ -141,16 +141,19 @@ public class FileSourceFactoryTests extends ESTestCase {
      */
     public void testValidateConfigEmitsBareBudgetWarning() {
         FileSourceFactory factory = newFileSourceFactory();
-        String expectedWarning = "[max_errors] or [max_error_ratio] was set without [error_mode];"
-            + " [skip_row] is in effect -- [fail_fast] is not";
+        String maxErrorsWarning = "[max_errors] set without [error_mode]; skipping rows with errors";
 
-        // bare max_errors — warned
+        // bare max_errors — warned, naming only that key
         factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100"));
-        assertWarnings(expectedWarning);
+        assertWarnings(maxErrorsWarning);
 
-        // bare max_error_ratio — warned
+        // bare max_error_ratio — warned, naming only that key
         factory.validateConfig("s3://bucket/data.parquet", Map.of("max_error_ratio", "0.1"));
-        assertWarnings(expectedWarning);
+        assertWarnings("[max_error_ratio] set without [error_mode]; skipping rows with errors");
+
+        // both — warned, naming both
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100", "max_error_ratio", "0.1"));
+        assertWarnings("[max_errors] and [max_error_ratio] set without [error_mode]; skipping rows with errors");
 
         // explicit mode alongside budget — no warning
         factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100", "error_mode", "skip_row"));
@@ -161,7 +164,7 @@ public class FileSourceFactoryTests extends ESTestCase {
         // The sink variant (what the metadata-read executor calls): warning goes to the caller's sink.
         List<String> sink = new ArrayList<>();
         factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "50"), sink::add);
-        assertEquals(List.of(expectedWarning), sink);
+        assertEquals(List.of(maxErrorsWarning), sink);
     }
 
     private static FileSourceFactory newFileSourceFactory() {

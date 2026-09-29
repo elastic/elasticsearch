@@ -44,6 +44,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     static final TransportVersion FIELD_CAPS_INFERENCE_FIELD = TransportVersion.fromName("field_caps_inference_field");
+    static final TransportVersion FIELD_CAPS_PASSTHROUGH = TransportVersion.fromName("field_caps_passthrough");
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
@@ -58,6 +59,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public static final ParseField NON_INFERENCE_INDICES_FIELD = new ParseField("non_inference_indices");
     public static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     public static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
+    public static final ParseField PASSTHROUGH_FIELD = new ParseField("passthrough");
+    public static final ParseField NON_PASSTHROUGH_INDICES_FIELD = new ParseField("non_passthrough_indices");
 
     private final String name;
     private final String type;
@@ -67,6 +70,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final Boolean isInference;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
+    private final boolean isPassthrough;
 
     private final String[] indices;
     private final String[] nonSearchableIndices;
@@ -74,6 +78,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String[] nonInferenceIndices;
     private final String[] nonDimensionIndices;
     private final String[] metricConflictsIndices;
+    private final String[] nonPassthroughIndices;
 
     private final Map<String, Set<String>> meta;
 
@@ -87,6 +92,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
+     * @param isPassthrough Whether this field is a passthrough object in all indices
      * @param indices The list of indices where this field name is defined as {@code type}.
      *                When {@code includeIndices} is set to {@code false}, this list is only
      *                present if there is a mapping conflict (e.g. the same field has different
@@ -102,6 +108,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                            or null if the field is an inference field in all indices.
      * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param metricConflictsIndices The list of indices where this field is has different metric types or not mark as a metric
+     * @param nonPassthroughIndices The list of indices where this field is not a passthrough object,
+     *                              or null if the field is a passthrough object in all indices or in none of them.
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(
@@ -113,12 +121,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         Boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
+        boolean isPassthrough,
         String[] indices,
         String[] nonSearchableIndices,
         String[] nonAggregatableIndices,
         String[] nonInferenceIndices,
         String[] nonDimensionIndices,
         String[] metricConflictsIndices,
+        String[] nonPassthroughIndices,
         Map<String, Set<String>> meta
     ) {
         this.name = name;
@@ -129,12 +139,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isInference = isInference;
         this.isDimension = isDimension;
         this.metricType = metricType;
+        this.isPassthrough = isPassthrough;
         this.indices = indices;
         this.nonSearchableIndices = nonSearchableIndices;
         this.nonAggregatableIndices = nonAggregatableIndices;
         this.nonInferenceIndices = nonInferenceIndices;
         this.nonDimensionIndices = nonDimensionIndices;
         this.metricConflictsIndices = metricConflictsIndices;
+        this.nonPassthroughIndices = nonPassthroughIndices;
         this.meta = Objects.requireNonNull(meta);
     }
 
@@ -179,10 +191,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isInference,
             false,
             null,
+            false,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
             nonInferenceIndices,
+            null,
             null,
             null,
             meta
@@ -200,6 +214,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
+     * @param isPassthrough Whether this field is a passthrough object in all indices
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
@@ -210,6 +225,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                            or null if the field is an inference field in all indices.
      * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param metricConflictsIndices The list of indices where this field is has different metric types or not mark as a metric
+     * @param nonPassthroughIndices The list of indices where this field is not a passthrough object
      * @param meta Merged metadata across indices.
      */
     @SuppressWarnings("unused")
@@ -223,12 +239,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         Boolean isInference,
         Boolean isDimension,
         String metricType,
+        Boolean isPassthrough,
         List<String> indices,
         List<String> nonSearchableIndices,
         List<String> nonAggregatableIndices,
         List<String> nonInferenceIndices,
         List<String> nonDimensionIndices,
         List<String> metricConflictsIndices,
+        List<String> nonPassthroughIndices,
         Map<String, Set<String>> meta
     ) {
         this(
@@ -240,12 +258,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isInference,
             isDimension == null ? false : isDimension,
             metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
+            isPassthrough == null ? false : isPassthrough,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
             nonInferenceIndices != null ? nonInferenceIndices.toArray(new String[0]) : null,
             nonDimensionIndices != null ? nonDimensionIndices.toArray(new String[0]) : null,
             metricConflictsIndices != null ? metricConflictsIndices.toArray(new String[0]) : null,
+            nonPassthroughIndices != null ? nonPassthroughIndices.toArray(new String[0]) : null,
             meta != null ? meta : Collections.emptyMap()
         );
     }
@@ -271,6 +291,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isInference = null;
             this.nonInferenceIndices = null;
         }
+        if (in.getTransportVersion().supports(FIELD_CAPS_PASSTHROUGH)) {
+            this.isPassthrough = in.readBoolean();
+            this.nonPassthroughIndices = in.readOptionalStringArray();
+        } else {
+            this.isPassthrough = false;
+            this.nonPassthroughIndices = null;
+        }
     }
 
     @Override
@@ -292,6 +319,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalBoolean(isInference);
             out.writeOptionalStringArray(nonInferenceIndices);
         }
+        if (out.getTransportVersion().supports(FIELD_CAPS_PASSTHROUGH)) {
+            out.writeBoolean(isPassthrough);
+            out.writeOptionalStringArray(nonPassthroughIndices);
+        }
     }
 
     @Override
@@ -310,6 +341,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         if (metricType != null) {
             builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
         }
+        if (isPassthrough) {
+            builder.field(PASSTHROUGH_FIELD.getPreferredName(), true);
+        }
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
@@ -327,6 +361,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         if (metricConflictsIndices != null) {
             builder.array(METRIC_CONFLICTS_INDICES_FIELD.getPreferredName(), metricConflictsIndices);
+        }
+        if (nonPassthroughIndices != null) {
+            builder.array(NON_PASSTHROUGH_INDICES_FIELD.getPreferredName(), nonPassthroughIndices);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
@@ -394,6 +431,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
+     * Whether this field is a passthrough object in all indices.
+     */
+    public boolean isPassthrough() {
+        return isPassthrough;
+    }
+
+    /**
      * The type of the field.
      */
     public String getType() {
@@ -447,6 +491,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
+     * The list of indices where this field is not a passthrough object, or null if the field is
+     * a passthrough object in all indices or in none of them.
+     */
+    public String[] nonPassthroughIndices() {
+        return nonPassthroughIndices;
+    }
+
+    /**
      * Return merged metadata across indices.
      */
     public Map<String, Set<String>> meta() {
@@ -464,6 +516,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && Objects.equals(isInference, that.isInference)
             && isDimension == that.isDimension
             && Objects.equals(metricType, that.metricType)
+            && isPassthrough == that.isPassthrough
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Arrays.equals(indices, that.indices)
@@ -472,18 +525,31 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && Arrays.equals(nonInferenceIndices, that.nonInferenceIndices)
             && Arrays.equals(nonDimensionIndices, that.nonDimensionIndices)
             && Arrays.equals(metricConflictsIndices, that.metricConflictsIndices)
+            && Arrays.equals(nonPassthroughIndices, that.nonPassthroughIndices)
             && Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isInference, isDimension, metricType, meta);
+        int result = Objects.hash(
+            name,
+            type,
+            isMetadataField,
+            isSearchable,
+            isAggregatable,
+            isInference,
+            isDimension,
+            metricType,
+            isPassthrough,
+            meta
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
         result = 31 * result + Arrays.hashCode(nonInferenceIndices);
         result = 31 * result + Arrays.hashCode(nonDimensionIndices);
         result = 31 * result + Arrays.hashCode(metricConflictsIndices);
+        result = 31 * result + Arrays.hashCode(nonPassthroughIndices);
         return result;
     }
 
@@ -500,6 +566,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private int aggregatableIndices = 0;
         private int inferenceIndices = 0;
         private int dimensionIndices = 0;
+        private int passthroughIndices = 0;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
         private final List<IndexCaps> indicesList;
@@ -545,6 +612,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean isInference,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
+            boolean isPassthrough,
             Map<String, String> meta
         ) {
             assert assertIndicesSorted(indices);
@@ -561,6 +629,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isDimension) {
                 dimensionIndices += indices.length;
             }
+            if (isPassthrough) {
+                passthroughIndices += indices.length;
+            }
             this.isMetadataField |= isMetadataField;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
             // treat is a non-metric field and report this discrepancy in metricConflictsIndices
@@ -570,7 +641,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 hasConflictMetricType = true;
                 this.metricType = null;
             }
-            indicesList.add(new IndexCaps(indices, search, agg, isInference, isDimension, metricType));
+            indicesList.add(new IndexCaps(indices, search, agg, isInference, isDimension, metricType, isPassthrough));
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
@@ -655,6 +726,22 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 metricConflictsIndices = null;
             }
 
+            // Iff the min transport version supports passthrough reporting, compute the passthrough flag and the list of
+            // non-passthrough indices, following the same approach as for dimensions. Otherwise, suppress both: nodes on
+            // older versions never report passthrough objects, which would otherwise show up as spurious non-passthrough
+            // indices in a mixed-version cluster.
+            final boolean isPassthrough;
+            final String[] nonPassthroughIndices;
+            if (minTransportVersion != null && minTransportVersion.supports(FIELD_CAPS_PASSTHROUGH)) {
+                isPassthrough = passthroughIndices == totalIndices;
+                nonPassthroughIndices = (isPassthrough || passthroughIndices == 0)
+                    ? null
+                    : filterIndices(totalIndices - passthroughIndices, ic -> ic.isPassthrough == false);
+            } else {
+                isPassthrough = false;
+                nonPassthroughIndices = null;
+            }
+
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
             Map<String, Set<String>> immutableMeta = meta.entrySet()
                 .stream()
@@ -668,12 +755,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 isInference,
                 isDimension,
                 metricType,
+                isPassthrough,
                 indices,
                 nonSearchableIndices,
                 nonAggregatableIndices,
                 nonInferenceIndices,
                 nonDimensionIndices,
                 metricConflictsIndices,
+                nonPassthroughIndices,
                 immutableMeta
             );
         }
@@ -685,6 +774,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isAggregatable,
         boolean isInference,
         boolean isDimension,
-        TimeSeriesParams.MetricType metricType
+        TimeSeriesParams.MetricType metricType,
+        boolean isPassthrough
     ) {}
 }

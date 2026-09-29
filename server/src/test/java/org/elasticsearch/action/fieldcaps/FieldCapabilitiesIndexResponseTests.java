@@ -135,6 +135,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 metricType,
+                randomBoolean(),
                 meta
             );
             fieldCaps.put(field, fieldCap);

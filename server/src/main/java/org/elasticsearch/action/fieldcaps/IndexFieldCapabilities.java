@@ -21,12 +21,13 @@ import java.util.Map;
 /**
  * Describes the capabilities of a field in a single index.
  *
- * @param name           The name of the field.
- * @param type           The type associated with the field.
- * @param isSearchable   Whether this field is indexed for search.
- * @param isAggregatable Whether this field can be aggregated on.
- * @param isInference    Whether this field is an inference field.
- * @param meta           Metadata about the field.
+ * @param name                The name of the field.
+ * @param type                The type associated with the field.
+ * @param isSearchable        Whether this field is indexed for search.
+ * @param isAggregatable      Whether this field can be aggregated on.
+ * @param isInference         Whether this field is an inference field.
+ * @param isPassthrough       Whether this field is a passthrough object.
+ * @param meta                Metadata about the field.
  */
 
 public record IndexFieldCapabilities(
@@ -38,6 +39,7 @@ public record IndexFieldCapabilities(
     boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
+    boolean isPassthrough,
     Map<String, String> meta
 ) implements Writeable {
 
@@ -53,6 +55,7 @@ public record IndexFieldCapabilities(
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
         boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
+        boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH) && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
@@ -62,6 +65,7 @@ public record IndexFieldCapabilities(
             isInference,
             isDimension,
             metricType,
+            isPassthrough,
             meta
         );
     }
@@ -78,6 +82,9 @@ public record IndexFieldCapabilities(
         out.writeMap(meta, StreamOutput::writeString);
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)) {
             out.writeBoolean(isInference);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)) {
+            out.writeBoolean(isPassthrough);
         }
     }
 

@@ -1,0 +1,129 @@
+---
+setup:
+  - requires:
+      cluster_features: "field_caps.passthrough"
+      reason: "field_caps flags passthrough objects"
+
+  - do:
+      indices.create:
+        index: passthrough_index1
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 10
+                properties:
+                  host.name:
+                    type: keyword
+              resource:
+                properties:
+                  attributes:
+                    type: passthrough
+                    priority: 20
+                    properties:
+                      host.name:
+                        type: keyword
+              plain:
+                properties:
+                  field:
+                    type: keyword
+
+  # same passthrough objects as passthrough_index1
+  - do:
+      indices.create:
+        index: passthrough_index2
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 10
+                properties:
+                  host.name:
+                    type: keyword
+              resource:
+                properties:
+                  attributes:
+                    type: passthrough
+                    priority: 20
+                    properties:
+                      host.name:
+                        type: keyword
+
+  # resource.attributes is a plain object
+  - do:
+      indices.create:
+        index: passthrough_index3
+        body:
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 10
+                properties:
+                  host.name:
+                    type: keyword
+              resource:
+                properties:
+                  attributes:
+                    properties:
+                      host.name:
+                        type: keyword
+
+---
+"Passthrough objects are flagged":
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: passthrough_index1
+        fields: [ "attributes.*", "resource.*", "plain.*" ]
+
+  - match: { fields.attributes.object.type: object }
+  - match: { fields.attributes.object.passthrough: true }
+  - is_false: fields.attributes.object.non_passthrough_indices
+
+  - match: { fields.resource\.attributes.object.type: object }
+  - match: { fields.resource\.attributes.object.passthrough: true }
+  - is_false: fields.resource\.attributes.object.non_passthrough_indices
+
+  # plain objects, including the parent of a passthrough object, are not flagged
+  - match: { fields.resource.object.type: object }
+  - is_false: fields.resource.object.passthrough
+  - is_false: fields.resource.object.non_passthrough_indices
+
+  - match: { fields.plain.object.type: object }
+  - is_false: fields.plain.object.passthrough
+
+  # sub-fields of passthrough objects are regular fields
+  - match: { fields.attributes\.host\.name.keyword.type: keyword }
+  - is_false: fields.attributes\.host\.name.keyword.passthrough
+
+---
+"Passthrough objects in all indices":
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: passthrough_index1,passthrough_index2
+        fields: [ "attributes.*", "resource.*" ]
+
+  - match: { fields.attributes.object.passthrough: true }
+  - is_false: fields.attributes.object.non_passthrough_indices
+
+  - match: { fields.resource\.attributes.object.passthrough: true }
+  - is_false: fields.resource\.attributes.object.non_passthrough_indices
+
+---
+"Passthrough objects in some indices only":
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: passthrough_index1,passthrough_index2,passthrough_index3
+        fields: [ "attributes.*", "resource.*" ]
+
+  - match: { fields.attributes.object.passthrough: true }
+  - is_false: fields.attributes.object.non_passthrough_indices
+
+  - match: { fields.resource\.attributes.object.type: object }
+  - is_false: fields.resource\.attributes.object.passthrough
+  - match: { fields.resource\.attributes.object.non_passthrough_indices: [ "passthrough_index3" ] }

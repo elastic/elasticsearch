@@ -30,11 +30,18 @@ import java.util.Map;
  * - The max retention which applies to backing and failure indices of data streams that do not have retention or their
  * retention has exceeded this value.
  * - The failures default retention which applied to the failure indices of data streams that do not have retention defined.
+ * </p>
+ * <p>
+ * A flag that when enabled applies the default data stream lifecycle to time series data streams that do not have their own
+ * lifecycle configured; enabled by default. It can be disabled by setting the {@value #DEFAULT_LIFECYCLE_FOR_TIME_SERIES_SETTING_NAME}
+ * setting to false. This setting exists in clusters that also support ILM.
+ * </p>
  */
 public class DataStreamLifecycleSettings {
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleSettings.class);
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
+    public static final String DEFAULT_LIFECYCLE_FOR_TIME_SERIES_SETTING_NAME = "data_streams.lifecycle.enabled_by_default.time_series";
 
     public static final Setting<TimeValue> DATA_STREAMS_DEFAULT_RETENTION_SETTING = Setting.timeSetting(
         "data_streams.lifecycle.retention.default",
@@ -106,6 +113,16 @@ public class DataStreamLifecycleSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * This setting is registered by the ILM plugin to ensure it won't be present in serverless
+     */
+    public static final Setting<Boolean> DEFAULT_LIFECYCLE_FOR_TIME_SERIES_SETTING = Setting.boolSetting(
+        DEFAULT_LIFECYCLE_FOR_TIME_SERIES_SETTING_NAME,
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     @Nullable
     private volatile TimeValue defaultRetention;
     @Nullable
@@ -119,6 +136,7 @@ public class DataStreamLifecycleSettings {
     private volatile DataStreamGlobalRetention dataGlobalRetention;
     @Nullable
     private volatile DataStreamGlobalRetention failuresGlobalRetention;
+    private volatile boolean defaultLifecycleForTimeSeriesEnabled = false;
 
     private DataStreamLifecycleSettings() {
 
@@ -152,7 +170,7 @@ public class DataStreamLifecycleSettings {
      * Creates an instance and initialises the cluster settings listeners
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes
      */
-    public static DataStreamLifecycleSettings create(ClusterSettings clusterSettings) {
+    public static DataStreamLifecycleSettings create(ClusterSettings clusterSettings, Settings settings) {
         DataStreamLifecycleSettings dataStreamLifecycleSettings = new DataStreamLifecycleSettings();
         clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamLifecycleSettings::setDefaultRetention);
         clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamLifecycleSettings::setMaxRetention);
@@ -160,7 +178,17 @@ public class DataStreamLifecycleSettings {
             FAILURE_STORE_DEFAULT_RETENTION_SETTING,
             dataStreamLifecycleSettings::setFailuresDefaultRetention
         );
+        if (DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(settings) == false) {
+            clusterSettings.initializeAndWatchIfRegistered(
+                DEFAULT_LIFECYCLE_FOR_TIME_SERIES_SETTING,
+                dataStreamLifecycleSettings::setDefaultLifecycleForTimeSeries
+            );
+        }
         return dataStreamLifecycleSettings;
+    }
+
+    private void setDefaultLifecycleForTimeSeries(boolean enabled) {
+        defaultLifecycleForTimeSeriesEnabled = enabled;
     }
 
     private void setMaxRetention(TimeValue maxRetention) {
@@ -255,5 +283,13 @@ public class DataStreamLifecycleSettings {
 
     private boolean isGlobalRetentionDefined(boolean failureStore) {
         return getDefaultRetention(failureStore) != null || getMaxRetention() != null;
+    }
+
+    /**
+     * @return true, if time series data streams need to have the default lifecycle applied
+     *              when lifecycle is missing.
+     */
+    public boolean isDefaultLifecycleForTimeSeriesEnabled() {
+        return defaultLifecycleForTimeSeriesEnabled;
     }
 }

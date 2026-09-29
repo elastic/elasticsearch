@@ -99,7 +99,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         doReturn(mapperService).when(indexService).mapperService();
         doReturn(indexService).when(indicesService).createIndex(any(), any(), anyBoolean());
 
-        dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY);
         xContentRegistry = Mockito.mock(NamedXContentRegistry.class);
         templateService = new MetadataIndexTemplateService(
             mock(ClusterService.class),

@@ -102,9 +102,6 @@ tests:
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIntsIT
-  method: test {csv-spec:ints.valuesLongGrouped}
-  issue: https://github.com/elastic/elasticsearch/issues/149905
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
@@ -294,9 +291,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinSame {p0=null}
   issue: https://github.com/elastic/elasticsearch/issues/155665
-- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
-  method: test10ArchiveAutoFormCluster
-  issue: https://github.com/elastic/elasticsearch/issues/155685
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testOutputSupportedTypes {p0=LT}
   issue: https://github.com/elastic/elasticsearch/issues/155694
@@ -412,9 +406,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/157847
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
-  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
-  issue: https://github.com/elastic/elasticsearch/issues/157875
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
   issue: https://github.com/elastic/elasticsearch/issues/157930
@@ -533,12 +524,6 @@ tests:
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
   method: testWeakReferenceReclaimsCanonical
   issue: https://github.com/elastic/elasticsearch/issues/159154
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
-  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
-  issue: https://github.com/elastic/elasticsearch/issues/159460
-- class: org.elasticsearch.index.shard.IndexShardIT
-  method: testNodeWriteLoadsArePresent
-  issue: https://github.com/elastic/elasticsearch/issues/159553
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
@@ -605,9 +590,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecDenseVectorIT
-  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
-  issue: https://github.com/elastic/elasticsearch/issues/159890
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
@@ -684,6 +666,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
   issue: https://github.com/elastic/elasticsearch/issues/160440
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreContainerTests
-  method: testConcurrentWriteBlobAtomicAborted
-  issue: https://github.com/elastic/elasticsearch/issues/160508
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogMasterFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/147835

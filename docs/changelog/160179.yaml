@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160179
+summary: Improve consistency checks for PIT ids
+type: bug

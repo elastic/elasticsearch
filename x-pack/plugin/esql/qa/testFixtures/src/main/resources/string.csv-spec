@@ -1459,6 +1459,40 @@ HelloWorld
 // end::replaceRegex-result[]
 ;
 
+replaceCaptureUntilDelimiter
+// A literal prefix, one capture up to the first delimiter, and anything after
+FROM web_logs
+| EVAL host = REPLACE(uri, "^https?://(?:www\\.)?([^/]+)/.*$", "$1")
+| KEEP uri, host
+| SORT uri
+;
+
+uri:keyword                                                               | host:keyword
+/api/v1/users/123                                                         | /api/v1/users/123
+/app/login?session=expired                                                | /app/login?session=expired
+/status                                                                   | /status
+ftp://user:pass@files.internal/data.zip                                   | ftp://user:pass@files.internal/data.zip
+https://discuss.elastic.co/c/elasticsearch                                | discuss.elastic.co
+https://github.com/elastic/elasticsearch                                  | github.com
+https://www.elastic.co/downloads/elasticsearch                            | elastic.co
+https://www.elastic.co/guide/en/elasticsearch/reference/current/esql.html | elastic.co
+https://www.google.com/search?q=elasticsearch                             | google.com
+https://www.iana.org/domains/reserved                                     | iana.org
+;
+
+replaceCaptureUntilDelimiterAfterFiltering
+FROM web_logs
+| WHERE domain == "www.elastic.co"
+| EVAL host = REPLACE(uri, "^https?://(?:www\\.)?([^/]+)/.*$", "$1")
+| KEEP uri, host
+| SORT uri
+;
+
+uri:keyword                                                               | host:keyword
+https://www.elastic.co/downloads/elasticsearch                            | elastic.co
+https://www.elastic.co/guide/en/elasticsearch/reference/current/esql.html | elastic.co
+;
+
 
 left
 // tag::left[]

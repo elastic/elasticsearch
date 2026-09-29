@@ -27,8 +27,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -56,7 +54,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
@@ -100,9 +97,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-    // TODO to be replaced with proper setting for collection of node and disk stats
-    private final boolean stateless;
+    // Operator-only; registered by StatelessPlugin. Temporary until restore no longer needs disk capacity checks.
+    public static final Setting<Boolean> CLUSTER_INFO_UPDATE_DISK_ENABLED = Setting.boolSetting(
+        "cluster.info.update.disk.enabled",
+        false,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean diskInfoUpdateEnabled;
     private volatile boolean estimatedHeapThresholdEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
@@ -139,7 +142,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         PartitionSizeCollector partitionSizeCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
-        this.stateless = DiscoveryNode.isStateless(settings);
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
@@ -158,6 +160,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatchIfRegistered(CLUSTER_INFO_UPDATE_DISK_ENABLED, this::setDiskInfoUpdateEnabled);
         clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
             this::setEstimatedHeapThresholdEnabled
@@ -171,6 +174,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setDiskInfoUpdateEnabled(boolean diskInfoUpdateEnabled) {
+        this.diskInfoUpdateEnabled = diskInfoUpdateEnabled;
     }
 
     private void setEstimatedHeapThresholdEnabled(boolean estimatedHeapThresholdEnabled) {
@@ -234,8 +241,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
-        private final boolean collectStoreStats = diskThresholdEnabled || stateless;
-        private final boolean collectNodeStats = diskThresholdEnabled || estimatedHeapThresholdEnabled || stateless;
+        private final boolean collectStoreStats = diskThresholdEnabled || diskInfoUpdateEnabled;
+        private final boolean collectNodeStats = diskThresholdEnabled || estimatedHeapThresholdEnabled || diskInfoUpdateEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 

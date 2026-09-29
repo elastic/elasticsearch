@@ -701,6 +701,7 @@ public class StatelessPlugin extends Plugin
         var settings = Settings.builder()
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED.getKey(), true)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
@@ -1324,6 +1325,7 @@ public class StatelessPlugin extends Plugin
             STATELESS_ENABLED,
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
+            InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,

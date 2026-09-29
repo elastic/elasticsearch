@@ -26,6 +26,13 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
 
     protected final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
+    /**
+     * Must return the storage-configuration identity for this object, so that the footer cache
+     * partitions entries by storage configuration. See {@link StorageObject#storageIdentity()}.
+     */
+    @Override
+    public abstract StorageIdentity storageIdentity();
+
     @Override
     public final StorageObjectMetrics metrics() {
         return counters.snapshot();

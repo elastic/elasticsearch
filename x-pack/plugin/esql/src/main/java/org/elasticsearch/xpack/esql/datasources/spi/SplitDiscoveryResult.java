@@ -47,18 +47,35 @@ public record SplitDiscoveryResult(
     // that was planned over rather than the listing resolution happened to hold. Null means "the handed one still
     // stands", which is what every provider that does not list says. Coordinator-local: nothing serializes this.
     @Nullable FileList fileSet,
-    @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+    @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+    // Anything discovery found that the query's author needs told - a partition value the dataset's own type
+    // cannot hold, say. The node log cannot serve that: it is the answer that changed, so it belongs in the
+    // response beside it. Empty for a provider with nothing to report.
+    List<String> warnings
 ) {
 
     public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false, 0L);
 
     /** As the full form, for a provider that reads the file set it was handed. */
     public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned, long cpuNanos) {
-        this(splits, filesScanned, exhaustivelyPruned, cpuNanos, null, null);
+        this(splits, filesScanned, exhaustivelyPruned, cpuNanos, null, null, List.of());
+    }
+
+    /** As the full form, for a provider that discovered its own files and has nothing to warn about. */
+    public SplitDiscoveryResult(
+        List<ExternalSplit> splits,
+        int filesScanned,
+        boolean exhaustivelyPruned,
+        long cpuNanos,
+        @Nullable FileList fileSet,
+        @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+    ) {
+        this(splits, filesScanned, exhaustivelyPruned, cpuNanos, fileSet, schemaMap, List.of());
     }
 
     public SplitDiscoveryResult {
         splits = List.copyOf(splits);
+        warnings = List.copyOf(warnings);
     }
 
     /**

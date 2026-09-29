@@ -162,15 +162,29 @@ public final class SplitDiscoveryPhase {
      *                      listed file sizes for a whole-list fall-through; either way only positive sizes are
      *                      summed
      */
-    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+    public record Result(
+        PhysicalPlan plan,
+        int filesScanned,
+        int splitsScanned,
+        long bytesScanned,
+        long cpuNanos,
+        // What discovery has to tell the query's author, gathered from every relation it resolved. The caller
+        // raises these on the request's own thread context; nothing here can.
+        List<String> warnings
+    ) {
         /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
             this(plan, filesScanned, splitsScanned, bytesScanned, 0L);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of());
         }
     }
 
     /** Mutable accumulator threaded through the recursive walk. */
     private static final class ScanStats {
+        private final List<String> warnings = new ArrayList<>();
         private int filesScanned;
         private int splitsScanned;
         private long bytesScanned;
@@ -256,7 +270,14 @@ public final class SplitDiscoveryPhase {
     ) {
         ScanStats stats = new ScanStats();
         PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, sourceFactories, maxRecordBytes, stats, isCancelled);
-        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
+        return new Result(
+            resolved,
+            stats.filesScanned,
+            stats.splitsScanned,
+            stats.bytesScanned,
+            stats.cpuNanos,
+            List.copyOf(stats.warnings)
+        );
     }
 
     /**
@@ -307,7 +328,16 @@ public final class SplitDiscoveryPhase {
                 stats,
                 isCancelled,
                 executor,
-                l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos))
+                l.map(
+                    resolved -> new Result(
+                        resolved,
+                        stats.filesScanned,
+                        stats.splitsScanned,
+                        stats.bytesScanned,
+                        stats.cpuNanos,
+                        List.copyOf(stats.warnings)
+                    )
+                )
             );
         });
     }
@@ -679,6 +709,7 @@ public final class SplitDiscoveryPhase {
             }
             return exec;
         }
+        stats.warnings.addAll(result.warnings());
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -390,7 +391,22 @@ public class ComputeService {
      * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
      * count rather than the smaller post-coalesce count.
      */
+    /**
+     * Raises what split discovery found onto the response.
+     * <p>
+     * A partition value the dataset's own type cannot hold reads null in the rows a query gets back, and the node
+     * log cannot serve that: it is the answer that changed, so its author is the one who has to hear about it.
+     * Safe to raise here because this runs under the request's restored thread context - the completion listener
+     * wraps it - which is the thing a header warning needs to reach the response at all.
+     */
+    private static void raiseDiscoveryWarnings(SplitDiscoveryPhase.Result result) {
+        for (String warning : result.warnings()) {
+            HeaderWarning.addWarning(warning);
+        }
+    }
+
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
+        raiseDiscoveryWarnings(result);
         if (execInfo != null && result.splitsScanned() > 0) {
             execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }

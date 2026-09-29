@@ -370,6 +370,12 @@ public class FileSplitProvider implements SplitProvider {
      */
     private final NodeWarningThrottle warnings;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
+    /**
+     * What this discovery has to tell the query's author. Held per discovery, like
+     * {@link #splitDiscoveryCpuNanos}: one discovery runs on a provider at a time, and the result is built after
+     * the listing that produces these.
+     */
+    private final AtomicReference<List<String>> discoveryWarnings = new AtomicReference<>(List.of());
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -441,7 +447,8 @@ public class FileSplitProvider implements SplitProvider {
         SplitDiscoveryContext context,
         List<ExternalSplit> splits,
         boolean exhaustivelyPruned,
-        long cpuNanos
+        long cpuNanos,
+        List<String> warnings
     ) {
         return new SplitDiscoveryResult(
             splits,
@@ -449,7 +456,8 @@ public class FileSplitProvider implements SplitProvider {
             exhaustivelyPruned,
             cpuNanos,
             context.fileList(),
-            context.schemaMap()
+            context.schemaMap(),
+            warnings
         );
     }
 
@@ -504,7 +512,7 @@ public class FileSplitProvider implements SplitProvider {
             )
         );
         SplitDiscoveryContext rebound = handed.withScanFileSet(listed);
-        warnIfPartitionValuesDoNotFit(handed, listed, rebound);
+        discoveryWarnings.set(warnIfPartitionValuesDoNotFit(handed, listed, rebound));
         return rebound;
     }
 
@@ -544,16 +552,25 @@ public class FileSplitProvider implements SplitProvider {
      * It describes the dataset rather than the query, so it is written once per dataset and column set per
      * {@link NodeWarningThrottle} window, not on every query that reads the dataset.
      */
-    private void warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
+    private List<String> warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
         PartitionMetadata conformed = rebound.partitionInfo();
         if (conformed == null || conformed.isEmpty()) {
-            return;
+            return List.of();
         }
         PartitionMetadata scanned = listed.partitionMetadata();
         String location = handed.metadata() == null ? "?" : handed.metadata().location();
         if (scanned == null || scanned.isEmpty()) {
+            String response = Strings.format(
+                "the dataset's partition columns %s were detected over a sample of its paths and the full listing "
+                    + "agrees with none of them, so every row reads null for them. Raise [%s], or the dataset has no "
+                    + "partition columns to report.",
+                conformed.partitionColumns().keySet(),
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+            // The node log is throttled; the response is not. Which rows a query answers with is the query's own
+            // business, so it is told every time even when the operator has heard it already this hour.
             if (warnings.firstInWindow(location + "|shares-no-partition-key|" + conformed.partitionColumns().keySet()) == false) {
-                return;
+                return List.of(response);
             }
             // The dataset declares partition columns and the scan's listing detected none, which happens when the
             // paths past the sample do not agree with it on the key set - a detector answers all or nothing. Every
@@ -567,7 +584,7 @@ public class FileSplitProvider implements SplitProvider {
                 conformed.partitionColumns().keySet(),
                 PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
             );
-            return;
+            return List.of(response);
         }
         // One example per column is what a reader needs to find the folder; the walk stops once every column has
         // one, so a dataset whose values all fit pays one pass and a dataset whose values do not pays less.
@@ -590,7 +607,16 @@ public class FileSplitProvider implements SplitProvider {
         }
         // Keyed on the columns rather than the example values: a dataset with many folders that do not fit would
         // otherwise pick a different example on each query and defeat the throttle.
-        if (examples.isEmpty() == false && warnings.firstInWindow(location + "|does-not-fit|" + examples.keySet())) {
+        if (examples.isEmpty()) {
+            return List.of();
+        }
+        String response = Strings.format(
+            "partition values outside the sampled paths do not fit the type the sample produced, so those rows read "
+                + "null for them: %s. Raise [%s] so the type is decided over them.",
+            examples,
+            PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+        );
+        if (warnings.firstInWindow(location + "|does-not-fit|" + examples.keySet())) {
             LOGGER.warn(
                 "[{}]: partition values outside the sampled paths do not fit the type the sample produced, so those "
                     + "files read null for them: {}. Raise [{}] so the type is decided over them.",
@@ -599,6 +625,7 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
             );
         }
+        return List.of(response);
     }
 
     /**
@@ -688,7 +715,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return resultOver(context, List.of(), exhaustivelyPruned, 0L);
+                return resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get());
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -752,7 +779,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return resultOver(context, splits, false, splitDiscoveryCpuNanos.get());
+            return resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -817,7 +844,7 @@ public class FileSplitProvider implements SplitProvider {
             SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(resultOver(context, List.of(), exhaustivelyPruned, 0L));
+                listener.onResponse(resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()));
                 return;
             }
 
@@ -850,7 +877,9 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
-                                completion.onResponse(resultOver(context, splits, false, splitDiscoveryCpuNanos.get()));
+                                completion.onResponse(
+                                    resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get())
+                                );
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }

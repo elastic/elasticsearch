@@ -134,6 +134,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -6078,6 +6079,46 @@ public class FileSplitProviderTests extends ESTestCase {
                 "*do not fit the type the sample produced*"
             )
         );
+    }
+
+    /**
+     * The query's author has to be told, not just the operator. A partition value the sampled type cannot hold
+     * reads null in the rows that come back, and on main the same query returned the value - so the answer
+     * changed. A node-log line throttled to once an hour cannot carry that: whoever ran the query never sees it,
+     * and the nulls look like data.
+     */
+    public void testAValueThatDoesNotFitIsReportedToTheQueryNotJustTheLog() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (String folder : List.of("00", "unknown")) {
+            String objectName = "part-" + folder + ".parquet";
+            payloads.put(objectName, new byte[2000]);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=" + folder + "/" + objectName), 2000, Instant.EPOCH));
+        }
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(prefix, w -> {});
+        ExternalSchema anchorSchema = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchorSchema.attributes(), "parquet", "s3://b/" + "**/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/" + "**/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchorSchema, null, null)),
+            Map.of(),
+            overThePrefix,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        SplitDiscoveryResult result = provider.discoverSplits(handed);
+
+        assertThat("the result carries it, so the response can raise it", result.warnings(), hasSize(1));
+        assertThat(result.warnings().get(0), containsString("hour=unknown"));
+        assertThat(result.warnings().get(0), containsString("partition_sample_size"));
     }
 
     /**

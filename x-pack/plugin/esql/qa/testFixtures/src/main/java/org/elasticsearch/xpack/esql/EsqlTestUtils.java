@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -1680,18 +1681,26 @@ public final class EsqlTestUtils {
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Checks if a query contains any of the specified indices in its source command.
-     * This is useful for determining if a query uses indices that are loaded into both clusters
-     * (like enrich source indices or lookup indices), which may require special handling.
+     * Checks whether the first source command names any of the given indices.
+     * Parenthesized {@code FROM}, {@code TS}, and {@code ROW} subqueries are ignored, so a pipe inside one stays part of
+     * that source command. Enrich and lookup indices named here are loaded into both clusters and need remote-only
+     * patterns.
      *
      * @param query The ESQL query to check
      * @param indicesToCheck Set of index names to check for (case-insensitive)
-     * @return true if the query contains any of the specified indices, false otherwise
+     * @return true if the first source command names any of the given indices, false otherwise
      */
     public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
-        String[] commands = query.split("\\|");
-        // remove subqueries
-        String first = commands[0].split(",\\s+\\(")[0].trim();
+        if (indicesToCheck.isEmpty()) {
+            return false;
+        }
+        SeparatorSplit pipes = splitKeepingSeparators(query, "|");
+        if (pipes.rawParts.isEmpty()) {
+            return false;
+        }
+        // Drop source subqueries before parsing, then drop commas that only separated those subqueries.
+        String first = withoutSourceSubqueries(pipes.rawParts.get(0));
+        first = first.replaceAll(",(\\s*,)+", ",").replaceAll(",\\s*$", "").trim();
         // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
         var setMatcher = SET_SPLIT_PATTERN.matcher(first);
         int lastSetDelimiterPosition = -1;
@@ -1703,7 +1712,12 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            final List<UnresolvedRelation> relations;
+            try {
+                relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            } catch (ParsingException e) {
+                return false;
+            }
             if (relations.isEmpty()) {
                 return false;
             }
@@ -1716,6 +1730,50 @@ public final class EsqlTestUtils {
             }
         }
         return false;
+    }
+
+    /** Removes parenthesized {@code FROM}, {@code TS}, and {@code ROW} subqueries. Other parenthesized text stays. */
+    private static String withoutSourceSubqueries(String input) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < input.length()) {
+            if (input.charAt(i) == '(') {
+                int close = matchingParen(input, i);
+                if (close < 0) {
+                    out.append(input.substring(i));
+                    break;
+                }
+                String inner = input.substring(i + 1, close).strip();
+                if (startsWithCommandKeyword(inner, FROM_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(inner, TS_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(inner, ROW_COMMAND_PATTERN)) {
+                    i = close + 1;
+                    continue;
+                }
+                out.append(input, i, close + 1);
+                i = close + 1;
+                continue;
+            }
+            out.append(input.charAt(i));
+            i++;
+        }
+        return out.toString();
+    }
+
+    private static int matchingParen(String input, int open) {
+        int depth = 0;
+        for (int i = open; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /**

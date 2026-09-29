@@ -245,6 +245,44 @@ public class EsqlTestUtilsTests extends ESTestCase {
             """));
     }
 
+    public void testAddRemoteIndicesFromSubqueryWithInnerPipe() {
+        String query = "FROM (FROM books | EVAL x = 1 | KEEP author), (FROM employees | KEEP emp_no) | SORT author";
+        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("books", "employees")), equalTo(false));
+        assertThat(
+            EsqlTestUtils.addRemoteIndices(query, Set.of("books"), false),
+            equalTo("FROM (FROM *:books | EVAL x = 1 | KEEP author), (FROM *:employees,employees | KEEP emp_no) | SORT author")
+        );
+    }
+
+    public void testAddRemoteIndicesIndexFromSubqueryIndexFromSubquery() {
+        String query = "FROM employees, (FROM books | KEEP author), apps, (FROM sample_data | KEEP client_ip) | KEEP author";
+        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("employees")), equalTo(true));
+        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("apps")), equalTo(true));
+        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("books", "sample_data")), equalTo(false));
+        assertThat(
+            EsqlTestUtils.addRemoteIndices(query, Set.of("books"), false),
+            equalTo(
+                "FROM *:employees,employees, (FROM *:books | KEEP author), *:apps,apps,"
+                    + " (FROM *:sample_data,sample_data | KEEP client_ip) | KEEP author"
+            )
+        );
+    }
+
+    public void testAddRemoteIndicesInSubqueryWithInnerPipe() {
+        String query = "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | KEEP emp_no) | KEEP emp_no";
+        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("employees")), equalTo(true));
+        assertThat(
+            EsqlTestUtils.addRemoteIndices(query, Set.of("other"), false),
+            equalTo(
+                "FROM *:employees,employees | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no | KEEP emp_no) | KEEP emp_no"
+            )
+        );
+        assertThat(
+            EsqlTestUtils.addRemoteIndices(query, Set.of("employees"), false),
+            equalTo("FROM *:employees | WHERE emp_no IN (FROM *:employees | SORT emp_no | KEEP emp_no) | KEEP emp_no")
+        );
+    }
+
     public void testTripleQuotes() {
         assertThat(
             EsqlTestUtils.addRemoteIndices("from \"\"\"employees\"\"\" | limit 2", Set.of(), false),

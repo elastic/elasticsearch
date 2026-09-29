@@ -369,7 +369,6 @@ public class LocalExecutionPlanner {
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
             new Holder<>(),
-            new Holder<>(),
             singleNodeOptimizations
         );
 
@@ -2490,7 +2489,6 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
-        context.lastVisitedLimit.set(limit);
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
@@ -2747,7 +2745,6 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
-        Holder<LimitExec> lastVisitedLimit,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
         boolean singleNodeOptimizations
     ) {

@@ -642,6 +642,15 @@ public final class SplitDiscoveryPhase {
         ScanStats stats,
         FileList fileList
     ) {
+        // A provider that discovered its own files says so here. Until this is applied the plan still holds the
+        // listing resolution had - a prefix - and the fall-through below reads it as though it were the dataset.
+        if (result.fileSet() != null) {
+            exec = exec.withFileList(result.fileSet());
+            fileList = result.fileSet();
+            if (result.schemaMap() != null) {
+                exec = exec.withSchemaMap(result.schemaMap());
+            }
+        }
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see

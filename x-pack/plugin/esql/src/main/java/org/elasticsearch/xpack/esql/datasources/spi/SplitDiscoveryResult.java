@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+
 import java.util.List;
+import java.util.Map;
 
 /**
  * Result of {@link SplitProvider#discoverSplits}: the discovered splits plus the post-prune
@@ -33,9 +37,25 @@ import java.util.List;
  * <p>{@code cpuNanos} is the CPU time (excluding IO wait) consumed by the split discovery phase,
  * accumulated across all files and any background threads. Zero when not measured or not supported.
  */
-public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned, long cpuNanos) {
+public record SplitDiscoveryResult(
+    List<ExternalSplit> splits,
+    int filesScanned,
+    boolean exhaustivelyPruned,
+    long cpuNanos,
+    // The files this discovery actually resolved, when they are not the ones it was handed, and the per-file read
+    // contracts over them. A provider that discovers its own file set returns it here so the plan carries the set
+    // that was planned over rather than the listing resolution happened to hold. Null means "the handed one still
+    // stands", which is what every provider that does not list says. Coordinator-local: nothing serializes this.
+    @Nullable FileList fileSet,
+    @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+) {
 
     public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false, 0L);
+
+    /** As the full form, for a provider that reads the file set it was handed. */
+    public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned, long cpuNanos) {
+        this(splits, filesScanned, exhaustivelyPruned, cpuNanos, null, null);
+    }
 
     public SplitDiscoveryResult {
         splits = List.copyOf(splits);

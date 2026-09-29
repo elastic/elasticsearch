@@ -77,6 +77,29 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         }
     }
 
+    /**
+     * A provider that discovered its own files must have that set reach the plan, even when it produced no splits.
+     * The empty-but-not-exhaustively-pruned result falls through to reading the plan's file list as the whole
+     * dataset - so if the plan still holds the prefix resolution had, that read is of part of a dataset, and the
+     * scanned counts describe the wrong set too.
+     */
+    public void testANonExhaustiveEmptyResultReadsTheDiscoveredSetNotTheHandedOne() {
+        FileList handed = createFileList(1);
+        FileList discovered = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(handed, "parquet");
+        SplitProvider discovers = context -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, Map.of());
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            Map.of("parquet", testFactory(discovers)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
+        assertEquals("the plan carries the set that was planned over", 3, resolved.fileList().fileCount());
+        assertEquals("and the fall-through counts that set, not the prefix", 3, result.filesScanned());
+    }
+
     public void testNoExternalSourceUnchanged() {
         PhysicalPlan leaf = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
         LimitExec limit = new LimitExec(SRC, leaf, new Literal(SRC, 10, DataType.INTEGER), null);

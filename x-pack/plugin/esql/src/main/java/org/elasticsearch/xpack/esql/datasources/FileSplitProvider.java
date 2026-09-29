@@ -429,6 +429,24 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * A result that names the file set it was planned over.
+     * <p>
+     * When this provider discovered its own files, the plan is still holding the listing resolution had - a prefix
+     * of the dataset. Anything downstream that reads the plan's file list rather than the splits would then read
+     * part of the dataset: the zero-split fall-through does exactly that, and the scanned counts are folded over
+     * it. Carrying the set back is what keeps those honest.
+     */
+    private static SplitDiscoveryResult resultOver(
+        SplitDiscoveryContext context,
+        List<ExternalSplit> splits,
+        int filesScanned,
+        boolean exhaustivelyPruned,
+        long cpuNanos
+    ) {
+        return new SplitDiscoveryResult(splits, filesScanned, exhaustivelyPruned, cpuNanos, context.fileList(), context.schemaMap());
+    }
+
+    /**
      * The files this query must read. Resolution lists a dataset for the schema, which under some modes is a prefix
      * of it and under others the whole of it; when what it established does not cover the query's needs, this
      * discovers the rest for itself, with the query's own filters applied.
@@ -638,7 +656,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L);
+                return resultOver(context, List.of(), 0, exhaustivelyPruned, 0L);
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -702,7 +720,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, survivorCount, false, splitDiscoveryCpuNanos.get());
+            return resultOver(context, splits, survivorCount, false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -767,7 +785,7 @@ public class FileSplitProvider implements SplitProvider {
             SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L));
+                listener.onResponse(resultOver(context, List.of(), 0, exhaustivelyPruned, 0L));
                 return;
             }
 
@@ -800,7 +818,7 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
-                                completion.onResponse(new SplitDiscoveryResult(splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
+                                completion.onResponse(resultOver(context, splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }

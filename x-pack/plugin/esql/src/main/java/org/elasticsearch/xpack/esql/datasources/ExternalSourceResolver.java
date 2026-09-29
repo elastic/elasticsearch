@@ -721,6 +721,19 @@ public class ExternalSourceResolver {
      * where it was: the PUT-time validator and the data-node operator factory.
      */
     /**
+     * The identities of every participant that decides what a cached record about this object holds, folded into the
+     * one component a key carries: what the storage provider says identifies the object, what the format reader says
+     * identifies its own configuration, and what the coordinator says identifies its own.
+     * <p>
+     * Folded here rather than in the key, because none of the three is the cache's to derive. The key used to derive
+     * all of it — a hand-written list of twenty-five setting names for the format and coordinator halves, and two
+     * string literals for the storage half, which named nothing for a provider addressed by an account.
+     */
+    private String cacheIdentity(String objectName, String storageIdentity, Map<String, Object> config) {
+        return Configured.fold(storageIdentity, formatConfigIdentity(objectName, config), FileSourceFactory.coordinatorIdentity(config));
+    }
+
+    /**
      * The identity of the format configuration, as the reader that will parse this object derives it.
      * <p>
      * Asked rather than computed here. Only the reader knows which of its settings change what it produces,
@@ -979,6 +992,7 @@ public class ExternalSourceResolver {
                     storagePath.toString(),
                     meta.mtimeMillis(),
                     formatType,
+                    cacheIdentity(storagePath.objectName(), storageIdentity, storageConfig(fileConfig)),
                     storageConfig(fileConfig)
                 );
                 SourceStatistics[] computedStatistics = new SourceStatistics[1];
@@ -1082,7 +1096,15 @@ public class ExternalSourceResolver {
                 FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
+                resolveMultiFileWithReconciliation(
+                    listing,
+                    storageIdentity,
+                    fileConfig,
+                    schemaResolution,
+                    cacheable,
+                    datasetFormat,
+                    listener
+                );
                 return;
             }
 
@@ -1104,6 +1126,7 @@ public class ExternalSourceResolver {
                 anchorMetadata -> completeFirstFileWins(
                     anchorMetadata,
                     finalListing,
+                    storageIdentity,
                     fileConfig,
                     declaredMapping,
                     demand,
@@ -1119,6 +1142,7 @@ public class ExternalSourceResolver {
                 cachedResolveSingleSourceAsync(
                     anchorPath,
                     anchorHint,
+                    storageIdentity,
                     fileConfig,
                     anchorListener.map(meta -> (ExternalSourceMetadata) meta)
                 );
@@ -1143,6 +1167,7 @@ public class ExternalSourceResolver {
     private void completeFirstFileWins(
         ExternalSourceMetadata anchorMetadata,
         FileList listing,
+        String storageIdentity,
         Map<String, Object> config,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
@@ -1180,7 +1205,7 @@ public class ExternalSourceResolver {
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
-                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
+                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, storageIdentity, config, cacheable);
                 // Filled by the gather below, before this listener runs.
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
                 Map<StoragePath, Map<String, DataType>> ffwInferredTypes = new HashMap<>();
@@ -1195,7 +1220,13 @@ public class ExternalSourceResolver {
                             config
                         );
                         listener.onResponse(
-                            finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config, ffwInferredTypes)
+                            finishFirstFileWins(
+                                listing,
+                                applyFirstFileWinsAggregatedStats(base, effective),
+                                storageIdentity,
+                                config,
+                                ffwInferredTypes
+                            )
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -1204,6 +1235,7 @@ public class ExternalSourceResolver {
                 if (cacheable) {
                     readAndAggregateAllFileStatsWithCache(
                         listing,
+                        storageIdentity,
                         config,
                         implicitNulls,
                         declaredTypeColumns,
@@ -1214,6 +1246,7 @@ public class ExternalSourceResolver {
                 } else {
                     readAndAggregateAllFileStats(
                         listing,
+                        storageIdentity,
                         config,
                         implicitNulls,
                         declaredTypeColumns,
@@ -1229,9 +1262,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config, Map.of()));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), storageIdentity, config, Map.of()));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base, config, Map.of()));
+                listener.onResponse(finishFirstFileWins(listing, base, storageIdentity, config, Map.of()));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1319,6 +1352,7 @@ public class ExternalSourceResolver {
     private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
+        String storageIdentity,
         Map<String, Object> config,
         Map<StoragePath, Map<String, DataType>> inferredTypesByPath
     ) {
@@ -1360,7 +1394,7 @@ public class ExternalSourceResolver {
                 // one-file listing, on the anchor metadata). That per-file harvest is what split
                 // discovery uses to skip a second footer open when readableUnitCount is 1.
                 StoragePath path = listing.path(i);
-                SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), config);
+                SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), storageIdentity, config);
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
                 if (inferred == null) {
                     inferred = inferredTypesFromCache(cached);
@@ -1437,11 +1471,22 @@ public class ExternalSourceResolver {
     }
 
     @Nullable
-    private SchemaCacheEntry schemaCacheEntry(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+    private SchemaCacheEntry schemaCacheEntry(
+        StoragePath path,
+        long mtimeMillis,
+        String storageIdentity,
+        @Nullable Map<String, Object> config
+    ) {
         if (cacheService == null || cacheService.isEnabled() == false) {
             return null;
         }
-        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path, config), storageConfig(config));
+        SchemaCacheKey key = SchemaCacheKey.build(
+            path.toString(),
+            mtimeMillis,
+            detectFormatType(path, config),
+            cacheIdentity(path.objectName(), storageIdentity, storageConfig(config)),
+            storageConfig(config)
+        );
         return cacheService.getSchemaIfPresent(key);
     }
 
@@ -1846,7 +1891,7 @@ public class ExternalSourceResolver {
      * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
-    SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
+    SchemaCacheKey datasetAggregateKey(FileList listing, String storageIdentity, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -1854,7 +1899,13 @@ public class ExternalSourceResolver {
         if (format == null) {
             return null;
         }
-        return SchemaCacheKey.forDatasetAggregate(listing.originalPattern(), listing.fileSetFingerprint(), format, storageConfig(config));
+        return SchemaCacheKey.forDatasetAggregate(
+            listing.originalPattern(),
+            listing.fileSetFingerprint(),
+            format,
+            cacheIdentity(listing.path(0).objectName(), storageIdentity, storageConfig(config)),
+            storageConfig(config)
+        );
     }
 
     /**
@@ -1907,8 +1958,13 @@ public class ExternalSourceResolver {
      */
     record DatasetAggregatePrefetch(@Nullable SchemaCacheKey key, @Nullable Map<String, Object> prefetched) {}
 
-    private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
-        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config) : null;
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(
+        FileList listing,
+        String storageIdentity,
+        Map<String, Object> config,
+        boolean cacheable
+    ) {
+        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, storageIdentity, config) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -2016,6 +2072,7 @@ public class ExternalSourceResolver {
 
     private void resolveMultiFileWithReconciliation(
         FileList fileList,
+        String storageIdentity,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
@@ -2023,8 +2080,8 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
-        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
-        readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
+        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, storageIdentity, config, cacheable);
+        readAllFileMetadata(fileList, storageIdentity, config, cacheable, ActionListener.wrap(allMetadata -> {
             try {
                 long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
                 LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
@@ -2189,12 +2246,13 @@ public class ExternalSourceResolver {
      */
     private void readAllFileMetadata(
         FileList fileList,
+        String storageIdentity,
         Map<String, Object> config,
         boolean cacheable,
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, config, cacheable, ActionListener.wrap(perFile -> {
+        gatherPerFile(fileList, storageIdentity, config, cacheable, ActionListener.wrap(perFile -> {
             Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
             for (int i = 0; i < fileCount; i++) {
                 result.put(fileList.path(i), perFile.get(i));
@@ -2215,6 +2273,7 @@ public class ExternalSourceResolver {
      */
     private void gatherPerFile(
         FileList fileList,
+        String storageIdentity,
         Map<String, Object> config,
         boolean cacheable,
         ActionListener<List<SourceMetadata>> listener
@@ -2247,7 +2306,7 @@ public class ExternalSourceResolver {
                 // footer read.
                 ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
                 if (cacheable) {
-                    cachedResolveSingleSourceAsync(filePath, hint, config, itemListener);
+                    cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, config, itemListener);
                 } else {
                     resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
                 }
@@ -2282,11 +2341,18 @@ public class ExternalSourceResolver {
     private void cachedResolveSingleSourceAsync(
         StoragePath filePath,
         ListingHint hint,
+        String storageIdentity,
         Map<String, Object> config,
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath, config);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(
+            filePath.toString(),
+            hint.lastModifiedMillis(),
+            formatType,
+            cacheIdentity(filePath.objectName(), storageIdentity, storageConfig(config)),
+            storageConfig(config)
+        );
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             pendingMetadataWarnings.addAll(cached.warnings());
@@ -2738,6 +2804,7 @@ public class ExternalSourceResolver {
      */
     private void readAndAggregateAllFileStats(
         FileList listing,
+        String storageIdentity,
         Map<String, Object> config,
         boolean implicitNulls,
         Set<String> declaredTypeColumns,
@@ -2745,7 +2812,7 @@ public class ExternalSourceResolver {
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
@@ -2809,6 +2876,7 @@ public class ExternalSourceResolver {
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
+        String storageIdentity,
         Map<String, Object> config,
         boolean implicitNulls,
         Set<String> declaredTypeColumns,
@@ -2816,7 +2884,7 @@ public class ExternalSourceResolver {
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
@@ -3551,11 +3619,12 @@ public class ExternalSourceResolver {
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
         long mtimeMillis = meta.mtimeMillis();
-        rejectStrictColumnarUncoercibleTypes(sourceType, provider, storagePath, mtimeMillis, config, declaredMapping);
+        rejectStrictColumnarUncoercibleTypes(sourceType, provider, storageIdentity, storagePath, mtimeMillis, config, declaredMapping);
         ExternalSourceMetadata extMetadata = strictSingleFileMetadata(
             path,
             storagePath,
             provider,
+            storageIdentity,
             config,
             declaredMapping,
             logicalSchema,
@@ -3647,6 +3716,7 @@ public class ExternalSourceResolver {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
         List<Attribute> logicalSchema,
@@ -3655,7 +3725,13 @@ public class ExternalSourceResolver {
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
             String formatType = detectFormatType(storagePath, config) + STRICT_DECLARED_SCHEMA_MARKER;
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(
+                storagePath.toString(),
+                mtimeMillis,
+                formatType,
+                cacheIdentity(storagePath.objectName(), storageIdentity, storageConfig(config)),
+                storageConfig(config)
+            );
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
             // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
@@ -3808,6 +3884,7 @@ public class ExternalSourceResolver {
             rejectStrictColumnarUncoercibleTypes(
                 sourceType,
                 provider,
+                storageIdentity,
                 listing.path(0),
                 listing.lastModifiedMillis(0),
                 config,
@@ -3927,6 +4004,7 @@ public class ExternalSourceResolver {
     private void rejectStrictColumnarUncoercibleTypes(
         String sourceType,
         StorageProvider provider,
+        String storageIdentity,
         StoragePath anchor,
         long anchorMtime,
         Map<String, Object> config,
@@ -3939,7 +4017,7 @@ public class ExternalSourceResolver {
             return;
         }
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, config)
+            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, config)
             : resolveSingleSource(anchor.toString(), config)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
     }
@@ -4221,9 +4299,16 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);
     }
 
-    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
+    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, String storageIdentity, Map<String, Object> config)
+        throws Exception {
         String formatType = detectFormatType(filePath, config);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, storageConfig(config));
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(
+            filePath.toString(),
+            mtime,
+            formatType,
+            cacheIdentity(filePath.objectName(), storageIdentity, storageConfig(config)),
+            storageConfig(config)
+        );
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,
             k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))

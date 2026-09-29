@@ -30,9 +30,7 @@ public record SchemaCacheKey(
     String canonicalPath,
     long lastModifiedEpochMillis,
     String formatType,
-    String formatConfig,
-    String endpoint,
-    String region,
+    String identity,
     @Nullable FileSetFingerprint fileSetFingerprint,
     String definitionVersion
 ) {
@@ -113,19 +111,14 @@ public record SchemaCacheKey(
         return v instanceof String s ? s : "";
     }
 
-    public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        EndpointRegion location = EndpointRegion.of(config);
-        String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(
-            canonicalPath,
-            mtime,
-            formatType != null ? formatType : "",
-            formatConfig,
-            location.endpoint(),
-            location.region(),
-            null,
-            definitionVersionOf(config)
-        );
+    /**
+     * @param identity the folded identities of the participants that decide what a record about this file holds:
+     *                 what the storage provider says identifies the object, what the format reader says identifies
+     *                 its own configuration, and what the coordinator says identifies its own. This key used to
+     *                 derive all three itself, from a list of setting names it did not own and two string literals.
+     */
+    public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, String identity, Map<String, Object> config) {
+        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", identity, null, definitionVersionOf(config));
     }
 
     /**
@@ -180,24 +173,15 @@ public record SchemaCacheKey(
         String pattern,
         FileSetFingerprint fingerprint,
         String sourceType,
+        String identity,
         Map<String, Object> config
     ) {
         // A dataset key is identified two ways — the marker suffix on formatType and a non-null
         // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
-        EndpointRegion location = EndpointRegion.of(config);
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(
-            pattern == null ? "" : pattern,
-            0L,
-            formatType,
-            buildFormatConfig(config),
-            location.endpoint(),
-            location.region(),
-            fingerprint,
-            definitionVersionOf(config)
-        );
+        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, identity, fingerprint, definitionVersionOf(config));
     }
 
     /**

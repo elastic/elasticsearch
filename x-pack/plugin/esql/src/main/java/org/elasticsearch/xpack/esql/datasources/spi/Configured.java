@@ -114,6 +114,19 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
         return out.toString();
     }
 
+    /**
+     * The identities of several participants as one value. Each is length-prefixed, so no pair of triples folds to
+     * one string however the parts are spelled — a participant's value is user-influenced, and two keys colliding
+     * here is a wrong answer rather than a slow query.
+     */
+    public static String fold(String... identities) {
+        StringBuilder out = new StringBuilder();
+        for (String identity : identities) {
+            appendLengthPrefixed(out, identity);
+        }
+        return out.toString();
+    }
+
     /** A null value is distinguishable from an empty one, so an absent setting cannot imitate a blank. */
     private static void appendLengthPrefixed(StringBuilder out, String value) {
         if (value == null) {

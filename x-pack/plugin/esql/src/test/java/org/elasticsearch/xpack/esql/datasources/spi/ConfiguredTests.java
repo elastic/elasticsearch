@@ -57,4 +57,18 @@ public class ConfiguredTests extends ESTestCase {
         assertEquals("v", result.value());
         assertThat(result.consumedKeys(), empty());
     }
+
+    /**
+     * Three participants' identities become one key component, so the fold must be injective: if two different
+     * triples could produce one value, two reads that differ would share a record. Each part is length-prefixed,
+     * so a part that happens to contain the prefix syntax cannot imitate a boundary.
+     */
+    public void testFoldingIdentitiesCannotCollide() {
+        assertNotEquals(Configured.fold("a", "bc", ""), Configured.fold("ab", "c", ""));
+        assertNotEquals(Configured.fold("", "a", "bc"), Configured.fold("", "ab", "c"));
+        assertNotEquals(Configured.fold("1:a", "", ""), Configured.fold("", "a", ""));
+        assertNotEquals(Configured.fold("a", "", ""), Configured.fold("", "", "a"));
+        assertEquals(Configured.fold("a", "b", "c"), Configured.fold("a", "b", "c"));
+        assertNotEquals("an absent part is not an empty one", Configured.fold("a", null, "c"), Configured.fold("a", "", "c"));
+    }
 }

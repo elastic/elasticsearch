@@ -251,7 +251,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             )
         ).build();
         DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
-        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null, 0);
+        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
             .setStage(RecoveryState.Stage.INDEX)

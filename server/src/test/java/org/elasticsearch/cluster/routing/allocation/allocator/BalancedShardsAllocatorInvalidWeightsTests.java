@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -95,7 +96,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
             final int numberOfNodes = randomIntBetween(3, 5);
             final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), numberOfNodes, numberOfNodes);
-            final var negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
+            final var negativeDecision = randomFrom(TestAllocationDecisions.NO_DECISION, TestAllocationDecisions.NOT_PREFERRED_DECISION);
             final var nodeToMoveShardOff = randomFrom(
                 clusterState.nodes()
                     .getAllNodes()

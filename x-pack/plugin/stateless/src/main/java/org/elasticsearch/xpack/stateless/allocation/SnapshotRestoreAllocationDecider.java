@@ -36,15 +36,12 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
             return Decision.YES;
         }
-        // Simulation cannot wait for external information. Prefer a node with known capacity, but allow a tentative
-        // target until information arrives. Reconciliation must wait: NO there can fail an API restore permanently.
-        // Alternative: when the snapshot size is unknown, StatelessExistingShardsAllocator could defer the whole shard
-        // before simulation with removeAndIgnore(NO_ATTEMPT), since no candidate can be evaluated without that size.
-        // InternalSnapshotsInfoService already requests a reroute when the size arrives; the next allocation round would
-        // then let the shard proceed. Candidate-specific disk information and capacity checks would remain in this decider.
+        // Unknown size (null) is deferred by StatelessExistingShardsAllocator. A failed size fetch and missing disk
+        // stats cannot be evaluated per node: NOT_PREFERRED in simulation still allows a tentative desired
+        // assignment; THROTTLE in reconciliation avoids RestoreService failing the API restore on DECIDERS_NO.
         Decision missingInformationDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
         Long size = allocation.snapshotShardSizeInfo().getShardSize(shard);
-        if (size == null || size < 0) {
+        if (size == null || size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             return allocation.decision(missingInformationDecision, NAME, "snapshot shard size is unavailable");
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());

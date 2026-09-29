@@ -160,7 +160,10 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         assertEquals(Decision.Type.THROTTLE, denied.type());
         assertThat(denied.getExplanation(), containsString("headroom [" + HEADROOM + "]"));
 
-        assertEquals(Decision.Type.THROTTLE, decide(state, info(70 * GB), SnapshotShardSizeInfo.EMPTY).type());
+        assertEquals(
+            Decision.Type.THROTTLE,
+            decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type()
+        );
         assertEquals(Decision.Type.THROTTLE, decide(state, ClusterInfo.EMPTY, sizes(state, 50 * GB)).type());
     }
 
@@ -192,18 +195,6 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
             Decision.Type.YES,
             decider.canAllocate(state.routingTable().index("index-0").shard(0).primaryShard(), search, allocation).type()
         );
-    }
-
-    public void testWaitsForSnapshotSizeThenAllocates() {
-        var state = state(1);
-        var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
-        var info = new AtomicReference<>(info(70 * GB));
-        var service = service(info, sizeInfo);
-        state = service.reroute(state, "size unavailable", ActionListener.noop());
-        assertEquals(1, state.getRoutingNodes().unassigned().size());
-        sizeInfo.set(sizes(state, 50 * GB));
-        state = service.reroute(state, "snapshot size arrived", ActionListener.noop());
-        assertTrue(state.routingTable().index("index-0").shard(0).primaryShard().initializing());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -510,7 +511,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     if (node.node().equals(throttledNode)) {
                         return Decision.THROTTLE;
                     }
-                    return Decision.NOT_PREFERRED;
+                    return TestAllocationDecisions.NOT_PREFERRED_DECISION;
                 }
             }))
         );
@@ -533,9 +534,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     if (node.node().equals(notPreferredNode)) {
-                        return Decision.NOT_PREFERRED;
+                        return TestAllocationDecisions.NOT_PREFERRED_DECISION;
                     }
-                    return Decision.NO;
+                    return TestAllocationDecisions.NO_DECISION;
                 }
             }))
         );
@@ -589,7 +590,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     private static AllocationDeciders notPreferredAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(new TestAllocateDecision(Decision.NOT_PREFERRED), new SameShardAllocationDecider(createBuiltInClusterSettings()))
+            Arrays.asList(
+                new TestAllocateDecision(TestAllocationDecisions.NOT_PREFERRED_DECISION),
+                new SameShardAllocationDecider(createBuiltInClusterSettings())
+            )
         );
     }
 

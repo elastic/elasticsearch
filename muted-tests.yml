@@ -74,18 +74,12 @@ tests:
 - class: org.elasticsearch.common.util.BigArraysTests
   method: testByteArrayBulkGet
   issue: https://github.com/elastic/elasticsearch/issues/154778
-- class: org.elasticsearch.packaging.test.KeystoreManagementTests
-  method: test50CreateKeystoreManually
-  issue: https://github.com/elastic/elasticsearch/issues/155335
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
-- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
-  method: testOverflowInGroupingProducesNullAndWarning
-  issue: https://github.com/elastic/elasticsearch/issues/156070
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156079
@@ -204,6 +198,11 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/146955
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   issue: https://github.com/elastic/elasticsearch/issues/160421
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/160523
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceTrue
+  issue: https://github.com/elastic/elasticsearch/issues/160597
 
 # Examples:
 #

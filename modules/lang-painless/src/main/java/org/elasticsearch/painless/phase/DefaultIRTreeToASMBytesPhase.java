@@ -627,25 +627,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
     }
 
-    /**
-     * Loads a reference capture. {@code #scriptThis} is only a variable when cancellation or tracking defined it; a reference
-     * that captures the script for a {@code @script_aware} target without either loads {@code this} instead.
-     */
-    private static void writeCapture(WriteScope writeScope, MethodWriter methodWriter, String captureName) {
-        Variable captureVariable = writeScope.getVariable(captureName);
-        if (captureVariable == null && "#scriptThis".equals(captureName)) {
-            writeInstanceScriptCapture(writeScope, methodWriter);
-        } else {
-            methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
-        }
-    }
-
-    /** The type of a reference capture, {@code Object} for a {@code #scriptThis} loaded as {@code this}. */
-    private static Class<?> captureType(WriteScope writeScope, String captureName) {
-        Variable captureVariable = writeScope.getVariable(captureName);
-        return captureVariable == null ? Object.class : captureVariable.getType();
-    }
-
     @Override
     public void visitField(FieldNode irFieldNode, WriteScope writeScope) {
         int access = ClassWriter.buildAccess(irFieldNode.getDecorationValue(IRDModifiers.class), true);
@@ -1870,10 +1851,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (captureNames != null) {
             for (String captureName : captureNames) {
-                writeCapture(writeScope, methodWriter, captureName);
+                Variable captureVariable = writeScope.getVariable(captureName);
+                methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
 
-                if (captureBox && "#scriptThis".equals(captureName) == false) {
-                    methodWriter.box(writeScope.getVariable(captureName).getAsmType());
+                if (captureBox) {
+                    methodWriter.box(captureVariable.getAsmType());
                     captureBox = false;
                 }
             }
@@ -1902,12 +1884,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (captureNames != null) {
             for (String captureName : captureNames) {
-                writeCapture(writeScope, methodWriter, captureName);
+                Variable captureVariable = writeScope.getVariable(captureName);
+                methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
 
                 // captureBox boxes the captured receiver of a bound reference. The synthetic #scriptThis capture (prepended
                 // for an allocation charge) is never boxed, so skip it and box the receiver that follows.
                 if (captureBox && "#scriptThis".equals(captureName) == false) {
-                    methodWriter.box(writeScope.getVariable(captureName).getAsmType());
+                    methodWriter.box(captureVariable.getAsmType());
                     captureBox = false;
                 }
             }
@@ -2274,7 +2257,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 capturedCount += captureNames.size();
 
                 for (String captureName : captureNames) {
-                    typeParameters.add(captureType(writeScope, captureName));
+                    Variable captureVariable = writeScope.getVariable(captureName);
+                    typeParameters.add(captureVariable.getType());
                 }
             }
         }

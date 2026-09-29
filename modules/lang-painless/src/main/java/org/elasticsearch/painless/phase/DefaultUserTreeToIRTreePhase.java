@@ -1519,6 +1519,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userLambdaNode, new IRNodeDecoration(irExpressionNode));
     }
 
+    /** The variable a reference captures the script from: {@code #scriptThis} when cancellation or tracking defined it, else {@code this}. */
+    private static String scriptCaptureName(ScriptScope scriptScope) {
+        boolean scriptThisDefined = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+            || scriptScope.getScriptClassInfo().supportsCancellation();
+        return scriptThisDefined ? "#scriptThis" : "#this";
+    }
+
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, ScriptScope scriptScope) {
         ExpressionNode irReferenceNode;
@@ -1543,7 +1550,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (encoding.isStatic == false && encoding.numCaptures == 2 && capturesDecoration != null) {
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
-                captureNames.add("#scriptThis");
+                captureNames.add(scriptCaptureName(scriptScope));
                 defInterfaceReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
                 dynamicChargeAllocation = true;
             }
@@ -1561,7 +1568,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, userFunctionRefNode.getMethodName())) {
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
-                captureNames.add("#scriptThis");
+                captureNames.add(scriptCaptureName(scriptScope));
                 typedCaptureReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
                 typedCaptureReferenceNode.attachCondition(IRCScriptAware.class);
                 if (tracking) {

@@ -215,8 +215,7 @@ public class AllocationDeciders {
             Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                assert decision.type() == Decision.Type.YES || decision.type() == Decision.Type.THROTTLE || decision.label() != null
-                    : decider.getClass().getSimpleName() + " returned " + decision.type() + " without a label";
+                assert decisionHasLabelIfExpected(decider, decision);
                 if (mostNegativeDecision.type().compareToBetweenDecisions(decision.type()) > 0) {
                     mostNegativeDecision = decision;
                     if (mostNegativeDecision.type() == Decision.Type.NO) {
@@ -231,8 +230,7 @@ public class AllocationDeciders {
             final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                assert decision.type() == Decision.Type.YES || decision.type() == Decision.Type.THROTTLE || decision.label() != null
-                    : decider.getClass().getSimpleName() + " returned " + decision.type() + " without a label";
+                assert decisionHasLabelIfExpected(decider, decision);
                 traceNoDecisions(decider, decision, logMessageCreator);
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
                     multiDecision.add(decision);
@@ -240,6 +238,19 @@ public class AllocationDeciders {
             }
             return multiDecision;
         }
+    }
+
+    /**
+     * Assert that a decision has its label field populated if it's NO or NOT_PREFERRED
+     *
+     * @param decider The decider that produced the decision
+     * @param decision The decision to check
+     * @return true, so we can call this method from an assertion
+     */
+    private static boolean decisionHasLabelIfExpected(AllocationDecider decider, Decision decision) {
+        assert decision.type() == Decision.Type.YES || decision.type() == Decision.Type.THROTTLE || decision.label() != null
+            : decider.getClass().getSimpleName() + " returned " + decision.type() + " without a label";
+        return true;
     }
 
     /**

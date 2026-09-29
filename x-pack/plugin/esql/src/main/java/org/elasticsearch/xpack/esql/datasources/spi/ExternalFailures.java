@@ -116,6 +116,12 @@ public final class ExternalFailures {
             if (containsStoragePath(current.getMessage())) {
                 return false;
             }
+            // suppressed[] is serialized into the response via innerToXContent; guard it too.
+            for (Throwable suppressed : current.getSuppressed()) {
+                if (containsStoragePath(suppressed.getMessage())) {
+                    return false;
+                }
+            }
             Throwable cause = current.getCause();
             if (cause == null || cause == current) {
                 break;

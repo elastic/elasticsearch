@@ -19,10 +19,10 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * fields written differently are read by the same reader and a field may be written differently tomorrow
  * than it was today.
  *
- * @param dictionary   when the column's values are named by ordinals rather than stored
- * @param summary      how much of what the column held it summarises for a later merge
- * @param chunkCodec   what compresses the chunks the values are written in
- * @param sizes        the units the column's streams are written in
+ * @param dictionary when the column's values are named by ordinals rather than stored
+ * @param summary    how much of what the column held it summarises for a later merge
+ * @param chunkCodec what compresses the chunks the values are written in
+ * @param sizes      the units the column's streams are written in
  */
 public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
 

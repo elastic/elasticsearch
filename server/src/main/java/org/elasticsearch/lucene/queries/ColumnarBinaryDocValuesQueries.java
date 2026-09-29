@@ -43,23 +43,16 @@ import java.util.TreeSet;
  */
 final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
-    static final ColumnarBinaryDocValuesQueries INSTANCE = new ColumnarBinaryDocValuesQueries(false);
-
-    /** For {@code PLAIN} fields whose overlay blob is raw bytes rather than a columnar payload. */
-    static final ColumnarBinaryDocValuesQueries PLAIN_INSTANCE = new ColumnarBinaryDocValuesQueries(true);
+    static final ColumnarBinaryDocValuesQueries INSTANCE = new ColumnarBinaryDocValuesQueries();
 
     /** The column library keeps no notion of a heap budget, so it is handed the search layer's. */
     private static final ScanBudget BUDGET = ContextIndexSearcher::checkBinaryDvDecodeBreaker;
 
-    private final boolean plainBytes;
-
-    private ColumnarBinaryDocValuesQueries(boolean plainBytes) {
-        this.plainBytes = plainBytes;
-    }
+    private ColumnarBinaryDocValuesQueries() {}
 
     @Override
     public Query term(String field, BytesRef term) {
-        return ColumnarStringTermQuery.term(field, term, BUDGET, plainBytes);
+        return ColumnarStringTermQuery.term(field, term, BUDGET);
     }
 
     @Override
@@ -67,7 +60,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
         final Set<BytesRef> set = new HashSet<>(terms);
         // What the query is compared by, so two of them cache as one however the caller ordered its terms. The terms
         // themselves rather than a rendering of them: there may be tens of thousands.
-        return new ColumnarStringMatchQuery(field, set::contains, new TreeSet<>(terms), BUDGET, plainBytes);
+        return new ColumnarStringMatchQuery(field, set::contains, new TreeSet<>(terms), BUDGET);
     }
 
     @Override
@@ -87,21 +80,20 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
                 return cmp < 0 || (cmp == 0 && includeUpper);
             }
             return true;
-        }, identity, BUDGET, plainBytes);
+        }, identity, BUDGET);
     }
 
     @Override
     public Query prefix(String field, String value, boolean caseInsensitive) {
         if (caseInsensitive == false) {
             // The column bisects a prefix, so this never becomes an automaton.
-            return ColumnarStringTermQuery.prefix(field, new BytesRef(value), BUDGET, plainBytes);
+            return ColumnarStringTermQuery.prefix(field, new BytesRef(value), BUDGET);
         }
         return new ColumnarStringAutomatonQuery(
             field,
             AutomatonQueries.caseInsensitivePrefix(value),
             "caseInsensitivePrefix=" + value,
-            BUDGET,
-            plainBytes
+            BUDGET
         );
     }
 
@@ -122,40 +114,32 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             field,
             delegate.getAutomata().runAutomaton,
             "fuzzy,term=" + term + ",maxEdits=" + maxEdits + ",prefixLength=" + prefixLength + ",transpositions=" + transpositions,
-            BUDGET,
-            plainBytes
+            BUDGET
         );
     }
 
     @Override
     public Query caseInsensitiveTerm(String field, String value) {
-        return new ColumnarStringAutomatonQuery(
-            field,
-            Automata.makeCaseInsensitiveString(value),
-            "caseInsensitiveTerm=" + value,
-            BUDGET,
-            plainBytes
-        );
+        return new ColumnarStringAutomatonQuery(field, Automata.makeCaseInsensitiveString(value), "caseInsensitiveTerm=" + value, BUDGET);
     }
 
     @Override
     public Query wildcard(String field, String pattern, boolean caseInsensitive) {
         if (caseInsensitive == false) {
             // Rewrites a pattern naming a term, a prefix or a contained run into the query that answers it directly.
-            return ColumnarStringAutomatonQuery.forWildcard(field, pattern, BUDGET, plainBytes);
+            return ColumnarStringAutomatonQuery.forWildcard(field, pattern, BUDGET);
         }
         return new ColumnarStringAutomatonQuery(
             field,
             AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, pattern)),
             "pattern=" + pattern + ",caseInsensitive=true",
-            BUDGET,
-            plainBytes
+            BUDGET
         );
     }
 
     @Override
     public Query automaton(String field, Automaton automaton, String description) {
-        return new ColumnarStringAutomatonQuery(field, automaton, description, BUDGET, plainBytes);
+        return new ColumnarStringAutomatonQuery(field, automaton, description, BUDGET);
     }
 
     @Override
@@ -172,8 +156,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             // The byte-run form, as the scanning path uses: it is the one that tolerates a caller with no breaker.
             AutomatonQueries.toRegexpByteRunAutomaton(field, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, breaker),
             "regexp=" + pattern + ",flags=" + syntaxFlags + "," + matchFlags,
-            BUDGET,
-            plainBytes
+            BUDGET
         );
     }
 }

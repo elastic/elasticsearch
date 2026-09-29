@@ -64,7 +64,6 @@ public final class ColumnarStringAutomatonQuery extends Query {
     private final ByteRunAutomaton automaton;
     private final String description;
     private final ScanBudget budget;
-    private final boolean plainBytes;
 
     /**
      * Documents whose value {@code automaton} accepts.
@@ -74,7 +73,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * automaton itself, so a caller that spells its parameters differently cannot make two queries collide.
      */
     public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget) {
-        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget, false);
+        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget);
     }
 
     /**
@@ -82,27 +81,10 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * by the query that defines the edit distance rather than by this one.
      */
     public ColumnarStringAutomatonQuery(String field, ByteRunAutomaton automaton, String description, ScanBudget budget) {
-        this(field, automaton, description, budget, false);
-    }
-
-    /** As above, with explicit {@code plainBytes} for a field whose overlay blob is raw bytes rather than a payload. */
-    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget, boolean plainBytes) {
-        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget, plainBytes);
-    }
-
-    /** As above, with explicit {@code plainBytes} for a field whose overlay blob is raw bytes rather than a payload. */
-    public ColumnarStringAutomatonQuery(
-        String field,
-        ByteRunAutomaton automaton,
-        String description,
-        ScanBudget budget,
-        boolean plainBytes
-    ) {
         this.field = Objects.requireNonNull(field);
         this.automaton = Objects.requireNonNull(automaton);
         this.description = Objects.requireNonNull(description);
         this.budget = Objects.requireNonNull(budget);
-        this.plainBytes = plainBytes;
     }
 
     /**
@@ -112,18 +94,13 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * a column answers each of those without an automaton. Anything else is one.
      */
     public static Query forWildcard(String field, String pattern, ScanBudget budget) {
-        return forWildcard(field, pattern, budget, false);
-    }
-
-    /** As above, for a field whose overlay blob is raw bytes rather than a payload. */
-    public static Query forWildcard(String field, String pattern, ScanBudget budget, boolean plainBytes) {
         final String whole = literal(pattern);
         if (whole != null) {
-            return ColumnarStringTermQuery.term(field, new BytesRef(whole), budget, plainBytes);
+            return ColumnarStringTermQuery.term(field, new BytesRef(whole), budget);
         }
         final String start = prefix(pattern);
         if (start != null) {
-            return ColumnarStringTermQuery.prefix(field, new BytesRef(start), budget, plainBytes);
+            return ColumnarStringTermQuery.prefix(field, new BytesRef(start), budget);
         }
         final String inside = contained(pattern);
         if (inside != null) {
@@ -136,8 +113,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
             "pattern=" + pattern,
-            budget,
-            plainBytes
+            budget
         );
     }
 
@@ -211,7 +187,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and run through the automaton. For a plain (single-valued) field
                         // the blob is the raw value bytes; for a payload field it carries slot count + framed values.
-                        if (plainBytes) {
+                        if (Boolean.parseBoolean(info.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE))) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 @Override
                                 public boolean matches() throws IOException {
@@ -277,16 +253,13 @@ public final class ColumnarStringAutomatonQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringAutomatonQuery q) {
-            return field.equals(q.field)
-                && automaton.equals(q.automaton)
-                && description.equals(q.description)
-                && plainBytes == q.plainBytes;
+            return field.equals(q.field) && automaton.equals(q.automaton) && description.equals(q.description);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, automaton, description, plainBytes);
+        return Objects.hash(field, automaton, description);
     }
 }

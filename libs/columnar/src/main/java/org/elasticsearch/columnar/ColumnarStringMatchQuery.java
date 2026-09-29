@@ -53,18 +53,12 @@ public final class ColumnarStringMatchQuery extends Query {
     private final Predicate<BytesRef> matcher;
     private final Object identity;
     private final ScanBudget budget;
-    private final boolean plainBytes;
 
     public ColumnarStringMatchQuery(String field, Predicate<BytesRef> matcher, Object identity, ScanBudget budget) {
-        this(field, matcher, identity, budget, false);
-    }
-
-    public ColumnarStringMatchQuery(String field, Predicate<BytesRef> matcher, Object identity, ScanBudget budget, boolean plainBytes) {
         this.field = Objects.requireNonNull(field);
         this.matcher = Objects.requireNonNull(matcher);
         this.identity = Objects.requireNonNull(identity);
         this.budget = Objects.requireNonNull(budget);
-        this.plainBytes = plainBytes;
     }
 
     @Override
@@ -100,7 +94,7 @@ public final class ColumnarStringMatchQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and tested. For a plain (single-valued) field the blob is the raw
                         // value bytes; for a payload field the blob carries slot count + framed values.
-                        if (plainBytes) {
+                        if (Boolean.parseBoolean(info.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE))) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 @Override
                                 public boolean matches() throws IOException {
@@ -163,11 +157,11 @@ public final class ColumnarStringMatchQuery extends Query {
             return false;
         }
         final ColumnarStringMatchQuery that = (ColumnarStringMatchQuery) other;
-        return field.equals(that.field) && identity.equals(that.identity) && plainBytes == that.plainBytes;
+        return field.equals(that.field) && identity.equals(that.identity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, identity, plainBytes);
+        return Objects.hash(classHash(), field, identity);
     }
 }

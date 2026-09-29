@@ -59,39 +59,27 @@ public final class ColumnarStringTermQuery extends Query {
     private final BytesRef term;
     private final Where where;
     private final ScanBudget budget;
-    private final boolean plainBytes;
 
     /** Documents whose value is exactly {@code term}. */
     public static ColumnarStringTermQuery term(String field, BytesRef term, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, term, Where.WHOLE, budget, false);
-    }
-
-    /** Documents whose value is exactly {@code term}, for a field whose overlay blob is raw bytes. */
-    public static ColumnarStringTermQuery term(String field, BytesRef term, ScanBudget budget, boolean plainBytes) {
-        return new ColumnarStringTermQuery(field, term, Where.WHOLE, budget, plainBytes);
+        return new ColumnarStringTermQuery(field, term, Where.WHOLE, budget);
     }
 
     /** Documents holding a value that starts with {@code prefix}. */
     public static ColumnarStringTermQuery prefix(String field, BytesRef prefix, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, prefix, Where.START, budget, false);
-    }
-
-    /** Documents holding a value that starts with {@code prefix}, for a field whose overlay blob is raw bytes. */
-    public static ColumnarStringTermQuery prefix(String field, BytesRef prefix, ScanBudget budget, boolean plainBytes) {
-        return new ColumnarStringTermQuery(field, prefix, Where.START, budget, plainBytes);
+        return new ColumnarStringTermQuery(field, prefix, Where.START, budget);
     }
 
     /** Documents holding a value that has {@code term} somewhere inside it. */
     public static ColumnarStringTermQuery contains(String field, BytesRef term, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE, budget, false);
+        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE, budget);
     }
 
-    private ColumnarStringTermQuery(String field, BytesRef term, Where where, ScanBudget budget, boolean plainBytes) {
+    private ColumnarStringTermQuery(String field, BytesRef term, Where where, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
         this.term = BytesRef.deepCopyOf(Objects.requireNonNull(term));
         this.where = where;
         this.budget = Objects.requireNonNull(budget);
-        this.plainBytes = plainBytes;
     }
 
     @Override
@@ -132,7 +120,7 @@ public final class ColumnarStringTermQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and compared. For a plain (single-valued) field the blob is the
                         // raw value bytes; for a payload field the blob carries slot count + framed values.
-                        if (plainBytes) {
+                        if (Boolean.parseBoolean(info.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE))) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 private final BytesRef prefix = new BytesRef();
 
@@ -244,13 +232,13 @@ public final class ColumnarStringTermQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringTermQuery q) {
-            return where == q.where && plainBytes == q.plainBytes && field.equals(q.field) && term.bytesEquals(q.term);
+            return where == q.where && field.equals(q.field) && term.bytesEquals(q.term);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, term, where, plainBytes);
+        return Objects.hash(field, term, where);
     }
 }

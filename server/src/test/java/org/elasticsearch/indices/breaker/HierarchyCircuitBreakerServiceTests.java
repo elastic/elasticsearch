@@ -64,6 +64,17 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
+    /**
+     * After the allocation loop, the strategy reads memory usage once to decide on the full GC fallback and once for its result.
+     */
+    private static final long READS_AFTER_ALLOCATION_LOOP = 2;
+
+    /**
+     * An attempt reads the time when it starts, after the allocation loop and for its duration. Deciding on the full GC fallback,
+     * which only happens when no memory was reclaimed, reads it at least once more.
+     */
+    private static final long TIME_READS_WITHOUT_FULL_GC_CHECK = 3;
+
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -759,15 +770,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     /**
-     * The young GC provoked by the fillers reclaims memory while the loop runs: the loop must stop at the drop, report the
-     * reduced usage and not fall back to a full GC.
+     * A young GC reclaims memory while the loop runs: the loop must stop at the drop, report the reduced usage and not fall back
+     * to a full GC.
      */
     public void testG1OverLimitStrategyStopsWhenYoungGcReducesMemory() {
         long regionSize = strategyRegionSize();
         long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
         long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
         long reducedUsage = randomLongBetween(0, baseUsage - 1);
-        int allocationsBeforeDrop = randomIntBetween(2, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        int allocationsBeforeDrop = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
         AtomicLong memoryReads = new AtomicLong();
         AtomicLong timeReads = new AtomicLong();
 
@@ -796,7 +807,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
         long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
         long reducedUsage = randomLongBetween(0, baseUsage - 1);
-        int allocationsBeforeGc = randomIntBetween(2, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        int allocationsBeforeGc = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
         AtomicLong memoryReads = new AtomicLong();
         AtomicLong gcCountReads = new AtomicLong();
         AtomicLong timeReads = new AtomicLong();
@@ -829,17 +840,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
         assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
     }
-
-    /**
-     * After the allocation loop, the strategy reads memory usage once to decide on the full GC fallback and once for its result.
-     */
-    private static final long READS_AFTER_ALLOCATION_LOOP = 2;
-
-    /**
-     * An attempt reads the time when it starts, after the allocation loop and for its duration. Deciding on the full GC fallback,
-     * which only happens when no memory was reclaimed, reads it at least once more.
-     */
-    private static final long TIME_READS_WITHOUT_FULL_GC_CHECK = 3;
 
     private static void assertFillersCoverFreeRegionsPlusOne(long maxHeap, long baseUsage, long regionSize) {
         long freeHeap = Math.max(0, maxHeap - baseUsage);

@@ -7,7 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cluster.routing.allocation.decider;
+package org.elasticsearch.cluster.routing.allocation;
+
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 /**
  * Some constants to use in tests when we need a {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}

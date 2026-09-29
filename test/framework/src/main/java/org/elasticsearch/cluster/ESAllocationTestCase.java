@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -292,7 +293,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
-        return new AllocationDeciders(Collections.singleton(new TestAllocateDecision(Decision.NO)));
+        return new AllocationDeciders(Collections.singleton(new TestAllocateDecision(TestAllocationDecisions.NO_DECISION)));
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {

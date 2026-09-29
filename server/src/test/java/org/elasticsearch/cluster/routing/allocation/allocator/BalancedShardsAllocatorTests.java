@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
@@ -1091,7 +1092,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 RoutingNode node,
                 RoutingAllocation allocation
             ) {
-                return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+                return allocation.decision(TestAllocationDecisions.NOT_PREFERRED_DECISION, "test_decider", "Always NOT_PREFERRED");
             }
         }).mutable();
 
@@ -1210,11 +1211,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 final var nodeId = node.node().getId();
                 if (nodeId.startsWith("not-preferred")) {
-                    return Decision.NOT_PREFERRED;
+                    return TestAllocationDecisions.NOT_PREFERRED_DECISION;
                 } else if (nodeId.startsWith("yes")) {
                     return Decision.YES;
                 } else if (nodeId.startsWith("no")) {
-                    return Decision.NO;
+                    return TestAllocationDecisions.NO_DECISION;
                 } else if (nodeId.startsWith("throttle")) {
                     return Decision.THROTTLE;
                 } else {
@@ -1267,7 +1268,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 final var nodeId = node.node().getId();
                 if (nodeId.startsWith("not-preferred")) {
-                    return Decision.NOT_PREFERRED;
+                    return TestAllocationDecisions.NOT_PREFERRED_DECISION;
                 } else if (nodeId.startsWith("yes")) {
                     return Decision.YES;
                 } else {
@@ -1362,18 +1363,18 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 final long startedCount = StreamSupport.stream(sourceRoutingNode.spliterator(), false)
                     .filter(ShardRouting::started)
                     .count();
-                return startedCount > (drainCompletely ? 0 : nonPreferredShardCount) ? Decision.NO : Decision.YES;
+                return startedCount > (drainCompletely ? 0 : nonPreferredShardCount) ? TestAllocationDecisions.NO_DECISION : Decision.YES;
             }
 
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 if (node.nodeId().equals(sourceNode)) {
-                    return Decision.NO;
+                    return TestAllocationDecisions.NO_DECISION;
                 }
                 if (shardRouting.index().getName().startsWith("preferred-")) {
-                    return node.nodeId().equals(yesTargetNode) ? Decision.YES : Decision.NOT_PREFERRED;
+                    return node.nodeId().equals(yesTargetNode) ? Decision.YES : TestAllocationDecisions.NOT_PREFERRED_DECISION;
                 }
-                return Decision.NOT_PREFERRED;
+                return TestAllocationDecisions.NOT_PREFERRED_DECISION;
             }
         };
 
@@ -1978,7 +1979,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         private Decision nodePrefixMatchesIndexPrefix(ShardRouting shardRouting, RoutingNode node) {
             var indexPrefix = prefix(shardRouting.index().getName());
             var nodePrefix = prefix(node.node().getId());
-            return nodePrefix.equals(indexPrefix) ? Decision.YES : Decision.NO;
+            return nodePrefix.equals(indexPrefix) ? Decision.YES : TestAllocationDecisions.NO_DECISION;
         }
     }
 
@@ -2003,7 +2004,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 // Remember where we first saw it
                 originalNodes.put(shardRouting.shardId(), shardRouting.currentNodeId());
             }
-            return shardRouting.currentNodeId().equals(originalNodes.get(shardRouting.shardId())) ? Decision.NOT_PREFERRED : Decision.YES;
+            return shardRouting.currentNodeId().equals(originalNodes.get(shardRouting.shardId()))
+                ? TestAllocationDecisions.NOT_PREFERRED_DECISION
+                : Decision.YES;
         }
     }
 

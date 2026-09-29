@@ -1374,16 +1374,20 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
-        return getSegmentInfo(lastCommittedSegmentInfos, false);
+        return getSegmentInfo(lastCommittedSegmentInfos, false, false);
     }
 
-    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
+    final Segment[] getSegmentInfo(
+        SegmentInfos lastCommittedSegmentInfos,
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
+    ) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo, includeAutoCalibration);
             }
         }
 
@@ -1391,7 +1395,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo, includeAutoCalibration);
                 }
             }
         }
@@ -1431,7 +1435,8 @@ public abstract class Engine implements Closeable {
         SegmentReader segmentReader,
         boolean search,
         Map<String, Segment> segments,
-        boolean includeVectorFormatsInfo
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
     ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
@@ -1480,6 +1485,39 @@ public abstract class Engine implements Closeable {
                 segment.attributes.put(entry.getKey(), entry.getValue().toString());
             }
         }
+        try {
+            FieldInfos fieldInfos = segmentReader.getFieldInfos();
+            if (includeAutoCalibration && fieldInfos.hasVectorValues()) {
+                List<String> vectorFieldNames = new ArrayList<>();
+                for (FieldInfo fieldInfo : fieldInfos) {
+                    if (fieldInfo.hasVectorValues()) {
+                        vectorFieldNames.add(fieldInfo.name);
+                    }
+                }
+                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
+                // field per segment; off-heap sizes come from field metadata and are always cheap
+                // this is why vector count is disabled in stateless until we can retrieve that information cheaply
+                DenseVectorStats vectorStats = denseVectorStatsCache.get(segmentReader, vectorFieldNames, isStateless == false);
+                for (Map.Entry<String, List<DenseVectorStats.AutoCalibrationEntry>> fieldEntry : vectorStats.calibrationStats()
+                    .entrySet()) {
+                    for (DenseVectorStats.AutoCalibrationEntry calibrationEntry : fieldEntry.getValue()) {
+                        if (calibrationEntry.parameters == null) {
+                            continue;
+                        }
+                        if (segment.autoCalibrationParams == null) {
+                            segment.autoCalibrationParams = new HashMap<>();
+                            segment.autoCalibrationVectorCounts = new HashMap<>();
+                            segment.autoCalibrationSizeBytes = new HashMap<>();
+                        }
+                        segment.autoCalibrationParams.put(fieldEntry.getKey(), calibrationEntry.parameters);
+                        segment.autoCalibrationVectorCounts.put(fieldEntry.getKey(), calibrationEntry.numberOfVectors);
+                        segment.autoCalibrationSizeBytes.put(fieldEntry.getKey(), calibrationEntry.sizeInBytes);
+                    }
+                }
+            }
+        } catch (AlreadyClosedException | IOException e) {
+            logger.trace(() -> "failed to get auto-calibration stats for segment [" + segmentReader.getSegmentName() + "]", e);
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1489,7 +1527,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments();
 
-    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef() == false) {

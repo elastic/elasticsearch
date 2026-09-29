@@ -755,6 +755,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+
+        resp = runESQLCommand("view_dls_user", "SET wildcards_match_views=false; FROM view-user*");
+        // matches no views, returns empty result
+        assertThat(entityAsMap(resp).get("columns"), equalTo(List.of(Map.of("name", "<no-fields>", "type", "null"))));
     }
 
     public void testNestedViewResolutionAuthorized() throws Exception {
@@ -840,9 +844,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testViewDlsOnWildcardPattern() throws Exception {
         ResponseException resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("view_dls_user", "SET wildcards_match_views=true; FROM view-user* | STATS sum=sum(value)")
+            () -> runESQLCommand("view_dls_user", "SET wildcards_match_views=true; FROM view-user*")
         );
         validateDlsFlsViewException(resp.getResponse(), "view-user1");
+
+        var response = runESQLCommand("view_dls_user", "SET wildcards_match_views=false; FROM view-user*");
+        // matches no views, returns empty result
+        assertThat(entityAsMap(response).get("columns"), equalTo(List.of(Map.of("name", "<no-fields>", "type", "null"))));
     }
 
     /**

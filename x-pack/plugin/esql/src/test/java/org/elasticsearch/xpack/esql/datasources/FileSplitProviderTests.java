@@ -6018,6 +6018,86 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The same guard, where it can actually be observed. With every unit uncountable the test above cannot tell the
+     * guard from its absence: the running total never advances either way, so everything is planned either way.
+     * One uncountable file among countable ones separates them - give up and all eight are planned; ignore the
+     * uncountable one and the countable files cover the demand after four.
+     * <p>
+     * Giving up is the only safe answer: an uncountable unit makes the total a floor rather than a count, and
+     * stopping on a floor plans too few splits, which returns fewer rows than the query asked for.
+     */
+    public void testOneUncountableUnitAmongCountableOnesStillAbandonsTheDemand() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        // data-1 reports ranges with no statistics; every other file reports ten rows. It has to sit before
+        // the demand would be covered, or the walk stops short of it and the guard is never reached.
+        RangeAwareFormatReader reader = mixedRowCountReader(opened, 10, "data-1.parquet");
+        FileSplitProvider provider = rangeAwareProvider(reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        provider.discoverSplits(contextWithRowLimit(8, 25));
+
+        assertEquals("one unit that cannot be counted abandons the budget for the whole scan", 8, opened.get());
+    }
+
+    /**
+     * A reader whose units carry row counts except for one named file, which reports ranges with no statistics -
+     * what every format that is not row-group or stripe based does.
+     */
+    private static RangeAwareFormatReader mixedRowCountReader(AtomicInteger opened, long rowsPerUnit, String uncountable) {
+        List<SplitRange> counted = List.of(new SplitRange(0, 2000, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsPerUnit)));
+        List<SplitRange> uncounted = List.of(new SplitRange(0, 2000));
+        return new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                opened.incrementAndGet();
+                return uncountable.equals(object.path().objectName()) ? uncounted : counted;
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    /**
      * Under a row-dropping error policy a unit's record count is what will be decoded, not what will be emitted, so
      * counting towards the demand would plan too few files and return fewer rows than were asked for.
      */

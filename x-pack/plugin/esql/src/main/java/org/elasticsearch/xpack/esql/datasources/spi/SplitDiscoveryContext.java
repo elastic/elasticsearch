@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
@@ -133,7 +134,7 @@ public record SplitDiscoveryContext(
             resolved,
             SchemaReconciliation.pinnedOver(schemaMap, resolved),
             config,
-            partitionInfo == null ? null : partitionInfo.valuedOver(resolved.partitionMetadata()),
+            partitionInfo == null ? null : partitionInfo.valuedOver(resolved.partitionMetadata(), PartitionConfig.fromConfig(config)),
             filterHints,
             querySchema,
             unifiedSchema,

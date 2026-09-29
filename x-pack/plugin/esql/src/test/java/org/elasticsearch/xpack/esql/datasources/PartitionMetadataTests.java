@@ -311,6 +311,29 @@ public class PartitionMetadataTests extends ESTestCase {
         assertNull("and a value beyond the signed range has none under it", valued.filePartitionValues().get(huge).get("id"));
     }
 
+    /**
+     * A template-partitioned dataset names its columns by position, not by a {@code key=value} segment. Reading a
+     * value back from the path therefore has to use the grammar the dataset was detected with; reading every path
+     * as hive finds no token at all and nulls every partition value in the column.
+     */
+    public void testATemplatePartitionedDatasetKeepsItsValues() {
+        StoragePath sampled = StoragePath.of("s3://b/2024/01/a.parquet");
+        StoragePath beyond = StoragePath.of("s3://b/2025/06/b.parquet");
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/{month}");
+        PartitionMetadata declared = detector.detect(List.of(new StorageEntry(sampled, 1, Instant.EPOCH)), WarningSinks.FAILING);
+        PartitionMetadata scanned = detector.detect(
+            List.of(new StorageEntry(sampled, 1, Instant.EPOCH), new StorageEntry(beyond, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertEquals("the template names the columns", Set.of("year", "month"), declared.partitionColumns().keySet());
+
+        PartitionMetadata valued = declared.valuedOver(scanned, new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}"));
+
+        assertEquals(2024, valued.filePartitionValues().get(sampled).get("year"));
+        assertEquals("and a folder the sample never saw keeps its value too", 2025, valued.filePartitionValues().get(beyond).get("year"));
+        assertEquals(6, valued.filePartitionValues().get(beyond).get("month"));
+    }
+
     /** A number the declared type cannot hold exactly still has no value under it. */
     public void testANumberTheDeclaredTypeCannotHoldExactlyHasNoValue() {
         // Dotless on purpose: HivePartitionDetector#segmentKey rejects a segment containing a dot, so x=1.5

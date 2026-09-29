@@ -79,20 +79,47 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      * rather than falling on every file the schema's listing did not reach.
      */
     public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned) {
+        return valuedOver(scanned, null);
+    }
+
+    /**
+     * As above, reading each value back with the grammar the dataset's own partition detection uses.
+     * <p>
+     * A hive path names its column in the segment ({@code year=2024}); a template path names it by position
+     * ({@code {year}/{month}}). Reading every path as hive finds no token in a template dataset at all, which nulls
+     * every value in every partition column - so the strategy has to travel with the request. A {@code null} config
+     * reads as hive, which is what every caller that has no dataset config in hand means.
+     */
+    public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned, @Nullable PartitionConfig partitionConfig) {
         if (partitionColumns.isEmpty() || scanned == null || scanned.filePartitionValues.isEmpty()) {
             return this;
         }
         LinkedHashMap<StoragePath, Map<String, Object>> valued = Maps.newLinkedHashMapWithExpectedSize(scanned.filePartitionValues.size());
         for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues.entrySet()) {
-            Map<String, String> tokens = HivePartitionDetector.extractPartitions(file.getKey());
+            StoragePath path = file.getKey();
             LinkedHashMap<String, Object> conformed = Maps.newLinkedHashMapWithExpectedSize(partitionColumns.size());
             for (Map.Entry<String, DataType> column : partitionColumns.entrySet()) {
                 String name = column.getKey();
-                conformed.put(name, under(tokens.get(name), column.getValue()));
+                conformed.put(name, under(tokenFor(path, name, partitionConfig), column.getValue()));
             }
             valued.put(file.getKey(), conformed);
         }
         return new PartitionMetadata(partitionColumns, valued);
+    }
+
+    /**
+     * The raw token {@code path} carries for {@code column}, under the dataset's detection strategy, or
+     * {@code null} when the path binds no value for it.
+     */
+    @Nullable
+    private static String tokenFor(StoragePath path, String column, @Nullable PartitionConfig partitionConfig) {
+        if (partitionConfig != null && partitionConfig.strategy() == PartitionConfig.Strategy.TEMPLATE) {
+            String template = partitionConfig.pathTemplate();
+            return template == null ? null : TemplatePartitionDetector.columnValue(path.path(), column, template);
+        }
+        // HIVE, NONE, AUTO and no config at all: AUTO resolves to the hive grammar whenever it detected anything
+        // a key=value segment could have produced, and NONE has no columns to value.
+        return HivePartitionDetector.extractPartitions(path).get(column);
     }
 
     /**

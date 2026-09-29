@@ -255,11 +255,12 @@ public final class GlobExpander {
      * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
      * the rewrite skipped, while the partition hints stay. {@link PartitionValueMatcher} keeps a spelling the splice
      * missed ({@code month=06} for {@code month == 6}) and drops folders the typed comparison excludes. The
-     * {@code _file.*} filters stay too — they are exact and can hide nothing. If that listing is empty too the
-     * pattern genuinely matches nothing and the caller's "matched no files" error stands.
+     * {@code _file.*} filters stay too — they are exact and can hide nothing.
      *
-     * <p>A spelling miss with survivors is not an unfiltered re-list. Two paths still list without the value
-     * filter, and a large tree on either still throws {@code max_discovered_files}: the flat listing's second pass
+     * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
+     * re-lists without the filter and can return an anchor, so that pass is not the caller's "matched no files"
+     * error. Two paths still list without the value filter, and a large tree on either still throws
+     * {@code max_discovered_files}: the flat listing's second pass
      * when the value filter keeps nothing ({@code year == 2099} against only other years), and a walk that returns
      * no files, which re-lists with the value filter suppressed. A matching partition that itself exceeds the cap
      * still throws with the typed filter applied. A multi-value hint does not rewrite the glob, so this method does
@@ -331,10 +332,9 @@ public final class GlobExpander {
         }
 
         final IOException narrowedFailure = failure;
-        logger.debug(
-            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing the original glob with the partition filter",
-            narrowedFailure
-        );
+        // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
+        String retryDetail = rewritten ? "re-listing the original glob with the partition filter" : "re-listing without the bound";
+        logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
         try {
             // Skip the splice. Passing the original hints through doExpandGlob's rewrite would list month=6 again.
             return doExpandGlob(

@@ -2013,6 +2013,22 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Leading {@code month=*} walks when the provider can list children. {@link PrefixAwareStubProvider} cannot, so
+     * the cap tests above stay on the flat value filter. The splice {@code month=6} is not walkable, so the first
+     * pass lists that prefix and finds nothing. The retry walks the original glob and keeps {@code month=06} by
+     * typed value. An empty walk would suppress the value filter and flat-list the parent, enumerating
+     * {@code month=07} and tripping a cap of 4.
+     */
+    public void testPaddedMonthWalkKeepsTypedMatchUnderCap() throws IOException {
+        assertPaddedMonthWalkKeepsTypedMatch(PartitionFilterHintExtractor.Operator.EQUALS);
+    }
+
+    /** A one-element {@code IN (6)} takes the same walk after the same empty splice. */
+    public void testPaddedMonthWalkKeepsTypedMatchUnderCapForOneValueIn() throws IOException {
+        assertPaddedMonthWalkKeepsTypedMatch(PartitionFilterHintExtractor.Operator.IN);
+    }
+
+    /**
      * A non-empty splice is not retried. {@code month=6/a.parquet} is a hit, so {@code month=06/b.parquet} on the
      * parent is never listed.
      */
@@ -2646,6 +2662,32 @@ public class GlobExpanderTests extends ESTestCase {
 
     private static Map<String, Object> templateMonth() {
         return configMapOf(new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{month}"));
+    }
+
+    /** Same tree as {@link #paddedMonthTree}, on a provider whose {@code listChildren} lets the walk run. */
+    private static TreeStubProvider paddedMonthWalkTree() {
+        return new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/month=06/a.parquet", 100),
+                entry("s3://bucket/data/month=06/b.parquet", 100),
+                entry("s3://bucket/data/month=07/c.parquet", 100),
+                entry("s3://bucket/data/month=07/d.parquet", 100),
+                entry("s3://bucket/data/month=07/e.parquet", 100)
+            )
+        );
+    }
+
+    private static void assertPaddedMonthWalkKeepsTypedMatch(PartitionFilterHintExtractor.Operator op) throws IOException {
+        TreeStubProvider provider = paddedMonthWalkTree();
+        var hints = List.of(hint("month", op, 6));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
+
+        assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=06/b.parquet"), paths(result));
+        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/month=06/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
+        assertFalse("month=07 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("month=07")));
+        assertFalse("an empty walk must not flat-list the parent", provider.listedPrefixes.contains("s3://bucket/data/"));
     }
 
     /**

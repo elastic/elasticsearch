@@ -167,6 +167,21 @@ public class PartitionMetadataTests extends ESTestCase {
         assertThat(shared.rowCount(), lessThan(pm.rowCount()));
     }
 
+    public void testGetValueAtMatchesNamedLookupOnSharedRows() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        cols.put("region", DataType.KEYWORD);
+        Object[][] values = new Object[][] { { 2024, 2024, 2025 }, { "east", "east", null } };
+        PartitionMetadata shared = PartitionMetadata.columnar(cols, values, 3).shareByGroups(new short[] { 0, 0, 1 }, 2);
+        List<String> names = List.copyOf(shared.partitionColumns().keySet());
+        for (int f = 0; f < shared.fileCount(); f++) {
+            for (int c = 0; c < names.size(); c++) {
+                assertEquals(shared.getValue(f, names.get(c)), shared.getValueAt(f, c));
+            }
+        }
+        expectThrows(IndexOutOfBoundsException.class, () -> shared.getValueAt(3, 0));
+    }
+
     public void testShareByGroupsNoOpWhenEveryFileIsItsOwnGroup() {
         LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
         cols.put("year", DataType.INTEGER);

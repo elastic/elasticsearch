@@ -2002,8 +2002,11 @@ public class FileSplitProviderTests extends ESTestCase {
      * A directory-grouped listing stores one partition row per directory and maps files to it by position.
      * Every split must still carry its own directory's values on the filter path, the unfiltered path and
      * the known-projection path, which each read the shared rows differently.
+     * <p>
+     * The shared rows are built directly so the check does not depend on which encoding the compactor picks
+     * by size; the compacted listing is then checked the same way, whichever encoding it ended up with.
      */
-    public void testCompactedListingWithSharedRowsResolvesPerFileValues() {
+    public void testSharedRowsResolvePerFileValues() {
         String base = "s3://bucket/data/";
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of(base + "year=2024/month=1/a.parquet"), 100, Instant.EPOCH),
@@ -2013,12 +2016,20 @@ public class FileSplitProviderTests extends ESTestCase {
             new StorageEntry(StoragePath.of(base + "year=2024/month=2/e.parquet"), 100, Instant.EPOCH)
         );
         PartitionMetadata detected = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
-        FileList compacted = GlobExpander.compact(GlobExpander.fileListOf(entries, base + "**/*.parquet", detected), base);
-        PartitionMetadata shared = compacted.partitionMetadata();
+        FileList raw = GlobExpander.fileListOf(entries, base + "**/*.parquet", detected);
+
+        PartitionMetadata shared = detected.shareByGroups(new short[] { 0, 0, 0, 1, 1 }, 2);
         assertEquals(5, shared.fileCount());
         assertEquals("one row per directory", 2, shared.rowCount());
+        assertPerFileMonthValues(raw, shared, base);
 
-        List<ExternalSplit> all = provider.discoverSplits(new SplitDiscoveryContext(null, compacted, Map.of(), shared, List.of())).splits();
+        FileList compacted = GlobExpander.compact(raw, base);
+        assertEquals(5, compacted.partitionMetadata().fileCount());
+        assertPerFileMonthValues(compacted, compacted.partitionMetadata(), base);
+    }
+
+    private void assertPerFileMonthValues(FileList listing, PartitionMetadata metadata, String base) {
+        List<ExternalSplit> all = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, List.of())).splits();
         assertEquals(5, all.size());
         for (ExternalSplit s : all) {
             FileSplit split = (FileSplit) s;
@@ -2028,14 +2039,14 @@ public class FileSplitProviderTests extends ESTestCase {
         }
 
         List<Expression> filters = List.of(new Equals(SRC, fieldAttr("month"), intLiteral(2)));
-        List<ExternalSplit> filtered = provider.discoverSplits(new SplitDiscoveryContext(null, compacted, Map.of(), shared, filters))
+        List<ExternalSplit> filtered = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, filters))
             .splits();
         assertEquals(
             List.of(StoragePath.of(base + "year=2024/month=2/d.parquet"), StoragePath.of(base + "year=2024/month=2/e.parquet")),
             filtered.stream().map(s -> ((FileSplit) s).path()).toList()
         );
 
-        List<ExternalSplit> projected = provider.discoverSplits(retainedContext(compacted, shared, Set.of("month"), List.of())).splits();
+        List<ExternalSplit> projected = provider.discoverSplits(retainedContext(listing, metadata, Set.of("month"), List.of())).splits();
         assertEquals(5, projected.size());
         for (ExternalSplit s : projected) {
             FileSplit split = (FileSplit) s;

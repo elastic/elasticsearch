@@ -807,13 +807,15 @@ public class FileSplitProvider implements SplitProvider {
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
             int resolved = partitionInfo.resolveFileIndex(index, filePath);
             if (resolved >= 0) {
+                int column = 0;
                 for (String key : partitionInfo.partitionColumns().keySet()) {
                     if (retained.contains(key)) {
-                        Object value = partitionInfo.getValue(resolved, key);
+                        Object value = partitionInfo.getValueAt(resolved, column);
                         if (value != null) {
                             kept = putRetained(kept, key, value);
                         }
                     }
+                    column++;
                 }
             }
         }

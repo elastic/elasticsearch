@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -32,6 +34,8 @@ import java.util.Set;
  * resolve the correct values; that path is for tests / compat only and is skipped by group sharing.
  */
 public final class PartitionMetadata {
+
+    private static final Logger logger = LogManager.getLogger(PartitionMetadata.class);
 
     public static final PartitionMetadata EMPTY = new PartitionMetadata(Map.of(), new Object[0][], 0, 0, null, null);
 
@@ -237,6 +241,15 @@ public final class PartitionMetadata {
     }
 
     /**
+     * Value of the column at position {@code column} in {@link #partitionColumns()} iteration order, for
+     * callers that already walk the columns and would otherwise pay a name lookup per column.
+     */
+    public Object getValueAt(int fileIndex, int column) {
+        Objects.checkIndex(fileIndex, fileCount);
+        return valuesByColumn[column][rowIndex(fileIndex)];
+    }
+
+    /**
      * Like {@link #getValue(int, String)} after {@link #resolveFileIndex(int, StoragePath)}.
      */
     @Nullable
@@ -325,6 +338,11 @@ public final class PartitionMetadata {
             } else {
                 for (int c = 0; c < columnNames.length; c++) {
                     if (Objects.equals(shared[c][g], valuesByColumn[c][oldRow]) == false) {
+                        logger.debug(
+                            "partition values disagree within directory group [{}] for column [{}], keeping one row per file",
+                            g,
+                            columnNames[c]
+                        );
                         assert false : "partition values disagree within directory group [" + g + "] for column [" + columnNames[c] + "]";
                         return this;
                     }
@@ -439,6 +457,8 @@ public final class PartitionMetadata {
             if (pathsByFile == null || that.pathsByFile == null) {
                 return false;
             }
+            // Paths are unique map keys and both sides cover fileCount files, so containment in one direction
+            // proves the path sets are equal.
             for (StoragePath path : pathsByFile) {
                 int self = resolveFileIndex(-1, path);
                 int other = that.resolveFileIndex(-1, path);
@@ -449,15 +469,6 @@ public final class PartitionMetadata {
                     if (Objects.equals(valuesByColumn[c][rowIndex(self)], that.valuesByColumn[c][that.rowIndex(other)]) == false) {
                         return false;
                     }
-                }
-            }
-            // Same path set (order-independent).
-            if (pathsByFile.length != that.pathsByFile.length) {
-                return false;
-            }
-            for (StoragePath path : that.pathsByFile) {
-                if (resolveFileIndex(-1, path) < 0) {
-                    return false;
                 }
             }
             return true;

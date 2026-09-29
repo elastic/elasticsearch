@@ -62,10 +62,13 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLAN
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -351,10 +354,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         .collect(toSet());
 
     /**
-     * Indices ingested into <em>both</em> the local and the remote cluster: enrich source indices and lookup indices
-     * (see {@link #twoClients}, which dispatches their {@code _bulk} requests to both clusters). A source that names one is rewritten
-     * to {@code *:index} rather than {@code *:index,index}; otherwise the union matches the identical rows on both clusters and
-     * double-counts them. When the top-level source names one, every index in the query is remote-only.
+     * Indices ingested into <em>both</em> the local and the remote cluster: enrich source indices  and lookup indices
+     * (see {@link #twoClients}, which dispatches their {@code _bulk} requests to  both clusters). When such an index appears as a source
+     * inside a subquery it must be rewritten  to either local-only or the remote-only pattern rather than {@code *:index,index}; otherwise
+     * the union matches the identical rows on both clusters and double-counts them. This mirrors the {@code onlyRemotes} handling
+     * {@link #convertToRemoteIndices} applies to top-level FROM commands.
      */
     private static final Set<String> INDICES_ON_BOTH_CLUSTERS = Set.copyOf(
         Stream.concat(LOOKUP_INDICES.stream(), ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index))
@@ -447,6 +451,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            return convertSubqueryToRemoteIndices(testCase);
+        }
         String query = testCase.query;
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
@@ -456,14 +465,16 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, enrichSourceIndices)) {
             onlyRemotes = true;
         }
-        testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, INDICES_ON_BOTH_CLUSTERS, onlyRemotes);
+        testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
-            final Pattern regex = Pattern.compile("\\b1:(\\d+)\\b");
+            final String pattern = "\\b1:(\\d+)\\b";
+            final Pattern regex = Pattern.compile(pattern);
             testCase.adjustExpectedWarnings(warning -> regex.matcher(warning).replaceAll(match -> {
                 int position = Integer.parseInt(match.group(1));
-                return "1:" + (position + offset);
+                int newPosition = position + offset;
+                return "1:" + newPosition;
             }));
         }
         // To make warnings optional for some version, uncomment this. Tests might also
@@ -550,4 +561,13 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }
 
+    /**
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote
+     * indices for a given test case.
+     */
+    private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        String query = testCase.query;
+        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query, INDICES_ON_BOTH_CLUSTERS);
+        return testCase;
+    }
 }

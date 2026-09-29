@@ -2180,7 +2180,6 @@ c:long | gender:keyword
 ;
 
 nullInInListPredicate
-required_capability: where_in_subquery_without_view
 required_capability: warn_null_misuse
 
 FROM employees
@@ -2220,7 +2219,6 @@ c:long | languages:integer
 ;
 
 nullInNotInListPredicate
-required_capability: where_in_subquery_without_view
 required_capability: warn_null_misuse
 
 FROM employees

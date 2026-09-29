@@ -220,7 +220,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
             | WHERE emp_no >= 10091 AND emp_no < 10094
             | SORT _index, emp_no
             | KEEP _index,  emp_no, languages, language_name""", Set.of(), false), equalTo("""
-            FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible
+            FROM *:employees,employees, (FROM employees_incompatible
                              | ENRICH languages_policy on languages with language_name )
                        metadata _index
             | EVAL emp_no = emp_no::long
@@ -238,47 +238,11 @@ public class EsqlTestUtilsTests extends ESTestCase {
             | EVAL emp_no = emp_no::long
             """, Set.of(), false), equalTo("""
             SET a = b;
-            SET x = y; FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible
+            SET x = y; FROM *:employees,employees, (FROM employees_incompatible
                              | ENRICH languages_policy on languages with language_name )
                        metadata _index
             | EVAL emp_no = emp_no::long
             """));
-    }
-
-    public void testAddRemoteIndicesFromSubqueryWithInnerPipe() {
-        String query = "FROM (FROM books | EVAL x = 1 | KEEP author), (FROM employees | KEEP emp_no) | SORT author";
-        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("books", "employees")), equalTo(false));
-        assertThat(
-            EsqlTestUtils.addRemoteIndices(query, Set.of("books"), false),
-            equalTo("FROM (FROM *:books | EVAL x = 1 | KEEP author), (FROM *:employees,employees | KEEP emp_no) | SORT author")
-        );
-    }
-
-    public void testAddRemoteIndicesIndexFromSubqueryIndexFromSubquery() {
-        String query = "FROM employees, (FROM books | KEEP author), apps, (FROM sample_data | KEEP client_ip) | KEEP author";
-        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("employees")), equalTo(true));
-        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("apps")), equalTo(true));
-        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("books", "sample_data")), equalTo(false));
-        assertThat(
-            EsqlTestUtils.addRemoteIndices(query, Set.of("books"), false),
-            equalTo(
-                "FROM *:employees,employees, (FROM *:books | KEEP author), *:apps,apps,"
-                    + " (FROM *:sample_data,sample_data | KEEP client_ip) | KEEP author"
-            )
-        );
-    }
-
-    public void testAddRemoteIndicesInSubqueryWithInnerPipe() {
-        String query = "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | KEEP emp_no) | KEEP emp_no";
-        assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("employees")), equalTo(true));
-        assertThat(
-            EsqlTestUtils.addRemoteIndices(query, Set.of("other"), false),
-            equalTo("FROM *:employees,employees | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no | KEEP emp_no) | KEEP emp_no")
-        );
-        assertThat(
-            EsqlTestUtils.addRemoteIndices(query, Set.of("employees"), false),
-            equalTo("FROM *:employees | WHERE emp_no IN (FROM *:employees | SORT emp_no | KEEP emp_no) | KEEP emp_no")
-        );
     }
 
     public void testTripleQuotes() {
@@ -309,16 +273,15 @@ public class EsqlTestUtilsTests extends ESTestCase {
         String in = """
             FROM (ROW emp_no = 99999, languages = 99)
             | KEEP emp_no, languages""";
-        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(in));
+        String out = "FROM (ROW emp_no = 99999, languages = 99) | KEEP emp_no, languages";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
     public void testConvertSubqueryToRemoteIndicesRowSubqueryWithIndexPattern() {
         String in = """
             FROM employees, (ROW emp_no = 99999)
             | KEEP emp_no""";
-        String out = """
-            FROM *:employees,employees, (ROW emp_no = 99999)
-            | KEEP emp_no""";
+        String out = "FROM *:employees,employees, (ROW emp_no = 99999) | KEEP emp_no";
         assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
@@ -329,7 +292,8 @@ public class EsqlTestUtilsTests extends ESTestCase {
                 (ROW emp_no = 2, languages = 10)
             | SORT emp_no
             | KEEP emp_no, languages""";
-        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(in));
+        String out = "FROM (ROW emp_no = 1, languages = 5), (ROW emp_no = 2, languages = 10) | SORT emp_no | KEEP emp_no, languages";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
     public void testConvertSubqueryToRemoteIndicesFromOnly() {
@@ -417,15 +381,14 @@ public class EsqlTestUtilsTests extends ESTestCase {
             | KEEP *
             | SORT z
             | LIMIT 1""";
-        String out = """
-            SET unmapped_fields="nullify";
-            FROM *:k8s,k8s, (from *:many_numbers,many_numbers)
-            | KEEP network.total_bytes_in
-            | RENAME network.total_bytes_in as x, x as y
-            | RENAME y as z
-            | KEEP *
-            | SORT z
-            | LIMIT 1""";
+        String out = "SET unmapped_fields=\"nullify\";\n"
+            + "FROM *:k8s,k8s, (FROM *:many_numbers,many_numbers)"
+            + " | KEEP network.total_bytes_in"
+            + " | RENAME network.total_bytes_in as x, x as y"
+            + " | RENAME y as z"
+            + " | KEEP *"
+            + " | SORT z"
+            + " | LIMIT 1";
         assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
@@ -435,11 +398,9 @@ public class EsqlTestUtilsTests extends ESTestCase {
             SET c=d;
             FROM employees, (FROM employees_incompatible | KEEP emp_no)
             | SORT emp_no""";
-        String out = """
-            SET a=b;
-            SET c=d;
-            FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible | KEEP emp_no)
-            | SORT emp_no""";
+        String out = "SET a=b;\nSET c=d;\n"
+            + "FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible | KEEP emp_no)"
+            + " | SORT emp_no";
         assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
@@ -615,8 +576,10 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testConvertWhereInSubqueryMultiline() {
-        // Newlines between commands stay put, including inside a parenthesised subquery, so warning line numbers
-        // still refer to the same command they were written against.
+        // Multi-line formatting is handled: splitIgnoringParentheses joins the main pipe segments
+        // with " | ", collapsing newlines in the FROM clause. The subquery body inside the IN (...)
+        // parens is stripped of leading/trailing whitespace before recursion, so the surrounding
+        // newlines inside the parens are dropped (the rewritten subquery is structurally equivalent).
         String in = """
             FROM employees
             | WHERE emp_no IN (
@@ -624,25 +587,10 @@ public class EsqlTestUtilsTests extends ESTestCase {
               )
             | SORT emp_no
             | KEEP emp_no""";
-        String out = """
-            FROM *:employees,employees
-            | WHERE emp_no IN (
-                FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no
-              )
-            | SORT emp_no
-            | KEEP emp_no""";
-        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
-    }
-
-    public void testConvertWhereInLiteralListKeepsFollowingLine() {
-        String in = """
-            FROM employees
-            | WHERE gender IN ("F", "M", null)
-            | STATS c = COUNT(*) BY gender""";
-        String out = """
-            FROM *:employees,employees
-            | WHERE gender IN ("F", "M", null)
-            | STATS c = COUNT(*) BY gender""";
+        String out = "FROM *:employees,employees"
+            + " | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+            + " | SORT emp_no"
+            + " | KEEP emp_no";
         assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 

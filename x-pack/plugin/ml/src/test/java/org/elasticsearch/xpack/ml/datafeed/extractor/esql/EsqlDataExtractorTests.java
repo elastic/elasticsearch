@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -330,6 +331,29 @@ public class EsqlDataExtractorTests extends ESTestCase {
         String query = "FROM logs-*\n| KEEP @timestamp\n| lImIt 42";
 
         assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+    }
+
+    public void testHasAggregationGivenNoStatsCommandIsFalse() {
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP @timestamp, bytes"), is(false));
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-*"), is(false));
+    }
+
+    public void testHasAggregationGivenTopLevelStatsIsTrue() {
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS COUNT(*)"), is(true));
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS doc_count = COUNT(*) BY BUCKET(@timestamp, 1h)"), is(true));
+    }
+
+    public void testHasAggregationGivenMixedCaseStatsIsTrue() {
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | stats COUNT(*)"), is(true));
+    }
+
+    public void testHasAggregationGivenStatsOnlyInSubqueryIsFalse() {
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE id IN (FROM other | STATS COUNT(*))"), is(false));
+    }
+
+    public void testHasAggregationGivenStatsSubstringIsFalse() {
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP statsField"), is(false));
+        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE message == \"STATS COUNT(*)\""), is(false));
     }
 
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {
@@ -684,7 +708,11 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "bucket_time", IDENTIFIER))));
     }
 
-    public void testQuerySummaryShouldNotUseSourceFieldAfterPipeline() {
+    // Prior to elastic-workspace-g2sz.1's fix, getSummary() ran the user's FULL pipeline (including
+    // whatever it renamed the time column to) to compute earliest/latest/total_hits, so it had to bind
+    // ??timeField to the *emitted* field name. It now runs only the leading FROM clause -- see
+    // fetchSourceRangeSummary() -- so the raw source field name is what's in scope, not the emitted one.
+    public void testQuerySummaryUsesSourceTimeFieldForFastRangeProbe() {
         TestDataExtractor extractor = createExtractorWithDistinctTimeFields(1000L, 9000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
         extractor.enqueueRow(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
@@ -696,11 +724,89 @@ public class EsqlDataExtractorTests extends ESTestCase {
         extractor.getSummary();
 
         assertThat(extractor.capturedOrderedQuery, not(containsString(SOURCE_TIME_FIELD)));
-        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "bucket_time", IDENTIFIER))));
+        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", SOURCE_TIME_FIELD, IDENTIFIER))));
         assertThat(
             extractor.capturedTimeFilter,
             equalTo(new RangeQueryBuilder(SOURCE_TIME_FIELD).gte(1000L).lt(9000L).format("epoch_millis"))
         );
+        // Only one query is issued: DEFAULT_QUERY ("FROM logs") has no top-level STATS, so the fast
+        // source-level probe's raw doc count is used directly as the output-row estimate.
+        assertThat(extractor.capturedQueries.size(), equalTo(1));
+    }
+
+    public void testGetSummaryForAggregatingQueryRunsBoundedProbeInsteadOfFullRange() {
+        String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+
+        // Source-level probe (fast, FROM-clause only): earliest/latest/raw-doc-count over the full range.
+        extractor.enqueueRow(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            1_000_000L,
+            91_000_000L,
+            900_000L
+        );
+        // Bounded density probe: the user's actual pipeline, but only over one grouping-interval-sized
+        // window right after earliestTime (here GROUPING_INTERVAL_MILLIS=60_000), producing far fewer
+        // output rows than the raw doc count above.
+        extractor.enqueueRow(List.of(column("probe_output_rows", LONG)), 3L);
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.earliestTime(), equalTo(1_000_000L));
+        assertThat(summary.latestTime(), equalTo(91_000_000L));
+        // Extrapolated from the bounded probe (3 rows / 60_000ms), not the raw source doc count (900_000):
+        // density * timeSpread = (3 / 60_000) * (91_000_000 - 1_000_000) = 4_500.
+        assertThat(summary.totalHits(), equalTo(4_500L));
+        assertThat(summary.totalHits(), lessThan(900_000L));
+
+        assertThat(extractor.capturedQueries.size(), equalTo(2));
+        assertThat(
+            extractor.capturedQueries.get(0),
+            equalTo("FROM logs | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+        );
+        assertThat(extractor.capturedQueries.get(1), equalTo(aggregatingQuery + " | STATS probe_output_rows = COUNT(*)"));
+        assertThat(
+            extractor.capturedTimeFilters.get(1),
+            equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1_000_000L).lt(1_000_000L + GROUPING_INTERVAL_MILLIS).format("epoch_millis"))
+        );
+    }
+
+    public void testGetSummaryForAggregatingQueryWithNoDataInProbeWindowFallsBackToProbeCount() {
+        String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+
+        extractor.enqueueRow(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            1_000_000L,
+            91_000_000L,
+            900_000L
+        );
+        // Sparse/bursty data: the probe window right after earliestTime happens to contain no output rows.
+        extractor.enqueueRow(List.of(column("probe_output_rows", LONG)), 0L);
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        // A zero-density extrapolation would starve ChunkedDataExtractor's chunk-span heuristic, so this
+        // falls back to a floor of 1 rather than 0.
+        assertThat(summary.totalHits(), equalTo(1L));
+    }
+
+    public void testGetSummaryForAggregatingQueryWhenNoSourceDataReturnsNoData() {
+        String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+
+        extractor.enqueueRows(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            List.of(Arrays.asList(null, null, 0L))
+        );
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.hasData(), is(false));
+        assertThat(summary.totalHits(), equalTo(0L));
+        // No point probing an aggregating query's output-row density when the source itself has no data
+        // in range.
+        assertThat(extractor.capturedQueries.size(), equalTo(1));
     }
 
     private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField) {

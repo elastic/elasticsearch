@@ -18,6 +18,7 @@ final class EsqlQueryClauseScanner {
         boolean hasOuterLimit = false;
         boolean hasOuterTimeWhere = false;
         boolean hasOuterTimeSort = false;
+        boolean hasOuterStats = false;
         for (int index = 0, nestingDepth = 0; index < query.length();) {
             char character = query.charAt(index);
             if (character == '"') {
@@ -43,13 +44,28 @@ final class EsqlQueryClauseScanner {
                     hasOuterTimeWhere = true;
                 } else if (command == Command.SORT && containsTimeField(query, commandStart + command.text.length(), timeField)) {
                     hasOuterTimeSort = true;
+                } else if (command == Command.STATS) {
+                    hasOuterStats = true;
                 }
                 index++;
             } else {
                 index++;
             }
         }
-        return new ScanResult(hasOuterLimit, hasOuterTimeWhere, hasOuterTimeSort);
+        return new ScanResult(hasOuterLimit, hasOuterTimeWhere, hasOuterTimeSort, hasOuterStats);
+    }
+
+    /**
+     * Whether the pipeline contains a depth-zero {@code STATS} command, i.e. the query aggregates rather
+     * than passing source rows through unchanged. {@code EsqlDataExtractor#getSummary()} uses this to
+     * decide whether the raw source doc count is a valid proxy for the query's output-row count
+     * (pass-through queries: yes, one output row per matching doc) or whether output rows must instead be
+     * estimated via a bounded probe of the user's own pipeline (aggregating queries: raw doc count vastly
+     * overcounts output rows, e.g. {@code STATS ... BY BUCKET(@timestamp, 1h)} collapses many docs into one
+     * row per bucket) -- see elastic-workspace-g2sz.1.
+     */
+    static boolean hasAggregation(String query) {
+        return scan(query, "").hasOuterStats();
     }
 
     /**
@@ -257,12 +273,13 @@ final class EsqlQueryClauseScanner {
         return index;
     }
 
-    record ScanResult(boolean hasOuterLimit, boolean hasOuterTimeWhere, boolean hasOuterTimeSort) {}
+    record ScanResult(boolean hasOuterLimit, boolean hasOuterTimeWhere, boolean hasOuterTimeSort, boolean hasOuterStats) {}
 
     private enum Command {
         WHERE("WHERE"),
         SORT("SORT"),
         LIMIT("LIMIT"),
+        STATS("STATS"),
         OTHER("");
 
         private final String text;

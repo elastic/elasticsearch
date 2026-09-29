@@ -800,21 +800,63 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(start, 360_000L);
     }
 
-    public void testEmittedSummaryAheadOfSourceShouldNotAdvanceCurrentStart() throws IOException {
+    // Prior to elastic-workspace-g2sz.1's fix, currentStart was deliberately never advanced to the
+    // summary's earliest time for ES|QL datafeeds (see git history on ChunkedDataExtractor around this
+    // guard), out of caution that the summary's MIN(??timeField) reflected the user's own pipeline (which
+    // could transform the time field, e.g. DATE_TRUNC) and might therefore run ahead of the true source
+    // data. EsqlDataExtractor#getSummary() no longer runs the user's pipeline to compute earliest/latest --
+    // it always queries the source time field directly (see EsqlDataExtractor#fetchSourceRangeSummary) --
+    // so that concern no longer applies, and skipping the forward jump was actively harmful: without it, an
+    // unbounded preview/first real _start walked one chunk at a time across the *entire* configured range
+    // (e.g. epoch to "now") instead of straight to where the data actually starts, which measured as a
+    // ~750x slowdown vs. the DSL equivalent on a real repro (see the bead for the measurement).
+    public void testSummaryEarliestAheadOfWindowStartShouldAdvanceCurrentStart() throws IOException {
         final long groupingInterval = 60_000L;
-        final long start = 120_000L;
-        final long end = 360_000L;
+        final long start = 0L;
+        final long end = 960_000L;
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
-        stubSummary(start, end, new DataSummary(180_000L, 300_000L, 500L));
-        stubChunk(start, 240_000L, mock(InputStream.class));
+        // earliest (480_000, already grouping-interval-aligned) is far ahead of the window start (0);
+        // chunkSpan works out larger than the remaining range, so the chunk end is capped at
+        // context.end() (960_000), not derived from earliest + chunkSpan.
+        stubSummary(start, end, new DataSummary(480_000L, 540_000L, 1L));
+        stubChunk(480_000L, end, mock(InputStream.class));
 
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        verify(dataExtractorFactory).newExtractor(start, 240_000L);
-        verify(dataExtractorFactory, times(0)).newExtractor(180_000L, 240_000L);
+        verify(dataExtractorFactory).newExtractor(480_000L, end);
+        // newExtractor(start, end) is called exactly once -- for the summary probe that discovers
+        // earliest=480_000. Pre-fix, currentStart never advanced, so the actual data fetch re-issued the
+        // *same* (start, end) call a second time instead of jumping straight to (480_000, end); this
+        // assertion catches that regression.
+        verify(dataExtractorFactory, times(1)).newExtractor(start, end);
+    }
+
+    public void testSummaryEarliestBehindWindowStartShouldNotRewindCurrentStart() throws IOException {
+        // Regression guard for the DATE_TRUNC-style scenario the pre-fix guard was meant to protect
+        // against: even though getSummary() no longer runs the user's pipeline for earliest/latest, a
+        // resumed/continuing datafeed can legitimately re-query a window whose start is already ahead of
+        // the full index's raw earliest doc (e.g. mid-history, after prior checkpoints) -- currentStart
+        // must never rewind behind the window it was asked to search.
+        final long groupingInterval = 60_000L;
+        final long start = 180_000L;
+        final long end = 600_000L;
+        chunkSpan = null;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
+
+        // earliest (60_000) is behind the window start (180_000); timeSpread=latest-earliest=120_000 ->
+        // chunkSpan = max(MIN_CHUNK_SPAN, 500 * 120_000 / 500) = 120_000, already a grouping-interval
+        // multiple.
+        stubSummary(start, end, new DataSummary(60_000L, 180_000L, 500L));
+        stubChunk(start, 300_000L, mock(InputStream.class));
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        verify(dataExtractorFactory).newExtractor(start, 300_000L);
+        verify(dataExtractorFactory, times(0)).newExtractor(60_000L, 300_000L);
     }
 
     public void testGroupedRowsShouldNotBeSplitAcrossChunks() throws IOException {

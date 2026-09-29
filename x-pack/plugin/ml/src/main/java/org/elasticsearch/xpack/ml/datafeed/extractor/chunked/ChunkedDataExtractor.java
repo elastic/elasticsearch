@@ -119,10 +119,16 @@ public class ChunkedDataExtractor implements DataExtractor {
             throw e;
         }
         if (dataSummary.hasData()) {
-            if (context.hasEsqlQuery() == false) {
-                long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
-                currentStart = earliestTime;
-            }
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // For ESQL datafeeds the query may transform the time field (e.g. DATE_TRUNC), so the
+            // summary's MIN(??timeField) can be earlier than the window we just queried -- clamp so we
+            // never rewind currentStart. Unlike DSL, this must still jump currentStart *forward* to
+            // earliestTime: without it, an unbounded preview/first real _start walks the chunked extractor
+            // one chunk at a time across the *entire* configured range (e.g. epoch to "now") instead of
+            // straight to where the data actually starts, which is what made ES|QL datafeed unbounded
+            // preview ~750x slower than the DSL equivalent (elastic-workspace-g2sz.1) -- verified by
+            // DEBUG-logging ChunkedDataExtractor during the repro: ~5000 resync round trips instead of ~3.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {

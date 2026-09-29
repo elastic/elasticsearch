@@ -118,18 +118,114 @@ public class EsqlDataExtractor implements DataExtractor {
         return context;
     }
 
+    /**
+     * Fallback bounded-probe span used to estimate an aggregating query's output-row density (see
+     * {@link #estimateAggregatingOutputRows}) when the datafeed has no explicit grouping interval to reuse
+     * as the probe window.
+     */
+    private static final long DEFAULT_DENSITY_PROBE_SPAN_MILLIS = TimeValue.timeValueHours(1).millis();
+
+    /**
+     * Sizes the first/next chunk without paying for the user's full pipeline over the whole extraction
+     * range. The original implementation ran {@code <esqlQuery> | STATS MIN/MAX/COUNT(*)} -- i.e. the
+     * user's own STATS/BUCKET aggregation, unbounded -- purely to obtain earliest/latest/row-count for
+     * {@code ChunkedDataExtractor}'s chunk-span heuristic; on an aggregating query with no start/end this
+     * measured ~750x slower than the DSL datafeed equivalent (elastic-workspace-g2sz.1), because ES|QL's
+     * STATS pipeline lacks the Lucene-level fast path DSL's date_histogram/min/max aggs get.
+     * <p>
+     * Fix: get earliest/latest/raw-doc-count from a source-level probe (FROM clause only, no user
+     * pipeline) -- cheap regardless of what the user's query does downstream. For a pass-through query
+     * (no top-level STATS) the raw doc count IS the output-row count, so that's returned directly. For an
+     * aggregating query (top-level STATS present), raw doc count vastly overcounts output rows, so
+     * {@link #estimateAggregatingOutputRows} extrapolates output-row density from a small bounded probe of
+     * the user's actual pipeline instead of running it over the full range.
+     */
     @Override
     public DataSummary getSummary() {
-        String summaryQuery = context.esqlQuery()
-            + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
         QueryBuilder timeFilter = buildTimeFilter();
+        SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
+        if (sourceSummary.totalHits() == 0 || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
+            return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
+        }
+        long estimatedOutputRows = estimateAggregatingOutputRows(sourceSummary);
+        return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
+    }
+
+    /**
+     * Runs {@code FROM <source> | STATS MIN/MAX/COUNT(??timeField)} against just the query's leading FROM
+     * clause (via {@link EsqlQueryClauseScanner#extractLeadingCommand}), under the same time filter the
+     * full query would see. This is independent of the user's pipeline -- in particular of any
+     * STATS/BUCKET aggregation it applies -- so its cost tracks the DSL summary aggregation's cost
+     * (Lucene point-range MIN/MAX + segment doc counts), not the user's query.
+     */
+    private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
+        String sourceQuery = EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing()
+            + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(summaryQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
-            return parseSummaryResponse(response.response());
+            DataSummary summary = parseSummaryResponse(response.response());
+            return new SourceRangeSummary(summary.earliestTime(), summary.latestTime(), summary.totalHits());
         }
     }
+
+    /**
+     * Estimates output rows for an aggregating user query without running it over the full
+     * [earliest, latest) range: runs the user's actual pipeline, bounded to one grouping-interval-sized
+     * (or a default 1h) probe window right after {@code earliestTime}, counts its output rows, and
+     * extrapolates linearly over the full time spread. When the probe window already covers the whole
+     * range (sparse data / short time spread) this degenerates to running the query once, in full -- same
+     * as the pre-fix behaviour -- but the multi-day-range/1h-BUCKET case that motivated this fix (see
+     * elastic-workspace-g2sz.1) is exactly the case this shortcuts.
+     */
+    private long estimateAggregatingOutputRows(SourceRangeSummary sourceSummary) {
+        long earliest = sourceSummary.earliestTime();
+        long latest = sourceSummary.latestTime();
+        long timeSpread = latest - earliest;
+        if (timeSpread <= 0) {
+            // All matching data falls at a single instant; the probe below already covers everything.
+            return Math.max(1L, runBoundedAggregationProbe(earliest, latest + 1));
+        }
+        long probeSpan = Math.min(
+            timeSpread,
+            context.groupingIntervalMillis() > 0 ? context.groupingIntervalMillis() : DEFAULT_DENSITY_PROBE_SPAN_MILLIS
+        );
+        long probeEnd = Math.min(earliest + probeSpan, latest + 1);
+        long probeOutputRows = runBoundedAggregationProbe(earliest, probeEnd);
+        long actualProbeSpan = probeEnd - earliest;
+        if (probeOutputRows == 0 || actualProbeSpan >= timeSpread) {
+            // Either the probe window already spans the whole range, or the probe window itself produced
+            // no output rows (sparse/bursty data) -- extrapolating a zero density would starve
+            // ChunkedDataExtractor's chunk-span heuristic, so fall back to the exact probe count.
+            return Math.max(1L, probeOutputRows);
+        }
+        double density = (double) probeOutputRows / actualProbeSpan;
+        return Math.max(1L, Math.round(density * timeSpread));
+    }
+
+    /**
+     * Runs the user's actual pipeline, bounded to [probeStart, probeEnd), appending a trailing row-count
+     * STATS. Used only to measure output-row density over a small window -- never over the unbounded
+     * range that caused elastic-workspace-g2sz.1.
+     */
+    private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
+        QueryBuilder probeFilter = new RangeQueryBuilder(context.sourceTimeField()).gte(probeStart).lt(probeEnd).format(EPOCH_MILLIS);
+        String probeQuery = context.esqlQuery() + " | STATS probe_output_rows = COUNT(*)";
+        long startMs = client.threadPool().relativeTimeInMillis();
+        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
+            long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
+            timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
+            for (Iterable<Object> row : response.response().rows()) {
+                for (Object value : row) {
+                    return value instanceof Number n ? n.longValue() : 0L;
+                }
+            }
+            return 0L;
+        }
+    }
+
+    private record SourceRangeSummary(Long earliestTime, Long latestTime, long totalHits) {}
 
     private QueryBuilder buildTimeFilter() {
         return new RangeQueryBuilder(context.sourceTimeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
@@ -265,6 +361,15 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private List<EsqlQueryParam> timeFieldParam() {
         return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
+    }
+
+    /**
+     * Binds {@code ??timeField} to the raw source field name, for probes that run before (or without) the
+     * user's pipeline -- e.g. {@link #fetchSourceRangeSummary} -- where any rename the pipeline applies
+     * (such as a BUCKET(...) AS alias) has not happened yet.
+     */
+    private List<EsqlQueryParam> sourceTimeFieldParam() {
+        return List.of(new EsqlQueryParam("timeField", context.sourceTimeField(), IDENTIFIER));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

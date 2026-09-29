@@ -273,9 +273,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
         assertThat(EsqlTestUtils.queryContainsIndices(query, Set.of("employees")), equalTo(true));
         assertThat(
             EsqlTestUtils.addRemoteIndices(query, Set.of("other"), false),
-            equalTo(
-                "FROM *:employees,employees | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no | KEEP emp_no) | KEEP emp_no"
-            )
+            equalTo("FROM *:employees,employees | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no | KEEP emp_no) | KEEP emp_no")
         );
         assertThat(
             EsqlTestUtils.addRemoteIndices(query, Set.of("employees"), false),

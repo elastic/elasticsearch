@@ -72,14 +72,10 @@ public class OpenAiCompletionResponseHandlerTests extends ESTestCase {
         ByteArrayInputStream responseBodyStream = new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8));
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());

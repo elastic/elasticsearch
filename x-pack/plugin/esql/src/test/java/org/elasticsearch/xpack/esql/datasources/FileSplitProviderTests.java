@@ -5738,6 +5738,29 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The same swap, on the rail production actually runs. {@code ComputeService} reaches split discovery only
+     * through {@code collectExternalSplitsAsync}; the synchronous entry point has no production caller. So every
+     * unit test of the swap until now guarded a rail that cannot regress in production, while the shipping one was
+     * covered by cluster tests alone.
+     */
+    public void testFilesPastThePrefixAreReadAsTheDatasetOnTheAsyncRail() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(overAPrefixOf(everyFile), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        SplitDiscoveryResult result = future.actionGet(10, TimeUnit.SECONDS);
+
+        assertEquals("the async rail reads the dataset, not the prefix it was handed", 2, result.splits().size());
+    }
+
+    /**
      * A prefix context over a two-file dataset whose schema's listing held only the first file, so split discovery has
      * to list the dataset itself.
      */

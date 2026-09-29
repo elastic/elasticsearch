@@ -215,9 +215,7 @@ public class AllocationDeciders {
             Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                assert decision.type() == Decision.Type.YES
-                    || decision.type() == Decision.Type.THROTTLE
-                    || decision.label() != null
+                assert decision.type() == Decision.Type.YES || decision.type() == Decision.Type.THROTTLE || decision.label() != null
                     : decider.getClass().getSimpleName() + " returned " + decision.type() + " without a label";
                 if (mostNegativeDecision.type().compareToBetweenDecisions(decision.type()) > 0) {
                     mostNegativeDecision = decision;
@@ -233,9 +231,7 @@ public class AllocationDeciders {
             final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                assert decision.type() == Decision.Type.YES
-                    || decision.type() == Decision.Type.THROTTLE
-                    || decision.label() != null
+                assert decision.type() == Decision.Type.YES || decision.type() == Decision.Type.THROTTLE || decision.label() != null
                     : decider.getClass().getSimpleName() + " returned " + decision.type() + " without a label";
                 traceNoDecisions(decider, decision, logMessageCreator);
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {

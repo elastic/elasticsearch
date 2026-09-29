@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -218,7 +217,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         projectResolver.executeOnProject(projectId, () -> {
             final String indexName = descriptor.getPrimaryIndex();
 
-            PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
+            PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings());
 
             final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
 

@@ -53,7 +53,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.SecurityFeatures;
@@ -552,10 +551,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                             this.concreteIndexName,
                             descriptorForVersion.getAliasName()
                         );
-                        PutMappingRequest request = new PutMappingRequest(this.concreteIndexName).source(
-                            descriptorForVersion.getMappings(),
-                            XContentType.JSON
-                        ).origin(descriptorForVersion.getOrigin());
+                        PutMappingRequest request = new PutMappingRequest(this.concreteIndexName).source(descriptorForVersion.getMappings())
+                            .origin(descriptorForVersion.getOrigin());
                         executeAsyncWithOrigin(
                             client.threadPool().getThreadContext(),
                             descriptorForVersion.getOrigin(),

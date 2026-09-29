@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -147,15 +148,17 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
 
-        // await all relocation attempts are exhausted
+        // await all relocation attempts are exhausted and relocation is no longer in progress
         assertBusy(() -> {
             var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
+            assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
         });
         // ensure the shard remain started
-        var state = client(internalCluster().getMasterName()).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
         var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());

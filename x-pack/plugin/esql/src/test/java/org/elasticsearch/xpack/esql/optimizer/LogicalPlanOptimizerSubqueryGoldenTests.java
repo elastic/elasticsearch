@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Captures the analyzed and logically-optimized plans for subquery-in-{@code FROM} scenarios.
  * Negative tests live in {@code LogicalPlanOptimizerSubqueryTests}.
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -665,9 +666,28 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, Map.of("view_datasets", "FROM heavy_a, heavy_b"));
     }
 
-    // synthetic conversion attributes across nested merge boundaries, validate the fix to ResolveUnionTypesInUnionAll
+    // explicit casting, synthetic conversion attributes across nested merge boundaries, validate the fix to
+    // carryOverSyntheticAttributesThroughProjects in ResolveUnionTypesInUnionAll
 
-    public void testInlineStatsConversionInsideOuterUnion() {
+    public void testConversionInsideInnerUnions() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | EVAL _subquery = 1),
+                 (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | EVAL _subquery = 2)
+            | WHERE _subquery == 1
+            | DROP _subquery
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionInlineStatsInsideInnerUnions() {
         runGoldenTest("""
             FROM (FROM
                     (ROW client_ip = "172.21.0.5"),
@@ -687,25 +707,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testConversionInsideOuterUnionWithoutAggregation() {
-        runGoldenTest("""
-            FROM (FROM
-                    (ROW client_ip = "172.21.0.5"),
-                    (ROW client_ip = "172.21.3.15")
-                  | EVAL client_ip = client_ip::ip
-                  | EVAL _subquery = 1),
-                 (FROM
-                    (ROW client_ip = "172.21.0.5"),
-                    (ROW client_ip = "172.21.3.15")
-                  | EVAL client_ip = client_ip::ip
-                  | EVAL _subquery = 2)
-            | WHERE _subquery == 1
-            | DROP _subquery
-            | LIMIT 10
-            """, STAGES);
-    }
-
-    public void testStatsConversionInsideOuterUnion() {
+    public void testConversionStatsInsideInnerUnions() {
         runGoldenTest("""
             FROM (FROM
                     (ROW client_ip = "172.21.0.5"),
@@ -725,7 +727,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testConversionInOnlyOneOuterUnionBranch() {
+    public void testConversionInlineStatsInOneInnerUnion() {
         runGoldenTest("""
             FROM (FROM
                     (ROW client_ip = "172.21.0.5"),
@@ -737,7 +739,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testConversionsInsideAndAboveOuterUnion() {
+    public void testConversionInlineStatsInInnerUnionsAndInMainQuery() {
         runGoldenTest("""
             FROM (FROM
                     (ROW client_ip = "172.21.0.5"),
@@ -755,31 +757,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testInlineStatsConversionBelowFork() {
-        runGoldenTest("""
-            FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
-            | EVAL client_ip = client_ip::ip
-            | INLINE STATS cnt = COUNT(*) BY client_ip
-            | FORK (WHERE cnt > 0) (WHERE cnt > 1)
-            | KEEP client_ip, cnt
-            | LIMIT 10
-            """, STAGES);
-    }
-
-    public void testConversionAboveTwoNestedUnions() {
-        runGoldenTest("""
-            FROM (FROM
-                    (ROW client_ip = "172.21.0.5"),
-                    (ROW client_ip = "172.21.3.15")
-                  | EVAL label = 1),
-                 (ROW client_ip = "172.21.2.162", label = 1)
-            | EVAL client_ip = client_ip::ip
-            | KEEP client_ip
-            | LIMIT 10
-            """, STAGES);
-    }
-
-    public void testConversionAboveThreeNestedUnions() {
+    public void testConversionInMainQueryAfterNestedUnions() {
         runGoldenTest("""
             FROM (FROM
                     (FROM
@@ -794,28 +772,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testNestedConversionThroughKeepAndRename() {
-        runGoldenTest("""
-            FROM (FROM (FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
-                        | EVAL label = 1
-                        | KEEP client_ip, label
-                        | RENAME label AS renamed
-                        | RENAME renamed AS label),
-                       (ROW client_ip = "172.21.2.162", label = 1)
-                  | KEEP client_ip, label
-                  | RENAME label AS renamed
-                  | RENAME renamed AS label),
-                 (ROW client_ip = "172.21.2.162", label = 1)
-            | KEEP client_ip, label
-            | RENAME label AS renamed
-            | RENAME renamed AS label
-            | EVAL client_ip = client_ip::ip
-            | KEEP client_ip
-            | LIMIT 10
-            """, STAGES);
-    }
-
-    public void testMultipleConversionsAboveNestedUnions() {
+    public void testMultipleConversionsInMainQueryAfterNestedUnions() {
         runGoldenTest("""
             FROM (FROM (ROW value = "1"), (ROW value = "2")), (ROW value = "3")
             | KEEP value
@@ -847,6 +804,38 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             FROM (FROM sample_view), (FROM sample_data)
             | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
             """).stages(STAGES).views(Map.of("sample_view", "FROM sample_data")).run();
+    }
+
+    public void testConversionInMainQueryWithRenameKeepInMainAndNestedSubquery() {
+        runGoldenTest("""
+            FROM (FROM (FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+                        | EVAL label = 1
+                        | KEEP client_ip, label
+                        | RENAME label AS renamed
+                        | RENAME renamed AS label),
+                       (ROW client_ip = "172.21.2.162", label = 1)
+                  | KEEP client_ip, label
+                  | RENAME label AS renamed
+                  | RENAME renamed AS label),
+                 (ROW client_ip = "172.21.2.162", label = 1)
+            | KEEP client_ip, label
+            | RENAME label AS renamed
+            | RENAME renamed AS label
+            | EVAL client_ip = client_ip::ip
+            | KEEP client_ip
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionInlineStatsForkAfterUnion() {
+        runGoldenTest("""
+            FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+            | EVAL client_ip = client_ip::ip
+            | INLINE STATS cnt = COUNT(*) BY client_ip
+            | FORK (WHERE cnt > 0) (WHERE cnt > 1)
+            | KEEP client_ip, cnt
+            | LIMIT 10
+            """, STAGES);
     }
 
     public void testSameConversionTwiceBeforeFork() {
@@ -922,6 +911,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """).stages(STAGES).run();
     }
 
+    // implicit casting for date and date_nanos with nested subquery, fork and view, validate alignMergeOutputTypes
+
     public void testOuterUnionRefreshesTimestampTypeAfterInnerDateNanosCast() {
         runGoldenTest("""
             FROM (
@@ -941,6 +932,203 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             )
             | WHERE _subquery == 1
             | DROP _subquery
+            """, STAGES);
+    }
+
+    public void testImplicitDateNanosCastThenLaterPassExplicitToDateNanos() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | WHERE TO_DATE_NANOS(@timestamp) > "2023-10-23T13:00:00Z"::date_nanos OR does_not_exist IS NOT NULL
+            | EVAL t = TO_DATE_NANOS(@timestamp)
+            | KEEP t
+            | SORT t
+            """, STAGES);
+    }
+
+    public void testImplicitDateNanosCastWithRenameAndFork() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | RENAME @timestamp AS ts
+            | FORK (WHERE true) (WHERE true)
+            | KEEP ts, _fork
+            | SORT ts, _fork
+            """, STAGES);
+    }
+
+    public void testImplicitDateNanosCastWithForkAndRename() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (WHERE true) (WHERE true)
+            | RENAME @timestamp AS ts
+            | KEEP ts, _fork
+            | SORT ts, _fork
+            """, STAGES);
+    }
+
+    public void testImplicitDateNanosCastThenLaterPassWithRenameAndFork() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | WHERE TO_DATE_NANOS(@timestamp) > "2023-10-23T13:00:00Z"::date_nanos OR does_not_exist IS NOT NULL
+            | RENAME @timestamp AS ts
+            | FORK (WHERE true) (WHERE true)
+            | KEEP ts, _fork
+            | SORT ts, _fork
+            """, STAGES);
+    }
+
+    public void testNestedImplicitDateNanosCastThenLaterPassWithOuterUnionAndStats() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (
+              FROM sample_data, (FROM sample_data_ts_nanos)
+              | WHERE TO_DATE_NANOS(@timestamp) > "2023-10-23T12:00:00Z"::date_nanos OR does_not_exist IS NOT NULL
+            )
+            | WHERE TO_DATE_NANOS(@timestamp) > "2023-10-23T13:00:00Z"::date_nanos OR does_not_exist IS NOT NULL
+            | STATS c = COUNT(*) BY @timestamp
+            | SORT @timestamp
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testNestedUnmappedBetweenLevelsImplicitCastThenOuterRenameAndFork() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (
+              FROM sample_data, (FROM sample_data_ts_nanos)
+              | WHERE @timestamp IS NOT NULL OR missing_inner IS NOT NULL
+            )
+            | WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+            | RENAME @timestamp AS ts
+            | FORK (WHERE ts IS NOT NULL) (WHERE ts IS NULL)
+            | KEEP ts, _fork
+            | SORT ts, _fork
+            """, STAGES);
+    }
+
+    public void testNestedUnmappedBetweenLevelsInnerStringConvertThenOuterImplicitCast() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (
+              FROM sample_data, (FROM sample_data_ts_nanos)
+              | WHERE TO_STRING(message) IS NOT NULL OR missing_inner IS NOT NULL
+              | EVAL msg = TO_STRING(message)
+              | KEEP @timestamp, msg
+            )
+            | WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+            | KEEP @timestamp, msg
+            | SORT @timestamp
+            """, STAGES);
+    }
+
+    public void testNestedUnmappedBetweenLevelsViewAndOuterStats() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM ts_view, (
+              FROM sample_data, (FROM sample_data_ts_nanos)
+              | WHERE @timestamp IS NOT NULL OR missing_inner IS NOT NULL
+            )
+            | WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+            | STATS c = COUNT(*) BY @timestamp
+            | SORT @timestamp
+            | LIMIT 10
+            """).stages(STAGES).views(Map.of("ts_view", "FROM sample_data")).run();
+    }
+
+    public void testForkAfterImplicitDateNanosCastInNestedSubqueries() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | EVAL t = @timestamp
+            | FORK (WHERE event_duration > 0) (WHERE event_duration <= 0)
+            | RENAME t AS x, x AS y
+            | SORT y
+            | KEEP y, @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkInsideNestedSubqueryWithImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data, (FROM sample_data_ts_nanos | FORK (WHERE true) (WHERE true)))
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testForkAfterUnionOfForkBranchesWithImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM (FROM sample_data | FORK (WHERE true) (WHERE true)),
+                 (FROM sample_data_ts_nanos | FORK (WHERE true) (WHERE true))
+            | FORK (WHERE true) (WHERE true)
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testForkStatsByImplicitDateNanosCastColumn() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | FORK (STATS c = COUNT(*) BY @timestamp) (STATS c = COUNT(*) BY @timestamp)
+            """, STAGES);
+    }
+
+    public void testExplicitConversionsWithImplicitDateNanosCastAndFork() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | EVAL s = TO_STRING(@timestamp), l = TO_LONG(@timestamp)
+            | FORK (WHERE l > 0) (WHERE l <= 0)
+            | KEEP s, l, @timestamp
+            """, STAGES);
+    }
+
+    public void testSameConversionResolvedOnLaterPassWithImplicitDateNanosCastAndFork() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | WHERE TO_STRING(@timestamp) IS NOT NULL OR does_not_exist IS NULL
+            | EVAL s = TO_STRING(@timestamp)
+            | FORK (WHERE true) (WHERE true)
+            | KEEP s, @timestamp
+            """, STAGES);
+    }
+
+    public void testImplicitDateNanosCastOverViewsInNestedSubqueries() {
+        assumeTrue("Requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        runGoldenTest("""
+            FROM sample_data, (FROM nanos_view, (FROM mixed_view))
+            | FORK (WHERE true) (WHERE true)
+            | KEEP @timestamp
+            """, STAGES, Map.of("nanos_view", "FROM sample_data_ts_nanos", "mixed_view", "FROM sample_data, (FROM sample_data_ts_nanos)"));
+    }
+
+    // implicit casting field referenced in functions, test fix to collectAliasesNeedingTypeUpdate
+    public void testStatsMaxKeepOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS m = MAX(@timestamp)
+            | KEEP m
+            """, STAGES);
+    }
+
+    public void testStatsBucketOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1 hour)
+            """, STAGES);
+    }
+
+    public void testEvalDateTruncKeepOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL x = DATE_TRUNC(1 hour, @timestamp)
+            | KEEP x
+            """, STAGES);
+    }
+
+    public void testStatsMaxRenameOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS m = MAX(@timestamp)
+            | RENAME m AS x
             """, STAGES);
     }
 

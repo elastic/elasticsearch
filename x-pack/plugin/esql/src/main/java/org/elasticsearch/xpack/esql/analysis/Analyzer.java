@@ -5227,21 +5227,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Update the attributes referencing the updated UnionAll output.
          * <p>
-         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a merge-output attribute),
-         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * {@link #collectAliasesNeedingTypeUpdate} only <em>collects</em>: it records {@code aliasOutput.id() →}
+         * {@code aliasOutput.withDataType(newType)} so the map value already has the consumer's name and {@link NameId}.
+         * That covers {@code RENAME} / {@code EVAL ts = @timestamp} and function aliases whose type follows a widened field
+         * ({@code MAX}, {@code BUCKET}, {@code DATE_TRUNC}, \ldots). It does not rewrite the plan. Bottom-up visit order registers
+         * {@code x = DATE_TRUNC(..., @timestamp)} before {@code y = DATE_TRUNC(..., x)}.
          * <p>
-         * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
-         * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
-         * {@code x AS y, y AS z} are picked up in order. We register the alias output whenever it is resolved (i.e. without comparing the
-         * alias' current child type against the map entry), because the alias may have been re-resolved with the updated child type
-         * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
-         * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
-         * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
+         * {@link #updateAttributesInExpressions} then replaces each consumer with the mapped attribute. That repairs stale
+         * {@link Alias#toAttribute()} snapshots, including {@code KEEP m} after {@code STATS m = MAX(...)} and the grouping-key
+         * attribute stored in {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate#aggregates()}.
          * <p>
          * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
-         * Consequently, neither the inner union output map nor the first expression walk can update it directly. After updating the branch
-         * expressions, find each changed immediate branch output by id, copy its reconciled attribute to the same-named merge output while
-         * preserving the merge output id, and register that id in the update map.
+         * Consequently, neither the inner union output map nor the first expression walk can update it directly.
+         * {@link #alignMergeOutputTypes} installs a reconciled type on the merge output only when every child already has that
+         * type for the name, preserving the merge output id.
          * <p>
          * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
          * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
@@ -5252,25 +5251,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
             updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
-            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
-            cascadeAliasTypes(plan, idToUpdatedAttr);
+            // Collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            collectAliasesNeedingTypeUpdate(plan, idToUpdatedAttr);
             LogicalPlan updatedPlan = updateAttributesInExpressions(plan, idToUpdatedAttr);
             // MergePlan cache output under their own ids, so the expression walk above cannot update them.
-            // Copy a widened branch attribute onto the same-named output, keeping the output id.
-            LogicalPlan planWithUpdatedMergeOutputs = copyWidenedTypesOntoMergeOutputs(updatedPlan, idToUpdatedAttr);
-            // Those output ids were not in the map during the first walk. Cascade them through aliases, then update consumers.
-            cascadeAliasTypes(planWithUpdatedMergeOutputs, idToUpdatedAttr);
+            LogicalPlan planWithUpdatedMergeOutputs = alignMergeOutputTypes(updatedPlan, idToUpdatedAttr);
+            // Those output ids were not in the map during the first walk. Collect them through aliases, then update consumers.
+            collectAliasesNeedingTypeUpdate(planWithUpdatedMergeOutputs, idToUpdatedAttr);
             return updateAttributesInExpressions(planWithUpdatedMergeOutputs, idToUpdatedAttr);
         }
 
         /**
-         * Copies a branch attribute whose id was widened onto the same-named {@link MergePlan} output, preserving the output id.
+         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children.
          */
-        private static LogicalPlan copyWidenedTypesOntoMergeOutputs(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
+        private static LogicalPlan alignMergeOutputTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> newChildren = null;
             for (int i = 0; i < children.size(); i++) {
-                LogicalPlan updated = copyWidenedTypesOntoMergeOutputs(children.get(i), idToUpdatedAttr);
+                LogicalPlan updated = alignMergeOutputTypes(children.get(i), idToUpdatedAttr);
                 if (updated != children.get(i)) {
                     if (newChildren == null) {
                         newChildren = new ArrayList<>(children);
@@ -5280,16 +5278,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
             if (current instanceof MergePlan merge && merge.resolved()) {
-                return copyWidenedBranchTypesOntoOutput(merge, idToUpdatedAttr);
+                return alignMergeOutputToChildren(merge, idToUpdatedAttr);
             }
             return current;
         }
 
         /**
-         * For each output attribute whose name matches a branch attribute that was widened, installs that type under the output's own id.
+         * For each output attribute whose name matches a branch attribute that was widened, installs that type under the output's own id
+         * unless the children disagree on that name's type.
+         * If every child output for that name is an {@link UnsupportedAttribute}, the merge output is replaced with that unsupported
+         * attribute (same id) so a stale supported type is not left on the merge.
          * An {@link UnsupportedAttribute} output is kept: its branch value is a null filler with a different id, not the widened attribute.
          */
-        private static MergePlan copyWidenedBranchTypesOntoOutput(MergePlan merge, Map<NameId, Attribute> idToUpdatedAttr) {
+        private static MergePlan alignMergeOutputToChildren(MergePlan merge, Map<NameId, Attribute> idToUpdatedAttr) {
             Map<String, Attribute> updatedBranchOutputByName = new HashMap<>();
             for (LogicalPlan child : merge.children()) {
                 for (Attribute attr : child.output()) {
@@ -5305,11 +5306,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = false;
             List<Attribute> updatedOutput = new ArrayList<>(merge.output().size());
             for (Attribute attr : merge.output()) {
+                UnsupportedAttribute childUa = unsupportedIfAllChildrenUnsupported(merge, attr.name());
+                if (childUa != null) {
+                    if (attr instanceof UnsupportedAttribute) {
+                        updatedOutput.add(attr);
+                        continue;
+                    }
+                    Attribute updatedMergeOutput = childUa.withId(attr.id());
+                    idToUpdatedAttr.put(updatedMergeOutput.id(), updatedMergeOutput);
+                    updatedOutput.add(updatedMergeOutput);
+                    changed = true;
+                    continue;
+                }
                 Attribute updated = updatedBranchOutputByName.get(attr.name());
                 if (updated == null
                     || attr instanceof UnsupportedAttribute
                     || attr.resolved() == false
-                    || attr.dataType() == updated.dataType()) {
+                    || attr.dataType() == updated.dataType()
+                    || childrenDisagreeOnType(merge, attr.name(), idToUpdatedAttr)) {
                     updatedOutput.add(attr);
                     continue;
                 }
@@ -5321,7 +5335,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return changed ? merge.replaceSubPlansAndOutput(merge.children(), updatedOutput) : merge;
         }
 
-        private static void cascadeAliasTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
+        /**
+         * The child's {@link UnsupportedAttribute} when every child has {@code name} and each is unsupported; otherwise {@code null}.
+         */
+        private static UnsupportedAttribute unsupportedIfAllChildrenUnsupported(MergePlan merge, String name) {
+            UnsupportedAttribute first = null;
+            for (LogicalPlan child : merge.children()) {
+                Attribute childAttr = null;
+                for (Attribute attr : child.output()) {
+                    if (attr.name().equals(name)) {
+                        childAttr = attr;
+                        break;
+                    }
+                }
+                if (childAttr instanceof UnsupportedAttribute ua) {
+                    if (first == null) {
+                        first = ua;
+                    }
+                } else {
+                    return null;
+                }
+            }
+            return first;
+        }
+
+        /**
+         * {@code true} if a child is missing {@code name}, unresolved, or the children's effective types for that name differ.
+         */
+        private static boolean childrenDisagreeOnType(MergePlan merge, String name, Map<NameId, Attribute> idToUpdatedAttr) {
+            DataType common = null;
+            for (LogicalPlan child : merge.children()) {
+                Attribute childAttr = null;
+                for (Attribute attr : child.output()) {
+                    if (attr.name().equals(name)) {
+                        childAttr = attr;
+                        break;
+                    }
+                }
+                if (childAttr == null || childAttr.resolved() == false) {
+                    return true;
+                }
+                Attribute effective = idToUpdatedAttr.getOrDefault(childAttr.id(), childAttr);
+                if (common == null) {
+                    common = effective.dataType();
+                } else if (common != effective.dataType()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static void collectAliasesNeedingTypeUpdate(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             plan.forEachExpressionUp(Alias.class, alias -> {
                 if (alias.child() instanceof Attribute childAttr) {
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
@@ -5333,6 +5397,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
                         }
                     }
+                    return;
+                }
+                // the alias child can be an expression/function, check each attribute in the expression to see if it has been updated,
+                // and if so, update the alias output attribute to the new data type
+                if (alias.resolved() == false) {
+                    return;
+                }
+                Attribute aliasOutput = alias.toAttribute();
+                if (aliasOutput.resolved() == false) {
+                    return;
+                }
+                Holder<Attribute> substituted = new Holder<>();
+                Expression rewritten = alias.child().transformUp(Attribute.class, attr -> {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null && attr.resolved() && attr.dataType() != updated.dataType()) {
+                        substituted.set(updated);
+                        return updated;
+                    }
+                    return attr;
+                });
+                if (substituted.get() != null
+                    && rewritten.resolved()
+                    && rewritten.dataType() != aliasOutput.dataType()
+                    && rewritten.dataType() == substituted.get().dataType()) {
+                    idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(rewritten.dataType()));
                 }
             });
         }

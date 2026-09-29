@@ -430,6 +430,9 @@
       "max_empty_searches" : {
         "type" : "keyword"
       },
+      "max_consecutive_extraction_failures" : {
+        "type" : "long"
+      },
       "max_num_threads" : {
         "type" : "integer"
       },

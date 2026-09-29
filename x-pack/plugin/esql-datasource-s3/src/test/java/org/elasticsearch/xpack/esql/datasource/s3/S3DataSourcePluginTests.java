@@ -19,6 +19,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -176,6 +177,12 @@ public class S3DataSourcePluginTests extends ESTestCase {
             );
             assertThat(overHttps.getMessage(), containsString("not a supported AWS S3 endpoint"));
         }
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("s3://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3a://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3n://bucket/path/file.parquet"));
     }
 
     public void testS3SchemesShareSameFactory() throws IOException {

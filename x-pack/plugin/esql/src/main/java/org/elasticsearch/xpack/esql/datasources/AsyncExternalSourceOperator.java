@@ -25,7 +25,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -158,14 +157,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     private RuntimeException propagateFailure(Throwable t) {
-        // Classify the read failure so it surfaces with the right HTTP status (client/server/retryable)
-        // instead of the previous blanket wrap into a bare RuntimeException, which always became a 500.
-        // Classification must run co-located with the throw, before any serialization (see ExternalException
-        // and ExternalFailures): a NotSerializableExceptionWrapper arriving here would mean the failure has
-        // already crossed a node boundary, so the concrete type — and the chance to classify it — is lost.
+        // t is pre-classified by AsyncExternalSourceBuffer.onFailure: Errors are stored as-is,
+        // everything else is a typed RuntimeException (ExternalException or EsRejectedExecutionException).
         assert t instanceof NotSerializableExceptionWrapper == false
-            : "external read failure reached classification already serialized: " + t.getClass().getName();
-        RuntimeException classified = ExternalFailures.classify(t);
+            : "external read failure reached propagation already serialized: " + t.getClass().getName();
+        if (t instanceof Error error) {
+            throw error;
+        }
+        RuntimeException classified = (RuntimeException) t;
         if (datasetLabel != null && classified instanceof ExternalException ee) {
             ee.setDatasetLabel(datasetLabel);
         }
@@ -261,12 +260,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        Throwable rawFailure = buffer.failure();
-        // Classify the failure so _tasks?detailed=true never surfaces an unclassified exception whose
-        // message may embed a full storage URI from an un-migrated throw site.
-        Throwable statusFailure = rawFailure != null && (rawFailure instanceof Error) == false
-            ? ExternalFailures.classify(rawFailure)
-            : rawFailure;
+        // Failure is already classified by AsyncExternalSourceBuffer.onFailure; use it directly.
+        Throwable statusFailure = buffer.failure();
         return new Status(
             buffer.size(),
             pagesEmitted,

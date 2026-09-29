@@ -35,26 +35,10 @@ import org.elasticsearch.xpack.esql.core.QlException;
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.
  * <p>
- * <b>Structured constructors.</b> Subtypes expose structured constructors
- * ({@link Condition}, {@link StoragePath}, {@code detailCode}, {@code remedy}) that encode the
- * error without embedding the full storage URI — only the object name (last path segment) from
- * {@link StoragePath#objectName()} appears in the message. Reader modules that have additional
- * context (ORC/Parquet library message) may call {@link #setDetail(String)} before throwing to
- * attach a single free-text slot; that detail is appended to {@link #getMessage()} as a colon-separated
- * suffix. The detail must be set on the same node before the exception crosses any boundary.
- * <p>
- * <b>Transport behaviour.</b> Like every other ES|QL exception, these are not registered in
- * {@code ElasticsearchException}'s serialization registry, so crossing a node boundary turns them
- * into a {@code NotSerializableExceptionWrapper}. That wrapper preserves both the public exception
- * name (for example, {@code external_client_exception}) and {@link #status()} (it captures
- * {@code ExceptionsHelper.status(this)} on the sending node and replays it on the receiver), so the
- * name and 400/500/503 distinction survive the data-node &rarr; coordinator hop and the REST layer
- * still maps them correctly. What does <em>not</em> survive is the concrete Java type: a remote
- * receiver cannot {@code instanceof}-check these. That is fine because classification happens
- * co-located with the throw — {@code ExternalFailures.classify} runs inside
- * {@code AsyncExternalSourceOperator} for eager reads and {@code ExternalFieldExtractOperator} for
- * deferred reads, on the node that reads the external source and before any serialization — so no
- * remote consumer ever needs the concrete type.
+ * Structured constructors accept a {@link Condition}, {@link StoragePath}, {@code detailCode}, and
+ * {@code remedy}; only the object name (last path segment from {@link StoragePath#objectName()})
+ * appears in the message. Callers may attach one free-text slot via {@link #setDetail(String)},
+ * appended as a colon-separated suffix to {@link #getMessage()}.
  */
 public abstract class ExternalException extends QlException {
 

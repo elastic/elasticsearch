@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
@@ -465,7 +466,9 @@ public final class AsyncExternalSourceBuffer {
                 }
                 return;
             }
-            failure = t;
+            // Classify once here so classify()'s side effects (WARN logging for IAE) fire
+            // exactly once and status() / propagateFailure() read an already-typed exception.
+            failure = (t instanceof Error) ? t : ExternalFailures.classify(t);
         }
         noMoreInputs.set(true);
         notifyNotEmpty();

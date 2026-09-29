@@ -200,6 +200,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160421
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/160523
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceTrue
+  issue: https://github.com/elastic/elasticsearch/issues/160597
 
 # Examples:
 #

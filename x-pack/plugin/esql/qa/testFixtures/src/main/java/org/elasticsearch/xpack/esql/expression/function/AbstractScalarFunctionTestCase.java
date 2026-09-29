@@ -466,7 +466,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
-        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
+        Expression nullOptimized = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {

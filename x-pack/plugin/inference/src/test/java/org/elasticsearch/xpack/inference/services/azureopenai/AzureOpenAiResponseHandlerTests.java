@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
@@ -36,14 +37,10 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
             """;
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));
@@ -67,14 +64,10 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
             """;
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));

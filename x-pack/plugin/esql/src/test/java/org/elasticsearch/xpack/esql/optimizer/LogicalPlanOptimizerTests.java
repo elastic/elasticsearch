@@ -195,6 +195,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
@@ -8180,7 +8181,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         {
             var oldVersion = TransportVersionUtils.getPreviousVersion(DeltaOnlyHistogramMergeOverTime.DEDICATED_AGGREGATOR);
             var oldVersionOptimizer = new LogicalPlanOptimizer(
-                new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), oldVersion)
+                logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), oldVersion)
             );
             var plan = oldVersionOptimizer.optimize(metricsAnalyzer().minimumTransportVersion(oldVersion).query(query));
             // Verify the TimeSeriesAggregate now uses HistogramMerge for the per-series aggregation
@@ -9672,7 +9673,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         List<RuleExecutor.Batch<LogicalPlan>> batches,
         TransportVersion version
     ) {
-        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), version);
+        LogicalOptimizerContext context = logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), version);
         LogicalPlanOptimizer customOptimizer = new LogicalPlanOptimizer(context) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {

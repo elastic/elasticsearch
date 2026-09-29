@@ -421,6 +421,7 @@ public class FileSplitProvider implements SplitProvider {
             return handed;
         }
         FileList listed = listForQuery(handed);
+        rejectConflictingFormatsPastTheSchemasListing(handed, listed);
         LOGGER.debug(
             () -> Strings.format(
                 "the schema's listing held %d files of [%s]; discovered %d for the query",
@@ -432,6 +433,25 @@ public class FileSplitProvider implements SplitProvider {
         SplitDiscoveryContext rebound = handed.withScanFileSet(listed);
         warnIfPartitionValuesDoNotFit(handed, listed, rebound);
         return rebound;
+    }
+
+    /**
+     * Refuses a file whose own name implies a format the dataset does not read.
+     * <p>
+     * Resolution asks this of the listing it holds, and under a bounded listing that is a prefix of the dataset: a
+     * file past it carrying a {@code .json} name under a dataset read as {@code csv} would reach the reader
+     * unchallenged and be parsed as csv, which is wrong data rather than an error. The question belongs to whichever
+     * listing names the files being read, so it is asked again over this one.
+     * <p>
+     * The format is the one resolution settled on and stamped as the source type - the same value that chose this
+     * provider - so this cannot disagree with the reader that will scan. An unrecognized extension is still allowed:
+     * a declared format over names the registry does not claim is a dataset, not a conflict.
+     */
+    private void rejectConflictingFormatsPastTheSchemasListing(SplitDiscoveryContext handed, FileList listed) {
+        if (handed.metadata() == null) {
+            return;
+        }
+        FormatNameResolver.rejectConflictingListedFormats(listed, handed.metadata().sourceType(), formatRegistry);
     }
 
     /**

@@ -5689,6 +5689,48 @@ public class FileSplitProviderTests extends ESTestCase {
      * folder, with eleven more past it whose values all fit the type that folder produced, reads every value
      * correctly and says nothing. A warning here would fire on every bounded partitioned query.
      */
+    /**
+     * Resolution asks whether any listed file's own name implies a format the dataset does not read, and under a
+     * bounded listing it can only ask that of the prefix. A file past it is the one that would reach the reader and
+     * be parsed as the dataset's format anyway — wrong data rather than an error — so the question is asked again
+     * over the listing the scan discovers.
+     * <p>
+     * The dataset reads csv, so the {@code .csv} object the prefix holds is fine and the extension the registry does
+     * not claim would be too; the {@code .parquet} object past the prefix is not, and nothing before this change
+     * looked at it.
+     */
+    public void testAConflictingFormatPastTheSchemasListingIsRefused() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        payloads.put("a.csv", new byte[2000]);
+        payloads.put("b.parquet", new byte[2000]);
+        List<StorageEntry> everyFile = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.csv"), 2000, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 2000, Instant.EPOCH)
+        );
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "csv", "s3://b/**"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/**"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.discoverSplits(handed));
+        assertThat(e.getMessage(), containsString("s3://b/b.parquet"));
+        assertThat(e.getMessage(), containsString("differs from the dataset format [csv]"));
+    }
+
     public void testSamplingPartitionPathsAloneWarnsAboutNothing() throws Exception {
         Map<String, byte[]> payloads = new HashMap<>();
         List<StorageEntry> everyFile = new ArrayList<>();

@@ -39,7 +39,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
     public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, null, 0);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
-    public static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(
+    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(
         null,
         null,
         AllocationDecision.NO_ATTEMPT,

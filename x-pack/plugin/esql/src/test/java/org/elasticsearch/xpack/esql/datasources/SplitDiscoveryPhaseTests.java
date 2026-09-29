@@ -31,12 +31,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -178,6 +182,73 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("a filtered limit leaves the relation with no demand at all", FormatReader.NO_LIMIT, guarded.get(0).rowLimit());
+    }
+
+    /**
+     * A command that promises not to change the row count passes the demand through. That promise is the
+     * {@link Streaming} marker, and this is the direction of it that matters for speed: without it every query
+     * with a {@code KEEP} or an {@code EVAL} above its {@code LIMIT} would plan the whole dataset.
+     */
+    public void testTheRowDemandPassesThroughAStreamingCommand() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan projected = new Project(SRC, relation, List.of(relation.output().get(0)));
+        assertTrue("the fixture must actually be a Streaming command", projected instanceof Streaming);
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), projected);
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("a projection cannot change how many rows arrive", 5, guarded.get(0).rowLimit());
+    }
+
+    /**
+     * Sorting and aggregating both do change which rows, or how many, come back, so neither may carry a demand:
+     * {@code SORT x | LIMIT 5} needs every row before it knows which five, and an aggregate needs every row
+     * full stop. Stopping the scan early under either returns an answer computed from part of the dataset.
+     */
+    public void testTheRowDemandDoesNotSurviveASortOrAnAggregate() {
+        ExternalRelation relation = externalRelation();
+        Attribute first = relation.output().get(0);
+
+        LogicalPlan sorted = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new OrderBy(SRC, relation, List.of(new Order(SRC, first, Order.OrderDirection.ASC, Order.NullsPosition.LAST)))
+        );
+        assertEquals(
+            "a sort must see every row before it knows which five",
+            FormatReader.NO_LIMIT,
+            SplitDiscoveryPhase.guardedRelations(sorted).get(0).rowLimit()
+        );
+
+        LogicalPlan aggregated = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new Aggregate(SRC, relation, List.of(), List.of(first))
+        );
+        assertEquals(
+            "and an aggregate needs every row",
+            FormatReader.NO_LIMIT,
+            SplitDiscoveryPhase.guardedRelations(aggregated).get(0).rowLimit()
+        );
+    }
+
+    /** Nested limits: the outer one cannot ask for more than the inner one produced, so the smaller wins. */
+    public void testNestedLimitsCarryTheSmaller() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan outerSmaller = new Limit(
+            SRC,
+            new Literal(SRC, 3, DataType.INTEGER),
+            new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), relation)
+        );
+        LogicalPlan innerSmaller = new Limit(
+            SRC,
+            new Literal(SRC, 5, DataType.INTEGER),
+            new Limit(SRC, new Literal(SRC, 3, DataType.INTEGER), relation)
+        );
+
+        assertEquals(3, SplitDiscoveryPhase.guardedRelations(outerSmaller).get(0).rowLimit());
+        assertEquals(3, SplitDiscoveryPhase.guardedRelations(innerSmaller).get(0).rowLimit());
     }
 
     /** The complement: with nothing between the limit and the relation, the demand does reach it. */

@@ -2269,6 +2269,34 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
      * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
      */
+    /**
+     * Which modes may be answered from a prefix, asserted on the predicate itself.
+     * <p>
+     * No query can separate this guard from the file-order guard beside it: {@code FileOrderConfig.forListing} is
+     * {@code firstFileWins(config) ? fromConfig(config) : NAME_ASC}, reading the same resolution, so it already
+     * refuses every mode this one refuses. Removing this guard changes no observable answer today - which is
+     * exactly why it needs pinning here, before a later change to file ordering makes it the only one left.
+     */
+    public void testOnlyAModeWhoseSchemaOneFileAnswersMayBeBounded() {
+        assertTrue("a declared mapping needs no file at all", ExternalSourceResolver.schemaAnswerableFromAPrefix(null));
+        assertTrue(
+            "first_file_wins needs exactly one",
+            ExternalSourceResolver.schemaAnswerableFromAPrefix(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+        assertFalse(
+            "union_by_name folds every file by contract",
+            ExternalSourceResolver.schemaAnswerableFromAPrefix(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        for (FormatReader.SchemaResolution mode : FormatReader.SchemaResolution.values()) {
+            if (mode != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                assertFalse(
+                    "a mode nobody has classified must decline the bound, not be granted it: " + mode,
+                    ExternalSourceResolver.schemaAnswerableFromAPrefix(mode)
+                );
+            }
+        }
+    }
+
     public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/a.parquet", 100),
@@ -2284,9 +2312,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PartitionFilterHintExtractor.Operator.EQUALS,
             List.of("c.parquet")
         );
-        // Small enough that the first key alone would exhaust it, so the defect does not need a thousand files.
+        // Large enough to hold all three files. At one key the listing stops before c.parquet exists to be
+        // chosen, so the anchor is a.parquet whether the hint was withheld or not and the test proves nothing.
         Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
-        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 3);
 
         ExternalSourceResolver resolver = createResolver(schemas, Map.of("s3://bucket/data/", listing));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();

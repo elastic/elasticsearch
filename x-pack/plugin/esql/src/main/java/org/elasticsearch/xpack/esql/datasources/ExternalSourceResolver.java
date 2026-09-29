@@ -1590,7 +1590,7 @@ public class ExternalSourceResolver {
      * A new resolution mode is classified as spanning every file until it says otherwise, which declines the
      * bound rather than granting it — the safe direction for a mode nobody has considered here yet.
      */
-    private static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
+    static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
         return schemaResolution == null || schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS;
     }
 

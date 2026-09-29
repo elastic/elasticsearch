@@ -283,6 +283,32 @@ public class PartitionMetadataTests extends ESTestCase {
         );
     }
 
+    /**
+     * An {@code unsigned_long} partition column is held sign-flip-encoded, so the boxed {@code Long} a detection
+     * produces is not the value — {@code ExternalScalarRenderer} decodes it before anyone reads it. Conforming one to
+     * a narrower declared type must decode first; treating the encoding as the number puts every value in the column
+     * out by 2^63, and does it silently, because the partition warning only fires where a value went null.
+     */
+    public void testAnUnsignedLongScanTypeIsDecodedBeforeItIsNarrowed() {
+        StoragePath small = StoragePath.of("s3://b/id=00000000003000000000/a.parquet");
+        StoragePath huge = StoragePath.of("s3://b/id=18446744073709551615/b.parquet");
+        PartitionMetadata declaredLong = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(small, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        PartitionMetadata scanned = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(small, 1, Instant.EPOCH), new StorageEntry(huge, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertEquals("the sample alone types it signed", DataType.LONG, declaredLong.partitionColumns().get("id"));
+        assertEquals("the whole listing does not", DataType.UNSIGNED_LONG, scanned.partitionColumns().get("id"));
+
+        PartitionMetadata valued = declaredLong.valuedOver(scanned);
+
+        assertEquals("the value the folder names, not its encoding", 3000000000L, valued.filePartitionValues().get(small).get("id"));
+        assertNull("and a value beyond the signed range has none under it", valued.filePartitionValues().get(huge).get("id"));
+    }
+
     /** A number the declared type cannot hold exactly still has no value under it. */
     public void testANumberTheDeclaredTypeCannotHoldExactlyHasNoValue() {
         // Dotless on purpose: HivePartitionDetector#segmentKey rejects a segment containing a dot, so x=1.5

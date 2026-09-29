@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.math.BigDecimal;
@@ -119,7 +120,7 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
             return detected == DataType.KEYWORD ? value : null;
         }
         if (value instanceof Number number) {
-            return exactlyAs(number, declared);
+            return exactlyAs(decoded(number, detected), declared);
         }
         try {
             return HivePartitionDetector.castValue(String.valueOf(value), declared);
@@ -129,9 +130,28 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
     }
 
     /**
-     * The same number under {@code declared}, or no value when that type cannot hold it exactly. A fraction under
-     * an integral type and a magnitude outside its range are the two ways that happens; neither invents a value
-     * and neither loses one that fits.
+     * The number a detected value stands for, rather than the number it is stored as.
+     * <p>
+     * {@link DataType#UNSIGNED_LONG} is the one detected type whose in-memory form is not its value: it is held
+     * sign-flip-encoded in a {@code long}, and everything that reads one decodes it first (see
+     * {@code ExternalScalarRenderer}). Narrowing the raw {@code long} would put every value in the column out by
+     * 2^63 — and silently, because a wrongly-converted value is not null and the partition warning only names the
+     * ones that are. Every other numeric type stores its own value.
+     */
+    private static Number decoded(Number number, @Nullable DataType detected) {
+        if (detected == DataType.UNSIGNED_LONG && number instanceof Long encoded) {
+            return NumericUtils.unsignedLongAsBigInteger(encoded);
+        }
+        return number;
+    }
+
+    /**
+     * The same number under {@code declared}, or no value when that type cannot hold it. A fraction under an
+     * integral type and a magnitude outside its range are the two ways a value has none; neither invents one.
+     * <p>
+     * {@link DataType#DOUBLE} is the exception to "exactly", and deliberately: it takes the nearest value a double
+     * holds, because that is what the column's type already means everywhere else. Nulling an integer past 2^53
+     * would lose a value the query can represent.
      */
     @Nullable
     private static Object exactlyAs(Number number, DataType declared) {

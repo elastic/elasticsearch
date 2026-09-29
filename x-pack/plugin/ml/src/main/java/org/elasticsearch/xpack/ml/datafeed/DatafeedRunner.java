@@ -16,8 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -78,7 +76,7 @@ public class DatafeedRunner {
     private final AnomalyDetectionAuditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
-    // Serializes ES|QL datafeed holder publication with setting-transition shutdown.
+    // Serializes ES|QL datafeed holder publication with feature-flag-gated startup checks.
     private final Object esqlDatafeedSettingLock = new Object();
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
@@ -129,13 +127,11 @@ public class DatafeedRunner {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             DatafeedConfig datafeedConfig = datafeedConfigRef.get();
             String jobId = datafeedJob.getJobId();
-            ClusterState clusterState;
             boolean esqlDatafeedDisabled;
             StoppedOrIsolated stoppedOrIsolated = null;
             Holder holder = null;
             synchronized (esqlDatafeedSettingLock) {
-                clusterState = clusterService.state();
-                esqlDatafeedDisabled = isEsqlDatafeedDisabled(datafeedConfig, task, clusterState);
+                esqlDatafeedDisabled = isEsqlDatafeedDisabled(datafeedConfig);
                 if (esqlDatafeedDisabled == false) {
                     Holder newHolder = new Holder(
                         task,
@@ -152,7 +148,7 @@ public class DatafeedRunner {
                 }
             }
             if (esqlDatafeedDisabled) {
-                auditEsqlDatafeedDisabled(datafeedConfig, projectId(task), clusterState);
+                auditEsqlDatafeedDisabled(datafeedConfig);
                 datafeedJob.stop();
                 task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
                 completionHandler.accept(null);
@@ -210,9 +206,8 @@ public class DatafeedRunner {
             StoppedOrIsolated stoppedOrIsolated = task.getStoppedOrIsolated();
             if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
                 datafeedConfigRef.set(datafeedContext.datafeedConfig());
-                ClusterState clusterState = clusterService.state();
-                if (isEsqlDatafeedDisabled(datafeedContext.datafeedConfig(), task, clusterState)) {
-                    auditEsqlDatafeedDisabled(datafeedContext.datafeedConfig(), projectId(task), clusterState);
+                if (isEsqlDatafeedDisabled(datafeedContext.datafeedConfig())) {
+                    auditEsqlDatafeedDisabled(datafeedContext.datafeedConfig());
                     task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
                     completionHandler.accept(null);
                 } else {
@@ -241,15 +236,13 @@ public class DatafeedRunner {
     }
 
     private boolean stopEsqlDatafeedIfDisabled(Holder holder) {
-        ClusterState clusterState;
         synchronized (esqlDatafeedSettingLock) {
-            clusterState = clusterService.state();
-            if (isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, clusterState) == false) {
+            if (isEsqlDatafeedDisabled(holder.datafeedConfig) == false) {
                 return false;
             }
             holder.markEsqlDatafeedDisabled();
         }
-        holder.stopForDisabledEsqlDatafeeds(projectId(holder.task), clusterState);
+        holder.stopForDisabledEsqlDatafeeds();
         return true;
     }
 
@@ -282,30 +275,25 @@ public class DatafeedRunner {
         return runningDatafeedsOnThisNode.get(holder.allocationId) == holder
             && holder.task.getStoppedOrIsolated() == StoppedOrIsolated.NEITHER
             && holder.isEsqlDatafeedDisabled() == false
-            && isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, clusterService.state()) == false;
+            && isEsqlDatafeedDisabled(holder.datafeedConfig) == false;
     }
 
-    private static boolean isEsqlDatafeedDisabled(
-        DatafeedConfig datafeedConfig,
-        TransportStartDatafeedAction.DatafeedTask task,
-        ClusterState clusterState
-    ) {
-        return datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(clusterState, projectId(task)) == false;
+    /**
+     * The ES|QL datafeed gate is now a {@link MachineLearning#ESQL_DATAFEEDS_FEATURE_FLAG}, fixed for the life of
+     * the process. Unlike the {@code Setting} it replaced, it can never flip from enabled to disabled while this
+     * node is running; the check remains only to reject an ES|QL datafeed that was created/persisted while the
+     * flag was enabled elsewhere (e.g. a different node, or before a rolling restart onto a build with the flag
+     * disabled).
+     */
+    private static boolean isEsqlDatafeedDisabled(DatafeedConfig datafeedConfig) {
+        return datafeedConfig.getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false;
     }
 
-    private static ProjectId projectId(TransportStartDatafeedAction.DatafeedTask task) {
-        String projectId = task.getProjectId();
-        return projectId == null ? ProjectId.DEFAULT : ProjectId.fromId(projectId);
-    }
-
-    private void auditEsqlDatafeedDisabled(DatafeedConfig datafeedConfig, ProjectId projectId, ClusterState clusterState) {
-        String settingScope = ProjectStateRegistry.getProjectSettings(projectId, clusterState)
-            .hasValue(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey()) ? "project" : "cluster";
+    private void auditEsqlDatafeedDisabled(DatafeedConfig datafeedConfig) {
         String message = Messages.getMessage(
             Messages.DATAFEED_ESQL_DISABLED_STOPPING_DATAFEED,
             datafeedConfig.getId(),
-            datafeedConfig.getJobId(),
-            settingScope
+            datafeedConfig.getJobId()
         );
         logger.warn("{}", message);
         auditor.warning(datafeedConfig.getJobId(), message);
@@ -645,12 +633,12 @@ public class DatafeedRunner {
             return esqlDatafeedDisabled;
         }
 
-        synchronized void stopForDisabledEsqlDatafeeds(ProjectId projectId, ClusterState clusterState) {
+        synchronized void stopForDisabledEsqlDatafeeds() {
             markEsqlDatafeedDisabled();
             if (datafeedJob.isRunning() == false) {
                 return;
             }
-            auditEsqlDatafeedDisabled(datafeedConfig, projectId, clusterState);
+            auditEsqlDatafeedDisabled(datafeedConfig);
             task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
         }
 
@@ -881,7 +869,6 @@ public class DatafeedRunner {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            stopEsqlDatafeedsDisabledBySetting(event);
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
@@ -915,23 +902,6 @@ public class DatafeedRunner {
                 }
             }
             tasksToRun.retainAll(remainingTasks);
-        }
-
-        private void stopEsqlDatafeedsDisabledBySetting(ClusterChangedEvent event) {
-            List<Holder> datafeedsToStop = new ArrayList<>();
-            synchronized (esqlDatafeedSettingLock) {
-                for (Holder holder : runningDatafeedsOnThisNode.values()) {
-                    ProjectId projectId = projectId(holder.task);
-                    if (isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, event.state())
-                        && MachineLearning.isEsqlDatafeedsEnabled(event.previousState(), projectId)) {
-                        holder.markEsqlDatafeedDisabled();
-                        datafeedsToStop.add(holder);
-                    }
-                }
-            }
-            for (Holder holder : datafeedsToStop) {
-                holder.stopForDisabledEsqlDatafeeds(projectId(holder.task), event.state());
-            }
         }
     }
 

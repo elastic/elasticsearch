@@ -55,24 +55,21 @@ public final class Messages {
         "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
             + "wait for every node to support ES|QL datafeeds before restoring or starting it.";
     public static final String DATAFEED_ESQL_PREVIEW_DISABLED =
-        "Cannot preview ES|QL datafeed [{0}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
-            + "enable ES|QL datafeeds and try again.";
+        "Cannot preview ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS =
         "Cannot start ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
             + "wait for every node to support ES|QL datafeeds before restoring or starting it.";
     public static final String DATAFEED_ESQL_START_DISABLED =
-        "Cannot start ES|QL datafeed [{0}] while [xpack.ml.esql_datafeeds.enabled] is disabled; " + "enable ES|QL datafeeds and try again.";
+        "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_CREATE_DISABLED =
-        "Cannot create ES|QL datafeed [{0}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
-            + "enable ES|QL datafeeds and try again.";
+        "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate datafeed [{0}] to change its query shape. The update API only supports operational settings: "
             + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
         "You cannot add [esql_query] to non-ES|QL datafeed [{0}] using the update API.";
     public static final String DATAFEED_ESQL_DISABLED_STOPPING_DATAFEED =
-        "Stopping ES|QL datafeed [{0}] for job [{1}] because ES|QL datafeeds are disabled; "
-            + "enable ES|QL datafeeds on the {2} to restart it.";
+        "Stopping ES|QL datafeed [{0}] for job [{1}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
         "The ES|QL datafeed chunker could not cover the interval [{0}, {1}) without reaching its row limit. "
             + "Pre-aggregate the data or configure a narrower chunk.";

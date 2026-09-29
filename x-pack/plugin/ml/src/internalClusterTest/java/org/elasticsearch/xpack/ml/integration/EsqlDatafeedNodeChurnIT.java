@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.Arrays;
@@ -253,7 +252,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
     /**
      * Shared setup for both churn cases: starts a 3-node cluster (1 master-only, 2 data+ml),
-     * enables ES|QL datafeeds, opens a job, pins a zero-replica source index to the node that did
+     * opens a job, pins a zero-replica source index to the node that did
      * not get the job (the "victim"), indexes data into it, and puts (but does not start) an ES|QL
      * datafeed for the job.
      */
@@ -263,7 +262,6 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         String nodeA = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         String nodeB = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster(3);
-        updateClusterSettings(Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), true));
 
         String jobId = "esql-churn-" + scenario + "-job";
         String datafeedId = jobId + "-datafeed";

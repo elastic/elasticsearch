@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -253,10 +252,5 @@ public class EsqlDatafeedCheckpointIT extends MlSingleNodeTestCase {
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), true).build();
     }
 }

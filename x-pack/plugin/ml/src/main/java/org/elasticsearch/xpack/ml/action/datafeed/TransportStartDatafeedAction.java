@@ -348,7 +348,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 Messages.getMessage(Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS, datafeedConfig.getId())
             );
         }
-        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
+        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_START_DISABLED, datafeedConfig.getId()));
         }
     }

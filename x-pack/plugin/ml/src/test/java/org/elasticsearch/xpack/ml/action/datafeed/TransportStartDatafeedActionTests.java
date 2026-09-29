@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -43,7 +44,6 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,18 +55,18 @@ import static org.mockito.Mockito.verify;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
-    public void testEsqlDatafeedWhenFlagOffShouldRejectStart() {
+    public void testEsqlDatafeedWhenFlagOnShouldAllowStart() {
+        // MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is enabled automatically in snapshot/test builds and fixed for
+        // the process lifetime, so the disabled-rejection path (Messages.DATAFEED_ESQL_START_DISABLED) is no longer
+        // unit-testable here; see docs/projects/esql-datafeeds/testing/manual-test-plan.md §1.11 for the flag-off
+        // manual check on a release build.
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState(), ProjectId.DEFAULT)
-        );
-        assertThat(exception.getMessage(), containsString("xpack.ml.esql_datafeeds.enabled"));
-        assertThat(exception.getMessage(), containsString("enable"));
-        assertThat(exception.getMessage(), not(containsString("ml_datafeed_esql_query")));
+        // Does not throw: the feature flag is on and the cluster is fully upgraded.
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState(), ProjectId.DEFAULT);
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
@@ -90,7 +90,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("before restoring or starting it"));
     }
 
-    public void testClassicDatafeedWhenFlagOffShouldAllowStart() {
+    public void testClassicDatafeedAlwaysAllowedToStart() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
         TransportStartDatafeedAction.validateEsqlDatafeedEnabled(
             datafeed,

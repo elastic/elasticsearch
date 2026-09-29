@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -28,9 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -61,18 +58,8 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
     private static final long SECOND_WINDOW_END = FIRST_WINDOW_END + BUCKET_SPAN.millis();
 
-    @Before
-    public void enableEsqlDatafeeds() throws Exception {
-        // xpack.ml.esql_datafeeds.enabled is read from cluster-state metadata (see
-        // MachineLearning#isEsqlDatafeedsEnabled), not from node-local elasticsearch.yml settings,
-        // so it must be toggled at runtime rather than via the shared cluster's static config.
-        updateClusterSettings(Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), true));
-    }
-
     @After
     public void cleanup() {
-        // Undo the @Before toggle so it doesn't leak into other tests sharing this cluster.
-        updateClusterSettings(Settings.builder().putNull(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey()));
         cleanUp();
     }
 

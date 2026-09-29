@@ -13,13 +13,11 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.eq;
@@ -62,36 +59,12 @@ import static org.mockito.Mockito.when;
 
 public class TransportPutDatafeedActionTests extends ESTestCase {
 
-    public void testProjectSettingEnabledShouldOverrideClusterSettingDisabled() {
-        ClusterState state = clusterStateWithSettings(false, true);
-        assertTrue(MachineLearning.isEsqlDatafeedsEnabled(state, ProjectId.DEFAULT));
-    }
-
-    public void testProjectSettingDisabledShouldOverrideClusterSettingEnabled() {
-        ClusterState state = clusterStateWithSettings(true, false);
-        assertFalse(MachineLearning.isEsqlDatafeedsEnabled(state, ProjectId.DEFAULT));
-    }
-
-    public void testEsqlDatafeedWhenFlagOffShouldRejectAndNameTheSetting() {
-        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
-        Client client = mock(Client.class);
-        TransportPutDatafeedAction action = createAction(datafeedConfigProvider, jobConfigProvider, client);
-        ClusterState clusterState = clusterStateWithMinTransportVersion(TransportVersion.current());
-
-        try (PutDatafeedAction.Request request = new PutDatafeedAction.Request(esqlDatafeed())) {
-            AtomicReference<Exception> failure = new AtomicReference<>();
-            action.masterOperation(null, request, clusterState, ActionTestUtils.assertNoSuccessListener(failure::set));
-
-            assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-            assertThat(failure.get().getMessage(), containsString("xpack.ml.esql_datafeeds.enabled"));
-            assertThat(failure.get().getMessage(), containsString("enable"));
-            assertThat(failure.get().getMessage(), not(containsString("ml_datafeed_esql_query")));
-            verifyNoInteractions(datafeedConfigProvider, jobConfigProvider, client);
-        }
-    }
-
-    public void testEsqlDatafeedWhenProjectSettingEnabledShouldPutDatafeed() {
+    public void testEsqlDatafeedWhenFlagOnShouldPutDatafeed() {
+        // MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is enabled automatically in snapshot/test builds and is fixed
+        // for the process lifetime, so the disabled-rejection path is no longer unit-testable here; it is exercised
+        // by the ES|QL datafeed message inventory (Messages.DATAFEED_ESQL_CREATE_DISABLED) and covered on release
+        // builds only (see docs/projects/esql-datafeeds/testing/manual-test-plan.md §1.11 for the flag-off manual check).
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         Client client = mock(Client.class);
@@ -101,7 +74,7 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         TransportPutDatafeedAction action = createAction(datafeedManager, projectResolver, threadPool);
-        ClusterState clusterState = clusterStateWithSettings(false, true);
+        ClusterState clusterState = clusterStateWithMinTransportVersion(TransportVersion.current());
 
         try (PutDatafeedAction.Request request = new PutDatafeedAction.Request(esqlDatafeed())) {
             action.masterOperation(null, request, clusterState, ActionTestUtils.assertNoFailureListener(response -> {}));
@@ -271,19 +244,6 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
     private static ClusterState clusterStateWithMinTransportVersion(TransportVersion transportVersion) {
         return ClusterState.builder(new ClusterName("put-datafeed-action-tests"))
             .putCompatibilityVersions("node-1", transportVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
-            .build();
-    }
-
-    private static ClusterState clusterStateWithSettings(boolean clusterEnabled, boolean projectEnabled) {
-        Settings clusterSettings = Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), clusterEnabled).build();
-        Settings projectSettings = Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), projectEnabled).build();
-        return ClusterState.builder(new ClusterName("put-datafeed-action-tests"))
-            .putCompatibilityVersions("node-1", TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
-            .metadata(Metadata.builder().persistentSettings(clusterSettings))
-            .putCustom(
-                ProjectStateRegistry.TYPE,
-                ProjectStateRegistry.builder().putProjectSettings(ProjectId.DEFAULT, projectSettings).build()
-            )
             .build();
     }
 

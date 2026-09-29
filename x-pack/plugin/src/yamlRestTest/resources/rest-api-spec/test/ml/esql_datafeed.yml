@@ -5,14 +5,6 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.put_settings:
-        body:
-          persistent:
-            xpack.ml.esql_datafeeds.enabled: true
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: esql-datafeed-lifecycle-index
         body:
@@ -188,7 +180,7 @@ setup:
   - match: { 0.value: 2.0 }
 
 ---
-"Test disabling ES|QL datafeeds stops running datafeed but keeps lifecycle APIs available":
+"Test ES|QL datafeed lifecycle APIs":
   - do:
       ml.get_datafeeds:
         datafeed_id: esql-datafeed-lifecycle-datafeed
@@ -401,19 +393,9 @@ setup:
   - match: { datafeeds.0.state: started }
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.put_settings:
-        body:
-          persistent:
-            xpack.ml.esql_datafeeds.enabled: false
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.health:
-        wait_for_events: languid
-        wait_for_status: yellow
+      ml.stop_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { stopped: true }
 
   - do:
       ml.get_datafeed_stats:
@@ -426,32 +408,6 @@ setup:
   - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
 
   - do:
-      ml.get_datafeed_stats:
-        datafeed_id: esql-datafeed-lifecycle-datafeed
-  - match: { datafeeds.0.state: stopped }
-
-  - do:
-      ml.stop_datafeed:
-        datafeed_id: esql-datafeed-lifecycle-datafeed
-  - match: { stopped: true }
-
-  - do:
       ml.close_job:
         job_id: esql-datafeed-lifecycle-job
   - match: { closed: true }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      tasks.cancel:
-        actions: "xpack/ml/*"
-
----
-teardown:
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.put_settings:
-        body:
-          persistent:
-            xpack.ml.esql_datafeeds.enabled: null

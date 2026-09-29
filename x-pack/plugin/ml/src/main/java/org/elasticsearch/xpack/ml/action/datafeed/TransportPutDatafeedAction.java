@@ -84,8 +84,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             listener.onFailure(unsupportedDatafeedConfigException(request.getDatafeed(), unsupportedReason.get()));
             return;
         }
-        if (request.getDatafeed().getEsqlQuery() != null
-            && MachineLearning.isEsqlDatafeedsEnabled(state, projectResolver.getProjectId()) == false) {
+        if (request.getDatafeed().getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_ESQL_CREATE_DISABLED, request.getDatafeed().getId())

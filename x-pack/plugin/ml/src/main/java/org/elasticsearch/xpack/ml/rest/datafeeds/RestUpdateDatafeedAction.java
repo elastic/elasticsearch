@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -35,13 +33,9 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
     private final boolean mlCrossProjectSearchEnabled;
-    private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
 
-    public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled, ClusterService clusterService, ProjectResolver projectResolver) {
+    public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled) {
         this.mlCrossProjectSearchEnabled = mlCrossProjectSearchEnabled;
-        this.clusterService = clusterService;
-        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -78,7 +72,7 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return MlDatafeedRestCapabilities.supportedCapabilities(
             mlCrossProjectSearchEnabled,
-            MachineLearning.isEsqlDatafeedsEnabled(clusterService.state(), projectResolver.getProjectId())
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
         );
     }
 

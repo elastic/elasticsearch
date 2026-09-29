@@ -34,8 +34,8 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
 
 /**
  * Deprioritizes allocation of search shards to a node whose shared cache is already, or would become, over-subscribed, by returning
- * {@link Decision#NOT_PREFERRED} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
- * already over-subscribed by returning {@link Decision#NOT_PREFERRED} from {@link #canRemain}. The decider reasons about the
+ * {@link #NOT_PREFERRED_DECISION} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
+ * already over-subscribed by returning {@link #NOT_PREFERRED_DECISION} from {@link #canRemain}. The decider reasons about the
  * boosted/unboosted cache commitment data recorded in {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
  * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is controlled by
  * {@link #ENABLED_SETTING}, and is enabled in snapshot builds, such as CI, by the {@code shared_cache_capacity_decider} feature flag.
@@ -96,7 +96,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canAllocate} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for new allocations.
+     * The {@code canAllocate} threshold. Above this, the decider returns {@link #NOT_PREFERRED_DECISION} for new allocations.
      * The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
@@ -107,7 +107,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
+     * The {@code canRemain} threshold. Above this, the decider returns {@link #NOT_PREFERRED_DECISION} for shards already allocated to
      * the node. The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = Setting.ratioSetting(

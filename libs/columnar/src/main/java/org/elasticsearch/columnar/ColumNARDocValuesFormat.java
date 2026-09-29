@@ -79,6 +79,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final boolean copyChunksOnMerge;
 
     /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
     public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
@@ -138,6 +139,21 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         int blockSize,
         final StringColumnOptionsSelector stringSelector
     ) {
+        this(pipelineSelector, typeSelector, blockSize, stringSelector, true);
+    }
+
+    /**
+     * As above, choosing whether a merge copies a plain string column's chunks as they are stored where a source
+     * segment's documents land together, or decompresses and compresses every one of them again. Copying is what a
+     * merge does; turning it off is there to measure what it saves, and as a way back should it ever misbehave.
+     */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize,
+        final StringColumnOptionsSelector stringSelector,
+        boolean copyChunksOnMerge
+    ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -148,11 +164,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
         this.stringSelector = stringSelector;
+        this.copyChunksOnMerge = copyChunksOnMerge;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector, copyChunksOnMerge);
     }
 
     @Override

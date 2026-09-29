@@ -42,6 +42,11 @@ public final class PlainStringColumnReader extends StringColumnReader {
         this.hasNullSlots = column.hasNullSlots();
     }
 
+    /** The values themselves, which a merge copies chunks out of; null when the column holds none. */
+    PlainValues.Reader plainValues() {
+        return values;
+    }
+
     @Override
     public int byteLengthAt(long valueAddress) throws IOException {
         return values.length(valueAddress);

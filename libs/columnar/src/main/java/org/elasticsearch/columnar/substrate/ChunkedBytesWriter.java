@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.substrate;
 
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 
@@ -17,7 +18,8 @@ import java.io.IOException;
 /**
  * Writes a column's byte stream as chunks: values are appended in order, and a chunk is emitted once it
  * reaches either of its {@link ChunkBounds}. A chunk is cut wherever the byte bound falls, including inside
- * a value, so no chunk is ever larger than the bound however large a single value is.
+ * a value, so no chunk it cuts is ever larger than the bound however large a single value is. A merge may
+ * also hand it chunks another writer stored ({@link #copyChunk}), which keep the size they were cut at.
  *
  * <p>Two tables locate a value. Callers record each value's offset in the <em>uncompressed</em> stream
  * themselves, which is what {@link #uncompressedLength()} returns after each append; this class records
@@ -104,6 +106,37 @@ public final class ChunkedBytesWriter {
                 flushChunk();
             }
         }
+    }
+
+    /** The codec every chunk this writer emits is stored under, which a chunk copied in has to share. */
+    public byte codecId() {
+        return codec.id();
+    }
+
+    /**
+     * Closes the pending chunk early, if it holds anything, so the next byte starts a chunk of its own. A
+     * chunk's extent is recorded rather than implied by the bounds, so a short one reads like any other.
+     */
+    public void flush() throws IOException {
+        if (pendingLength > 0) {
+            flushChunk();
+        }
+    }
+
+    /**
+     * Appends a chunk another writer already stored under this writer's codec, as it is: {@code stored} bytes
+     * of {@code in}, which decode to {@code uncompressed}. No chunk may be pending, so call {@link #flush()}
+     * first. The chunk keeps the size it was cut at, which the bounds of the writer that cut it decided.
+     */
+    public void copyChunk(DataInput in, long stored, int uncompressed) throws IOException {
+        assert finished == false : "already finished";
+        assert pendingLength == 0 : "a chunk is pending, so a copied one would split it";
+        assert uncompressed > 0 : "a chunk holds bytes";
+        record(uncompressedLength, data.getFilePointer() - dataOffset);
+        data.copyBytes(in, stored);
+        uncompressedLength += uncompressed;
+        pendingValues = 0;
+        numChunks++;
     }
 
     /** Emits any pending chunk and returns where the chunks and their index are. */

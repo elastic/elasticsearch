@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
@@ -36,6 +37,7 @@ import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.PlainRun;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
@@ -62,6 +64,10 @@ import java.util.TreeSet;
  * <p><b>Merge contract.</b> {@link #mergeBinaryField} re-encodes all source segments through the
  * current writer's pipeline. There is no version-preserving merge and no mixed-version output
  * segment: a force-merge is a silent format upgrade.
+ *
+ * <p>The one exception is a plain string column's chunks. Where a source segment's documents land next to one
+ * another in the merged segment ({@link MergeStretches}), the chunks holding their bytes are copied as they
+ * are stored rather than decompressed and compressed again; the lengths around them are still re-encoded.
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
@@ -80,6 +86,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final InfoStream infoStream;
+    private final boolean copyChunksOnMerge;
 
     private boolean closed = false;
 
@@ -90,7 +98,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericPipelineSelector pipelineSelector,
         ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        StringColumnOptionsSelector stringSelector
+        StringColumnOptionsSelector stringSelector,
+        boolean copyChunksOnMerge
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
@@ -99,6 +108,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
+        this.infoStream = state.infoStream;
+        this.copyChunksOnMerge = copyChunksOnMerge;
         boolean success = false;
         try {
             data = createOutput(state, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC);
@@ -163,7 +174,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
+                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, copyChunksOnMerge), vocabulary);
             }
         }
     }
@@ -244,10 +255,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     private static final class ColumnMergeSub<T extends DocIdSetIterator> extends DocIDMerger.Sub {
         private final T values;
+        /** Where the segment's documents land next to one another, for a column that copies what it can; or null. */
+        private final MergeStretches stretches;
 
         ColumnMergeSub(MergeState.DocMap docMap, T values) {
+            this(docMap, values, null);
+        }
+
+        ColumnMergeSub(MergeState.DocMap docMap, T values, MergeStretches stretches) {
             super(docMap);
             this.values = values;
+            this.stretches = stretches;
         }
 
         @Override
@@ -474,8 +492,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return map;
     }
 
-    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState, Vocabulary.Terms vocabulary)
-        throws IOException {
+    private static StringColumnValues stringMergeCursor(
+        FieldInfo field,
+        MergeState mergeState,
+        Vocabulary.Terms vocabulary,
+        boolean copyChunks
+    ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         // What the counting pass would work out, summed from what the segments recorded. Held only while
@@ -529,7 +551,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 recorded = false;
             }
             cost += values.cost();
-            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
+            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values, copyChunks ? new MergeStretches(mergeState, i) : null));
         }
 
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
@@ -586,6 +608,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             @Override
             public int valueLength() throws IOException {
                 return current.values.valueLength();
+            }
+
+            @Override
+            public PlainRun plainRun() throws IOException {
+                // Only our own column's cursor knows where its slots are stored; anything else is written value
+                // by value.
+                if (current.stretches != null && current.values instanceof ColumnarStringBinaryDocValues.DirectValues direct) {
+                    return direct.plainRun(current.stretches.contiguousEnd(direct.docID()));
+                }
+                return null;
             }
 
             @Override
@@ -676,7 +708,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
 
         final StringColumnOptions options = stringSelector.select(field.name, type);
-        StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, totals, cursors, options, known, directory, context, outputs);
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            totals,
+            cursors,
+            options,
+            known,
+            directory,
+            context,
+            outputs,
+            infoStream
+        );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
 

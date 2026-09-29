@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
@@ -68,6 +69,9 @@ public final class StringColumnWriter {
      */
     private static final ChunkBounds DICTIONARY_CHUNKS = ChunkBounds.ofBytes(32 * 1024);
 
+    /** The {@link InfoStream} component the writer reports copied chunks under. */
+    public static final String INFO_STREAM_COMPONENT = "COLUMNAR";
+
     private StringColumnWriter() {}
 
     /**
@@ -97,6 +101,25 @@ public final class StringColumnWriter {
         Directory directory,
         IOContext context,
         ColumnOutputs outputs
+    ) throws IOException {
+        return write(maxDoc, totals, cursors, options, known, directory, context, outputs, InfoStream.NO_OUTPUT);
+    }
+
+    /**
+     * As {@link #write(int, StringColumnValues.Totals, IOSupplier, StringColumnOptions, Vocabulary.Terms, Directory,
+     * IOContext, ColumnOutputs)}, reporting to {@code infoStream} under {@link #INFO_STREAM_COMPONENT} each run of
+     * slots whose chunks a plain column copied as they were stored ({@link StringColumnValues#plainRun()}).
+     */
+    public static StringColumnMetadata write(
+        int maxDoc,
+        StringColumnValues.Totals totals,
+        IOSupplier<StringColumnValues> cursors,
+        StringColumnOptions options,
+        Vocabulary.Terms known,
+        Directory directory,
+        IOContext context,
+        ColumnOutputs outputs,
+        InfoStream infoStream
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -178,8 +201,60 @@ public final class StringColumnWriter {
         // the comparison decides cannot be restored, and the value it would compare against is not kept.
         final BytesRefBuilder previous = new BytesRefBuilder();
         boolean hasPrevious = false;
+        // A run of slots whose chunks were copied ends at the first of these; a run the stream turned down ends at
+        // the second, and none is asked for before it: a run is as long as it can be, so one starting inside it
+        // would only be shorter.
+        long copiedUntil = 0;
+        long decidedUntil = 0;
+        final BytesRef scratch = new BytesRef();
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             slots.startDocument(valueAddress);
+            if (valueAddress < copiedUntil) {
+                // Its slots are already written; only where they begin is recorded.
+                valueAddress += values.valueCount();
+                continue;
+            }
+            if (valueAddress >= decidedUntil) {
+                final PlainRun run = values.plainRun();
+                if (run != null) {
+                    decidedUntil = valueAddress + run.slots();
+                    final PlainValues.Copied copied = stream.copy(run.source(), run.from(), run.to());
+                    if (copied != null) {
+                        copiedUntil = decidedUntil;
+                        nulls += copied.nulls();
+                        if (sorted) {
+                            // A column in term order holds no null, so the run's first slot is its smallest value
+                            // and its last the largest; only where it meets the values before it is compared.
+                            if (run.sourceSorted() == false || copied.nulls() > 0) {
+                                sorted = false;
+                            } else {
+                                run.source().get(run.from(), scratch);
+                                if (hasPrevious && previous.get().compareTo(scratch) > 0) {
+                                    sorted = false;
+                                } else {
+                                    run.source().get(run.to() - 1, scratch);
+                                    previous.copyBytes(scratch);
+                                    hasPrevious = true;
+                                }
+                            }
+                        }
+                        if (infoStream.isEnabled(INFO_STREAM_COMPONENT)) {
+                            infoStream.message(
+                                INFO_STREAM_COMPONENT,
+                                "copied ["
+                                    + copied.slots()
+                                    + "] plain slots, ["
+                                    + copied.chunks()
+                                    + "] chunks of ["
+                                    + copied.bytes()
+                                    + "] bytes as stored"
+                            );
+                        }
+                        valueAddress += values.valueCount();
+                        continue;
+                    }
+                }
+            }
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
                 final BytesRef value = values.value();

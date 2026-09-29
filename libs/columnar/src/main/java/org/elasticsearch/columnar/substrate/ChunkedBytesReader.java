@@ -60,6 +60,54 @@ public final class ChunkedBytesReader {
         this.numChunks = numChunks;
     }
 
+    /** The codec the chunks are stored under. */
+    public byte codecId() {
+        return codec.id();
+    }
+
+    /** How many chunks the stream is cut into. */
+    public long numChunks() {
+        return numChunks;
+    }
+
+    /**
+     * Where chunk {@code index} begins in the uncompressed stream; {@code numChunks()} answers where the stream
+     * ends.
+     */
+    public long chunkStart(long index) {
+        assert index >= 0 && index <= numChunks : index + " out of [0, " + numChunks + "]";
+        return numChunks == 0 ? 0 : starts.get(index);
+    }
+
+    /** The first chunk beginning at or after {@code offset}, or {@code numChunks()} when none does. */
+    public long firstChunkAtOrAfter(long offset) {
+        long low = 0;
+        long high = numChunks;
+        while (low < high) {
+            final long mid = (low + high) >>> 1;
+            if (starts.get(mid) < offset) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
+    }
+
+    /**
+     * Hands chunk {@code index} to {@code out} as it is stored, without decoding it, so a merge that keeps the
+     * chunk's bytes in their order does not compress them again.
+     */
+    public void copyChunk(long index, ChunkedBytesWriter out) throws IOException {
+        assert index >= 0 && index < numChunks : index + " out of [0, " + numChunks + ")";
+        assert out.codecId() == codec.id() : "a chunk stored under " + codec + " copied into a stream of codec " + out.codecId();
+        final long start = starts.get(index);
+        final int uncompressed = (int) (starts.get(index + 1) - start);
+        final long fileStart = fileOffsets.get(index);
+        data.seek(dataOffset + fileStart);
+        out.copyChunk(data, fileOffsets.get(index + 1) - fileStart, uncompressed);
+    }
+
     /**
      * Reads {@code length} bytes at {@code offset} in the uncompressed stream into {@code dst}, growing it if
      * needed, and returns the buffer the bytes landed in. The returned array is only valid until the next

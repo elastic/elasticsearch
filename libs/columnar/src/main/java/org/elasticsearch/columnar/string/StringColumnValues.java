@@ -106,4 +106,17 @@ public abstract class StringColumnValues extends DocIdSetIterator {
     public int ordinal() throws IOException {
         return -1;
     }
+
+    /**
+     * The slots from the current document on that a plain column holds in this order with nothing in between,
+     * when this cursor knows them, or null. Asked only on a document's first slot, before {@link #nextValue()}.
+     *
+     * <p>A merge knows them: which documents of a segment land next to one another is settled by the merge, and
+     * a run of them read from one of our own plain columns can have its chunks copied as they are stored. A
+     * caller that takes the run does not call {@link #nextValue()} on the documents it covers; it still steps
+     * through them, so their slot counts are recorded.
+     */
+    public PlainRun plainRun() throws IOException {
+        return null;
+    }
 }

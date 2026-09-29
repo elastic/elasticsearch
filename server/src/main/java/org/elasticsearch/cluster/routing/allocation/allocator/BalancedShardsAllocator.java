@@ -389,7 +389,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
         private final FrequencyCappedAction logInvalidWeights;
-        private final LongCounter canRemainMoveCounter;
+        private final LongCounter cannotRemainMoveCounter;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
@@ -397,7 +397,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange,
             FrequencyCappedAction logInvalidWeights,
-            LongCounter canRemainMoveCounter
+            LongCounter cannotRemainMoveCounter
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -413,7 +413,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
             this.logInvalidWeights = logInvalidWeights;
-            this.canRemainMoveCounter = canRemainMoveCounter;
+            this.cannotRemainMoveCounter = cannotRemainMoveCounter;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -944,7 +944,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         );
                     }
                     executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
-                    canRemainMoveCounter.incrementBy(
+                    cannotRemainMoveCounter.incrementBy(
                         1,
                         canRemainMoveAttributes(
                             "not_preferred",
@@ -1058,7 +1058,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
                         || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
-                            canRemainMoveCounter.incrementBy(
+                            cannotRemainMoveCounter.incrementBy(
                                 1,
                                 canRemainMoveAttributes(
                                     "no",

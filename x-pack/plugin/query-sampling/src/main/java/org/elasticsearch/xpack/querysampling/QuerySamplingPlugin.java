@@ -7,11 +7,20 @@
 
 package org.elasticsearch.xpack.querysampling;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.Plugin;
+
+import java.util.List;
 
 /**
  * Keeps a small, continuously maintained sample of live kNN queries so that production recall can be
  * estimated without replaying all traffic. The pipeline runs on the coordinating node and is designed
  * to stay off the search critical path.
  */
-public class QuerySamplingPlugin extends Plugin {}
+public class QuerySamplingPlugin extends Plugin {
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return QuerySamplingSettings.getSettings();
+    }
+}

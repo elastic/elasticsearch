@@ -3140,7 +3140,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             InferredSimilarity fieldSimilarity = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
-            InferredSimilarity querySimilarity = knn.query() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id())
+            InferredSimilarity querySimilarity = knn.query() instanceof Attribute attribute
+                ? vectorSimilarities.get(attribute.id())
                 : inferExpressionSimilarity(knn.query(), context);
 
             if (fieldSimilarity != null && querySimilarity != null && fieldSimilarity.similarity() != querySimilarity.similarity()) {

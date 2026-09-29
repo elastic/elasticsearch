@@ -4324,7 +4324,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         )) {
             LogicalPlan plan = analyzer.query(
                 "FROM books | DENSE_VECTOR vector = title WITH { \"inference_id\": \"field-endpoint\" } | "
-                    + aliases + " | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10"
+                    + aliases
+                    + " | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10"
             );
             MapExpression options = as(findKnn(plan).options(), MapExpression.class);
             assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
@@ -4347,9 +4348,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
             "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector | KEEP copied_vector, dense_vector_field | RENAME copied_vector AS query_vector"
         )) {
             LogicalPlan plan = analyzer.query(
-                "ROW dense_vector_field = TO_DENSE_VECTOR([1.0, 0.0, 0.0]) | " +
-                "EVAL vector = TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\") | "
-                 + aliases + " | WHERE KNN(dense_vector_field, query_vector) | LIMIT 10"
+                "ROW dense_vector_field = TO_DENSE_VECTOR([1.0, 0.0, 0.0]) | "
+                    + "EVAL vector = TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\") | "
+                    + aliases
+                    + " | WHERE KNN(dense_vector_field, query_vector) | LIMIT 10"
             );
             MapExpression options = as(findKnn(plan).options(), MapExpression.class);
             assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
@@ -4393,11 +4395,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
         LogicalPlan plan = analyzer.query("""
-                FROM books
-                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
-                | EVAL modified = vector * 2.0 | RENAME modified AS emb
-                | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10
-                """);
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | EVAL modified = vector * 2.0 | RENAME modified AS emb
+            | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10
+            """);
         assertThat(findKnn(plan).options(), nullValue());
     }
 

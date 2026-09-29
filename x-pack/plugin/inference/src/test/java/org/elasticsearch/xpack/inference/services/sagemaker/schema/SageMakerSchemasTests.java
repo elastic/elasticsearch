@@ -8,8 +8,16 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticRerankPayload;
@@ -18,8 +26,12 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.Elast
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -28,6 +40,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SageMakerSchemasTests extends ESTestCase {
+
+    private static final String NODE_ID = "node-1";
+    private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
+
     public static SageMakerSchemas mockSchemas() {
         SageMakerSchemas schemas = mock();
         var schema = mockSchema();
@@ -40,6 +56,21 @@ public class SageMakerSchemasTests extends ESTestCase {
         when(schema.apiServiceSettings(anyMap(), any(), any())).thenReturn(SageMakerStoredServiceSchema.NO_OP);
         when(schema.apiTaskSettings(anyMap(), any())).thenReturn(SageMakerStoredTaskSchema.NO_OP);
         return schema;
+    }
+
+    /**
+     * Creates an {@link InferenceFeatureService} whose cluster state reports the
+     * {@code inference.sagemaker.openai_similarity} feature as present or absent.
+     */
+    public static InferenceFeatureService mockInferenceFeatureService(boolean similarityFeatureSupported) {
+        var features = similarityFeatureSupported ? Set.of(INFERENCE_SAGEMAKER_OPENAI_SIMILARITY.id()) : Set.<String>of();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(NODE_ID)).build())
+            .nodeFeatures(Map.of(NODE_ID, features))
+            .build();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        return new InferenceFeatureService(clusterService, FEATURE_SERVICE);
     }
 
     private static final SageMakerSchemas schemas = new SageMakerSchemas();

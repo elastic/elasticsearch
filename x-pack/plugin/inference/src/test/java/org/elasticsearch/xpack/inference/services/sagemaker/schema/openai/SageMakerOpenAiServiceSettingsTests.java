@@ -7,22 +7,45 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload.SIMILARITY_UNSUPPORTED_MESSAGE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCase<OpenAiTextEmbeddingPayload.ApiServiceSettings> {
+
+    private static final String NODE_ID = "node-1";
+    private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
+
     @Override
     protected OpenAiTextEmbeddingPayload.ApiServiceSettings fromMutableMap(Map<String, Object> mutableMap) {
         var validationException = new ValidationException();
@@ -45,20 +68,149 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
         return randomApiServiceSettings();
     }
 
+    @Override
+    protected OpenAiTextEmbeddingPayload.ApiServiceSettings mutateInstanceForVersion(
+        OpenAiTextEmbeddingPayload.ApiServiceSettings instance,
+        TransportVersion version
+    ) {
+        if (version.supports(OpenAiTextEmbeddingPayload.ApiServiceSettings.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY) == false) {
+            // Older nodes always used dot_product; there was no stored similarity field.
+            return new OpenAiTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                SimilarityMeasure.DOT_PRODUCT
+            );
+        }
+        return instance;
+    }
+
     static OpenAiTextEmbeddingPayload.ApiServiceSettings randomApiServiceSettings() {
         var dimensions = randomBoolean() ? randomIntBetween(1, 100) : null;
         // When dimensions are present they may have been set by the user or auto-discovered, so exercise both.
         var dimensionsSetByUser = dimensions != null && randomBoolean();
-        return new OpenAiTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensionsSetByUser);
+        // Use non-null values only: the XContent round-trip (PERSISTENT) turns null into DOT_PRODUCT.
+        var similarity = randomFrom(SimilarityMeasure.values());
+        return new OpenAiTextEmbeddingPayload.ApiServiceSettings(dimensions, dimensionsSetByUser, similarity);
     }
+
+    // --- similarity parsing tests ---
+
+    public void testFromStorage_MissingSimilarity_DefaultsToDotProduct() {
+        // Endpoints persisted before the similarity field was added always used dot_product.
+        var validationException = new ValidationException();
+        var settings = OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(
+            new HashMap<String, Object>(Map.of("dimensions", 123)),
+            ConfigurationParseContext.PERSISTENT,
+            validationException
+        );
+        validationException.throwIfValidationErrorsExist();
+        assertThat(settings.similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+    }
+
+    public void testFromStorage_ReadsSimilarity() {
+        for (var expected : SimilarityMeasure.values()) {
+            var validationException = new ValidationException();
+            var map = new HashMap<String, Object>(Map.of("dimensions", 123, "similarity", expected.toString()));
+            var settings = OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(
+                map,
+                ConfigurationParseContext.PERSISTENT,
+                validationException
+            );
+            validationException.throwIfValidationErrorsExist();
+            assertThat(settings.similarity(), is(expected));
+            assertThat(map, not(hasKey("similarity")));
+        }
+    }
+
+    public void testFromRequest_MissingSimilarity_IsNull() {
+        var validationException = new ValidationException();
+        var settings = OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(
+            new HashMap<String, Object>(),
+            ConfigurationParseContext.REQUEST,
+            validationException
+        );
+        validationException.throwIfValidationErrorsExist();
+        assertNull(settings.similarity());
+    }
+
+    public void testFromRequest_ReadsSimilarity() {
+        var validationException = new ValidationException();
+        var map = new HashMap<String, Object>(Map.of("similarity", SimilarityMeasure.COSINE.toString()));
+        var settings = OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST, validationException);
+        validationException.throwIfValidationErrorsExist();
+        assertThat(settings.similarity(), is(SimilarityMeasure.COSINE));
+        assertThat(map, not(hasKey("similarity")));
+    }
+
+    public void testFromRequest_InvalidSimilarity_AddsValidationError() {
+        var validationException = new ValidationException();
+        OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(
+            new HashMap<String, Object>(Map.of("similarity", "invalid_value")),
+            ConfigurationParseContext.REQUEST,
+            validationException
+        );
+        var exception = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
+        assertThat(exception.getMessage(), org.hamcrest.Matchers.containsString("[service_settings]"));
+        assertThat(exception.getMessage(), org.hamcrest.Matchers.containsString("[similarity]"));
+    }
+
+    // --- filtered GET output tests ---
+
+    public void testFilteredXContentObjectIncludesSimilarity() throws IOException {
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, SimilarityMeasure.COSINE);
+        assertThat(toMap(settings.getFilteredXContentObject()), hasKey("similarity"));
+        assertThat(toMap(settings.getFilteredXContentObject()).get("similarity"), is("cosine"));
+    }
+
+    // --- updateModelWithEmbeddingDetails tests ---
 
     public void testDimensionsSetByUser() {
         var expectedDimensions = randomIntBetween(1, 100);
-        var dimensionlessSettings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false);
+        var dimensionlessSettings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, SimilarityMeasure.COSINE);
         var updatedSettings = dimensionlessSettings.updateModelWithEmbeddingDetails(expectedDimensions);
         assertThat(updatedSettings, not(sameInstance(dimensionlessSettings)));
         assertThat(updatedSettings.dimensions(), equalTo(expectedDimensions));
     }
+
+    public void testUpdateModelWithEmbeddingDetails_PreservesSimilarity() {
+        for (var similarity : SimilarityMeasure.values()) {
+            var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, similarity);
+            var updated = settings.updateModelWithEmbeddingDetails(42);
+            assertThat(updated.similarity(), is(similarity));
+        }
+    }
+
+    // --- resolveCreateRequestDefaults hook tests ---
+
+    public void testResolveCreateRequestDefaults_FeatureSupported_MissingSimilarity_DefaultsToCosine() {
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, null);
+        var resolved = settings.resolveCreateRequestDefaults(createInferenceFeatureService(true));
+        assertThat(resolved.similarity(), is(SimilarityMeasure.COSINE));
+    }
+
+    public void testResolveCreateRequestDefaults_FeatureSupported_UserSimilarity_IsKept() {
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, SimilarityMeasure.DOT_PRODUCT);
+        var resolved = settings.resolveCreateRequestDefaults(createInferenceFeatureService(true));
+        assertThat(resolved, sameInstance(settings));
+    }
+
+    public void testResolveCreateRequestDefaults_FeatureUnsupported_MissingSimilarity_DefaultsToDotProduct() {
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, null);
+        var resolved = settings.resolveCreateRequestDefaults(createInferenceFeatureService(false));
+        assertThat(resolved.similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+    }
+
+    public void testResolveCreateRequestDefaults_FeatureUnsupported_UserSimilarity_Throws() {
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, SimilarityMeasure.COSINE);
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> settings.resolveCreateRequestDefaults(createInferenceFeatureService(false))
+        );
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is(SIMILARITY_UNSUPPORTED_MESSAGE));
+    }
+
+    // --- existing parsing tests (updated for new constructor) ---
 
     public void testFromRequest_DimensionsSetByUserIsDerivedFromDimensions() {
         var validationException = new ValidationException();
@@ -117,10 +269,27 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
     }
 
     public void testFilteredXContentObjectOmitsDimensionsSetByUser() throws IOException {
-        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(randomIntBetween(1, 100), randomBoolean());
+        var settings = new OpenAiTextEmbeddingPayload.ApiServiceSettings(
+            randomIntBetween(1, 100),
+            randomBoolean(),
+            SimilarityMeasure.COSINE
+        );
         // The persisted form keeps the internal flag so it survives a round-trip...
         assertThat(toMap(settings), hasKey("dimensions_set_by_user"));
         // ...but the filtered form returned in the GET response must not expose it.
         assertThat(toMap(settings.getFilteredXContentObject()), not(hasKey("dimensions_set_by_user")));
+    }
+
+    // --- helper ---
+
+    private static InferenceFeatureService createInferenceFeatureService(boolean featureSupported) {
+        var features = featureSupported ? Set.of(INFERENCE_SAGEMAKER_OPENAI_SIMILARITY.id()) : Set.<String>of();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(NODE_ID)).build())
+            .nodeFeatures(Map.of(NODE_ID, features))
+            .build();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        return new InferenceFeatureService(clusterService, FEATURE_SERVICE);
     }
 }

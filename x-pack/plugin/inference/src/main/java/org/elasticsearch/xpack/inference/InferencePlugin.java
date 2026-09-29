@@ -488,7 +488,7 @@ public class InferencePlugin extends Plugin
             return eisService;
         },
             context -> new SageMakerService(
-                new SageMakerModelBuilder(sageMakerSchemas),
+                new SageMakerModelBuilder(sageMakerSchemas, inferenceFeatureService),
                 new SageMakerClient(
                     new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
                     services.threadPool()

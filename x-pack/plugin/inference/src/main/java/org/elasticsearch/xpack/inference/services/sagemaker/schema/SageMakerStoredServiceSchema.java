@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
 
 import java.util.Map;
@@ -91,6 +92,23 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
      */
     @Override
     default SageMakerStoredServiceSchema updateServiceSettings(Map<String, Object> serviceSettings) {
+        return this;
+    }
+
+    /**
+     * Fills in create-request defaults that depend on cluster-wide feature support.
+     *
+     * <p>This hook runs once, when an endpoint is created from a request. The resolved values are persisted
+     * alongside the endpoint configuration, so existing endpoints are never affected. It is invoked only after
+     * strict validation of the request map has passed (i.e. after {@code throwIfNotEmptyMap} checks).
+     *
+     * <p>The default implementation is a no-op and returns {@code this}. Implementations that need to resolve
+     * feature-gated defaults should override this method.
+     *
+     * @param inferenceFeatureService used to check which features all nodes in the cluster currently support
+     * @return the schema with defaults resolved, or {@code this} if no resolution was needed
+     */
+    default SageMakerStoredServiceSchema resolveCreateRequestDefaults(InferenceFeatureService inferenceFeatureService) {
         return this;
     }
 }

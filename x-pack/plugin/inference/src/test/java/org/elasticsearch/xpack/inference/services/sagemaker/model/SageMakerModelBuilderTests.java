@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.API;
 import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.ENDPOINT_NAME;
 import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.REGION;
+import static org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload.SIMILARITY_UNSUPPORTED_MESSAGE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -52,7 +54,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
 
     @Before
     public void createBuilder() throws Exception {
-        builder = new SageMakerModelBuilder(SageMakerSchemasTests.mockSchemas());
+        builder = new SageMakerModelBuilder(SageMakerSchemasTests.mockSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(true));
     }
 
     public void testFromRequestWithRequiredFields() {
@@ -279,21 +281,75 @@ public class SageMakerModelBuilderTests extends ESTestCase {
     }
 
     public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_OpenAi() {
-        testUpdateModelWithEmbeddingDetails("openai", null, SimilarityMeasure.DOT_PRODUCT);
+        // With the feature enabled, a missing similarity becomes COSINE at request-parse time.
+        testUpdateModelWithEmbeddingDetails("openai", null, SimilarityMeasure.COSINE, true);
     }
 
     public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_OpenAi() {
-        testUpdateModelWithEmbeddingDetails("openai", SimilarityMeasure.COSINE, SimilarityMeasure.DOT_PRODUCT);
+        var originalSimilarity = randomFrom(SimilarityMeasure.values());
+        testUpdateModelWithEmbeddingDetails("openai", originalSimilarity, originalSimilarity, true);
     }
 
     public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_Elastic() {
-        testUpdateModelWithEmbeddingDetails("elastic", SimilarityMeasure.COSINE, SimilarityMeasure.COSINE);
+        testUpdateModelWithEmbeddingDetails("elastic", SimilarityMeasure.COSINE, SimilarityMeasure.COSINE, true);
+    }
+
+    public void testFromRequest_OpenAi_FeatureUnsupported_MissingSimilarity_DefaultsToDotProduct() {
+        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(false));
+        var serviceSettingsMap = openAiServiceSettingsMap(null);
+        var requestMap = new HashMap<String, Object>(Map.of(SERVICE_SETTINGS, serviceSettingsMap));
+        var model = modelBuilder.fromRequest(inferenceId, TaskType.TEXT_EMBEDDING, service, requestMap);
+        assertThat(model.serviceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+    }
+
+    public void testFromRequest_OpenAi_FeatureUnsupported_UserSimilarity_Throws() {
+        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(false));
+        var serviceSettingsMap = openAiServiceSettingsMap(SimilarityMeasure.COSINE);
+        var requestMap = new HashMap<String, Object>(Map.of(SERVICE_SETTINGS, serviceSettingsMap));
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> modelBuilder.fromRequest(inferenceId, TaskType.TEXT_EMBEDDING, service, requestMap)
+        );
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is(SIMILARITY_UNSUPPORTED_MESSAGE));
+    }
+
+    public void testFromStorage_OpenAi_MissingSimilarity_DefaultsToDotProduct() {
+        // An endpoint stored before the similarity field was introduced has no stored similarity;
+        // reading it back must default to dot_product without error.
+        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(true));
+        var serviceSettingsMap = openAiServiceSettingsMap(null);
+        var config = new HashMap<String, Object>(
+            Map.of(SERVICE_SETTINGS, serviceSettingsMap, "task_settings", new HashMap<String, Object>())
+        );
+        var model = modelBuilder.fromStorage(inferenceId, TaskType.TEXT_EMBEDDING, service, config, null);
+        assertThat(model.serviceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+    }
+
+    public void testRoundTrip_OpenAi_PreservesResolvedCosine() throws IOException {
+        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(true));
+        var serviceSettingsMap = openAiServiceSettingsMap(null);
+        var requestMap = new HashMap<String, Object>(Map.of(SERVICE_SETTINGS, serviceSettingsMap));
+        var originalModel = modelBuilder.fromRequest(inferenceId, TaskType.TEXT_EMBEDDING, service, requestMap);
+        // Feature-enabled create request should give cosine.
+        assertThat(originalModel.serviceSettings().similarity(), is(SimilarityMeasure.COSINE));
+
+        var unparsed = unparsedModel(originalModel.getConfigurations(), originalModel.getSecrets());
+        var roundTripModel = modelBuilder.fromStorage(
+            unparsed.inferenceEntityId(),
+            unparsed.taskType(),
+            unparsed.service(),
+            unparsed.settings(),
+            unparsed.secrets()
+        );
+        assertThat(roundTripModel.getConfigurations(), equalTo(originalModel.getConfigurations()));
     }
 
     private static void testUpdateModelWithEmbeddingDetails(
         String api,
         SimilarityMeasure originalSimilarity,
-        SimilarityMeasure expectedSimilarity
+        SimilarityMeasure expectedSimilarity,
+        boolean featureSupported
     ) {
         var serviceSettingsMap = new HashMap<String, Object>(
             Map.of(
@@ -316,16 +372,42 @@ public class SageMakerModelBuilderTests extends ESTestCase {
             if (originalSimilarity != null) {
                 serviceSettingsMap.put(SIMILARITY, originalSimilarity.toString());
             }
+        } else if (api.equalsIgnoreCase("openai") && originalSimilarity != null) {
+            serviceSettingsMap.put(SIMILARITY, originalSimilarity.toString());
         }
 
         var requestMap = new HashMap<String, Object>(Map.of(SERVICE_SETTINGS, serviceSettingsMap));
-        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        var modelBuilder = new SageMakerModelBuilder(
+            new SageMakerSchemas(),
+            SageMakerSchemasTests.mockInferenceFeatureService(featureSupported)
+        );
         var embeddingModel = modelBuilder.fromRequest(inferenceId, TaskType.TEXT_EMBEDDING, service, requestMap);
         var newDimensions = 128;
         var updatedModel = modelBuilder.updateModelWithEmbeddingDetails(embeddingModel, newDimensions);
 
         assertThat(updatedModel.serviceSettings().dimensions(), is(newDimensions));
         assertThat(updatedModel.serviceSettings().similarity(), is(expectedSimilarity));
+    }
+
+    private static HashMap<String, Object> openAiServiceSettingsMap(SimilarityMeasure similarity) {
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ACCESS_KEY_FIELD,
+                "test-access-key",
+                SECRET_KEY_FIELD,
+                "test-secret-key",
+                REGION,
+                "us-east-1",
+                API,
+                "openai",
+                ENDPOINT_NAME,
+                "test-endpoint"
+            )
+        );
+        if (similarity != null) {
+            map.put(SIMILARITY, similarity.toString());
+        }
+        return map;
     }
 
     private SageMakerModel fromRequest(String json) {

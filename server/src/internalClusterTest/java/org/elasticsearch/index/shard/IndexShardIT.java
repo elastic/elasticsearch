@@ -778,6 +778,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             RecoveryState::new,
             localNode,
             null,
+            0,
             indexService.getIndexSettings(),
             shard.shardPath(),
             shard.store(),

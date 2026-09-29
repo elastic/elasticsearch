@@ -121,7 +121,10 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         handleRecoveryFailureWithRetry(shardRouting);
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertThat(indicesClusterStateService.retryingShards.get(shardRouting.shardId()), equalTo(shardRouting));
+        assertThat(
+            indicesClusterStateService.retryingShards.get(shardRouting.shardId()),
+            equalTo(new IndicesClusterStateService.RetryHandoff(shardRouting, 1))
+        );
         assertTrue(indicesClusterStateService.failedShardsCache.isEmpty());
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
         assertThat(pendingApplierTasks.size(), equalTo(1));
@@ -139,6 +142,7 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         drainApplierTasks();
 
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(1));
         assertFalse(indicesClusterStateService.retryingShards.containsKey(shardRouting.shardId()));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
@@ -258,7 +262,8 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
             shardRouting,
             FAIL_SEND,
             primaryTerm(shardRouting),
-            new Exception("concurrent fail-send")
+            new Exception("concurrent fail-send"),
+            0
         );
         assertTrue(indicesClusterStateService.failedShardsCache.containsKey(shardRouting.shardId()));
 
@@ -389,7 +394,10 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
         assertNotNull(indicesService.getShardOrNull(shardId));
 
         handleRecoveryFailureWithRetry(withRelocating);
-        assertThat(indicesClusterStateService.retryingShards.get(shardId), equalTo(withRelocating));
+        assertThat(
+            indicesClusterStateService.retryingShards.get(shardId),
+            equalTo(new IndicesClusterStateService.RetryHandoff(withRelocating, 1))
+        );
 
         ShardRouting clearedRelocating = TestShardRouting.shardRoutingBuilder(
             shardId,
@@ -418,7 +426,13 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
 
         AssertionError error = expectThrows(
             AssertionError.class,
-            () -> indicesClusterStateService.handleRecoveryFailure(shardRouting, RETRY, primaryTerm(shardRouting), new Exception("again"))
+            () -> indicesClusterStateService.handleRecoveryFailure(
+                shardRouting,
+                RETRY,
+                primaryTerm(shardRouting),
+                new Exception("again"),
+                2
+            )
         );
         assertThat(error.getMessage(), equalTo("retry handoff already present for " + shardRouting.shardId()));
     }
@@ -468,7 +482,8 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
             shardRouting,
             RETRY,
             primaryTerm(shardRouting),
-            new Exception("simulated recovery failure")
+            new Exception("simulated recovery failure"),
+            1
         );
     }
 
@@ -539,7 +554,8 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRetries
         ) throws IOException {
             createShardCalls.incrementAndGet();
             Exception toFail = failNextCreateShard;
@@ -561,7 +577,8 @@ public class IndicesClusterStateServiceRetryHandoffTests extends AbstractIndices
                 retentionLeaseSyncer,
                 targetNode,
                 sourceNode,
-                clusterStateVersion
+                clusterStateVersion,
+                localRetries
             );
         }
     }

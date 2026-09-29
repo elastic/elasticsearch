@@ -1004,13 +1004,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
-        long clusterStateVersion
+        long clusterStateVersion,
+        int localRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            localNode,
+            sourceNode,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            localRetries
+        );
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(projectId, recoveryListener, indexShard, indexService.getMetadata(), listener -> {

@@ -483,7 +483,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final int localRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -585,6 +586,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 recoveryStateFactory,
                 localNode,
                 sourceNode,
+                localRetries,
                 this.indexSettings,
                 path,
                 store,

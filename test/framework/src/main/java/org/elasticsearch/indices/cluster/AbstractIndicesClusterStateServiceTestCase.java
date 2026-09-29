@@ -269,10 +269,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRetries
         ) throws IOException {
             failRandomly();
-            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode, localRetries);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
             indexShard.recoveryState = recoveryState;

@@ -946,7 +946,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
                     cannotRemainMoveCounter.incrementBy(
                         1,
-                        canRemainMoveAttributes(
+                        cannotRemainMoveAttributes(
                             "not_preferred",
                             decisionLabel(moveDecision.getCanRemainDecision()),
                             null,  // there is never a conflict between not-preferred and not-preferred
@@ -1060,7 +1060,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
                             cannotRemainMoveCounter.incrementBy(
                                 1,
-                                canRemainMoveAttributes(
+                                cannotRemainMoveAttributes(
                                     "no",
                                     decisionLabel(moveDecision.getCanRemainDecision()),
                                     moveDecision.getCanAllocateDecision() != null
@@ -1142,7 +1142,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             };
         }
 
-        private static Map<String, Object> canRemainMoveAttributes(
+        private static Map<String, Object> cannotRemainMoveAttributes(
             String canRemainDecision,
             @Nullable String canRemainDecider,
             @Nullable String canAllocateNotPreferredDecider,

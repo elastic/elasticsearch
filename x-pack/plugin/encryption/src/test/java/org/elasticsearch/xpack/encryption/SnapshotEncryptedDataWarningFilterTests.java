@@ -30,10 +30,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.util.Collections;
+import java.util.function.UnaryOperator;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -159,7 +160,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
                 return current;
             }
         }));
@@ -232,7 +233,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
                 return current;
             }
         };

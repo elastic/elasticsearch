@@ -299,8 +299,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Runs the encrypted-data pre-flight check for a create-snapshot request. Must be called from the master-operation thread,
-     * before any cluster-state task is submitted.
+     * Runs the encrypted-data pre-flight check for a create-snapshot request. Rejects the request when
+     * {@code snapshot.encrypted_data.required} is true and no {@code encrypted_data} was supplied.
+     * Must be called from the master-operation thread, before any cluster-state task is submitted.
      *
      * @return {@code true} if the caller should proceed, {@code false} if the listener was already resolved with an error.
      */
@@ -336,10 +337,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             return false;
         }
-        HeaderWarning.addWarning(
-            "This snapshot will not include encrypted project data because no [encrypted_data] was supplied. "
-                + "The data can only be restored if it is re-configured manually after restore."
-        );
         return true;
     }
 

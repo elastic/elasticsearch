@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -65,8 +66,29 @@ public class TermSelectionTests extends ESTestCase {
         assertEquals(List.of(""), fixture.forSummary(new SummaryPolicy(1)));
     }
 
-    // NOTE: whatever the column holds, an answer stays inside the quota, admits nothing rarer than the quota
-    // allows, and only grows as the budget does, since every answer is a prefix of one ranking.
+    // NOTE: a term the budget cannot afford is stepped over rather than ending the walk, so an answer packs
+    // the density ranking rather than prefixing it. Budgets therefore choose sets that need not nest in
+    // either direction: eleven bytes spent on one term leave less room than six bytes never spent on it.
+    public void testSelectionsUnderDifferentBudgetsNeedNotNest() {
+        final Map<String, Integer> termCounts = new LinkedHashMap<>();
+        termCounts.put("aaaaaaaaaa", 100);
+        termCounts.put("bbb", 12);
+        termCounts.put("ccc", 12);
+        final Fixture fixture = fixture(termCounts);
+
+        assertEquals("ten bytes buys nothing, so six bytes buys both", List.of("bbb", "ccc"), fixture.forSummary(new SummaryPolicy(6)));
+        assertEquals(
+            "eleven bytes buys the densest term and no room after it",
+            List.of("aaaaaaaaaa"),
+            fixture.forSummary(new SummaryPolicy(11))
+        );
+    }
+
+    // NOTE: a larger budget can keep a different set of terms, but never names fewer values. At the first
+    // term two budgets decide differently, the one the larger affords outranks everything behind it by
+    // density and costs more than the smaller has left, so what the smaller packs into that capacity names
+    // at most its density times that capacity, which is less than the skipped term names alone. The bound
+    // is on a sum over any subset, so indivisible terms do not break it.
     public void testAnyColumnIsAnsweredWithinItsQuota() {
         final Map<String, Integer> termCounts = new LinkedHashMap<>();
         for (int term = 0; term < between(1, 60); term++) {
@@ -82,9 +104,17 @@ public class TermSelectionTests extends ESTestCase {
             summarised.stream().mapToLong(term -> Math.max(1, term.length())).sum(),
             lessThanOrEqualTo((long) cap)
         );
-        assertTrue(
-            "a larger cap keeps what a smaller one kept",
-            fixture.forSummary(new SummaryPolicy(cap + between(1, 200))).containsAll(summarised)
+        final long spent = summarised.stream().mapToLong(term -> Math.max(1, term.length())).sum();
+        for (String term : termCounts.keySet()) {
+            if (summarised.contains(term) == false) {
+                assertThat("no room was left for [" + term + "]", spent + Math.max(1, term.length()), greaterThan((long) cap));
+            }
+        }
+        final List<String> wider = fixture.forSummary(new SummaryPolicy(cap + between(1, 200)));
+        assertThat(
+            "a larger cap names at least as many values",
+            wider.stream().mapToLong(termCounts::get).sum(),
+            greaterThanOrEqualTo(summarised.stream().mapToLong(termCounts::get).sum())
         );
 
         final List<String> named = fixture.forDictionary(ROOMY_DICTIONARY, 1000);

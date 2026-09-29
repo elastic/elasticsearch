@@ -2996,6 +2996,7 @@ Connected to 10.1.0.3! | null                     | fork2
 
 loadAllUnmappedFieldAsInSubqueryAfterFromUnion
 required_capability: optional_fields_load_all_subqueries_v2
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
@@ -3012,6 +3013,7 @@ message:keyword | unmapped_message:keyword
 // IN in one FROM-subquery branch is a mention: the unrestricted sibling loads unmapped_message from _source.
 loadAllUnmappedFieldAsInSubqueryInsideFromSubqueryBranch
 required_capability: optional_fields_load_all_subqueries_v2
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_sample_data

@@ -142,6 +142,52 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.diagnosisList().isEmpty(), is(true));
     }
 
+    /**
+     * Errors from different projects are reported together. A project with no errors does not appear.
+     */
+    public void testMultiProject() {
+        service = new DataStreamLifecycleHealthIndicatorService(TestProjectResolvers.allProjects());
+        ProjectId firstYellowProject = randomUniqueProjectId();
+        ProjectId secondYellowProject = randomUniqueProjectId();
+        ProjectId greenProject = randomUniqueProjectId();
+        String firstIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
+        String secondIndex = DataStream.getDefaultBackingIndexName("boo", 1L);
+        String firstDisplayName = new ProjectIndexName(firstYellowProject, firstIndex).toString(true);
+        String secondDisplayName = new ProjectIndexName(secondYellowProject, secondIndex).toString(true);
+
+        HealthIndicatorResult result = service.calculate(
+            true,
+            constructHealthInfo(
+                new DataStreamLifecycleHealthInfo(
+                    List.of(
+                        new DslErrorInfo(firstIndex, 1L, 100, firstYellowProject),
+                        new DslErrorInfo(secondIndex, 3L, 200, secondYellowProject)
+                    ),
+                    2
+                )
+            )
+        );
+
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
+        assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
+        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(firstDisplayName, secondDisplayName));
+        String detailsAsString = Strings.toString(result.details());
+        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":2"));
+        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":2"));
+        assertThat(
+            detailsAsString,
+            containsString("\"index_name\":\"" + firstDisplayName + "\",\"first_occurrence_timestamp\":1,\"retry_count\":100")
+        );
+        assertThat(
+            detailsAsString,
+            containsString("\"index_name\":\"" + secondDisplayName + "\",\"first_occurrence_timestamp\":3,\"retry_count\":200")
+        );
+        assertThat(detailsAsString, not(containsString(greenProject.id())));
+    }
+
     public void testLimitNumberOfAffectedResources() {
         ProjectId projectId = projectIds.iterator().next();
         int errorCount = 5;

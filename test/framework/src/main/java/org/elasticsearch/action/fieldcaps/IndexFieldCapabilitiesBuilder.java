@@ -26,6 +26,7 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
+    private boolean isPassthrough;
     private Map<String, String> meta;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
@@ -68,6 +69,11 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder isPassthrough(boolean isPassthrough) {
+        this.isPassthrough = isPassthrough;
+        return this;
+    }
+
     public IndexFieldCapabilitiesBuilder meta(@Nullable Map<String, String> meta) {
         this.meta = meta != null ? new TreeMap<>(meta) : null;
         return this;
@@ -83,6 +89,7 @@ public class IndexFieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
+            isPassthrough,
             meta
         );
     }

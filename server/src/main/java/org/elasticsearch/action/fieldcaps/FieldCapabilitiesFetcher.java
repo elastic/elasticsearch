@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -206,6 +207,7 @@ class FieldCapabilitiesFetcher {
                     inferenceFieldNames.contains(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
+                    false,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);
@@ -228,6 +230,8 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        // passthrough objects are reported as plain objects, but are additionally flagged as passthrough
+                        boolean isPassthrough = objectMappers.get(parentField) instanceof PassThroughObjectMapper;
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,
@@ -237,6 +241,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
+                            isPassthrough,
                             Map.of()
                         );
                         responseMap.put(parentField, fieldCap);

@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
@@ -70,7 +70,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             // Allow initial allocation but not relocation for UNMOVABLE_INDEX_NAME
             if (enabled.get() && shardRouting.unassigned() == false && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) {
-                return TestAllocationDecisions.NO_DECISION;
+                return TestDecisions.NO;
             } else {
                 return Decision.YES;
             }
@@ -79,7 +79,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         @Override
         public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME))
-                ? TestAllocationDecisions.NO_DECISION
+                ? TestDecisions.NO
                 : Decision.YES;
         }
     }

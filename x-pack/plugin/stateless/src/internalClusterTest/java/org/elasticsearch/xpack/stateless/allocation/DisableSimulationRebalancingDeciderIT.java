@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -147,10 +147,10 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (allocation.isSimulating()) {
                 if (CAN_REMAIN_NO_IN_SIMULATION.contains(node.nodeId())) {
-                    return TestAllocationDecisions.NO_DECISION;
+                    return TestDecisions.NO;
                 }
                 if (CAN_REMAIN_NOT_PREFERRED_IN_SIMULATION.contains(node.nodeId())) {
-                    return TestAllocationDecisions.NOT_PREFERRED_DECISION;
+                    return TestDecisions.NOT_PREFERRED;
                 }
             }
             return Decision.YES;

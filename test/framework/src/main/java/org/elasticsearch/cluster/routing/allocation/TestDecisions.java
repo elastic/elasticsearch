@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
  * add labels to {@link Decision#NO} and {@link Decision#NOT_PREFERRED} because we don't want people to use them
  * they should create their own {@link Decision} instances with accurate label values populated.
  */
-public class TestAllocationDecisions {
+public class TestDecisions {
 
-    public static Decision NO_DECISION = new Decision.Single(Decision.Type.NO, "test_decider", null);
-    public static Decision NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", null);
+    public static Decision NO = new Decision.Single(Decision.Type.NO, "test_decider", null);
+    public static Decision NOT_PREFERRED = new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", null);
 }

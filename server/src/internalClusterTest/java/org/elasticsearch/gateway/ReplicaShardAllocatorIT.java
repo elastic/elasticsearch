@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -488,7 +488,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     if (NOT_PREFERRED_NODES.contains(node.nodeId())) {
-                        return TestAllocationDecisions.NOT_PREFERRED_DECISION;
+                        return TestDecisions.NOT_PREFERRED;
                     }
                     return Decision.YES;
                 }

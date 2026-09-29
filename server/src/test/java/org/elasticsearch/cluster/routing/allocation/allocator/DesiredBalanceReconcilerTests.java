@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.TestAllocationDecisions;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -257,9 +257,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    return allocationFilter.get().test(shardRouting.getIndexName(), node.nodeId())
-                        ? Decision.YES
-                        : TestAllocationDecisions.NO_DECISION;
+                    return allocationFilter.get().test(shardRouting.getIndexName(), node.nodeId()) ? Decision.YES : TestDecisions.NO;
                 }
             }
         );
@@ -444,7 +442,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return (shardRouting.primary() && node.nodeId().equals("node-0")) || assignReplicas.get()
                         ? Decision.YES
-                        : TestAllocationDecisions.NO_DECISION;
+                        : TestDecisions.NO;
                 }
             }
         );
@@ -667,7 +665,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var triedReplica = new AtomicBoolean();
-        final var replicaDecision = randomFrom(Decision.THROTTLE, TestAllocationDecisions.NO_DECISION);
+        final var replicaDecision = randomFrom(Decision.THROTTLE, TestDecisions.NO);
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
@@ -727,7 +725,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var assignPrimary = new AtomicBoolean(false);
-        final var nonYesDecision = randomFrom(Decision.THROTTLE, TestAllocationDecisions.NO_DECISION);
+        final var nonYesDecision = randomFrom(Decision.THROTTLE, TestDecisions.NO);
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
@@ -748,7 +746,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         final var redState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertEquals(
-            nonYesDecision == TestAllocationDecisions.NO_DECISION
+            nonYesDecision == TestDecisions.NO
                 ? UnassignedInfo.AllocationStatus.DECIDERS_NO
                 : UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
             redState.routingTable().shardRoutingTable("index-0", 0).primaryShard().unassignedInfo().lastAllocationStatus()
@@ -797,9 +795,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    return allocationFilter.get().test(shardRouting.getId(), node.nodeId())
-                        ? Decision.YES
-                        : TestAllocationDecisions.NO_DECISION;
+                    return allocationFilter.get().test(shardRouting.getId(), node.nodeId()) ? Decision.YES : TestDecisions.NO;
                 }
             }
         );
@@ -885,7 +881,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
-                    return TestAllocationDecisions.NO_DECISION;
+                    return TestDecisions.NO;
                 }
 
                 @Override
@@ -936,7 +932,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4), allocationStats.get());
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
-        canAllocateRef.set(TestAllocationDecisions.NO_DECISION);
+        canAllocateRef.set(TestDecisions.NO);
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canAllocateRef.set(Decision.YES);
@@ -1048,19 +1044,19 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
-        canRebalanceGlobalRef.set(TestAllocationDecisions.NO_DECISION);
+        canRebalanceGlobalRef.set(TestDecisions.NO);
         // rebalancing forbidden on all shards, no movement allowed, cluster state remains the same.
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canRebalanceGlobalRef.set(Decision.YES);
 
-        canRebalanceShardRef.set(TestAllocationDecisions.NO_DECISION);
+        canRebalanceShardRef.set(TestDecisions.NO);
         // rebalancing forbidden on specific shards, still no movement.
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canRebalanceShardRef.set(Decision.YES);
 
-        canAllocateShardRef.set(TestAllocationDecisions.NO_DECISION);
+        canAllocateShardRef.set(TestDecisions.NO);
         // allocation not possible, no movement
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
@@ -1152,7 +1148,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 // allocation on desired nodes is temporarily not possible
-                return desiredNodeIds.contains(node.nodeId()) ? TestAllocationDecisions.NO_DECISION : Decision.YES;
+                return desiredNodeIds.contains(node.nodeId()) ? TestDecisions.NO : Decision.YES;
             }
         };
 
@@ -1216,8 +1212,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return Objects.equals(node.nodeId(), "node-2") ? Decision.YES : TestAllocationDecisions.NO_DECISION; // can allocate only on
-                                                                                                                     // fallback node
+                return Objects.equals(node.nodeId(), "node-2") ? Decision.YES : TestDecisions.NO; // can allocate only on
+                                                                                                  // fallback node
             }
         };
 
@@ -1793,6 +1789,6 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
      * A decider that randomly returns YES or NOT_PREFERRED
      */
     private static AllocationDecider yesOrNotPreferredDecider() {
-        return new TestAllocationDecider(() -> randomFrom(Decision.YES, TestAllocationDecisions.NOT_PREFERRED_DECISION));
+        return new TestAllocationDecider(() -> randomFrom(Decision.YES, TestDecisions.NOT_PREFERRED));
     }
 }

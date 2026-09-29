@@ -973,8 +973,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 ) {
                     final String allocId = allocationIds.get(node.nodeId());
                     return cancelIfStartedThisRound.contains(allocId)
-                        ? TestAllocationDecisions.NO_DECISION
-                        : randomFrom(TestAllocationDecisions.NOT_PREFERRED_DECISION, Decision.YES);
+                        ? TestDecisions.NO
+                        : randomFrom(TestDecisions.NOT_PREFERRED, Decision.YES);
                 }
             };
 
@@ -1833,7 +1833,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 RoutingAllocation allocation
             ) {
                 return shardRouting.shardId().equals(shardId) && shardRouting.primary() == primary && node.nodeId().equals(forbiddenNodeId)
-                    ? TestAllocationDecisions.NO_DECISION
+                    ? TestDecisions.NO
                     : Decision.YES;
             }
         };

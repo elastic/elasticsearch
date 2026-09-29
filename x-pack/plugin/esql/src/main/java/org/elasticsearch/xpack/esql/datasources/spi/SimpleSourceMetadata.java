@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates.stringBytes;
+
 /**
  * Simple immutable implementation of SourceMetadata.
  * Suitable for use by FormatReader implementations and as a base for
@@ -163,6 +165,18 @@ public final class SimpleSourceMetadata implements SourceMetadata {
         result = 31 * result + (sourceType != null ? sourceType.hashCode() : 0);
         result = 31 * result + (location != null ? location.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public long planningBytes() {
+        // object header + field references
+        long bytes = 64;
+        bytes += stringBytes(location);
+        // statistics shell when present: 64 B overhead plus column-level data is already charged via SchemaInterner
+        if (statistics != null) {
+            bytes += 64;
+        }
+        return bytes;
     }
 
     @Override

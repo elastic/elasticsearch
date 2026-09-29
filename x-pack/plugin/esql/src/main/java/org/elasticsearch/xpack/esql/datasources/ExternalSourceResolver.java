@@ -194,6 +194,12 @@ public class ExternalSourceResolver {
      */
     @Nullable
     Consumer<ExternalPlanningReservation.Run> schemaGatherRunProbe;
+    /**
+     * Test hook. Invoked once per {@link #gatherPerFile} call after the results-array run is charged,
+     * while the run is still open. Production leaves this null.
+     */
+    @Nullable
+    Consumer<ExternalPlanningReservation.Run> gatherResultsRunProbe;
     private final Settings settings;
     /**
      * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
@@ -2277,6 +2283,12 @@ public class ExternalSourceResolver {
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
      * and short-circuits the remaining files.
+     * <p>
+     * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#planningBytes()} per resolved file to the circuit
+     * breaker, mirroring the per-file pattern used for private schema lists. This makes concurrent gather fan-outs from
+     * different queries visible to the shared breaker so combined accumulation across simultaneous gathers is bounded.
+     * The run is released in {@code onCompletion} after the results array is nulled out.
      */
     private void gatherPerFile(
         FileList fileList,
@@ -2296,6 +2308,8 @@ public class ExternalSourceResolver {
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
+        ExternalPlanningReservation localReservation = planningReservation;
+        final ExternalPlanningReservation.Run resultsRun = localReservation != null ? localReservation.openRun() : null;
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
         AtomicReference<Exception> failure = new AtomicReference<>();
         Iterator<Integer> indices = indexIterator(fileCount);
@@ -2321,6 +2335,12 @@ public class ExternalSourceResolver {
                 SourceMetadata stored = schemaInterner == null
                     ? meta
                     : withCanonicalSchema(meta, schemaInterner.canonicalize(meta.schema()));
+                if (resultsRun != null) {
+                    resultsRun.charge(stored.planningBytes());
+                    if (gatherResultsRunProbe != null) {
+                        gatherResultsRunProbe.accept(resultsRun);
+                    }
+                }
                 results.set(i, stored);
             }, e -> failure.compareAndSet(null, e)), releasable::close);
             // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
@@ -2365,6 +2385,7 @@ public class ExternalSourceResolver {
                     results.set(i, null);
                 }
                 closePrivateSchemaLists(privateLists);
+                closePrivateSchemaLists(resultsRun);
             }
         }, executor, e -> {
             // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the

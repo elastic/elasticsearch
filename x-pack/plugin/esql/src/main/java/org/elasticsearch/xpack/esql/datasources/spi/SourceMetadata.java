@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates.stringBytes;
+
 /**
  * Unified metadata output type returned by all schema discovery mechanisms.
  * This interface provides a consistent way to access metadata regardless of
@@ -128,5 +130,22 @@ public interface SourceMetadata {
      */
     default Map<String, Object> config() {
         return Map.of();
+    }
+
+    /**
+     * Estimated heap retained by this metadata object while it is live in the {@code gatherPerFile} results array.
+     * Charged to the planning circuit breaker once per resolved file so concurrent gather fan-outs from different
+     * queries are visible to the shared breaker. Not a measured deep size: the schema is the shared canonical list
+     * and is not double-counted here; only the per-instance overhead (object shell + location string) is included.
+     * <p>
+     * Implementations that carry additional per-file state (statistics, source-specific metadata maps) should
+     * override and add those costs.
+     */
+    default long planningBytes() {
+        // object header + field references
+        long bytes = 64;
+        // location string: per-file unique, variable length
+        bytes += stringBytes(location());
+        return bytes;
     }
 }

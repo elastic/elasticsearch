@@ -124,8 +124,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 context,
                 (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
             );
-            // PLAIN is single-valued; it should have been routed to the single-valued loader path.
-            case PLAIN -> throw new AssertionError("PLAIN field [" + fieldName + "] should not use the multi-valued Utf8CodePoints loader");
+            // The blob is the document's one value, with no count to consult.
+            case PLAIN -> {
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new SingleValuedBinary(binary);
+            }
         };
     }
 
@@ -594,6 +597,45 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public void close() {
             ordinals.close();
+        }
+    }
+
+    /** Binary doc values holding each document's one value as its own bytes, as a {@code multi_value: false} column does. */
+    private static class SingleValuedBinary extends BlockDocValuesReader {
+        private final TrackingBinaryDocValues values;
+
+        SingleValuedBinary(TrackingBinaryDocValues values) {
+            super(null);
+            this.values = values;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (IntBuilder builder = factory.ints(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    if (values.docValues().advanceExact(docs.get(i))) {
+                        builder.appendInt(codePointCountProvider.applyAsInt(values.docValues().binaryValue()));
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return values.docValues().docID();
+        }
+
+        @Override
+        public void close() {
+            values.close();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.SingleValuedBinary";
         }
     }
 

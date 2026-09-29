@@ -2748,8 +2748,12 @@ public class EsqlCapabilities {
          * (e.g. nested {@code integer} vs object {@code long}).
          * If ES|QL later supports nested fields, this capability and its tests will need updating.
          * See <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>.
+         * <p>
+         * Named {@code _9_4} so this node does not advertise main's {@code fix_nested_subfield_extraction}.
+         * Main's later-branch BWC suite requires that name, then runs an uncast {@code unmapped_fields=load}
+         * aggregation that 9.4's verifier rejects.
          */
-        FIX_NESTED_SUBFIELD_EXTRACTION,
+        FIX_NESTED_SUBFIELD_EXTRACTION_9_4,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

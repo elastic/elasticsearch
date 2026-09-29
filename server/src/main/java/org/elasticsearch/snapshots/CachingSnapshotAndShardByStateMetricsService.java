@@ -62,7 +62,9 @@ public class CachingSnapshotAndShardByStateMetricsService {
     /// Caveats:
     /// - The precision of this value is no greater than the interval between calls to this method (because the state is only inspected when
     /// this method is called).
-    /// - This value is reset if the master changes or restarts (because the timestamps are held in-memory on the master).
+    /// - This value is reset if the master changes or restarts (because the timestamps are held in-memory on the master). Exception: If a
+    /// node loses the master assignment without shutting down (e.g. because of a network partition or coordination timeout) and then
+    /// regains it, it will remember the age of any shard snapshot that was waiting before and still is now.
     public Collection<LongWithAttributes> getLongestWaitingTimeMillis() {
         return maybeGetCachedSnapshotStateMetrics().map(metrics -> metrics.longestWaitingTimeMillisMetrics(currentTimeMillis()))
             .orElse(List.of());
@@ -75,7 +77,6 @@ public class CachingSnapshotAndShardByStateMetricsService {
         final ClusterState state = clusterService.state();
         if (state.nodes().isLocalNodeElectedMaster() == false) {
             // Only the master should report on metrics
-            resetCachedState();
             return Optional.empty();
         }
         return Optional.of(recalculateIfStale(state));

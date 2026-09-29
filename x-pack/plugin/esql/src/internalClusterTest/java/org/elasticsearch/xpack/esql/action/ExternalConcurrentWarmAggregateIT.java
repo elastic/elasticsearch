@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -44,6 +45,19 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractExternalDataSourc
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(CsvDataSourcePlugin.class);
+    }
+
+    /**
+     * The tests here run up to 24 dataset queries at once to race on the coordinator's cache. The dataset admission
+     * limit derived from a test node's small heap would let only a couple run and queue the rest, which both refuses
+     * some and removes the race these tests exist for, so the limit is set above the concurrency used here.
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExternalSourceSettings.ADMISSION_MAX_CONCURRENT_QUERIES.getKey(), 32)
+            .build();
     }
 
     @Override

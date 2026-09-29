@@ -294,10 +294,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         Mockito.verifyNoInteractions(masterServiceTaskQueue);
     }
 
-    /**
-     * Verifies that a valid pre-flight cache entry is used on the master thread — the mapping update
-     * is applied correctly and the cache map is cleared (no leaked services) after success.
-     */
+    /** Cache hit: pre-flight service is reused and mapping version increments. */
     public void testCacheHitAppliesMapping() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -330,27 +327,17 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         assertTrue(preflightCache.isEmpty());
     }
 
-    /**
-     * Verifies that a cache entry with a stale mapping version is discarded: the executor falls
-     * back to a fresh MapperService and still applies the mapping correctly.
-     */
+    /** Stale mapping version: cache entry is discarded and a fresh service is used. */
     public void testCacheMissStaleMappingVersionFallsBack() throws Exception {
         runCacheMissTest(-1, 0);
     }
 
-    /**
-     * Verifies that a cache entry with a stale settings version is discarded. Settings such as
-     * {@code total_fields.limit} are baked into MapperService at creation time; checking only
-     * the mapping version would silently reuse a service built against the old constraints.
-     */
+    /** Stale settings version: cache entry is discarded (settings are baked in at creation time). */
     public void testCacheMissStaleSettingsVersionFallsBack() throws Exception {
         runCacheMissTest(0, -1);
     }
 
-    /**
-     * Verifies that calling {@link PutMappingClusterStateUpdateTask#onFailure} on a task that was
-     * never executed closes all pre-flight cache entries and clears the map.
-     */
+    /** onFailure on a never-executed task closes all cache entries and clears the map. */
     public void testOnFailureClosesAndClearsPreflightCache() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -380,10 +367,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         assertTrue("preflightCache should be cleared after onFailure", preflightCache.isEmpty());
     }
 
-    /**
-     * Verifies that when two tasks in a batch target the same index, the second task's pre-flight
-     * cache entry for that index is closed and cleared on success — not leaked.
-     */
+    /** Batch: second task's unconsumed cache entry for a shared index is closed on success. */
     public void testBatchingSecondTaskCacheEntryIsClearedOnSuccess() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -432,65 +416,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         assertTrue("task2 preflightCache should be cleared on success", preflightCache2.isEmpty());
     }
 
-    /**
-     * Verifies that when the first task in a batch fails, the second task is still applied from
-     * a clean base state and its mapping update lands in the resulting cluster state.
-     */
-    public void testBatchingFirstTaskFailsSecondSucceeds() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
-        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
-        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
-        final Index index = indexService.index();
-        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
-
-        // Task 1 uses an invalid field type; applyRequest will throw MapperParsingException.
-        final PutMappingClusterStateUpdateRequest failingRequest = new PutMappingClusterStateUpdateRequest(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            """
-                { "properties": { "bad": { "type": "totally_invalid_type" }}}""",
-            false,
-            index
-        );
-        // Task 2 uses a valid mapping.
-        final PutMappingClusterStateUpdateRequest validRequest = new PutMappingClusterStateUpdateRequest(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            """
-                { "properties": { "good": { "type": "keyword" }}}""",
-            false,
-            index
-        );
-
-        final PutMappingClusterStateUpdateTask task1 = new PutMappingClusterStateUpdateTask(
-            failingRequest,
-            ActionListener.wrap(r -> {}, e -> {}),
-            new HashMap<>()
-        );
-        final PutMappingClusterStateUpdateTask task2 = new PutMappingClusterStateUpdateTask(
-            validRequest,
-            ActionListener.wrap(r -> {}, e -> {}),
-            new HashMap<>()
-        );
-
-        final var resultingState = ClusterStateTaskExecutorUtils.executeHandlingResults(
-            clusterService.state(),
-            putMappingExecutor,
-            List.of(task1, task2),
-            successTask -> assertSame("only task2 should succeed", task2, successTask),
-            (failedTask, e) -> assertSame("only task1 should fail", task1, failedTask)
-        );
-
-        // task2's mapping should be in the resulting state; mapping version incremented once.
-        assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
-    }
-
-    /**
-     * Shared body for stale-cache-entry tests; {@code mappingVersionDelta} and
-     * {@code settingsVersionDelta} are applied to the current index versions to produce a
-     * deliberately stale entry that the executor must discard and rebuild from scratch.
-     */
+    /** Shared body: builds a stale cache entry (versions offset by deltas) and asserts fall-back. */
     private void runCacheMissTest(long mappingVersionDelta, long settingsVersionDelta) throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);

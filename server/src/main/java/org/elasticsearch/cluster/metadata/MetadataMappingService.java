@@ -93,12 +93,8 @@ public class MetadataMappingService {
     }
 
     /**
-     * Holds the pre-flight merge result for a single index, computed on the MANAGEMENT thread during
-     * {@link #isWholeRequestNoop}. Carrying this into {@link PutMappingExecutor} lets the master thread
-     * skip the redundant {@link MapperService#merge} work it would otherwise repeat.
-     * <p>
-     * Both {@code mappingVersion} and {@code settingsVersion} must still match the index metadata at
-     * execution time for the cache entry to be usable; a stale entry is discarded and the normal path runs.
+     * Pre-flight merge result for one index, computed on the MANAGEMENT thread and reused on the master
+     * thread if {@code mappingVersion} and {@code settingsVersion} still match the current index metadata.
      */
     record PreflightCacheEntry(long mappingVersion, long settingsVersion, CompressedXContent preUpdateSource, MapperService mergedService)
         implements
@@ -217,9 +213,7 @@ public class MetadataMappingService {
                 return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
-                // Close any unconsumed pre-flight cache entries across all tasks. For failed tasks
-                // task.onFailure already cleared the map; for successful tasks any entries whose index
-                // was already in indexMapperServices were never consumed by loadService.
+                // Close unconsumed pre-flight cache entries (failed tasks already cleared via onFailure).
                 for (var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
                     IOUtils.closeWhileHandlingException(task.preflightCache.values());
@@ -229,12 +223,8 @@ public class MetadataMappingService {
         }
 
         /**
-         * Returns a {@link MapperService} ready for use in {@link #applyRequest}: either a validated
-         * pre-flight service (with both MAPPING_RECOVERY and the update merge already applied) when the
-         * cache is fresh, or a newly created service with only MAPPING_RECOVERY applied.
-         * <p>
-         * On a cache hit the entry is moved into {@code activeEntries} so {@link #applyRequest} knows to
-         * skip the merge call. On a stale hit or miss the consumed entry is closed immediately.
+         * Returns a {@link MapperService} for {@link #applyRequest}, reusing the pre-flight cached service
+         * on a version match or creating a fresh MAPPING_RECOVERY service on a miss or stale entry.
          */
         private MapperService loadService(
             PutMappingClusterStateUpdateTask task,

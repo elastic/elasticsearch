@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -217,6 +218,11 @@ public class IndexDirectory extends ByteSizeDirectory {
             @Override
             public void writeMapOfStrings(Map<String, String> map) throws IOException {
                 super.writeMapOfStrings(new TreeMap<>(map));
+            }
+
+            @Override
+            public void writeSetOfStrings(Set<String> set) throws IOException {
+                super.writeSetOfStrings(new TreeSet<>(set));
             }
         };
     }

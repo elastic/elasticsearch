@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -1170,6 +1171,88 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testNewlineAlignedCsvMacroSplitsAreDisjointAndMarked() throws IOException {
         assertNewlineAlignedMacroSplitsDisjointAndMarked(".csv", "csv-macro-test", "a,b,c\n", "s3://b/*.csv");
+    }
+
+    /**
+     * The budget's fourth guard, on the format that reaches it in production. A newline-delimited file large
+     * enough to macro-split comes back as a plan result that is not a finished split list: its record boundaries
+     * are settled later, by probing, so nothing can say yet how many rows it holds.
+     * <p>
+     * The fixture has to mix formats to show it. With every file deferred, giving up and simply never accumulating
+     * produce the same answer - everything is planned either way - and the test proves nothing. One ndjson file
+     * among parquet ones, placed before the demand would be covered, separates them: give up and all eight are
+     * planned; ignore it and the parquet files cover the demand after four.
+     * <p>
+     * Counting a deferred file as zero would let the budget believe the demand was met and stop planning, and the
+     * query would return fewer rows than it asked for.
+     */
+    public void testADemandGivesUpOnAUnitWhoseSplitsAreSettledLater() throws IOException {
+        SegmentableFormatReader ndjson = mock(SegmentableFormatReader.class);
+        when(ndjson.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        when(ndjson.minimumSegmentSize()).thenReturn(1L);
+        when(ndjson.formatName()).thenReturn("ndjson");
+        when(ndjson.fileExtensions()).thenReturn(List.of(".ndjson"));
+        // Production-shaped: a real reader's default policy is never null, and without it the budget is declined
+        // for the wrong reason and this guard is never reached.
+        when(ndjson.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        RecordSplitter splitter = mock(RecordSplitter.class);
+        when(ndjson.recordSplitter(anyInt())).thenReturn(splitter);
+        when(splitter.supportsStridedProbing()).thenReturn(true);
+        // A boundary is found, so the file defers to probing rather than resolving here.
+        when(splitter.findNextRecordBoundary(any())).thenReturn(64L);
+
+        AtomicInteger opened = new AtomicInteger();
+        RangeAwareFormatReader parquet = countingRowCountReader(opened, 10);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (settings, blockFactory) -> parquet, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+        formatRegistry.registerLazy("ndjson", (settings, blockFactory) -> ndjson, Settings.EMPTY, null);
+        formatRegistry.byName("ndjson");
+
+        byte[] payload = new byte[4096];
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            // data-1 is the deferred one, early enough that the budget still wants rows when it arrives.
+            String objectName = "data-" + i + (i == 1 ? ".ndjson" : ".parquet");
+            payloads.put(objectName, payload);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/" + objectName), payload.length, Instant.EPOCH));
+        }
+        // Stride below the file length, so the ndjson file is a macro-split candidate rather than one whole split.
+        FileSplitProvider provider = new FileSplitProvider(
+            1024,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, null, everyFile),
+            formatRegistry,
+            Settings.EMPTY,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        FileList fileList = GlobExpander.fileListOf(everyFile, "s3://b/" + "*");
+        SplitDiscoveryContext context = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(List.of(), "parquet", "s3://b/" + "*"),
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE,
+            Set.of(),
+            null,
+            25,
+            null
+        );
+
+        SplitDiscoveryResult result = provider.discoverSplits(context);
+
+        Set<StoragePath> planned = new HashSet<>();
+        for (ExternalSplit split : result.splits()) {
+            planned.add(((FileSplit) split).path());
+        }
+        assertEquals("a unit whose row count is settled later abandons the budget for the whole scan", 8, planned.size());
     }
 
     public void testSplitProbeIoFailureIsClientError() throws IOException {

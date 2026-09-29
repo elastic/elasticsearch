@@ -2084,7 +2084,11 @@ public class FileSplitProvider implements SplitProvider {
             if (context.rowLimit() == FormatReader.NO_LIMIT) {
                 return UNUSABLE;
             }
-            if (ErrorPolicy.forReader(context.config(), reader).mode() != ErrorPolicy.Mode.FAIL_FAST) {
+            // A policy nobody could resolve is not a FAIL_FAST policy. Reading its mode would throw here, and this
+            // is a guard whose whole job is to fail closed - so an absent policy declines the budget like any other
+            // policy that is not FAIL_FAST, rather than taking the query down with it.
+            ErrorPolicy policy = ErrorPolicy.forReader(context.config(), reader);
+            if (policy == null || policy.mode() != ErrorPolicy.Mode.FAIL_FAST) {
                 return UNUSABLE;
             }
             return new RowBudget(context.rowLimit());

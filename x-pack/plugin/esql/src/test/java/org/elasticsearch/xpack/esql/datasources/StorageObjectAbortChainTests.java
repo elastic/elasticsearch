@@ -96,9 +96,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
-     * Full read of a gzip object in production order: {@link DecompressingStorageObject} over the provider's
-     * {@link RetryableStorageObject}. The release's end-of-body read must pass through the retry layer's resuming
-     * stream to the raw body before the abort, so S3 pools the connection instead of discarding it.
+     * Full read of a gzip object through the production read chain (see {@link #readChain}). The release's
+     * end-of-body read must pass through every decorator to the raw body before the abort, so S3 pools the
+     * connection instead of discarding it.
      */
     public void testFullGzipReadReachesEndOfBodyBeforeAbortThroughDecoratorChain() throws IOException {
         StringBuilder csv = new StringBuilder();
@@ -111,10 +111,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(compressed, tracking);
-        StorageObject chain = new DecompressingStorageObject(
-            new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10)),
-            new GzipDecompressionCodec()
-        );
+        StorageObject chain = readChain(new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter()), retryPolicy()));
 
         try (InputStream stream = chain.newStream()) {
             assertArrayEquals(original, stream.readAllBytes());
@@ -138,16 +135,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         byte[] compressed = gzip(original);
 
         ResetAtEndOfBodyStorageObject raw = new ResetAtEndOfBodyStorageObject(compressed);
-        RetryableStorageObject retryable = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
-        StorageObject chain = new DecompressingStorageObject(retryable, new GzipDecompressionCodec());
+        RetryableStorageObject retryable = new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter()), retryPolicy());
+        StorageObject chain = readChain(retryable);
 
-        try (InputStream stream = chain.newStream()) {
-            assertArrayEquals(original, stream.readAllBytes());
-        }
+        InputStream stream = chain.newStream();
+        assertArrayEquals(original, stream.readAllBytes());
+        // On JDK 23 to 26 GZIPInputStream probes for a next member while decoding, so that probe (not the release)
+        // hits the reset and the retry layer resumes during the read itself. Only what close() adds is the release's.
+        int opensBeforeClose = raw.opens.get();
+        long retriesBeforeClose = retryable.metrics().retryCount();
+        stream.close();
 
         assertTrue("the end-of-body read must have hit the reset", raw.endOfBodyFaulted.get());
-        assertEquals("a fault on the end-of-body read must not re-open the object", 1, raw.opens.get());
-        assertEquals("a fault on the end-of-body read must not count a retry", 0L, retryable.metrics().retryCount());
+        assertEquals("a fault on the end-of-body read must not re-open the object", opensBeforeClose, raw.opens.get());
+        assertEquals("a fault on the end-of-body read must not count a retry", retriesBeforeClose, retryable.metrics().retryCount());
         assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
     }
 
@@ -266,6 +267,27 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );
+    }
+
+    /**
+     * The read chain for a compressed object on a blob store, outer to inner: {@link DecompressingStorageObject},
+     * the per-query {@link QueryBudgetedStorageObject} ({@code FileSourceFactory}), then {@code retryable}, which the
+     * caller builds as {@link RetryableStorageObject} over {@link ConcurrencyLimitedStorageObject} over the raw
+     * object ({@code StorageProviderRegistry#wrapProvider}).
+     */
+    private static StorageObject readChain(RetryableStorageObject retryable) {
+        return new DecompressingStorageObject(
+            new QueryBudgetedStorageObject(retryable, new QueryConcurrencyBudget(3, 60_000L, null)),
+            new GzipDecompressionCodec()
+        );
+    }
+
+    private static ConcurrencyLimiter limiter() {
+        return new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
+    }
+
+    private static RetryPolicy retryPolicy() {
+        return new RetryPolicy(3, 1, 10);
     }
 
     /**

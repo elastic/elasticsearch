@@ -28,7 +28,7 @@ import java.util.concurrent.Executor;
  * acquires a permit before executing and releases it when the operation completes.
  * For stream-returning methods, the permit is released when the stream is closed.
  */
-class ConcurrencyLimitedStorageObject implements StorageObject {
+class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final ConcurrencyLimiter limiter;
@@ -120,6 +120,13 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         // Not a stream we produced — should be unreachable since the SPI contract requires
         // the exact instance returned from newStream(). Fall back to the SPI default.
         stream.close();
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return stream instanceof PermitReleasingInputStream wrapper
+            ? ResumeBypassingStorageObject.withoutResume(delegate, wrapper.inner())
+            : stream;
     }
 
     @Override

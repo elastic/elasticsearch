@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * using exponential backoff with jitter. Throttling errors (429/503) get a higher
  * retry budget than other transient errors.
  */
-class RetryableStorageObject implements StorageObject {
+class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private static final Logger logger = LogManager.getLogger(RetryableStorageObject.class);
 
@@ -275,12 +275,13 @@ class RetryableStorageObject implements StorageObject {
     /**
      * Returns the live provider stream behind {@code stream} if it came from this class, else {@code stream}.
      * Reading the result bypasses resume, so a fault surfaces to the caller instead of sleeping through a
-     * backoff and re-opening a GET. Meant for best-effort reads during release, such as the end-of-body read
-     * {@link DecompressingStorageObject} does so S3 can pool the connection, where a resume would only cost
-     * latency and a request for a stream about to be aborted anyway.
+     * backoff and re-opening a GET for a stream about to be aborted anyway.
      */
-    static InputStream withoutResume(InputStream stream) {
-        return stream instanceof ResumingInputStream resuming ? resuming.currentStream() : stream;
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return stream instanceof ResumingInputStream resuming
+            ? ResumeBypassingStorageObject.withoutResume(delegate, resuming.currentStream())
+            : stream;
     }
 
     @Override

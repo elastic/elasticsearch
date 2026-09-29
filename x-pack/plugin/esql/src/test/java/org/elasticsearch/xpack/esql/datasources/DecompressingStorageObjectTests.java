@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -73,7 +74,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = zstd(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.zst"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec();
+        DecompressionCodec codec = new ZstdDecompressionCodec();
 
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         try (InputStream stream = decompressing.newStream()) {
@@ -442,10 +443,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
     /** Zstd already reads its input to {@code -1}; guard that the release keeps that outcome. */
     public void testFullZstdReadReachesEndOfBodyBeforeAbort() throws IOException {
-        assertFullReadReachesEndOfBodyBeforeAbort(
-            new org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec(),
-            DecompressingStorageObjectTests::zstd
-        );
+        assertFullReadReachesEndOfBodyBeforeAbort(new ZstdDecompressionCodec(), DecompressingStorageObjectTests::zstd);
     }
 
     private void assertFullReadReachesEndOfBodyBeforeAbort(DecompressionCodec codec, Compressor compressor) throws IOException {
@@ -506,10 +504,12 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         assertEquals(1, tracking.abortCalls.get());
         assertFalse(tracking.endOfBodyReadBeforeAbort.get());
-        // What the decoder buffered, plus at most the cap and one scratch read past it.
+        // What the decoder read ahead into its raw buffer (GzipDecompressionCodec's 64 KiB), plus the cap and the one
+        // byte past it that tells a longer tail apart.
+        long gzipRawBufferBytes = 64 * 1024;
         assertThat(
             tracking.bytesConsumed.get(),
-            Matchers.lessThanOrEqualTo((long) gzipped.length + 64 * 1024 + DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 8192)
+            Matchers.lessThanOrEqualTo(gzipped.length + gzipRawBufferBytes + DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
         );
     }
 

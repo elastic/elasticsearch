@@ -45,10 +45,13 @@ final class DecompressingStorageObject implements StorageObject {
 
     /**
      * Upper bound on the raw bytes {@link DecompressedStream} reads past the decoder's end-of-stream so the
-     * provider sees the end of the body. Matches the gzip codec's raw read buffer: a well-formed object has
-     * nothing left, so this only bounds the tail of a malformed one.
+     * provider sees the end of the body, plus one byte to tell a longer tail apart. Matches the gzip codec's raw
+     * read buffer: a well-formed object has nothing left, so this only bounds the tail of a malformed one.
      */
     static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
+
+    /** Size of each read {@link DecompressedStream} makes while reading past the decoder's end-of-stream. */
+    static final int TRAILING_DRAIN_CHUNK_BYTES = 8192;
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
@@ -198,11 +201,14 @@ final class DecompressingStorageObject implements StorageObject {
      *   bytes. Gzip/zstd/lz4/brotli text files are one whole-object GET, so discarding the connection
      *   is cheaper than draining them.</li>
      *   <li>Read to the decoder's end-of-stream: the raw body is (normally) exhausted, but whether the
-     *   provider has seen its end depends on the decoder. Zstd reads its input until {@code -1}; the JDK
-     *   gzip decoder stops after the trailer without that read, so Apache HttpClient still holds the
-     *   connection and the abort would destroy it. Reading raw to its end first (bounded by
-     *   {@link #MAX_TRAILING_DRAIN_BYTES}) returns the connection to the pool and turns the abort into a
-     *   no-op.</li>
+     *   provider has seen its end depends on the decoder. Zstd reads its input until {@code -1}. The JDK
+     *   gzip decoder depends on the JDK version: on JDK 21, 22 and 27+ it only probes for a next member when
+     *   {@code available() > 0}, so at the end of a network body it stops after the trailer without that
+     *   read, Apache HttpClient still holds the connection, and the abort would destroy it. JDK 23 to 26
+     *   always probe, which reads the body to {@code -1} themselves. Reading raw to its end first (bounded
+     *   by {@link #MAX_TRAILING_DRAIN_BYTES}) returns the connection to the pool and turns the abort into a
+     *   no-op whichever JDK runs, so do not drop it because the gzip tests pass without it on JDK 23 to
+     *   26.</li>
      * </ul>
      * Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
      */
@@ -303,18 +309,24 @@ final class DecompressingStorageObject implements StorageObject {
         /**
          * Reads {@code raw} to its end, up to {@link #MAX_TRAILING_DRAIN_BYTES}, so providers that recycle a
          * connection only on an end-of-body read (S3 via Apache HttpClient) can pool it. After a complete
-         * decode this is a single read returning {@code -1} with no network I/O. Best effort: the logical
-         * read already succeeded, so a failure here only leaves the connection to the abort that follows.
-         * Reads past the retry layer's resume: a fault here must fall through to the abort, not sleep through a
-         * backoff and re-open a GET inside {@code close()}.
+         * decode this is a single read returning {@code -1} with no network I/O. When the body really has
+         * undecoded bytes left (a malformed tail), this blocks {@code close()} on up to
+         * {@code MAX_TRAILING_DRAIN_BYTES / TRAILING_DRAIN_CHUNK_BYTES} socket reads, each bounded by the
+         * provider's read timeout; that is accepted as the price of pooling the common, well-formed case.
+         * Best effort: the logical read already succeeded, so a failure here only leaves the connection to the
+         * abort that follows. Reads past the retry layer's resume (see {@link ResumeBypassingStorageObject}):
+         * a fault here must fall through to the abort, not sleep through a backoff and re-open a GET inside
+         * {@code close()}. Relies on the decoder not reading {@code raw} again after reporting end-of-stream.
          */
         private void drainTrailingRawBytes() {
-            InputStream body = RetryableStorageObject.withoutResume(raw);
-            byte[] scratch = new byte[8192];
+            InputStream body = ResumeBypassingStorageObject.withoutResume(rawOwner, raw);
+            byte[] scratch = new byte[TRAILING_DRAIN_CHUNK_BYTES];
             long trailing = 0;
             try {
                 while (trailing <= MAX_TRAILING_DRAIN_BYTES) {
-                    int n = body.read(scratch, 0, scratch.length);
+                    // One byte past the cap is enough to tell "more than the cap" from "exactly the cap".
+                    int len = (int) Math.min(scratch.length, MAX_TRAILING_DRAIN_BYTES + 1 - trailing);
+                    int n = body.read(scratch, 0, len);
                     if (n == -1) {
                         break;
                     }
@@ -326,7 +338,8 @@ final class DecompressingStorageObject implements StorageObject {
             }
             if (trailing > 0) {
                 // Bytes after the decoder's end-of-stream are not decoded. For gzip this is either trailing
-                // padding/garbage or members the JDK decoder did not detect (esql-planning#2121).
+                // padding/garbage or further members the JDK decoder did not detect because its next-member probe
+                // only runs when the raw stream reports available() > 0.
                 logger.debug(
                     "[{}] has [{}]{} undecoded bytes after the [{}] decoder's end of stream",
                     rawOwner.path(),

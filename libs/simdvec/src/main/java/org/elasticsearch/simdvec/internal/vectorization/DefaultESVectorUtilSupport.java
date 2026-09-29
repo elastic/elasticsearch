@@ -667,6 +667,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length) {
+        return ByteArrayUtils.indexOfLineTerminatorLeadByte(bytes, offset, length);
+    }
+
+    @Override
     public int codePointCount(BytesRef bytesRef) {
         return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }

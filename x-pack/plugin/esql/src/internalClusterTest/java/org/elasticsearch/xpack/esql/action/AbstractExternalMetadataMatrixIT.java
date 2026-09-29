@@ -333,8 +333,8 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
-    // A _score filter must not prune the file at discovery; asserted on filesScanned because the
-    // adjacent-filter combine gap makes the row count 0 either way.
+    // The two WHEREs combine into one filter, whose _score > 1.5 hint must neither prune the file at
+    // discovery nor be compared against the pre-MATCH baseline.
     public void testScoreFilterAfterMatchDoesNotPruneFileAtDiscovery() throws Exception {
         try (
             var response = run(
@@ -349,6 +349,10 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         ) {
             int filesScanned = response.getExecutionInfo().queryProfile().filesScanned();
             assertThat("the single-file fixture must not be pruned by a _score discovery hint", filesScanned, greaterThanOrEqualTo(1));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo(2.0));
         }
     }
 

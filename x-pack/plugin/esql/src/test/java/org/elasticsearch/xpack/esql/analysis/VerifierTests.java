@@ -1999,6 +1999,28 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testRuntimeScorerAndScoreOutsideAConjunction() throws Exception {
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | where ";
+        String rest = " inside OR or NOT, as it would see the score from before the search; filter on [_score] with a top-level AND "
+            + "or a separate WHERE instead";
+        String matchMessage = "[_score] can't be used with runtime search [MATCH]" + rest;
+        fullText().error(prefix + "match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullText().error(prefix + "not (match(t, \"cat\") and _score > 1.5)", containsString(matchMessage));
+        fullText().error(prefix + "(match(t, \"cat\") and _score > 1.5) or title == \"dog\"", containsString(matchMessage));
+        fullText().error(prefix + "not (match(t, \"cat\") or _score > 1.5)", containsString(matchMessage));
+        fullText().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(matchMessage));
+        fullText().error(
+            prefix + "match_phrase(t, \"cat\") or _score > 1.5",
+            containsString("[_score] can't be used with runtime search [MatchPhrase]" + rest)
+        );
+
+        // A conjunction can be split so _score is compared after the search has scored.
+        fullText().query(prefix + "match(t, \"cat\") and _score > 1.5");
+        fullText().query(prefix + "match(t, \"cat\") and (_score > 1.5 or title == \"dog\")");
+        // A search pushed down to an indexed field scores at the source, so _score is final wherever it appears.
+        fullText().query("from test metadata _score | where match(title, \"cat\") or _score > 1.5");
+    }
+
     public void testToTextAnalyzerOption() throws Exception {
         // the values analyzer of a runtime text expression is declared on TO_TEXT; a registered analyzer is accepted
         fullText().query("from test | eval t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");

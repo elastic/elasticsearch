@@ -1347,6 +1347,32 @@ book_no:keyword | _score:double
 2714            | 2.5
 ;
 
+matchPhraseOnRuntimeTextThenScoreFilter
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: runtime_score_fix
+
+// the two WHEREs combine into one filter; _score must still see the runtime score, not the 0.0 baseline
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
+| WHERE _score > 2.0
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.5
+2675            | 2.5
+2714            | 2.5
+4023            | 2.5
+5335            | 2.5
+7140            | 2.5
+7350            | 2.5
+8875            | 2.5
+;
+
 matchPhraseOnRuntimeKeywordWithScore
 required_capability: match_phrase_function
 required_capability: metadata_score

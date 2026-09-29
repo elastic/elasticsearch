@@ -2789,6 +2789,121 @@ book_no:keyword | scored:boolean
 1985            | true
 ;
 
+matchOnRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// the two WHEREs combine into one filter; _score must still see the runtime score, not the 0.0 baseline
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextAndScoreFilterInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings") AND _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextAfterScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// as with an indexed field, the _score filter sees the match's score even when written before it
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE _score > 1.5
+| WHERE match(content, "Tolkien Rings")
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnRuntimeTextThenScoreFilterExcludesEveryMatch
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+
+// every match scores at least 1.0, so nothing is below 0.5
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score < 0.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+;
+
+matchOrMatchPhraseOnRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: runtime_score_fix
+
+// "Tolkien" alone scores 1.0 and is filtered out; the phrase alone scores 2.0, both together 3.0
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien", {"boost": 1.0}) OR match_phrase(content, "Lord of the Rings", {"boost": 2.0})
+| WHERE _score >= 2.0
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2675            | 2.0
+2714            | 3.0
+4023            | 3.0
+5335            | 3.0
+7140            | 3.0
+7350            | 3.0
+8875            | 2.0
+;
+
 matchAfterInlineStats
 required_capability: match_function
 required_capability: full_text_functions_after_inline_stats

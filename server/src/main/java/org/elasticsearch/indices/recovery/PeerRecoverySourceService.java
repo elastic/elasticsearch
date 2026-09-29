@@ -64,7 +64,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
     ///
     /// Currently only registered by the stateless plugin, elsewhere disabled.
-    /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` when rolling out to stateful.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_outgoing_recoveries",
         // Throttling handled by master allocation for now.

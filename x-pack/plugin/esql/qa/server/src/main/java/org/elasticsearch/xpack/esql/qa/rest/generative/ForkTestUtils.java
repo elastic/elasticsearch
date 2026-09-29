@@ -19,9 +19,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_FORK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_IN_SUBQUERIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
@@ -58,7 +58,7 @@ public class ForkTestUtils {
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_FORK.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_IN_SUBQUERIES.capabilityName())
+                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES_V2.capabilityName())
         );
         assumeFalse(
             "Tests using subqueries are skipped since nested fork/subquery is not supported yet",

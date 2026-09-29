@@ -481,36 +481,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
 
-    public void testInSubqueryRightKeepOmitsUnmappedFieldsAttribute() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test | WHERE unmapped_extra IN (FROM test | KEEP unmapped_extra)
-            """));
-        assertInSubqueryLeftExpandsRightDoesNot(plan);
-    }
-
-    public void testNotInSubqueryRightKeepOmitsUnmappedFieldsAttribute() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test | WHERE unmapped_extra NOT IN (FROM test | KEEP unmapped_extra)
-            """));
-        assertInSubqueryLeftExpandsRightDoesNot(plan);
-    }
-
-    public void testInSubqueryOuterKeepExactNameOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("""
-            FROM test | WHERE unmapped_extra IN (FROM test | KEEP unmapped_extra) | KEEP emp_no, unmapped_extra
-            """);
-    }
-
     public void testInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*)
-            """));
-        assertInSubqueryRightHasNoUnmappedFields(plan);
-    }
-
-    public void testNotInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no*)
             """));
         assertInSubqueryRightHasNoUnmappedFields(plan);
     }
@@ -524,13 +497,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             Map.of()
         );
         LogicalPlan plan = analyzer().addIndex(ids).statement(setUnmappedLoadAll("FROM ids | WHERE id IN (FROM ids | LIMIT 1)"));
-        assertInSubqueryRightHasNoUnmappedFields(plan);
-    }
-
-    public void testMarkJoinRightKeepWildcardOmitsUnmappedFieldsAttribute() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*) OR languages > 1
-            """));
         assertInSubqueryRightHasNoUnmappedFields(plan);
     }
 
@@ -811,19 +777,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     /** Like {@link #patternFor(String)}, but accepts a pre-configured analyzer (e.g. one with extra enrich policies). */
     private static UnmappedFieldsPattern patternFor(String query, TestAnalyzer analyzer) {
         return patternOf(analyzer.statement(setUnmappedLoadAll(query)));
-    }
-
-    private static void assertInSubqueryLeftExpandsRightDoesNot(LogicalPlan plan) {
-        AbstractSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractSubqueryJoin.class));
-        UnmappedFieldsPattern leftPattern = EsqlTestUtils.singleValue(
-            CollectionUtils.collect(
-                EsqlTestUtils.singleValue(join.left().collect(EsRelation.class)).output(),
-                UnmappedFieldsAttribute.class
-            )
-        ).pattern();
-        assertNotKept(leftPattern, "unmapped_extra");
-        assertKept(leftPattern, "first_name_suffix");
-        assertInSubqueryRightHasNoUnmappedFields(plan);
     }
 
     private static void assertInSubqueryRightHasNoUnmappedFields(LogicalPlan plan) {

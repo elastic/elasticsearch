@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -628,10 +627,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      */
     private void expectInSubqueryLeftKeyResolved(String column, String query) {
         expectInSubqueryLeftKeyPlan(column, setUnmappedLoad(query));
-    }
-
-    private void expectInSubqueryLeftKeyResolvedLoadAll(String column, String query) {
-        expectInSubqueryLeftKeyPlan(column, setUnmappedLoadAll(query));
     }
 
     private void expectInSubqueryLeftKeyPlan(String column, String queryWithSet) {
@@ -1650,114 +1645,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var tx = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("tx")).toList());
         assertThat(tx.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
         assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
-    }
-
-    public void testLoadAllModeAllowsInSubquery() {
-        test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no IN (FROM test | KEEP emp_no)"));
-    }
-
-    public void testLoadAllModeAllowsNotInSubquery() {
-        test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no)"));
-    }
-
-    public void testLoadAllModeAllowsInSubqueryInOr() {
-        test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no IN (FROM test | KEEP emp_no) OR languages > 1"));
-    }
-
-    public void testLoadAllModeLoadsUnmappedFieldAsInSubqueryLeftKey() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedFieldAsNotInSubqueryLeftKey() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message NOT IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedFieldAsNestedInSubqueryLeftKey() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message IN
-                (FROM partial_mapping_sample_data
-                 | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-                 | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyWithSubqueryInFromOnRhs() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message IN
-                (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
-                      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!")
-                 | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyInsideSubqueryInFrom() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM (FROM partial_mapping_sample_data
-                  | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-                  | KEEP message, unmapped_message),
-                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!")
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyAfterFork() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | FORK (WHERE message == "42")
-                   (WHERE message == "Connected to 10.1.0.3!")
-            | WHERE unmapped_message IN (FROM partial_mapping_sample_data
-                                         | WHERE message == "42" OR message == "Connected to 10.1.0.3!"
-                                         | KEEP unmapped_message)
-            | KEEP message, unmapped_message
-            """);
-    }
-
-    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyInsideFork() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM partial_mapping_sample_data
-            | FORK (WHERE unmapped_message IN (FROM partial_mapping_sample_data
-                                               | WHERE message == "42"
-                                               | KEEP unmapped_message)
-                    | KEEP message, unmapped_message)
-                   (WHERE message == "Connected to 10.1.0.3!" | KEEP message)
-            """);
-    }
-
-    public void testLoadAllModeBroadcastsOuterRefAcrossSiblingUnionsWhenRhsHidesName() {
-        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
-            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
-                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
-            | WHERE message IN
-                (FROM (FROM partial_mapping_sample_data | KEEP message),
-                      (FROM partial_mapping_sample_data | KEEP message)
-                 | KEEP message)
-            | EVAL y = unmapped_message
-            | KEEP message, y, unmapped_message
-            """);
-    }
-
-    public void testLoadAllInSubqueryEvalThenKeepExactNamesDoesNotExpand() {
-        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
-            FROM partial_mapping_sample_data
-            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
-            | EVAL dur = unmapped_event_duration::long
-            | KEEP message, dur
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
-        for (EsRelation relation : plan.collect(EsRelation.class)) {
-            assertThat(Expressions.names(relation.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
-        }
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {

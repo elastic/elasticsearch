@@ -93,7 +93,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
-        if (plan.noneMatch(p -> p instanceof MergePlan) && plan.noneMatch(p1 -> p1 instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment

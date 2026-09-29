@@ -4708,7 +4708,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
 
@@ -4738,7 +4738,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(10, 10),
+            new ListingExtents(10),
             ListingMemory.NONE
         );
         FileList complete = GlobExpander.expand(
@@ -4816,7 +4816,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
 
@@ -4845,7 +4845,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1, 1),
+            new ListingExtents(1),
             ListingMemory.NONE
         );
 
@@ -4875,7 +4875,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1, 1),
+            new ListingExtents(1),
             ListingMemory.NONE
         );
 
@@ -4904,7 +4904,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
 
@@ -4934,7 +4934,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
 
@@ -4963,7 +4963,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
         FileList unbounded = GlobExpander.expand(
@@ -5017,7 +5017,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000),
+            new ListingExtents(1000),
             ListingMemory.NONE
         );
         FileList full = GlobExpander.expandAndCompact(
@@ -5122,7 +5122,7 @@ public class GlobExpanderTests extends ESTestCase {
             MAX,
             MAX,
             MAX,
-            new ListingExtents(1, 1),
+            new ListingExtents(1),
             ListingMemory.NONE
         );
 

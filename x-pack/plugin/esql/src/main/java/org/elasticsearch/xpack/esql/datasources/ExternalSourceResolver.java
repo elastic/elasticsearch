@@ -1594,7 +1594,7 @@ public class ExternalSourceResolver {
             return ListingExtents.UNBOUNDED;
         }
         int sampleSize = PartitionConfig.sampleSize(config);
-        return new ListingExtents(sampleSize, sampleSize);
+        return new ListingExtents(sampleSize);
     }
 
     /**

@@ -6153,6 +6153,25 @@ public class FileSplitProviderTests extends ESTestCase {
         assertThat("and the rows produced actually cover it", totalRows(result), greaterThanOrEqualTo(25L));
     }
 
+    /**
+     * What the profile tells an operator has to match what the scan did. {@code filesScanned} promises the files
+     * that contributed at least one split; counting every survivor instead reports the whole skipped tail, so the
+     * one number someone would check to see whether the limit stopped the scan early says it did not - on exactly
+     * the queries this change exists to speed up.
+     * <p>
+     * It is not a private number: it reaches the query profile and the discovery telemetry histogram.
+     */
+    public void testFilesScannedCountsOnlyTheFilesThatProducedASplit() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SplitDiscoveryResult result = provider.discoverSplits(contextWithRowLimit(64, 25));
+
+        assertThat("the budget stopped well short of the dataset", opened.get(), lessThanOrEqualTo(4));
+        assertEquals("and the count reported is the files that produced splits", result.splits().size(), result.filesScanned());
+        assertThat("not the whole surviving set", result.filesScanned(), lessThanOrEqualTo(4));
+    }
+
     /** No demand, so nothing to stop for: every file is planned, as it always was. */
     public void testEveryFileIsPlannedWithoutARowDemand() throws Exception {
         AtomicInteger opened = new AtomicInteger();

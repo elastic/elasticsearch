@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -439,11 +440,39 @@ public class FileSplitProvider implements SplitProvider {
     private static SplitDiscoveryResult resultOver(
         SplitDiscoveryContext context,
         List<ExternalSplit> splits,
-        int filesScanned,
         boolean exhaustivelyPruned,
         long cpuNanos
     ) {
-        return new SplitDiscoveryResult(splits, filesScanned, exhaustivelyPruned, cpuNanos, context.fileList(), context.schemaMap());
+        return new SplitDiscoveryResult(
+            splits,
+            filesContributingASplit(splits),
+            exhaustivelyPruned,
+            cpuNanos,
+            context.fileList(),
+            context.schemaMap()
+        );
+    }
+
+    /**
+     * Distinct files that produced at least one split, which is what {@link SplitDiscoveryResult#filesScanned()}
+     * promises and what the query profile shows an operator.
+     * <p>
+     * Counted from the splits rather than from the survivors, because the row budget stops planning once the
+     * demand is covered and every file past that point survives pruning without being opened. Reporting those
+     * would say the scan touched the whole dataset on exactly the queries this change exists to stop touching it -
+     * the number an operator would look at to see whether the limit worked, saying it did not.
+     */
+    private static int filesContributingASplit(List<ExternalSplit> splits) {
+        if (splits.isEmpty()) {
+            return 0;
+        }
+        Set<StoragePath> files = Sets.newHashSetWithExpectedSize(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                files.add(fileSplit.path());
+            }
+        }
+        return files.size();
     }
 
     /**
@@ -659,7 +688,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return resultOver(context, List.of(), 0, exhaustivelyPruned, 0L);
+                return resultOver(context, List.of(), exhaustivelyPruned, 0L);
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -723,7 +752,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return resultOver(context, splits, survivorCount, false, splitDiscoveryCpuNanos.get());
+            return resultOver(context, splits, false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -788,7 +817,7 @@ public class FileSplitProvider implements SplitProvider {
             SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(resultOver(context, List.of(), 0, exhaustivelyPruned, 0L));
+                listener.onResponse(resultOver(context, List.of(), exhaustivelyPruned, 0L));
                 return;
             }
 
@@ -821,7 +850,7 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
-                                completion.onResponse(resultOver(context, splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
+                                completion.onResponse(resultOver(context, splits, false, splitDiscoveryCpuNanos.get()));
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
@@ -2077,6 +2106,12 @@ public class FileSplitProvider implements SplitProvider {
         private boolean usable;
 
         private RowBudget(int demand) {
+            // A demand of zero is satisfied before any file is accounted, so the whole planning loop is skipped and
+            // the empty result falls through to reading every file in the list. Nothing here would be wrong, but
+            // nothing here would be right either: the safety comes from SkipQueryOnLimitZero folding a zero limit
+            // away before physical planning, two layers above and with nothing stating the dependency. This says it.
+            assert demand == FormatReader.NO_LIMIT || demand > 0
+                : "a demand of [" + demand + "] should have been folded away before split discovery";
             this.demand = demand;
             this.usable = demand != FormatReader.NO_LIMIT;
         }

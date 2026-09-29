@@ -542,8 +542,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
 
         assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
+        assertEqualsIgnoringIds(scalarFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(objectFile, result.perFileInfo().get(b).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -562,8 +562,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
 
         assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(objectFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(scalarFile));
+        assertEqualsIgnoringIds(objectFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(scalarFile, result.perFileInfo().get(b).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -591,9 +591,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
 
         assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier", "user.tag")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
-        assertThat(result.perFileInfo().get(c).fileSchema().attributes(), equalTo(bothFile));
+        assertEqualsIgnoringIds(scalarFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(objectFile, result.perFileInfo().get(b).fileSchema().attributes());
+        assertEqualsIgnoringIds(bothFile, result.perFileInfo().get(c).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -646,8 +646,8 @@ public class SchemaReconciliationTests extends ESTestCase {
             unifiedAttributes.stream().filter(at -> at.name().equals("user.tag")).findFirst().orElseThrow().nullable(),
             equalTo(Nullability.TRUE)
         );
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(literalDottedFile));
+        assertEqualsIgnoringIds(scalarFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(literalDottedFile, result.perFileInfo().get(b).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -670,8 +670,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
 
         assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
+        assertEqualsIgnoringIds(scalarFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(objectFile, result.perFileInfo().get(b).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -694,8 +694,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
 
         assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user.tag")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(ndjsonFile));
-        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(csvFile));
+        assertEqualsIgnoringIds(ndjsonFile, result.perFileInfo().get(a).fileSchema().attributes());
+        assertEqualsIgnoringIds(csvFile, result.perFileInfo().get(b).fileSchema().attributes());
         assertNoResponseWarnings();
     }
 
@@ -1016,6 +1016,93 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertNoResponseWarnings();
     }
 
+    /**
+     * A type change after the third file must still name that type, while quoting only the first three
+     * paths in glob order. Paths are inserted out of lexicographic order so a sort would quote different
+     * files. {@code INTEGER} precedes {@code KEYWORD} in enum order too; the missing-column test below
+     * is the one that disagrees with enum order.
+     */
+    public void testUnionByNameLateKeywordConflictQuotesFirstThreeThenMore() {
+        List<String> warnings = new ArrayList<>();
+        StoragePath first = path("s3://b/z.parquet");
+        StoragePath second = path("s3://b/a.parquet");
+        StoragePath third = path("s3://b/m.parquet");
+        StoragePath fourth = path("s3://b/b.parquet");
+        StoragePath fifth = path("s3://b/y.parquet");
+        StoragePath late = path("s3://b/c.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(first, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(second, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(third, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(fourth, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(fifth, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(late, meta(List.of(attr("val", DataType.KEYWORD))));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertEquals(
+            List.of(
+                "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/z.parquet (integer), s3://b/a.parquet (integer), s3://b/m.parquet (integer), "
+                    + "+3 more; types [integer, keyword]"
+            ),
+            warnings
+        );
+    }
+
+    /**
+     * Files that lack the column are not contributors. The three quoted paths are the first files that
+     * actually contain it, in glob order. Leading type is {@code KEYWORD} and the late type is
+     * {@code INTEGER}, so the type list is {@code [keyword, integer]} — the reverse of enum order.
+     */
+    public void testUnionByNameWarningQuotesFirstFilesThatContainTheColumn() {
+        List<String> warnings = new ArrayList<>();
+        StoragePath missingEarly = path("s3://b/000-early.parquet");
+        StoragePath missingNext = path("s3://b/001-early.parquet");
+        StoragePath firstWithColumn = path("s3://b/z.parquet");
+        StoragePath secondWithColumn = path("s3://b/a.parquet");
+        StoragePath thirdWithColumn = path("s3://b/m.parquet");
+        StoragePath late = path("s3://b/c.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(missingEarly, meta(List.of(attr("other", DataType.INTEGER))));
+        metadata.put(missingNext, meta(List.of(attr("other", DataType.INTEGER))));
+        metadata.put(firstWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(secondWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(thirdWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(late, meta(List.of(attr("val", DataType.INTEGER))));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
+
+        assertThat(result.unifiedSchema().get(1).name(), equalTo("val"));
+        assertThat(result.unifiedSchema().get(1).dataType(), equalTo(DataType.KEYWORD));
+        assertEquals(
+            List.of(
+                "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/z.parquet (keyword), s3://b/a.parquet (keyword), s3://b/m.parquet (keyword), "
+                    + "+1 more; types [keyword, integer]"
+            ),
+            warnings
+        );
+    }
+
+    public void testUnionByNameManyFilesSameTypeEmitsNoWarning() {
+        // Same rule as testUnionByNameAllKeywordEmitsNoWarning, past the three-path sample cap.
+        List<Attribute> schema = List.of(attr("name", DataType.KEYWORD));
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) {
+            metadata.put(path("s3://b/f" + i + ".csv"), meta(schema));
+        }
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(result.perFileInfo().size(), equalTo(8));
+        assertNoResponseWarnings();
+    }
+
     public void testUnionByNameLosslessWideningEmitsNoWarning() {
         // Lossless widening (INT + LONG → LONG, INT + DOUBLE → DOUBLE, DATETIME + DATE_NANOS →
         // DATE_NANOS) is unchanged behavior and must not emit a stringification warning.
@@ -1266,6 +1353,67 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     // === Helpers ===
+
+    public void testUnionByNameSharesFileSchemasAcrossFiles() {
+        SchemaInterner interner = new SchemaInterner(null, 0);
+        List<Attribute> schemaA = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        List<Attribute> schemaB = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        List<Attribute> schemaC = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD), attr("extra", DataType.INTEGER));
+        assertNotSame(schemaA.get(0), schemaB.get(0));
+
+        StoragePath a = path("s3://b/a.parquet");
+        StoragePath b = path("s3://b/b.parquet");
+        StoragePath c = path("s3://b/c.parquet");
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(a, meta(schemaA));
+        metadata.put(b, meta(schemaB));
+        metadata.put(c, meta(schemaC));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, interner);
+        SchemaReconciliation.FileSchemaInfo infoA = result.perFileInfo().get(a);
+        SchemaReconciliation.FileSchemaInfo infoB = result.perFileInfo().get(b);
+        SchemaReconciliation.FileSchemaInfo infoC = result.perFileInfo().get(c);
+
+        assertSame(infoA.fileSchema().attributes(), infoB.fileSchema().attributes());
+        assertSame(infoA.mapping(), infoB.mapping());
+        assertNotSame(infoA.fileSchema().attributes(), infoC.fileSchema().attributes());
+        assertSame(infoA.fileSchema().attributes().get(0), infoC.fileSchema().attributes().get(0));
+        assertSame(infoA.fileSchema().attributes().get(1), infoC.fileSchema().attributes().get(1));
+        assertNotSame(infoA, infoC);
+    }
+
+    public void testStrictSharesFileSchemasAcrossFiles() {
+        SchemaInterner interner = new SchemaInterner(null, 0);
+        List<Attribute> schemaA = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        List<Attribute> schemaB = List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
+        assertNotSame(schemaA.get(0), schemaB.get(0));
+
+        StoragePath a = path("s3://b/a.parquet");
+        StoragePath b = path("s3://b/b.parquet");
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(
+            a,
+            orderedMap(a, meta(schemaA), b, meta(schemaB)),
+            interner
+        );
+        SchemaReconciliation.FileSchemaInfo infoA = result.perFileInfo().get(a);
+        SchemaReconciliation.FileSchemaInfo infoB = result.perFileInfo().get(b);
+        assertSame(infoA.fileSchema().attributes(), infoB.fileSchema().attributes());
+        assertSame(infoA.mapping(), infoB.mapping());
+        assertNotSame(infoA, infoB);
+    }
+
+    /**
+     * File schemas share attribute instances across files, so {@link Attribute#equals(Object)} (which includes
+     * {@code NameId}) no longer matches the per-file inputs. Compare name, type, nullability, and synthetic.
+     */
+    private static void assertEqualsIgnoringIds(List<Attribute> expected, List<Attribute> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            Attribute left = expected.get(i);
+            Attribute right = actual.get(i);
+            assertTrue("[" + left + "] vs [" + right + "]", left.equals(right, true));
+        }
+    }
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);

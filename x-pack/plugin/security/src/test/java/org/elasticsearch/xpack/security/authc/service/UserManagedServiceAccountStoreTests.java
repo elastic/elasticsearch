@@ -40,6 +40,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
@@ -91,9 +92,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -244,6 +247,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         corruptions.put("a role that is not a string", source -> source.put("roles", List.of(ROLE_A, 42)));
         corruptions.put("missing enabled", source -> source.remove("enabled"));
         corruptions.put("enabled that is not a boolean", source -> source.put("enabled", "true"));
+        corruptions.put("description that is not a string", source -> source.put("description", List.of("a", "b")));
 
         corruptions.forEach((description, corruption) -> {
             final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
@@ -252,6 +256,36 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             store.invalidateAll();
             assertThat("document with " + description, getByPrincipal(PRINCIPAL), nullValue());
         });
+    }
+
+    /**
+     * Documents written before the field existed have no description, as do accounts written without one since, and
+     * both read back as an account with none.
+     */
+    public void testAnAbsentOrNullDescriptionReadsBackAsNone() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        if (randomBoolean()) {
+            source.put("description", null);
+        }
+        respondToGetWith(source);
+        assertThat(getByPrincipal(PRINCIPAL).description(), nullValue());
+    }
+
+    public void testAStoredDescriptionIsLoaded() {
+        final String description = randomAlphaOfLengthBetween(1, 30);
+        respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true, description));
+        assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(description));
+    }
+
+    /**
+     * Like role names, the description's write-time rule is not applied on read: tightening the cap later must not
+     * make an already-stored account unreadable.
+     */
+    public void testAStoredDescriptionThatWouldFailWriteValidationIsStillLoaded() {
+        final String storedDescription = randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1);
+        assertNotNull(Validation.UserManagedServiceAccounts.validateDescription(storedDescription));
+        respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true, storedDescription));
+        assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(storedDescription));
     }
 
     public void testAStoredRoleNameThatWouldFailWriteValidationIsStillLoaded() {
@@ -295,7 +329,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithBulkResult(true);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_B, ROLE_A, ROLE_B), false, RefreshPolicy.WAIT_UNTIL, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_B, ROLE_A, ROLE_B), false, "Deploys things", RefreshPolicy.WAIT_UNTIL, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         assertThat(onlyRequestOfType(BulkRequest.class).getRefreshPolicy(), is(RefreshPolicy.WAIT_UNTIL));
@@ -309,15 +343,30 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(source.get("enabled"), is(false));
         // Sorted and de-duplicated, so that the document does not depend on how the caller ordered the roles.
         assertThat(source.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
+        assertThat(source.get("description"), equalTo("Deploys things"));
 
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
+    }
+
+    /**
+     * Written as no field at all rather than as a null, so that an account without a description has the same
+     * document as one written before the field existed.
+     */
+    public void testPutAccountLeavesTheDescriptionOutOfTheDocumentWhenThereIsNone() {
+        respondWithBulkResult(true);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
+
+        assertThat(indexedDocument().sourceAsMap(), not(hasKey("description")));
     }
 
     public void testPutAccountReportsAnUpdateOfAnExistingAccount() {
         respondWithBulkResult(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
     }
 
@@ -327,15 +376,29 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             new ServiceAccountId(reservedNamespace(), "deploy bot"),
             List.of("a role name that is far too long".repeat(32)),
             true,
+            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
             RefreshPolicy.NONE,
             future
         );
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
-        assertThat(e.validationErrors(), hasSize(3));
+        assertThat(e.validationErrors(), hasSize(4));
         assertThat(e.getMessage(), containsString("the [elastic] namespace is reserved for built-in service accounts"));
         assertThat(e.getMessage(), containsString("service account service name [deploy bot]"));
         assertThat(e.getMessage(), containsString("Role names must be at least"));
+        assertThat(e.getMessage(), containsString("a service account description may not be more than"));
+    }
+
+    public void testPutAccountRejectsAnOverlongDescription() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH;
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomAlphaOfLength(max + 1), RefreshPolicy.NONE, future);
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(
+            e.validationErrors(),
+            contains("a service account description may not be more than " + max + " characters long, but [" + (max + 1) + "] were given")
+        );
     }
 
     public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
@@ -344,7 +407,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
             : Collections.nCopies(max + 1, "role-a");
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, tooMany, true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, tooMany, true, randomDescription(), RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -357,7 +420,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
@@ -841,13 +904,29 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     private static Map<String, Object> accountDocument(String principal, List<String> roles, boolean enabled) {
+        return accountDocument(principal, roles, enabled, null);
+    }
+
+    private static Map<String, Object> accountDocument(
+        String principal,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description
+    ) {
         final Map<String, Object> source = new HashMap<>();
         source.put("doc_type", SERVICE_ACCOUNT_DOC_TYPE);
         source.put("version", UserManagedServiceAccount.Version.CURRENT.id());
         source.put("username", principal);
         source.put("roles", roles);
         source.put("enabled", enabled);
+        if (description != null) {
+            source.put("description", description);
+        }
         return source;
+    }
+
+    private static String randomDescription() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
     }
 
     @SuppressWarnings("unchecked")

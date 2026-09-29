@@ -45,6 +45,12 @@ public final class S3FixtureUtils {
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
 
+    /** The allowlist setting a test cluster uses to reach its loopback fixture, taken from the setting itself. */
+    public static final String ALLOWED_ENDPOINT_HOSTS_SETTING = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY;
+
+    /** Loopback on any port, which is every fixture this repository starts. */
+    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1:*,[::1]:*,localhost:*";
+
     /** Default bucket name for test fixtures */
     public static final String BUCKET = "test-bucket";
 

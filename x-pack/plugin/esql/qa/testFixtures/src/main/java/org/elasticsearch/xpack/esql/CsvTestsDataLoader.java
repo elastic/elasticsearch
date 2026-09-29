@@ -25,6 +25,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
@@ -53,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -66,6 +68,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EVAL_IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
@@ -90,6 +93,32 @@ public class CsvTestsDataLoader {
         )
         .build();
 
+    /**
+     * Every field of mapping-all-types.json that all-types.csv actually carries data for, except {@code keyword}, which the
+     * {@code all_types_unmapped*} datasets keep mapped as an anchor. {@code semantic_text} and {@code dense_vector} stay mapped because
+     * the CSV has no column for either.
+     */
+    private static final Map<String, String> ALL_TYPES_UNMAPPED_FIELDS = removeFields(
+        "alias_integer",
+        "boolean",
+        "byte",
+        "constant_keyword-foo",
+        "date",
+        "date_nanos",
+        "double",
+        "float",
+        "half_float",
+        "integer",
+        "ip",
+        "long",
+        "scaled_float",
+        "short",
+        "text",
+        "unsigned_long",
+        "version",
+        "wildcard"
+    );
+
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
@@ -107,6 +136,14 @@ public class CsvTestsDataLoader {
         new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
         new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        // all_types_unmapped* : the all_types index with every typed column dropped from the mapping so each ES type appears
+        // only as a _source key.
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false"),
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withIndex("all_types_unmapped_synthetic")
+            .withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false")
+            .withSetting("synthetic-source-settings.json"),
         new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
@@ -215,6 +252,12 @@ public class CsvTestsDataLoader {
             "mapping-partial_mapping_sample_data.json",
             "partial_mapping_sample_data.csv",
             "synthetic-source-settings.json"
+        ),
+        new TestDataset(
+            "logsdb_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "logsdb-settings.json"
         ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
@@ -484,6 +527,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
+        new ViewConfig("view_languages"),
+        new ViewConfig("view_languages_meta_index", List.of(OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_meta_index_keep_star", List.of(OUTER_METADATA_NULL_INJECTION)),
         new ViewConfig(
             "employees_stats_where_in_subquery_view",
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
@@ -888,9 +934,10 @@ public class CsvTestsDataLoader {
 
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
+            var views = Sets.intersection(listViews(client), VIEW_CONFIGS.keySet());
+            if (views.isEmpty() == false) {
+                logger.debug("Deleting views {}", views);
+                deleteViews(client, views);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
@@ -1029,15 +1076,32 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void deleteView(RestClient client, String viewName) throws IOException {
+    private static Set<String> listViews(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_query/view/*"));
+        JsonNode json = new ObjectMapper().readTree(response.getEntity().getContent());
+        JsonNode views = json.get("views");
+        if (views == null || views.isArray() == false) {
+            return Set.of();
+        }
+        Set<String> names = new TreeSet<>();
+        for (JsonNode view : views) {
+            JsonNode name = view.get("name");
+            if (name != null) {
+                names.add(name.asText());
+            }
+        }
+        return names;
+    }
+
+    private static void deleteViews(RestClient client, Set<String> viewNames) throws IOException {
         final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
-            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+            client.performRequest(new Request("DELETE", "/_query/view/" + String.join(",", viewNames)));
         } catch (ResponseException e) {
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
             if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
-                logger.info("View delete error: {}", e.getMessage());
+                logger.info("Views delete error: {}", e.getMessage());
                 throw e;
             }
         }

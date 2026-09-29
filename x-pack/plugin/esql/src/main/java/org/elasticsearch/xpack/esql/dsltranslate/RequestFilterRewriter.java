@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -48,10 +49,8 @@ import java.util.Set;
  * transport version below.
  *
  * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
- * + warning). That pin does not cover everything the translator emits. It was allocated before {@code mv_greater} and
- * {@code mv_less} existed, so of the functions a translated filter can carry it covers {@code mv_in_range} alone, and
- * a node whose build sits between the two passes the gate and cannot read the other two. Tracked as
- * elastic/elasticsearch#159672; do not read this gate as a guarantee about the emitted set.
+ * relation, with a warning naming the datasets). It guards the rewrite's existence only; the functions a translated
+ * filter contains are gated individually by {@code QueryDslTranslator.gated}.
  */
 public final class RequestFilterRewriter {
 
@@ -81,7 +80,7 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
-            warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
+            warnNotApplied(analyzed);
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
@@ -89,7 +88,8 @@ public final class RequestFilterRewriter {
             analyzed,
             ExternalRelation.class::isInstance,
             requestFilter,
-            configuration
+            configuration,
+            minimumVersion
         );
         if (result.isComplete() == false) {
             if (dropUntranslatableWithWarning) {
@@ -97,8 +97,20 @@ public final class RequestFilterRewriter {
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
+                    // Same distinction the warning draws: "unsupported" is wrong for a version-gated clause.
                     messages.add(
-                        "request filter clause uses [" + nf.clause().construct() + "], unsupported on dataset [" + name(nf.node()) + "]"
+                        nf.clause().reason() == null
+                            ? "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "], unsupported on dataset ["
+                                + name(nf.node())
+                                + "]"
+                            : "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "] on dataset ["
+                                + name(nf.node())
+                                + "], not applied because "
+                                + nf.clause().reason()
                     );
                 }
                 throw new VerificationException(String.join("\n", messages));
@@ -112,20 +124,35 @@ public final class RequestFilterRewriter {
         // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
         // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.
         Set<String> skipped = new LinkedHashSet<>();
+        Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
-            skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
+            String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
+            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence, and
+            // carries the clause's own reason rather than a constant, which would misreport a second reason.
+            if (nf.clause().reason() != null) {
+                gated.add(where + " because " + nf.clause().reason());
+            } else {
+                skipped.add(where);
+            }
         }
-        // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
-        HeaderWarning.addWarning(
-            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
-                + " are not supported and were skipped: "
-                + String.join("; ", skipped)
-                + ". Use a WHERE clause to filter rows from external datasets instead."
-        );
+        // "not fully applied" is accurate whether some conjuncts were installed or none were.
+        StringBuilder message = new StringBuilder("Request filter not fully applied to external datasets");
+        if (skipped.isEmpty() == false) {
+            message.append("; unsupported: ").append(String.join(", ", skipped));
+        }
+        if (gated.isEmpty() == false) {
+            // Distinguished from the unsupported list above, so the operator can tell a transient version constraint
+            // from a permanent limitation.
+            message.append("; not applied, ").append(String.join(", ", gated));
+        }
+        HeaderWarning.addWarning(message.append("; use WHERE instead").toString());
     }
 
-    /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */
-    private static void warnNotApplied(LogicalPlan plan, String reason) {
+    /**
+     * Warns that the filter was not applied to the plan's dataset leaves because a node is too old to evaluate it,
+     * naming them, when there are any.
+     */
+    private static void warnNotApplied(LogicalPlan plan) {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
             .map(RequestFilterRewriter::name)
@@ -133,10 +160,8 @@ public final class RequestFilterRewriter {
             .toList();
         if (datasets.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered. "
-                    + "Use a WHERE clause to filter rows from external datasets instead",
-                String.join(", ", datasets),
-                reason
+                "Request filter not applied to external datasets [{}], a node is too old to evaluate it; use WHERE instead",
+                String.join(", ", datasets)
             );
         }
     }
@@ -148,7 +173,7 @@ public final class RequestFilterRewriter {
      */
     private static String name(LogicalPlan node) {
         if (node instanceof ExternalRelation relation) {
-            return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+            return relation.datasetName() != null ? relation.datasetName() : ExternalFailures.redactHttpUrl(relation.sourcePath());
         }
         return node.nodeName();
     }

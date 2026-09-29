@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -30,16 +29,12 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private final DriverContext driverContext;
-    private final GroupingAggregatorFunction groupingAggregator;
+    private final AggregatorFunction delegate;
     private final int inputChannel;
 
-    public FromPartialAggregatorFunction(DriverContext driverContext, GroupingAggregatorFunction groupingAggregator, int inputChannel) {
-        this.driverContext = driverContext;
-        this.groupingAggregator = groupingAggregator;
+    public FromPartialAggregatorFunction(AggregatorFunction delegate, int inputChannel) {
+        this.delegate = delegate;
         this.inputChannel = inputChannel;
-        // Ungrouped STATS always evaluates group 0, which may never receive a partial.
-        groupingAggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
     @Override
@@ -52,23 +47,21 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        try (IntVector groupIds = driverContext.blockFactory().newConstantIntVector(0, page.getPositionCount())) {
-            final CompositeBlock inputBlock = page.getBlock(inputChannel);
-            groupingAggregator.addIntermediateInput(0, groupIds, inputBlock.asPage());
+        final CompositeBlock inputBlock = page.getBlock(inputChannel);
+        final Page partials = inputBlock.asPage();
+        for (int p = 0; p < partials.getPositionCount(); p++) {
+            try (Page row = partials.slice(p, p + 1)) {
+                delegate.addIntermediateInput(row);
+            }
         }
-    }
-
-    private IntVector outputPositions() {
-        return driverContext.blockFactory().newConstantIntVector(0, 1);
     }
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-        final Block[] partialBlocks = new Block[groupingAggregator.intermediateBlockCount()];
+        final Block[] partialBlocks = new Block[delegate.intermediateBlockCount()];
         boolean success = false;
-        try (IntVector selected = outputPositions()) {
-            groupingAggregator.prepareEvaluateIntermediate(selected, new GroupingAggregatorEvaluationContext(driverContext))
-                .evaluate(partialBlocks, 0, selected);
+        try {
+            delegate.evaluateIntermediate(partialBlocks, 0, driverContext);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -80,10 +73,7 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-        try (IntVector selected = outputPositions()) {
-            groupingAggregator.prepareEvaluateFinal(selected, new GroupingAggregatorEvaluationContext(driverContext))
-                .evaluate(blocks, offset, selected);
-        }
+        delegate.evaluateFinal(blocks, offset, driverContext);
     }
 
     @Override
@@ -93,11 +83,11 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void close() {
-        Releasables.close(groupingAggregator);
+        Releasables.close(delegate);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[" + "channel=" + inputChannel + ",delegate=" + groupingAggregator + "]";
+        return getClass().getSimpleName() + "[" + "channel=" + inputChannel + ",delegate=" + delegate + "]";
     }
 }

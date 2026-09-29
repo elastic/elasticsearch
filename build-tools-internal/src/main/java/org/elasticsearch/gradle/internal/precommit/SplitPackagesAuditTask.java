@@ -73,7 +73,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
     private final RegularFileProperty markerFile;
-    private Map<File, String> projectBuildDirs;
 
     @Inject
     public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
@@ -88,7 +87,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     public void auditSplitPackages() {
         workerExecutor.noIsolation().submit(SplitPackagesAuditAction.class, params -> {
             params.getProjectPath().set(projectPath(getPath()));
-            params.getProjectBuildDirs().set(projectBuildDirs);
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
             params.getIgnoreClasses().set(ignoreClasses);
@@ -131,9 +129,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
         return markerFile;
     }
 
-    public void setProjectBuildDirs(Map<File, String> projectBuildDirs) {
-        this.projectBuildDirs = projectBuildDirs;
-    }
+
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
 
@@ -341,15 +337,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
         }
 
         private String formatDependency(File dependencyFile) {
+            // Report directory artifacts directly; discovering every producer's build
+            // directory would require reading mutable state from unrelated projects.
             if (dependencyFile.isDirectory()) {
-                while (dependencyFile.getName().equals("build") == false) {
-                    dependencyFile = dependencyFile.getParentFile();
-                }
-                String projectName = getParameters().getProjectBuildDirs().get().get(dependencyFile);
-                if (projectName == null) {
-                    throw new IllegalStateException("Build directory unknown to gradle: " + dependencyFile);
-                }
-                return "project " + projectName;
+                return dependencyFile.toString();
             }
             return dependencyFile.getName(); // just the jar filename
         }
@@ -358,7 +349,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     interface Parameters extends WorkParameters {
         Property<String> getProjectPath();
 
-        MapProperty<File, String> getProjectBuildDirs();
 
         ConfigurableFileCollection getClasspath();
 

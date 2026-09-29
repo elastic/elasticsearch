@@ -62,6 +62,8 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "filter";
 
+    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
+
     public static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
     public static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     public static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
@@ -103,7 +105,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             if (initialRecoveryFilters != null && initialRecoveryFilters.match(node.node()) == false) {
                 String explanation =
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index";
-                return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
+                return allocation.decision(NO_DECISION, NAME, explanation, initialRecoveryFilters);
             }
         }
         return shouldFilter(indexMetadata, node.node(), allocation);
@@ -148,7 +150,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (indexRequireFilters != null) {
             if (indexRequireFilters.match(node) == false) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node does not match index setting [%s] filters [%s]",
                     IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
@@ -159,7 +161,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (indexIncludeFilters != null) {
             if (indexIncludeFilters.match(node) == false) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node does not match index setting [%s] filters [%s]",
                     IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX,
@@ -170,7 +172,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (indexExcludeFilters != null) {
             if (indexExcludeFilters.match(node)) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node matches index setting [%s] filters [%s]",
                     IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(),
@@ -185,7 +187,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (clusterRequireFilters != null) {
             if (clusterRequireFilters.match(node) == false) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX,
@@ -196,7 +198,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (clusterIncludeFilters != null) {
             if (clusterIncludeFilters.match(node) == false) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
@@ -207,7 +209,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (clusterExcludeFilters != null) {
             if (clusterExcludeFilters.match(node)) {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node matches cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX,

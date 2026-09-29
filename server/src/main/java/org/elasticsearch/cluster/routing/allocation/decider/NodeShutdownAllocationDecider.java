@@ -28,6 +28,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_EMPTY_SHUTDOWN_METADATA = Decision.single(Decision.Type.YES, NAME, "no nodes are shutting down");
     private static final Decision YES_NODE_NOT_SHUTTING_DOWN = Decision.single(Decision.Type.YES, NAME, "this node is not shutting down");
+    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
 
     /**
      * Determines if a shard can be allocated to a particular node, based on whether that node is shutting down or not.
@@ -67,7 +68,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
-            case REMOVE, SIGTERM -> allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
+            case REMOVE, SIGTERM -> allocation.decision(NO_DECISION, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
             case REPLACE -> canAllocateBeforeReplacementIsReady
                 && allocation.getClusterState().getNodes().hasByName(thisNodeShutdownMetadata.getTargetNodeName()) == false
                     ? allocation.decision(
@@ -76,7 +77,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
                         "node [%s] is preparing to be removed from the cluster, but replacement is not yet present",
                         nodeId
                     )
-                    : allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
+                    : allocation.decision(NO_DECISION, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,

@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersion.fromName;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
 
 /**
@@ -30,8 +31,13 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
  * or because moving it to another node will form a better cluster balance.
  */
 public final class MoveDecision extends AbstractAllocationDecision {
+
+    private static final org.elasticsearch.TransportVersion MOVE_DECISION_CAN_ALLOCATE_DECISION = fromName(
+        "move_decision_can_allocate_decision"
+    );
+
     /** a constant representing no decision taken */
-    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
+    public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, null, 0);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
     public static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(
         null,
@@ -39,9 +45,18 @@ public final class MoveDecision extends AbstractAllocationDecision {
         AllocationDecision.NO_ATTEMPT,
         Decision.YES,
         null,
+        null,
         0
     );
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, null, AllocationDecision.NO, NO, null, 0);
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
+        null,
+        null,
+        AllocationDecision.NO,
+        NO,
+        null,
+        null,
+        0
+    );
 
     @Nullable
     private final AllocationDecision canMoveDecision;
@@ -49,6 +64,13 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final Decision canRemainDecision;
     @Nullable
     private final Decision clusterRebalanceDecision;
+    /**
+     * The labeled {@code canAllocate} (or {@code canForceAllocateDuringReplace}) decision for the winning target node.
+     * Populated only when {@link #canMoveDecision} is {@link AllocationDecision#NOT_PREFERRED}; null otherwise.
+     * Not rendered in XContent — used internally to label metrics.
+     */
+    @Nullable
+    private final Decision canAllocateDecision;
     private final int currentNodeRanking;
 
     private MoveDecision(
@@ -57,12 +79,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
         AllocationDecision canMoveDecision,
         Decision canRemainDecision,
         Decision clusterRebalanceDecision,
+        Decision canAllocateDecision,
         int currentNodeRanking
     ) {
         super(targetNode, nodeDecisions);
         this.canMoveDecision = canMoveDecision;
         this.canRemainDecision = canRemainDecision;
         this.clusterRebalanceDecision = clusterRebalanceDecision;
+        this.canAllocateDecision = canAllocateDecision;
         this.currentNodeRanking = currentNodeRanking;
     }
 
@@ -72,6 +96,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
         clusterRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
         currentNodeRanking = in.readVInt();
+        canAllocateDecision = in.getTransportVersion().supports(MOVE_DECISION_CAN_ALLOCATE_DECISION)
+            ? in.readOptionalWriteable(Decision::readFrom)
+            : null;
     }
 
     @Override
@@ -81,6 +108,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
         out.writeOptionalWriteable(canRemainDecision);
         out.writeOptionalWriteable(clusterRebalanceDecision);
         out.writeVInt(currentNodeRanking);
+        if (out.getTransportVersion().supports(MOVE_DECISION_CAN_ALLOCATE_DECISION)) {
+            out.writeOptionalWriteable(canAllocateDecision);
+        }
     }
 
     /**
@@ -93,7 +123,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
-        return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, 0);
+        return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, null, 0);
     }
 
     /**
@@ -109,7 +139,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
         Decision canRemainDecision,
         AllocationDecision moveDecision,
         @Nullable DiscoveryNode targetNode,
-        @Nullable List<NodeAllocationResult> nodeDecisions
+        @Nullable List<NodeAllocationResult> nodeDecisions,
+        @Nullable Decision canAllocateDecision
     ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#createRemainYesDecision instead";
@@ -119,7 +150,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, 0);
+            return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, canAllocateDecision, 0);
         }
     }
 
@@ -152,7 +183,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(targetNode, nodeDecisions, canMoveDecision, canRemainDecision, canRebalanceDecision, currentNodeRanking);
+        return new MoveDecision(targetNode, nodeDecisions, canMoveDecision, canRemainDecision, canRebalanceDecision, null, currentNodeRanking);
     }
 
     @Override
@@ -249,6 +280,16 @@ public final class MoveDecision extends AbstractAllocationDecision {
     @Nullable
     public AllocationDecision getAllocationDecision() {
         return canMoveDecision;
+    }
+
+    /**
+     * Returns the labeled {@code canAllocate} decision for the winning target node when a move was attempted.
+     * Only populated when {@link #getAllocationDecision()} is {@link AllocationDecision#NOT_PREFERRED}; null otherwise.
+     * Not included in XContent — used internally to label metrics.
+     */
+    @Nullable
+    public Decision getCanAllocateDecision() {
+        return canAllocateDecision;
     }
 
     /**
@@ -359,12 +400,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return Objects.equals(canMoveDecision, that.canMoveDecision)
             && Objects.equals(canRemainDecision, that.canRemainDecision)
             && Objects.equals(clusterRebalanceDecision, that.clusterRebalanceDecision)
+            && Objects.equals(canAllocateDecision, that.canAllocateDecision)
             && currentNodeRanking == that.currentNodeRanking;
     }
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode() + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
+        return 31 * super.hashCode()
+            + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, canAllocateDecision, currentNodeRanking);
     }
 
     @Override
@@ -376,6 +419,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
             + canRemainDecision
             + ", clusterRebalanceDecision="
             + clusterRebalanceDecision
+            + ", canAllocateDecision="
+            + canAllocateDecision
             + ", currentNodeRanking="
             + currentNodeRanking
             + '}';

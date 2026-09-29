@@ -152,6 +152,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     );
 
     private static final Decision YES_ALL_MET = Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
+    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
 
     private Decision underCapacity(
         IndexMetadata indexMetadata,
@@ -174,7 +175,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
-                return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
+                return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : NO_DECISION;
             }
 
             final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
@@ -227,7 +228,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         shardsForTargetAttributeValue,
                         maximumShardsPerAttributeValue
                     )
-                    : Decision.NO;
+                    : NO_DECISION;
             }
         }
 

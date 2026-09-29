@@ -31,6 +31,7 @@ public class StatelessAllocationDecider extends AllocationDecider {
         NAME,
         "shard role matches stateless node role"
     );
+    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -53,7 +54,7 @@ public class StatelessAllocationDecider extends AllocationDecider {
                     shardRouting.role(),
                     statelessNodeRole(roles)
                 )
-            : Decision.NO;
+            : NO_DECISION;
     }
 
     private static boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {

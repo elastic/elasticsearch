@@ -34,6 +34,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     public static final String NAME = "write_load";
 
+    private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
+
     private final FrequencyCappedAction logCanRemainMessage;
     private final FrequencyCappedAction logCanAllocateMessage;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
@@ -107,13 +109,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+                return allocation.decision(NOT_PREFERRED_DECISION, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
         } else if (allocation.clusterInfo().nodeIsWriteLoadHotspotting(node.nodeId())) {
             return allocation.decision(
-                Decision.NOT_PREFERRED,
+                NOT_PREFERRED_DECISION,
                 NAME,
                 "Node [%s] is currently hot-spotting or in a waiting period, and does not prefer shards moved onto it",
                 node.nodeId()
@@ -142,9 +144,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+                return allocation.decision(NOT_PREFERRED_DECISION, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
         }
 
@@ -275,9 +277,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             if (logger.isDebugEnabled()) {
                 logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
             }
-            return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+            return allocation.decision(NOT_PREFERRED_DECISION, NAME, explain);
         } else {
-            return Decision.NOT_PREFERRED;
+            return NOT_PREFERRED_DECISION;
         }
     }
 

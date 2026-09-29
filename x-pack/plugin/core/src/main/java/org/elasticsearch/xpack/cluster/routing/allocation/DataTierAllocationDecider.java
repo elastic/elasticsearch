@@ -76,6 +76,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
+    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
 
     public static Decision shouldFilter(
         IndexMetadata indexMd,
@@ -104,9 +105,9 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             if (node.hasRole(tierName)) {
                 return allocation.debugDecision() ? debugYesAllowed(allocation, tierPreference, tierName) : Decision.YES;
             }
-            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : Decision.NO;
+            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : NO_DECISION;
         }
-        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : Decision.NO;
+        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : NO_DECISION;
     }
 
     private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {

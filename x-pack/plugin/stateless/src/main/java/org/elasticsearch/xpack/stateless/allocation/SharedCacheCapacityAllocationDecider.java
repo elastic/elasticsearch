@@ -44,6 +44,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
     private static final FeatureFlag SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG = new FeatureFlag("shared_cache_capacity_decider");
+    private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -230,9 +231,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (isDebugEnabled) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
+                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
         }
 
@@ -271,9 +272,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (isDebugEnabled) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
+                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
         }
 
@@ -342,9 +343,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logCanRemainMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
+                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
         }
 

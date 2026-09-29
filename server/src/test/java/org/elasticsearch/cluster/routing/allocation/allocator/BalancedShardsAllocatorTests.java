@@ -1892,9 +1892,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry(equalTo("es_target_node"), allOf(is(Matchers.in(allNodeIds)), not(equalTo(sourceNodeId)))));
     }
 
-    public void testCanRemainIgnoredShardMovesAreCountedWithNoneDeciderLabel() {
-        // When the ignored-shard short-circuit fires, canRemainWithDeciderName returns a null decider name.
-        // canRemainMoveAttributes must not pass that null to Map.of (which rejects null values); it falls back to "none".
+    public void testCanRemainIgnoredShardMovesAreCountedWithIgnoredShardsDeciderLabel() {
+        // When the ignored-shard short-circuit fires, canRemain returns a constant with label "ignored_shards_for_node".
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
         final var projectId = clusterState.metadata().projects().keySet().iterator().next();
         final var startedShard = clusterState.globalRoutingTable()
@@ -1907,7 +1906,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         allocation.addIgnoreShardForNode(startedShard.shardId(), startedShard.currentNodeId());
         final var attributes = allocateAndGetCanRemainMetricAttributes(allocation);
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
-        assertThat(attributes, hasEntry("es_can_remain_decider", "none"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "ignored_shards_for_node"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
         assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
@@ -2014,29 +2013,39 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static class AlwaysNotPreferredCanRemainDecider extends AllocationDecider {
+        static final String NAME = "AlwaysNotPreferredCanRemainDecider";
+        private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
+
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return Decision.NOT_PREFERRED;
+            return NOT_PREFERRED_DECISION;
         }
     }
 
     private static class AlwaysNoCanRemainDecider extends AllocationDecider {
+        static final String NAME = "AlwaysNoCanRemainDecider";
+        private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
+
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return Decision.NO;
+            return NO_DECISION;
         }
     }
 
     /** Forces canRemain=NO and allows only NOT_PREFERRED canAllocate targets (NO on the source to prevent bounce-back). */
     private static class MustMoveToNotPreferredTargetDecider extends AllocationDecider {
+        static final String NAME = "MustMoveToNotPreferredTargetDecider";
+        private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
+        private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
+
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return Decision.NO;
+            return NO_DECISION;
         }
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return node.nodeId().equals(shardRouting.currentNodeId()) ? Decision.NO : Decision.NOT_PREFERRED;
+            return node.nodeId().equals(shardRouting.currentNodeId()) ? NO_DECISION : NOT_PREFERRED_DECISION;
         }
     }
 }

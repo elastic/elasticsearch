@@ -61,7 +61,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -935,7 +935,7 @@ public class SnapshotResiliencyTestHelper {
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

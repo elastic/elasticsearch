@@ -8,13 +8,25 @@
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class RestTestDataSourceConnectionActionTests extends ESTestCase {
+
+    public void testSupportedCapabilitiesRespectTestConnectionFeatureFlag() {
+        RestTestDataSourceConnectionAction action = new RestTestDataSourceConnectionAction(Set.of());
+        if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+            assertThat(action.supportedCapabilities(), hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION));
+        } else {
+            assertThat(action.supportedCapabilities(), not(hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION)));
+        }
+    }
 
     public void testGetFilteredFieldsEmpty() {
         RestTestDataSourceConnectionAction action = new RestTestDataSourceConnectionAction(Set.of());

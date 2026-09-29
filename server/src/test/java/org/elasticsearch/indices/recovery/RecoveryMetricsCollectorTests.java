@@ -102,11 +102,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {
         telemetryPlugin.collect();
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
             equalTo(expectedBlocked)
         );
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
             equalTo(expectedDuration)
         );
     }

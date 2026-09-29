@@ -134,7 +134,7 @@ public record SplitDiscoveryContext(
             resolved,
             SchemaReconciliation.pinnedOver(schemaMap, resolved),
             config,
-            partitionInfo == null ? null : partitionInfo.valuedOver(resolved.partitionMetadata(), PartitionConfig.fromConfig(config)),
+            partitionInfo == null ? null : partitionInfo.valuedOver(resolved, PartitionConfig.fromConfig(config)),
             filterHints,
             querySchema,
             unifiedSchema,

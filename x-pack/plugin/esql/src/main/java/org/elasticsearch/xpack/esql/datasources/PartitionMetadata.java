@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Collections;
@@ -78,31 +79,31 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      * the declared type cannot hold has none under it, which is confined to the values that genuinely do not fit
      * rather than falling on every file the schema's listing did not reach.
      */
-    public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned) {
-        return valuedOver(scanned, null);
-    }
-
     /**
-     * As above, reading each value back with the grammar the dataset's own partition detection uses.
+     * These partition columns, valued over the files a query actually reads.
      * <p>
-     * A hive path names its column in the segment ({@code year=2024}); a template path names it by position
-     * ({@code {year}/{month}}). Reading every path as hive finds no token in a template dataset at all, which nulls
-     * every value in every partition column - so the strategy has to travel with the request. A {@code null} config
-     * reads as hive, which is what every caller that has no dataset config in hand means.
+     * The columns are the dataset's schema: which they are, and what type each holds, is decided once at
+     * resolution, and the plan's output attributes already carry that answer. The values are per file, so they
+     * belong to whichever listing named the files being read - and when resolution answered the schema from a
+     * prefix of the dataset, that is not the listing resolution held.
+     * <p>
+     * Values are read from the file set's own paths rather than from anything the scan's listing parsed. That is
+     * what lets a <em>bounded</em> scan listing work at all: {@code GenericFileList} strips per-file partition
+     * evidence from a truncated list, so a listing that stopped early carries no values to copy - but it still
+     * names its files, and a path is the lossless record of what its folders say.
      */
-    public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned, @Nullable PartitionConfig partitionConfig) {
-        if (partitionColumns.isEmpty() || scanned == null || scanned.filePartitionValues.isEmpty()) {
+    public PartitionMetadata valuedOver(@Nullable FileList files, @Nullable PartitionConfig partitionConfig) {
+        if (partitionColumns.isEmpty() || files == null || files.isResolved() == false || files.fileCount() == 0) {
             return this;
         }
-        LinkedHashMap<StoragePath, Map<String, Object>> valued = Maps.newLinkedHashMapWithExpectedSize(scanned.filePartitionValues.size());
-        for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues.entrySet()) {
-            StoragePath path = file.getKey();
+        LinkedHashMap<StoragePath, Map<String, Object>> valued = Maps.newLinkedHashMapWithExpectedSize(files.fileCount());
+        for (int i = 0; i < files.fileCount(); i++) {
+            StoragePath path = files.path(i);
             LinkedHashMap<String, Object> conformed = Maps.newLinkedHashMapWithExpectedSize(partitionColumns.size());
             for (Map.Entry<String, DataType> column : partitionColumns.entrySet()) {
-                String name = column.getKey();
-                conformed.put(name, under(tokenFor(path, name, partitionConfig), column.getValue()));
+                conformed.put(column.getKey(), under(tokenFor(path, column.getKey(), partitionConfig), column.getValue()));
             }
-            valued.put(file.getKey(), conformed);
+            valued.put(path, conformed);
         }
         return new PartitionMetadata(partitionColumns, valued);
     }
@@ -113,13 +114,17 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
      */
     @Nullable
     private static String tokenFor(StoragePath path, String column, @Nullable PartitionConfig partitionConfig) {
-        if (partitionConfig != null && partitionConfig.strategy() == PartitionConfig.Strategy.TEMPLATE) {
-            String template = partitionConfig.pathTemplate();
+        PartitionConfig.Strategy strategy = partitionConfig == null ? PartitionConfig.Strategy.HIVE : partitionConfig.strategy();
+        String template = partitionConfig == null ? null : partitionConfig.pathTemplate();
+        if (strategy == PartitionConfig.Strategy.TEMPLATE) {
             return template == null ? null : TemplatePartitionDetector.columnValue(path.path(), column, template);
         }
-        // HIVE, NONE, AUTO and no config at all: AUTO resolves to the hive grammar whenever it detected anything
-        // a key=value segment could have produced, and NONE has no columns to value.
-        return HivePartitionDetector.extractPartitions(path).get(column);
+        String hive = HivePartitionDetector.extractPartitions(path).get(column);
+        if (hive != null || strategy != PartitionConfig.Strategy.AUTO || template == null) {
+            return hive;
+        }
+        // AUTO tries hive first and falls back to the template, the order AutoPartitionDetector detects in.
+        return TemplatePartitionDetector.columnValue(path.path(), column, template);
     }
 
     /**

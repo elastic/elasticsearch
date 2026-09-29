@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
@@ -162,7 +164,7 @@ public class PartitionMetadataTests extends ESTestCase {
             WarningSinks.FAILING
         );
 
-        PartitionMetadata valued = overThePrefix.valuedOver(overTheScan);
+        PartitionMetadata valued = overThePrefix.valuedOver(filesOf(overTheScan), HIVE);
 
         assertEquals("the columns stay the schema's", overThePrefix.partitionColumns(), valued.partitionColumns());
         assertEquals(2, valued.filePartitionValues().size());
@@ -188,7 +190,7 @@ public class PartitionMetadataTests extends ESTestCase {
         );
         assertEquals("the wider listing typed it as text", DataType.KEYWORD, scanned.partitionColumns().get("hour"));
 
-        PartitionMetadata valued = declaredInteger.valuedOver(scanned);
+        PartitionMetadata valued = declaredInteger.valuedOver(filesOf(scanned), HIVE);
 
         assertEquals(DataType.INTEGER, valued.partitionColumns().get("hour"));
         assertEquals("a token the declared type holds is re-cast to it", 7, valued.filePartitionValues().get(numeric).get("hour"));
@@ -201,8 +203,8 @@ public class PartitionMetadataTests extends ESTestCase {
             List.of(new StorageEntry(StoragePath.of("s3://b/hour=00/a.parquet"), 1, Instant.EPOCH)),
             WarningSinks.FAILING
         );
-        assertSame(metadata, metadata.valuedOver(null));
-        assertSame(metadata, metadata.valuedOver(PartitionMetadata.EMPTY));
+        assertSame(metadata, metadata.valuedOver((FileList) null, HIVE));
+        assertSame(metadata, metadata.valuedOver(filesOf(PartitionMetadata.EMPTY), HIVE));
     }
 
     /**
@@ -243,7 +245,7 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, declaredKeyword.partitionColumns().get("hour"));
         assertEquals(DataType.INTEGER, scanned.partitionColumns().get("hour"));
 
-        PartitionMetadata valued = declaredKeyword.valuedOver(scanned);
+        PartitionMetadata valued = declaredKeyword.valuedOver(filesOf(scanned), HIVE);
 
         assertEquals(DataType.KEYWORD, valued.partitionColumns().get("hour"));
         assertEquals(
@@ -274,7 +276,7 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals("the sample types it integral", DataType.INTEGER, declared.partitionColumns().get("x"));
         assertEquals("the whole listing does not", DataType.DOUBLE, scanned.partitionColumns().get("x"));
 
-        PartitionMetadata valued = declared.valuedOver(scanned);
+        PartitionMetadata valued = declared.valuedOver(filesOf(scanned), HIVE);
 
         assertEquals(1, valued.filePartitionValues().get(sample.get(0).path()).get("x"));
         assertEquals(2, valued.filePartitionValues().get(sample.get(1).path()).get("x"));
@@ -305,7 +307,7 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals("the sample alone types it signed", DataType.LONG, declaredLong.partitionColumns().get("id"));
         assertEquals("the whole listing does not", DataType.UNSIGNED_LONG, scanned.partitionColumns().get("id"));
 
-        PartitionMetadata valued = declaredLong.valuedOver(scanned);
+        PartitionMetadata valued = declaredLong.valuedOver(filesOf(scanned), HIVE);
 
         assertEquals("the value the folder names, not its encoding", 3000000000L, valued.filePartitionValues().get(small).get("id"));
         assertNull("and a value beyond the signed range has none under it", valued.filePartitionValues().get(huge).get("id"));
@@ -327,11 +329,53 @@ public class PartitionMetadataTests extends ESTestCase {
         );
         assertEquals("the template names the columns", Set.of("year", "month"), declared.partitionColumns().keySet());
 
-        PartitionMetadata valued = declared.valuedOver(scanned, new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}"));
+        PartitionMetadata valued = declared.valuedOver(
+            filesOf(scanned),
+            new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}")
+        );
 
         assertEquals(2024, valued.filePartitionValues().get(sampled).get("year"));
         assertEquals("and a folder the sample never saw keeps its value too", 2025, valued.filePartitionValues().get(beyond).get("year"));
         assertEquals(6, valued.filePartitionValues().get(beyond).get("month"));
+    }
+
+    /**
+     * The case a bounded scan listing depends on. {@code GenericFileList} strips per-file partition evidence from a
+     * truncated list, so a listing that stopped early carries no values to copy across - but it still names its
+     * files, and the path says what the folders say. Reading the scan's parsed values instead would null every
+     * partition column exactly when the listing is short, which is the whole point of stopping early.
+     */
+    public void testAScanListingWithoutPerFileEvidenceStillValuesEveryFile() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/hour=00/a.parquet"), 1, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/hour=07/b.parquet"), 1, Instant.EPOCH)
+        );
+        PartitionMetadata declared = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        FileList truncated = GlobExpander.truncatedFileListOf(entries, "s3://b/" + "**/*.parquet");
+        assertTrue("the fixture is the shape a bounded listing has", truncated.isTruncated());
+        assertTrue(
+            "and such a list carries no per-file evidence to copy",
+            truncated.partitionMetadata() == null || truncated.partitionMetadata().filePartitionValues().isEmpty()
+        );
+
+        PartitionMetadata valued = declared.valuedOver(truncated, new PartitionConfig(PartitionConfig.Strategy.HIVE, null));
+
+        assertEquals(0, valued.filePartitionValues().get(entries.get(0).path()).get("hour"));
+        assertEquals(7, valued.filePartitionValues().get(entries.get(1).path()).get("hour"));
+    }
+
+    /** AUTO tries the hive grammar first, the order detection itself uses. */
+    public void testAutoPrefersHiveTokensWhenPresent() {
+        StoragePath hive = StoragePath.of("s3://b/year=2024/a.parquet");
+        PartitionMetadata declared = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(hive, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        FileList files = GlobExpander.fileListOf(List.of(new StorageEntry(hive, 1, Instant.EPOCH)), "s3://b/" + "**/*.parquet");
+
+        PartitionMetadata valued = declared.valuedOver(files, new PartitionConfig(PartitionConfig.Strategy.AUTO, "{year}"));
+
+        assertEquals("the key=value segment wins over the template", 2024, valued.filePartitionValues().get(hive).get("year"));
     }
 
     /** A number the declared type cannot hold exactly still has no value under it. */
@@ -355,11 +399,26 @@ public class PartitionMetadataTests extends ESTestCase {
 
         assertNull(
             "a fraction is not an integer",
-            declaredInteger.valuedOver(scannedFraction).filePartitionValues().get(fraction).get("x")
+            declaredInteger.valuedOver(filesOf(scannedFraction), HIVE).filePartitionValues().get(fraction).get("x")
         );
         assertNull(
             "and neither is a magnitude outside the type",
-            declaredInteger.valuedOver(scannedHuge).filePartitionValues().get(huge).get("x")
+            declaredInteger.valuedOver(filesOf(scannedHuge), HIVE).filePartitionValues().get(huge).get("x")
         );
     }
+
+    private static final PartitionConfig HIVE = new PartitionConfig(PartitionConfig.Strategy.HIVE, null);
+
+    /**
+     * The file set a scan would hold for the files a detection saw. Values now come from the paths, so a test that
+     * has a scanned {@link PartitionMetadata} in hand names its files this way.
+     */
+    private static FileList filesOf(PartitionMetadata scanned) {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (StoragePath path : scanned.filePartitionValues().keySet()) {
+            entries.add(new StorageEntry(path, 1, Instant.EPOCH));
+        }
+        return GlobExpander.fileListOf(entries, "s3://b/" + "**");
+    }
+
 }

@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.stateless.recovery;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -63,6 +67,46 @@ abstract class AbstractStatelessRecoveryListener {
             indexShard.getOperationPrimaryTerm(),
             batchedCompoundCommit != null ? batchedCompoundCommit.toString() : "empty commit",
             describe(indexShard.recoveryState())
+        );
+    }
+
+    static void logBootstrappingFromObjectStore(
+        Logger logger,
+        IndexShard indexShard,
+        BatchedCompoundCommit batchedCompoundCommit,
+        SegmentInfos segmentInfos
+    ) {
+        if (indexShard.recoveryState().getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE
+            || batchedCompoundCommit == null) {
+            logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit);
+            return;
+        }
+
+        final var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
+        final String replaySource = recoveryCommit.hollow()
+            ? "hollow commit"
+            : "node_ephemeral_id="
+                + recoveryCommit.nodeEphemeralId()
+                + ", translog_recovery_start_file="
+                + recoveryCommit.translogRecoveryStartFile();
+
+        logger.info(
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({}) "
+                + "lucene_commit=[generation={}] seq_nos=[local_checkpoint={}, max_seq_no={}, min_retained_seq_no={}] "
+                + "commit_identity=[history_uuid={}, translog_uuid={}] replay_source=[{}]",
+            indexShard.shardId(),
+            indexShard.shardId().getIndex().getUUID(),
+            indexShard.routingEntry().role(),
+            indexShard.getOperationPrimaryTerm(),
+            batchedCompoundCommit,
+            describe(indexShard.recoveryState()),
+            segmentInfos.getGeneration(),
+            segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY),
+            segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO),
+            segmentInfos.userData.get(Engine.MIN_RETAINED_SEQNO),
+            segmentInfos.userData.get(Engine.HISTORY_UUID_KEY),
+            segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY),
+            replaySource
         );
     }
 

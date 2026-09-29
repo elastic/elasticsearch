@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -284,8 +283,6 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             var store = indexShard.store();
             var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             var batchedCompoundCommit = indexingShardState.latestCommit();
-            logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit);
-
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
                 var blobFileRanges = indexingShardState.blobFileRanges();
@@ -317,19 +314,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
             final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
-            // The sequence number range a recovery starts from cannot be established after the fact. The commit is
-            // normally superseded and deleted within minutes, and it is the only record of where the shard stood.
-            logger.info(
-                "[{}] recovering from commit [generation={}, local_checkpoint={}, max_seq_no={}, min_retained_seq_no={}, "
-                    + "translog_uuid={}, history_uuid={}]",
-                indexShard.shardId(),
-                segmentInfos.getGeneration(),
-                checkPoint,
-                segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO),
-                segmentInfos.userData.get(Engine.MIN_RETAINED_SEQNO),
-                translogUUID,
-                segmentInfos.userData.get(Engine.HISTORY_UUID_KEY)
-            );
+            logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit, segmentInfos);
             if (translogUUID != null) {
                 Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
@@ -41,12 +42,64 @@ public class RecoveryCommitSeqNoLoggingIT extends AbstractStatelessPluginIntegTe
                     "recovery commit sequence numbers",
                     StatelessIndexNodeRecoveryListener.class.getCanonicalName(),
                     Level.INFO,
-                    "*recovering from commit*local_checkpoint=19, max_seq_no=19*"
+                    "*bootstrapping*existing store recovery*lucene_commit=[generation=*] "
+                        + "seq_nos=[local_checkpoint=19, max_seq_no=19, min_retained_seq_no=*] "
+                        + "commit_identity=[history_uuid=*, translog_uuid=*] "
+                        + "replay_source=[node_ephemeral_id=*, translog_recovery_start_file=*]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no separate recovery commit line",
+                    StatelessIndexNodeRecoveryListener.class.getCanonicalName(),
+                    Level.INFO,
+                    "*recovering from commit*"
                 )
             );
             startIndexNode();
             ensureGreen(indexName);
             mockLog.awaitAllExpectationsMatched();
         }
+    }
+
+    public void testIndexCreationDoesNotLogCommitSeqNos() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+
+        MockLog.assertThatLogger(() -> {
+            createIndex("commit-seqnos-new-index", indexSettings(1, 0).build());
+            ensureGreen("commit-seqnos-new-index");
+        },
+            StatelessIndexNodeRecoveryListener.class,
+            new MockLog.UnseenEventExpectation(
+                "no commit sequence numbers on index creation",
+                StatelessIndexNodeRecoveryListener.class.getCanonicalName(),
+                Level.INFO,
+                "*local_checkpoint=*"
+            )
+        );
+    }
+
+    public void testRelocationDoesNotLogCommitSeqNos() throws Exception {
+        startMasterOnlyNode();
+        final String originalIndexNode = startIndexNode();
+
+        final String indexName = "commit-seqnos-relocation";
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", originalIndexNode).build());
+        ensureGreen(indexName);
+        final String newIndexNode = startIndexNode();
+
+        MockLog.assertThatLogger(() -> {
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
+            ensureGreen(indexName);
+        },
+            StatelessIndexNodeRecoveryListener.class,
+            new MockLog.UnseenEventExpectation(
+                "no commit sequence numbers on relocation",
+                StatelessIndexNodeRecoveryListener.class.getCanonicalName(),
+                Level.INFO,
+                "*local_checkpoint=*"
+            )
+        );
     }
 }

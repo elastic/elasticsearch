@@ -33,9 +33,13 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
@@ -53,6 +57,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
@@ -290,6 +295,55 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         expectThrows(CircuitBreakingException.class, () -> bool.build().visit(visitor));
         assertTrue("a disjunction of binary DV scan clauses sized off real decode cost must trip the breaker", breaker.tripped);
+    }
+
+    public void testConfirmedSmallBlockChargesTheSmallerEstimate() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 1, false);
+        Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+        query.visit(visitor);
+
+        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK;
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertThat(
+            "the small-block estimate must be strictly smaller, or this test can't tell the two apart",
+            BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK,
+            lessThan(BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE)
+        );
+    }
+
+    public void testLargeBinaryBlockOrDefaultTrueWhenIndexSettingsUnknown() {
+        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(null));
+    }
+
+    public void testLargeBinaryBlockOrDefaultTrueWhenIndexDoesNotUseTimeSeriesDocValuesFormat() {
+        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(false, false);
+        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    }
+
+    public void testLargeBinaryBlockOrDefaultTrueWhenLargeBlockSettingIsUnset() {
+        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(true, true);
+        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    }
+
+    public void testLargeBinaryBlockOrDefaultFalseWhenSmallBlockConfirmed() {
+        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(true, false);
+        assertFalse(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    }
+
+    private static IndexSettings indexSettingsWithTimeSeriesDocValuesFormat(
+        boolean useTimeSeriesDocValuesFormat,
+        boolean largeBinaryBlock
+    ) {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), largeBinaryBlock)
+            .build();
+        return new IndexSettings(
+            IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+            Settings.EMPTY
+        );
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

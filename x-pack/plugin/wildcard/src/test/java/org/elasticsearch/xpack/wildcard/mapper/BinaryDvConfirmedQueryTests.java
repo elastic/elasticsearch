@@ -37,10 +37,16 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
         Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
 
         assertThat(query, instanceOf(BinaryDocValuesScanCost.class));
+        BinaryDocValuesScanCost scanCost = (BinaryDocValuesScanCost) query;
         assertEquals(
             "every matches() call opens a decoder over the field's full binary doc values, same as the Scanning* queries",
             BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE,
-            ((BinaryDocValuesScanCost) query).estimateDecodeBytes(1)
+            scanCost.estimateDecodeBytes(1, true)
+        );
+        assertEquals(
+            "the small-block estimate applies when the index is confirmed not to use large blocks",
+            BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK,
+            scanCost.estimateDecodeBytes(1, false)
         );
     }
 

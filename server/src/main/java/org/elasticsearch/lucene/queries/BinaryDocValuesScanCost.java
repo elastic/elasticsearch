@@ -9,7 +9,7 @@
 
 package org.elasticsearch.lucene.queries;
 
-import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 
 /**
  * Marks a query whose {@code matches()} opens a decoder over a field's binary doc values and decompresses whole
@@ -18,28 +18,34 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat
  * <p>
  * Each surviving clause allocates its own decoder and, on first decode, its own uncompressed block buffer — up to
  * several hundred KB, not the handful of bytes a generic query leaf occupies. {@link
- * org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this interface to charge that real cost instead
- * of its default per-leaf floor, so a query with thousands of these clauses is rejected up front instead of OOMing.
+ * org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this interface to charge an upper-bound estimate
+ * of that cost instead of its default per-leaf floor, so a query with thousands of these clauses is rejected up front
+ * instead of OOMing.
  */
 public interface BinaryDocValuesScanCost {
 
     /**
-     * Conservative fixed per-clause estimate: {@link ES819Version3TSDBDocValuesFormat}'s "large block" binary-DV
-     * variant's uncompressed block size, plus the {@code int[]} of per-document block offsets every decoder holds.
-     * <p>
-     * Doesn't know which codec or block-size variant a field's segments actually use — that needs the per-field
-     * block size from the doc-values producer, a follow-up — so this assumes the larger of the known variants.
-     * ({@code ES95TSDBDocValuesFormat} defines the same two thresholds independently and currently agrees.)
+     * Per-clause estimate for the "large block" binary-DV variant: its uncompressed block size, plus the
+     * {@code int[]} of per-document block offsets every decoder holds.
      */
-    long PER_CLAUSE_DECODE_BYTES_ESTIMATE = ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT + (long) Integer.BYTES
-        * (ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT + 1);
+    long PER_CLAUSE_DECODE_BYTES_ESTIMATE = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_LARGE + (long) Integer.BYTES
+        * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_LARGE + 1);
+
+    /**
+     * Same, for the small-block variant — the TSDB default unless {@code index.use_time_series_doc_values_format_large_binary_block_size}
+     * is set.
+     */
+    long PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_SMALL + (long) Integer.BYTES
+        * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_SMALL + 1);
 
     /**
      * @param segmentCount unused by the default estimate; kept so a future per-field or concurrency-scaled estimate
      *                      doesn't need to change every caller.
+     * @param largeBinaryBlock whether the index is confirmed to use the large-block binary-DV variant, or unknown —
+     *                          see {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor#largeBinaryBlockOrDefault}.
      * @return estimated peak heap bytes one surviving clause charges against the request circuit breaker.
      */
-    default long estimateDecodeBytes(int segmentCount) {
-        return PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+    default long estimateDecodeBytes(int segmentCount, boolean largeBinaryBlock) {
+        return largeBinaryBlock ? PER_CLAUSE_DECODE_BYTES_ESTIMATE : PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK;
     }
 }

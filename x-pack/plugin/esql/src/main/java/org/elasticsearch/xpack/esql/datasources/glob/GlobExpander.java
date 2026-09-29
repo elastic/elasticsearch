@@ -862,20 +862,6 @@ public final class GlobExpander {
     }
 
     /**
-     * Mutates {@code matched}: appends {@code entry} when there are no {@code _file.*} hints or it matches them,
-     * then returns {@code anchor} unchanged. Otherwise leaves {@code matched} alone and returns {@code anchor} if
-     * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
-     * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
-     * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
-     * {@code matched} is empty. That also keeps a genuine {@code _file.*} miss out of
-     * {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
-     * <p>
-     * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
-     * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and
-     * undo the cap split. Union across pruned files that contribute no rows is not worth holding the full glob.
-     * The donor is the first listing-order reject, not a {@code file_order} pick over the pre-filter set.
-     */
-    /**
      * Reserves heap for the entries retained since the last reservation, a batch at a time.
      * <p>
      * One batch is a provider page, so a walk reserves about as often as it fetches, and the check itself costs a
@@ -893,6 +879,21 @@ public final class GlobExpander {
         memory.reserve((long) (retained - reservedUpTo) * FileList.LISTING_BYTES_PER_ENTRY);
         return retained;
     }
+
+    /**
+     * Mutates {@code matched}: appends {@code entry} when there are no {@code _file.*} hints or it matches them,
+     * then returns {@code anchor} unchanged. Otherwise leaves {@code matched} alone and returns {@code anchor} if
+     * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
+     * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
+     * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
+     * {@code matched} is empty. That also keeps a genuine {@code _file.*} miss out of
+     * {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
+     * <p>
+     * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
+     * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and
+     * undo the cap split. Union across pruned files that contribute no rows is not worth holding the full glob.
+     * The donor is the first listing-order reject, not a {@code file_order} pick over the pre-filter set.
+     */
 
     private static StorageEntry addOrStashAnchor(
         StorageEntry entry,

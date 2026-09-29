@@ -176,18 +176,18 @@ public interface FileList {
     }
 
     /**
+     * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
+     * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
+     */
+    long LISTING_BYTES_PER_ENTRY = 700L;
+
+    /**
      * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight
      * (paths / sizes / mtimes) and does not include partition value arrays. When
      * {@link #partitionMetadata()} is present and non-empty, this adds {@link PartitionMetadata#planningBytes()}
      * so planning can charge columnar (and optionally directory-shared) partition values before the schema
      * map is built. Not a measured deep size of interned value objects.
      */
-    /**
-     * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
-     * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
-     */
-    long LISTING_BYTES_PER_ENTRY = 700L;
-
     default long planningBytes() {
         PartitionMetadata metadata = partitionMetadata();
         if (metadata == null || metadata.isEmpty()) {

@@ -19,6 +19,7 @@ public class ExternalPlanningReservationTests extends ESTestCase {
     /** Counts what reached the breaker, so a leak is visible as a total that never returns to zero. */
     private static final class CountingBreaker extends NoopCircuitBreaker {
         private final AtomicLong outstanding = new AtomicLong();
+        private volatile Runnable onCharge;
 
         CountingBreaker() {
             super("test");
@@ -27,6 +28,11 @@ public class ExternalPlanningReservationTests extends ESTestCase {
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
             outstanding.addAndGet(bytes);
+            Runnable hook = onCharge;
+            if (hook != null) {
+                onCharge = null;
+                hook.run();
+            }
         }
 
         @Override
@@ -97,4 +103,25 @@ public class ExternalPlanningReservationTests extends ESTestCase {
         assertEquals(0, reservation.queryHeld());
         reservation.close();
     }
+
+    /**
+     * The anti-leak guard under an interleaving, which is the only way it can fail. A charge reads the flag,
+     * charges the breaker and adds to the held total; if the whole of close() runs between the read and the add,
+     * the refund takes a total that does not include those bytes and nothing ever releases them - close() is
+     * one-shot. They sit on the request breaker for the node's lifetime.
+     * <p>
+     * Forced here by a breaker that closes the reservation from inside the charge itself, which is the interleaving
+     * without the flakiness of racing two threads.
+     */
+    public void testAChargeRacingCloseIsNeverLeft() {
+        CountingBreaker breaker = new CountingBreaker();
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        breaker.onCharge = reservation::close;
+
+        expectThrows(IllegalStateException.class, () -> reservation.chargeQuery(4096));
+
+        assertEquals("the bytes went back rather than sitting on the breaker", 0, breaker.outstanding.get());
+        assertEquals(0, reservation.queryHeld());
+    }
+
 }

@@ -2273,12 +2273,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
-     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. So a
-     * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
-     * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
-     */
-    /**
      * Which modes may be answered from a prefix, asserted on the predicate itself.
      * <p>
      * No query can separate this guard from the file-order guard beside it: {@code FileOrderConfig.forListing} is
@@ -2305,6 +2299,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
+     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. So a
+     * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
+     * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
+     */
 
     public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
         List<StorageEntry> listing = List.of(

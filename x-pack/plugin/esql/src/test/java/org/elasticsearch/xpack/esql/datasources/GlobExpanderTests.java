@@ -5044,13 +5044,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The expander honours the extents it is given and takes no second opinion on whether they were a good idea.
-     * Whether a bound is eligible at all — no narrowing hints, no dataset-chosen file order — is decided once, by
-     * the resolver, before it chooses between the listing cache and a bounded expansion. Stating that rule here as
-     * well is what let the two statements drift; the decline it used to assert now lives in
-     * {@code ExternalSourceResolverTests#testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt}.
-     */
-    /**
      * A listing reserves heap as it accumulates, not once it is built. The difference is the whole point of
      * reserving at all: a reservation taken after the walk reports the memory but cannot refuse it, so a dataset
      * this node cannot hold would already be in heap by the time anyone objected.
@@ -5106,6 +5099,14 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertThat("it gave up while still listing, not after", reservations.get(), lessThan(5));
     }
+
+    /**
+     * The expander honours the extents it is given and takes no second opinion on whether they were a good idea.
+     * Whether a bound is eligible at all — no narrowing hints, no dataset-chosen file order — is decided once, by
+     * the resolver, before it chooses between the listing cache and a bounded expansion. Stating that rule here as
+     * well is what let the two statements drift; the decline it used to assert now lives in
+     * {@code ExternalSourceResolverTests#testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt}.
+     */
 
     public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
         // The hint must keep the page's first key, or the value filter empties the bounded page and the listing

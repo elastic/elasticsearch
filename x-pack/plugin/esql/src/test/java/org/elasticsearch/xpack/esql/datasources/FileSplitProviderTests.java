@@ -5837,11 +5837,6 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * The control for the two above: sampling a dataset's paths is not itself a fault. A listing bounded to one
-     * folder, with eleven more past it whose values all fit the type that folder produced, reads every value
-     * correctly and says nothing. A warning here would fire on every bounded partitioned query.
-     */
-    /**
      * A cap the discovered listing exceeds must answer the same way whether or not the listing was cacheable. The
      * cache reports a loader failure as a checked {@code ExecutionException}, which carries no status: handed on it
      * answers 500, where the cap's own {@link IllegalArgumentException} names the setting to raise and answers 400.
@@ -6085,6 +6080,11 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    /**
+     * The control for the two above: sampling a dataset's paths is not itself a fault. A listing bounded to one
+     * folder, with eleven more past it whose values all fit the type that folder produced, reads every value
+     * correctly and says nothing. A warning here would fire on every bounded partitioned query.
+     */
     public void testSamplingPartitionPathsAloneWarnsAboutNothing() throws Exception {
         Map<String, byte[]> payloads = new HashMap<>();
         List<StorageEntry> everyFile = new ArrayList<>();

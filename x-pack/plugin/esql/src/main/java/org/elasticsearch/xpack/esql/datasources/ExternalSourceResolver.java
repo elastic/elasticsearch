@@ -344,10 +344,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reserves listing memory plus the per-file schema map before reconciliation or the strict schema loop
-     * builds that map. A trip leaves the reservation unchanged: the breaker throws before the add is recorded.
-     */
-    /**
      * Reserves this resolution's listing against the query's planning reservation, as it is listed.
      * <p>
      * The listing walk reserves a batch of entries at a time, so a dataset this node cannot hold trips the breaker

@@ -60,26 +60,41 @@ public final class ExternalPlanningReservation implements Releasable {
         for (Run run : runs) {
             run.close();
         }
-        refund(queryHeld);
+        refund(queryHeld, closed);
     }
 
     private void admit(AtomicLong held, long bytes, AtomicBoolean releasedAlready, String scope) {
         if (bytes <= 0) {
             return;
         }
-        refuseAfterRelease(releasedAlready, scope);
+        // Charged before the flag is read, so a trip costs nothing and leaves nothing held. What follows decides
+        // whether we get to keep it.
         breaker.addEstimateBytesAndMaybeBreak(bytes, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
-        held.addAndGet(bytes);
+        boolean kept = false;
+        synchronized (releasedAlready) {
+            if (releasedAlready.get() == false) {
+                held.addAndGet(bytes);
+                kept = true;
+            }
+        }
+        if (kept == false) {
+            // The reservation was released while this charge was in flight. Reading the flag and then adding would
+            // have let the refund run between the two and take a total that does not include these bytes, leaving
+            // them on the request breaker for the node's lifetime - nothing releases twice. Hand them back here,
+            // then refuse, so the caller still learns it charged too late.
+            breaker.addWithoutBreaking(-bytes, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
+            throw new IllegalStateException("external planning memory cannot be reserved against a closed " + scope + " reservation");
+        }
     }
 
     /**
-     * Refuses to reserve against a reservation that has already refunded.
+     * Refuses to open a run against a reservation that has already refunded.
      * <p>
-     * {@link #close()} sets the held total back to zero and hands the bytes to the breaker; anything added after
-     * that is never released, because nothing closes twice. So a late charge does not merely mis-report - it leaks
-     * for the lifetime of the node. Charging after the refund is a programming error rather than a condition to
-     * tolerate, and this is reachable the moment a charge runs on a thread the query can outrun: split discovery
-     * hops to {@code esql_external_io}, and a failure elsewhere closes the reservation underneath it.
+     * {@link #close()} closes every run it knows about and then sets the held total back to zero; a run opened
+     * after that is on nobody's close path, so whatever it charges is never released. Nothing closes twice.
+     * <p>
+     * A late <em>charge</em> is handled in {@link #admit} instead, which cannot use this check on its own: reading
+     * a flag and then adding leaves a window for the refund to run between the two.
      */
     private static void refuseAfterRelease(AtomicBoolean releasedAlready, String scope) {
         if (releasedAlready.get()) {
@@ -87,8 +102,13 @@ public final class ExternalPlanningReservation implements Releasable {
         }
     }
 
-    private void refund(AtomicLong held) {
-        long bytes = held.getAndSet(0);
+    private void refund(AtomicLong held, AtomicBoolean releasedAlready) {
+        long bytes;
+        // Under the same lock admit takes, so a charge is either counted in this total or refuses and returns its
+        // own bytes. The flag is already set by the caller, which is what makes the second outcome safe.
+        synchronized (releasedAlready) {
+            bytes = held.getAndSet(0);
+        }
         if (bytes > 0) {
             breaker.addWithoutBreaking(-bytes, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
         }
@@ -120,7 +140,7 @@ public final class ExternalPlanningReservation implements Releasable {
             if (released.compareAndSet(false, true) == false) {
                 return;
             }
-            refund(held);
+            refund(held, released);
         }
     }
 }

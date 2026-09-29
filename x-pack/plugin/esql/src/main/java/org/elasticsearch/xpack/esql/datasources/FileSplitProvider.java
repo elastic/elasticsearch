@@ -573,17 +573,18 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Lists the dataset this query reads, narrowing by the filters bound to this relation occurrence. Those filters
-     * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
-     * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
-     */
-    /**
      * Reserves this query's own listing. The context carries the reservation when the query has one; a provider
      * reached outside a query (tests) reserves nothing.
      */
     private static ListingMemory scanMemory(SplitDiscoveryContext context) {
         return context.listingMemory() == null ? ListingMemory.NONE : context.listingMemory();
     }
+
+    /**
+     * Lists the dataset this query reads, narrowing by the filters bound to this relation occurrence. Those filters
+     * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
+     * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
+     */
 
     private FileList listForQuery(SplitDiscoveryContext context) throws Exception {
         String pattern = context.metadata() == null ? null : context.metadata().location();
@@ -2084,11 +2085,10 @@ public class FileSplitProvider implements SplitProvider {
             if (context.rowLimit() == FormatReader.NO_LIMIT) {
                 return UNUSABLE;
             }
-            // A policy nobody could resolve is not a FAIL_FAST policy. Reading its mode would throw here, and this
-            // is a guard whose whole job is to fail closed - so an absent policy declines the budget like any other
-            // policy that is not FAIL_FAST, rather than taking the query down with it.
-            ErrorPolicy policy = ErrorPolicy.forReader(context.config(), reader);
-            if (policy == null || policy.mode() != ErrorPolicy.Mode.FAIL_FAST) {
+            // forReader never returns null: FormatReader#defaultErrorPolicy defaults to STRICT and a null reader
+            // resolves to STRICT too, so there is no absent-policy case to guard here. A mock that returns one is
+            // a fixture that is not shaped like a reader.
+            if (ErrorPolicy.forReader(context.config(), reader).mode() != ErrorPolicy.Mode.FAIL_FAST) {
                 return UNUSABLE;
             }
             return new RowBudget(context.rowLimit());

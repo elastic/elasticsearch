@@ -175,7 +175,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     }
 
     private BinaryDocValues stringBinary(FieldInfo field, StringColumnMetadata metadata) throws IOException {
-        final boolean singleValued = "true".equals(field.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE));
+        final boolean singleValued = Boolean.parseBoolean(field.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE));
         StringColumnReader reader = StringColumnReader.open(metadata, inputs);
         return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
     }

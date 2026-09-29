@@ -142,7 +142,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         AllocationDecider canAllocateDecider = new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return Decision.NO;
+                return TestAllocationDecisions.NO_DECISION;
             }
         };
         Tuple<ClusterState, MoveDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY, false);
@@ -217,7 +217,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 if (excludeNodes.contains(node.nodeId())) {
-                    return Decision.NO;
+                    return TestAllocationDecisions.NO_DECISION;
                 }
                 return Decision.YES;
             }

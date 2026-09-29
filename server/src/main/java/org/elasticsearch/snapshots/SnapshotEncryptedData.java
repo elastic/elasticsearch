@@ -24,9 +24,7 @@ import java.util.stream.Collectors;
 
 /**
  * The {@code encrypted_data} block from a create-snapshot request. Carries a type discriminator
- * ({@value #TYPE_PASSWORD} or {@value #TYPE_SECURE_SETTING}) and type-specific fields. Only
- * {@code type: password} is executable today; {@code type: secure_setting} is reserved for a
- * follow-up implementation.
+ * ({@value #TYPE_PASSWORD} or {@value #TYPE_SECURE_SETTING}) and type-specific fields.
  *
  * <p>Instances are master-local: the password must never travel in cluster state.
  */
@@ -43,8 +41,7 @@ public final class SnapshotEncryptedData implements Writeable {
 
     private static final int MIN_PASSWORD_LENGTH = 15;
 
-    // Reject passwords that are *entirely* a template fragment (anchored). A password merely
-    // containing one of these patterns is still accepted.
+    // Reject passwords that are *entirely* a template fragment (anchored)
     private static final Map<Pattern, String> TEMPLATE_PATTERNS = Map.of(
         Pattern.compile("^\\s*\\$\\{[^}]+\\}\\s*$"),
         "${VAR}",

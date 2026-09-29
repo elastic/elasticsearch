@@ -26,12 +26,13 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -39,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
@@ -82,6 +84,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
     }
 
     public void testWarningEmittedWhenEncryptedDataPresent() {
+        assumeFalse("warning is suppressed when snapshot encryption feature is available", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
         TestCustom custom = new TestCustom();
         ClusterState state = stateWithCustom(custom);
         ClusterService clusterService = mockClusterService(state);
@@ -112,6 +115,36 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
             assertThat(responseHeaders, hasKey("Warning"));
             assertThat(responseHeaders.get("Warning").get(0), containsString("Encrypted credentials"));
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testNoWarningWhenFeatureFlagEnabled() {
+        assumeTrue("only relevant when snapshot encryption feature is enabled", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+        TestCustom custom = new TestCustom();
+        ClusterState state = stateWithCustom(custom);
+        ClusterService clusterService = mockClusterService(state);
+        var registry = new EncryptedDataHandlerRegistry(List.of(handlerFor(TestCustom.TYPE)));
+        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
+
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            AtomicBoolean proceeded = new AtomicBoolean();
+            MockLog.assertThatLogger(
+                () -> filter.apply(
+                    mock(Task.class),
+                    "action",
+                    new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
+                    ActionListener.noop(),
+                    chain(proceeded)
+                ),
+                SnapshotEncryptedDataWarningFilter.class,
+                new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
+            );
+            assertTrue("chain.proceed was not called", proceeded.get());
+            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
         } finally {
             HeaderWarning.removeThreadContext(threadContext);
         }
@@ -159,7 +192,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
                 return current;
             }
         }));
@@ -232,7 +265,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> rewrapper) {
                 return current;
             }
         };

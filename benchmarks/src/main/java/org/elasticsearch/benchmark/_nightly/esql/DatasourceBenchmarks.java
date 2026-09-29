@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark._nightly.esql;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -63,6 +64,11 @@ final class DatasourceBenchmarks {
     }
 
     private static final class InMemoryStorageObject implements StorageObject {
+        /** One identity for all in-memory fixtures, so footer-cache entries stay keyed by URI alone as before. */
+        private record BenchIdentity() implements StorageIdentity {}
+
+        private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
         private final byte[] data;
         private final String uri;
 
@@ -110,6 +116,11 @@ final class DatasourceBenchmarks {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return BENCH_IDENTITY;
         }
 
         @Override

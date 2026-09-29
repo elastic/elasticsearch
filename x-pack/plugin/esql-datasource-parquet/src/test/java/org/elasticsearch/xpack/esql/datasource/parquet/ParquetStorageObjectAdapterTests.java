@@ -32,6 +32,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -430,6 +432,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject rangeOnlyStorageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported; use range reads only");
             }
@@ -486,6 +493,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
         StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported");
@@ -545,6 +557,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         Instant lastModified = Instant.ofEpochMilli(123);
 
         StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported");
@@ -606,6 +623,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         final int[] rangeReadCount = { 0 };
 
         StorageObject rangeOnlyCounting = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported");
@@ -689,6 +711,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject measuringStorageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported");
             }
@@ -759,6 +786,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject countingStorageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException();
             }
@@ -824,6 +856,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);
@@ -1159,6 +1196,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject obj = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException();
             }
@@ -1322,6 +1364,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingStorageObject(byte[] data, StoragePath path, Instant lastModified, int[] counter) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 throw new UnsupportedOperationException("Full GET not supported");
@@ -1571,6 +1618,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException("Full GET not supported in counting harness");
             }
@@ -1651,6 +1703,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createRangeReadStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

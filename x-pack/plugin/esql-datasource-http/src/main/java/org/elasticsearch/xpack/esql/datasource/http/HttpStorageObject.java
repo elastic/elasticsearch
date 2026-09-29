@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    private final StorageIdentity storageIdentity;
 
     // Cached metadata to avoid repeated HEAD requests
     private Long cachedLength;
@@ -59,6 +61,21 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
+        this(HttpConfigIdentity.of(config), client, path, config);
+    }
+
+    /**
+     * Provider constructor: {@code storageIdentity} is computed once per provider rather than per object.
+     */
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -72,13 +89,24 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.storageIdentity = storageIdentity;
     }
 
     /**
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config);
+        this(HttpConfigIdentity.of(config), client, path, config, length);
+    }
+
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length
+    ) {
+        this(storageIdentity, client, path, config);
         this.cachedLength = length;
     }
 
@@ -86,7 +114,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length);
+        this(HttpConfigIdentity.of(config), client, path, config, length, lastModified);
+    }
+
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        Instant lastModified
+    ) {
+        this(storageIdentity, client, path, config, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -253,6 +292,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===

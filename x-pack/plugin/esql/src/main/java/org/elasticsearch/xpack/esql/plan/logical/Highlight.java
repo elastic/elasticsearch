@@ -489,7 +489,7 @@ public class Highlight extends UnaryPlan
                         + "], which is not a registered analyzer. Write the query on HIGHLIGHT without that analyzer option, "
                         + "or drop the option from the WHERE; highlights may then differ from what matched."
                     : e.getMessage();
-                failures.add(fail(this, "{}", message));
+failures.add(fail(name.equals(commandAnalyzerName) ? this : query, "{}", message));
                 return true;
             }
         }

@@ -230,9 +230,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(ul("0")), row(ul("9223372036854775808")), row(ul("18446744073709551615"))), rows);
     }
 
-    public void testUnsignedLongTruncatingTokensParity() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.9\n1e3\n");
+    /**
+     * Exact whole-number tokens (trailing-zero decimal, scientific) agree on both arms; a non-whole
+     * fraction is refused and nulls the cell under {@code null_field}, deliberately unlike
+     * {@code ::unsigned_long} which truncates toward zero.
+     */
+    public void testUnsignedLongExactWholeTokensParity() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.0\n1e3\n");
         assertEquals(List.of(row(ul("42")), row(ul("1000"))), rows);
+        assertEquals(List.of(row((Object) null), row(ul("5"))), read(false, nullField(), "a:unsigned_long\n42.9\n5\n"));
     }
 
     public void testUnsignedLongOutOfRangeNullFieldParity() throws IOException {
@@ -259,11 +265,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
-        // A decimal token in a long column now ROUNDS (declared read == ::long, which reuses the
-        // cast engine), where the former Long.parseLong path rejected it as a null-field error.
-        List<List<Object>> rows = read(false, nullField(), "a:long\n1.6\n");
-        assertEquals(List.of(row(2L)), rows);
+    public void testDecimalInLongColumnRefusesNonWholeUnderNullField() throws IOException {
+        // A non-whole decimal in a long column is a value error (exact read); under null_field the cell
+        // nulls. Exact wholes still succeed. Deliberately unlike ::long, which rounds.
+        assertEquals(List.of(row((Object) null)), read(false, nullField(), "a:long\n1.6\n"));
+        assertEquals(List.of(row(2L)), read(false, nullField(), "a:long\n2.0\n"));
     }
 
     /**
@@ -893,9 +899,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testTsvPlainDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
-        List<List<Object>> rows = read(true, nullField(), "a:long\n1.6\n");
-        assertEquals(List.of(row(2L)), rows);
+    public void testTsvPlainDecimalInLongColumnRefusesNonWholeUnderNullField() throws IOException {
+        assertEquals(List.of(row((Object) null)), read(true, nullField(), "a:long\n1.6\n"));
+        assertEquals(List.of(row(2L)), read(true, nullField(), "a:long\n2.0\n"));
     }
 
     public void testTsvPlainDoubleForms() throws IOException {

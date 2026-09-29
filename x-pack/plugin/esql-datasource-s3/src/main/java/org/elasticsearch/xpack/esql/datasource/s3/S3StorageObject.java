@@ -883,6 +883,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         handle.register(readFuture);
         onReadComplete(readFuture, (buffer, throwable) -> {
             if (throwable != null) {
+                // Every undelivered attempt, not only cancel. The SDK future and the transformer's
+                // result future are different futures: failing this one does not release a buffer
+                // the transformer already holds. A retryable failure that already went through
+                // onError is a no-op; a buffer the SDK never forwarded gets closed.
+                transformer.discard();
                 onReadAttemptFailure(throwable, request, length, factory, executor, listener, retryToken, startNanos, handle);
                 return;
             }
@@ -934,8 +939,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     /**
      * Shared failure decision point for {@link #readAttempt}: asks the retry strategy whether to try
      * again (which also classifies retryability and computes the jittered backoff), and either
-     * schedules the next attempt or surfaces the mapped failure. The failed attempt's transformer
-     * has already released its buffer, so a retry simply allocates a fresh one.
+     * schedules the next attempt or surfaces the mapped failure. The async completion path calls
+     * {@link CrossRegionAwareResponseTransformer#discard()} before entering here, so that attempt's
+     * buffer is released and a retry allocates a fresh one. A synchronous {@code getObject} throw
+     * enters here without {@code discard()}: signing and validation fail before a body is allocated.
      */
     private void onReadAttemptFailure(
         Throwable throwable,

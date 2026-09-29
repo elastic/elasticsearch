@@ -48,15 +48,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         null,
         0
     );
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
-        null,
-        null,
-        AllocationDecision.NO,
-        NO,
-        null,
-        null,
-        0
-    );
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, null, AllocationDecision.NO, NO, null, null, 0);
 
     @Nullable
     private final AllocationDecision canMoveDecision;
@@ -183,7 +175,15 @@ public final class MoveDecision extends AbstractAllocationDecision {
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(targetNode, nodeDecisions, canMoveDecision, canRemainDecision, canRebalanceDecision, null, currentNodeRanking);
+        return new MoveDecision(
+            targetNode,
+            nodeDecisions,
+            canMoveDecision,
+            canRemainDecision,
+            canRebalanceDecision,
+            null,
+            currentNodeRanking
+        );
     }
 
     @Override
@@ -406,8 +406,13 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode()
-            + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, canAllocateDecision, currentNodeRanking);
+        return 31 * super.hashCode() + Objects.hash(
+            canMoveDecision,
+            canRemainDecision,
+            clusterRebalanceDecision,
+            canAllocateDecision,
+            currentNodeRanking
+        );
     }
 
     @Override

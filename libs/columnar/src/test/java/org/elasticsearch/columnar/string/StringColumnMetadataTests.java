@@ -74,7 +74,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         });
     }
 
-    /** A column holds more slots than it has documents exactly when a document holds more than one. */
+    /** A column records whether one of its documents holds more than one slot, rather than deriving it. */
     public void testMultiValuedIsWhatTheColumnRecorded() throws IOException {
         final BytesRef[][] docSlots = randomDocSlots(between(2, 50), 1, false, false);
         withColumn(docSlots, (metadata, reader) -> assertFalse("one slot a document", metadata.multiValued()));

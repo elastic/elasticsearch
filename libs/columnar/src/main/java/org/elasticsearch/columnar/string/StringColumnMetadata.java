@@ -124,7 +124,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * column records it rather than deriving it: the addressing is kept exactly where it is needed.
      */
     default boolean hasValueAddresses() {
-        return addressing() != SlotAddressing.NONE;
+        return SlotAddressing.NONE.equals(addressing()) == false;
     }
 
     /** True when at least one slot in the column is null. */

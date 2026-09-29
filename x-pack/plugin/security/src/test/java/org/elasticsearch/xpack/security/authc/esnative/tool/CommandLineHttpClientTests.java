@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
@@ -27,10 +28,21 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.Principal;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.List;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.X509ExtendedKeyManager;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -100,6 +112,34 @@ public class CommandLineHttpClientTests extends ESTestCase {
         assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
     }
 
+    /**
+     * Checks certificate-chain validation when connecting with a pinned CA fingerprint.
+     */
+    public void testPinnedFingerprintValidatesCertificateChain() throws Exception {
+        final List<Certificate> certificateChain = PemUtils.readCertificates(List.of(certPath));
+        final X509Certificate leafCertificate = (X509Certificate) certificateChain.get(0);
+        final PrivateKey leafKey = PemUtils.readPrivateKey(keyPath, () -> "testnode".toCharArray());
+        // Use a separate CA certificate as the client's trust anchor.
+        final X509Certificate pinnedCa = CertParsingUtils.readX509Certificate(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt")
+        );
+
+        try (MockWebServer testServer = createMockWebServerPresentingChain(leafKey, leafCertificate, pinnedCa)) {
+            testServer.enqueue(new MockResponse().setResponseCode(200).setBody("{\"test\": \"complete\"}"));
+            testServer.start();
+
+            final CommandLineHttpClient client = new CommandLineHttpClient(
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build()),
+                SslUtil.calculateFingerprint(pinnedCa, "SHA-256")
+            );
+            final URL url = new URL("https://localhost:" + testServer.getPort() + "/test");
+            expectThrows(
+                SSLException.class,
+                () -> client.execute("GET", url, "u1", new SecureString(new char[] { 'p' }), () -> null, this::responseBuilder)
+            );
+        }
+    }
+
     public void testGetDefaultURLFailsWithHelpfulMessage() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).put("network.host", "_ec2:privateIpv4_").build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
@@ -113,6 +153,66 @@ public class CommandLineHttpClientTests extends ESTestCase {
         Settings settings = getHttpSslSettings().build();
         TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
         return new MockWebServer(sslService.sslContext("xpack.security.http.ssl."), false);
+    }
+
+    /**
+     * Builds a mock HTTPS server with the supplied private key and certificate chain. A custom key manager allows tests
+     * to supply certificate chains independently of key-store validation.
+     */
+    private MockWebServer createMockWebServerPresentingChain(
+        PrivateKey leafKey,
+        X509Certificate leaf,
+        X509Certificate... additionalChainCerts
+    ) throws Exception {
+        final X509Certificate[] chain = new X509Certificate[additionalChainCerts.length + 1];
+        chain[0] = leaf;
+        System.arraycopy(additionalChainCerts, 0, chain, 1, additionalChainCerts.length);
+
+        final X509ExtendedKeyManager keyManager = new X509ExtendedKeyManager() {
+            @Override
+            public String[] getServerAliases(String keyType, Principal[] issuers) {
+                return new String[] { "server" };
+            }
+
+            @Override
+            public String chooseServerAlias(String keyType, Principal[] issuers, Socket socket) {
+                return "server";
+            }
+
+            @Override
+            public String chooseEngineServerAlias(String keyType, Principal[] issuers, SSLEngine engine) {
+                return "server";
+            }
+
+            @Override
+            public String[] getClientAliases(String keyType, Principal[] issuers) {
+                return null;
+            }
+
+            @Override
+            public String chooseClientAlias(String[] keyType, Principal[] issuers, Socket socket) {
+                return null;
+            }
+
+            @Override
+            public String chooseEngineClientAlias(String[] keyType, Principal[] issuers, SSLEngine engine) {
+                return null;
+            }
+
+            @Override
+            public X509Certificate[] getCertificateChain(String alias) {
+                return chain.clone();
+            }
+
+            @Override
+            public PrivateKey getPrivateKey(String alias) {
+                return leafKey;
+            }
+        };
+
+        final SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(new KeyManager[] { keyManager }, null, null);
+        return new MockWebServer(sslContext, false);
     }
 
     private Settings.Builder getHttpSslSettings() {

@@ -321,43 +321,47 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     @Override
     public void close() throws IOException {
+        close(TimeValue.timeValueNanos(System.nanoTime() - startNanos));
+    }
 
-        var translogReplayTime = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
+    void close(TimeValue translogReplayTime) throws IOException {
         var networkTime = TimeValue.timeValueNanos(listUnfilteredFilesNanos + createPlanNanos + operationsReadNanos);
         var blobCount = blobsToRead.size();
         var blobSizeInBytes = ByteSizeValue.of(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES);
 
-        // Logged for every recovery, including one that replayed nothing: "no operations were replayed" is the single most
-        // useful fact when reconstructing what a shard did, and it is indistinguishable from "there was nothing to replay"
-        // unless it is recorded. A slow recovery keeps its own level so existing alerting on WARN still fires.
-        logger.log(
-            translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0 ? Level.WARN : Level.INFO,
-            "[{}] stateless translog recovery [translogReplayTime={}, translogContainer={}, translogRecoveryStartFile={}, "
-                + "fromSeqNo={}, toSeqNo={}, blobsToRead_count={}, blobsToRead_first={}, blobsToRead_last={}, networkTime={}, "
-                + "blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}, "
-                + "indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, deleteOperationsProcessed={}, "
-                + "noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
-            shardId,
-            translogReplayTime,
-            translogBlobContainer.path(),
-            translogRecoveryStartFile,
-            fromSeqNo,
-            toSeqNo,
-            blobCount,
-            blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
-            blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
-            networkTime,
-            blobSizeInBytes,
-            filesWithShardOperations,
-            operationsRead,
-            ByteSizeValue.of(operationBytesRead, ByteSizeUnit.BYTES),
-            indexOperationsProcessed,
-            indexOperationsWithIDProcessed,
-            deleteOperationsProcessed,
-            noOpOperationsProcessed,
-            unreferencedBlobCount,
-            unreferencedBlobSizeInBytes
-        );
+        final boolean slowRecovery = translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0;
+        // Report recovery when there were blobs to read, and keep the slow-recovery warning even if there were none.
+        if (blobCount > 0 || slowRecovery) {
+            logger.log(
+                slowRecovery ? Level.WARN : Level.INFO,
+                "[{}] {}stateless translog recovery [translogReplayTime={}, translogContainer={}, translogRecoveryStartFile={}, "
+                    + "fromSeqNo={}, toSeqNo={}, blobsToRead_count={}, blobsToRead_first={}, blobsToRead_last={}, networkTime={}, "
+                    + "blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}, "
+                    + "indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, deleteOperationsProcessed={}, "
+                    + "noOpOperationsProcessed={}, unreferencedBlobCount={}, unreferencedBlobSizeInBytes={}]",
+                shardId,
+                slowRecovery ? "slow " : "",
+                translogReplayTime,
+                translogBlobContainer.path(),
+                translogRecoveryStartFile,
+                fromSeqNo,
+                toSeqNo,
+                blobCount,
+                blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
+                blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
+                networkTime,
+                blobSizeInBytes,
+                filesWithShardOperations,
+                operationsRead,
+                ByteSizeValue.of(operationBytesRead, ByteSizeUnit.BYTES),
+                indexOperationsProcessed,
+                indexOperationsWithIDProcessed,
+                deleteOperationsProcessed,
+                noOpOperationsProcessed,
+                unreferencedBlobCount,
+                unreferencedBlobSizeInBytes
+            );
+        }
 
         translogRecoveryMetrics.getTranslogReplayTimeHistogram().record(translogReplayTime.millis());
         translogRecoveryMetrics.getTranslogFilesNetworkTimeHistogram().record(networkTime.millis());

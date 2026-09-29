@@ -19,13 +19,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A shard recovery should say what it replayed, whether or not it replayed anything. A recovery that silently replays
- * nothing is indistinguishable from one that had nothing to replay, which makes it impossible to tell after the fact
- * whether acknowledged operations were lost.
+ * A shard recovery that reads translog blobs should report what it replayed without logging on every shard initialization.
  */
 public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginIntegTestCase {
-
-    private static final String RECOVERY_MESSAGE = "*stateless translog recovery*operationsRead=*";
 
     public void testRecoveryReportsTheOperationsItReplayed() throws Exception {
         startMasterOnlyNode();
@@ -44,11 +40,11 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
 
         try (var mockLog = MockLog.capture(TranslogReplicatorReader.class)) {
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "recovery summary",
                     TranslogReplicatorReader.class.getCanonicalName(),
                     Level.INFO,
-                    RECOVERY_MESSAGE
+                    ".*stateless translog recovery.*operationsRead=[1-9][0-9]*.*"
                 )
             );
             startIndexNode();
@@ -57,7 +53,7 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
         }
     }
 
-    public void testRecoveryStillReportsWhenItReplayedNothing() throws Exception {
+    public void testRecoveryWithoutBlobsDoesNotLogInfo() throws Exception {
         startMasterOnlyNode();
         final String indexNode = startIndexNode();
 
@@ -72,7 +68,7 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
         final List<String> translogNodeIds = List.copyOf(getObjectStoreService(indexNode).getNodesWithTranslogBlobContainers());
         internalCluster().stopNode(indexNode);
 
-        // leave the shard nothing to replay, the shape that currently leaves no trace at all
+        // Leave the shard with no translog blobs to read.
         final ObjectStoreService objectStore = getCurrentMasterObjectStoreService();
         for (String ephemeralId : translogNodeIds) {
             final BlobContainer container = objectStore.getTranslogBlobContainer(ephemeralId);
@@ -84,11 +80,11 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
 
         try (var mockLog = MockLog.capture(TranslogReplicatorReader.class)) {
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "recovery summary with no operations",
+                new MockLog.UnseenEventExpectation(
+                    "recovery summary without blobs",
                     TranslogReplicatorReader.class.getCanonicalName(),
                     Level.INFO,
-                    "*stateless translog recovery*operationsRead=0*"
+                    "*stateless translog recovery*"
                 )
             );
             startIndexNode();

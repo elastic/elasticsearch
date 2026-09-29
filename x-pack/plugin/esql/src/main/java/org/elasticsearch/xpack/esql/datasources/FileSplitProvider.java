@@ -362,6 +362,11 @@ public class FileSplitProvider implements SplitProvider {
      * with no cache, which is what a unit test wants and what every caller had before the cache reached here.
      */
     private final DatasetListingService listingService;
+    /**
+     * Keeps a warning about a dataset's layout to once per window per node rather than once per query. Shared through
+     * {@link FileSourceFactory} in production; a constructor that supplies none gets its own.
+     */
+    private final NodeWarningThrottle warnings;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
 
     public FileSplitProvider() {
@@ -399,7 +404,7 @@ public class FileSplitProvider implements SplitProvider {
         Settings settings,
         @Nullable Executor executor
     ) {
-        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, executor, null);
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, executor, null, null);
     }
 
     public FileSplitProvider(
@@ -409,7 +414,8 @@ public class FileSplitProvider implements SplitProvider {
         FormatReaderRegistry formatRegistry,
         Settings settings,
         @Nullable Executor executor,
-        @Nullable DatasetListingService listingService
+        @Nullable DatasetListingService listingService,
+        @Nullable NodeWarningThrottle warnings
     ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
@@ -418,6 +424,7 @@ public class FileSplitProvider implements SplitProvider {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.executor = executor;
         this.listingService = listingService != null ? listingService : new DatasetListingService(this.settings, null, null, null, null);
+        this.warnings = warnings != null ? warnings : new NodeWarningThrottle();
     }
 
     /**
@@ -485,14 +492,21 @@ public class FileSplitProvider implements SplitProvider {
      * What must not happen is it happening quietly. This goes to the node log rather than the query's response
      * because nothing at this point can reach the response, which is worth fixing separately; a null column nobody
      * can account for is the failure this exists to prevent.
+     * <p>
+     * It describes the dataset rather than the query, so it is written once per dataset and column set per
+     * {@link NodeWarningThrottle} window, not on every query that reads the dataset.
      */
-    private static void warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
+    private void warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
         PartitionMetadata conformed = rebound.partitionInfo();
         if (conformed == null || conformed.isEmpty()) {
             return;
         }
         PartitionMetadata scanned = listed.partitionMetadata();
+        String location = handed.metadata() == null ? "?" : handed.metadata().location();
         if (scanned == null || scanned.isEmpty()) {
+            if (warnings.firstInWindow(location + "|shares-no-partition-key|" + conformed.partitionColumns().keySet()) == false) {
+                return;
+            }
             // The dataset declares partition columns and the scan's listing detected none, which happens when the
             // paths past the sample do not agree with it on the key set - a detector answers all or nothing. Every
             // file then reads null for every partition column, so this is the loudest case rather than a quiet one.
@@ -501,7 +515,7 @@ public class FileSplitProvider implements SplitProvider {
                     + "listing agrees with none of them, so every file reads null for them. Either those paths do not "
                     + "share one key set, in which case the dataset has no partition columns to report, or [{}] is too "
                     + "small to have reached the ones they do share.",
-                handed.metadata() == null ? "?" : handed.metadata().location(),
+                location,
                 conformed.partitionColumns().keySet(),
                 PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
             );
@@ -524,11 +538,13 @@ public class FileSplitProvider implements SplitProvider {
                 break;
             }
         }
-        if (examples.isEmpty() == false) {
+        // Keyed on the columns rather than the example values: a dataset with many folders that do not fit would
+        // otherwise pick a different example on each query and defeat the throttle.
+        if (examples.isEmpty() == false && warnings.firstInWindow(location + "|does-not-fit|" + examples.keySet())) {
             LOGGER.warn(
                 "[{}]: partition values outside the sampled paths do not fit the type the sample produced, so those "
                     + "files read null for them: {}. Raise [{}] so the type is decided over them.",
-                handed.metadata() == null ? "?" : handed.metadata().location(),
+                location,
                 examples,
                 PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
             );

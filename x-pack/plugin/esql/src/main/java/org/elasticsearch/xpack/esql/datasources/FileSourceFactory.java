@@ -159,6 +159,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final DatasetListingService listingService;
+    /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
+    private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -521,7 +523,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             formatRegistry,
             settings,
             splitDiscoveryExecutor,
-            listingService
+            listingService,
+            warnings
         );
     }
 

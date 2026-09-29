@@ -124,6 +124,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
@@ -5822,6 +5823,72 @@ public class FileSplitProviderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("differs from the dataset format [csv]"));
     }
 
+    /**
+     * The warning describes the dataset, not the query, so a second query over the same dataset through the same node
+     * must not write it again - otherwise a dashboard refreshing every few seconds buries the one line that matters.
+     * A different dataset with the same problem is still reported.
+     */
+    public void testADatasetsPartitionWarningIsWrittenOncePerWindowNotPerQuery() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (String folder : List.of("00", "unknown")) {
+            String objectName = "part-" + folder + ".parquet";
+            payloads.put(objectName, new byte[2000]);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=" + folder + "/" + objectName), 2000, Instant.EPOCH));
+        }
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(prefix, w -> {});
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        Function<String, SplitDiscoveryContext> over = location -> new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", location),
+            GlobExpander.truncatedFileListOf(prefix, location),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            overThePrefix,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile),
+            null,
+            new NodeWarningThrottle()
+        );
+
+        MockLog.assertThatLogger(
+            () -> provider.discoverSplits(over.apply("s3://b/" + "**/*.parquet")),
+            FileSplitProvider.class,
+            new MockLog.SeenEventExpectation(
+                "the first query reports it",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*do not fit the type the sample produced*"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> provider.discoverSplits(over.apply("s3://b/" + "**/*.parquet")),
+            FileSplitProvider.class,
+            new MockLog.UnseenEventExpectation(
+                "the second does not repeat it",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*do not fit the type the sample produced*"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> provider.discoverSplits(over.apply("s3://b/hour=*/*.parquet")),
+            FileSplitProvider.class,
+            new MockLog.SeenEventExpectation(
+                "another dataset with the same problem is its own report",
+                FileSplitProvider.class.getCanonicalName(),
+                Level.WARN,
+                "*do not fit the type the sample produced*"
+            )
+        );
+    }
+
     public void testSamplingPartitionPathsAloneWarnsAboutNothing() throws Exception {
         Map<String, byte[]> payloads = new HashMap<>();
         List<StorageEntry> everyFile = new ArrayList<>();
@@ -6027,6 +6094,17 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageProviderRegistry storageRegistry,
         @Nullable DatasetListingService listingService
     ) {
+        return rangeAwareProvider(reader, executor, settings, storageRegistry, listingService, null);
+    }
+
+    private static FileSplitProvider rangeAwareProvider(
+        RangeAwareFormatReader reader,
+        @Nullable Executor executor,
+        Settings settings,
+        StorageProviderRegistry storageRegistry,
+        @Nullable DatasetListingService listingService,
+        @Nullable NodeWarningThrottle warnings
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
         formatRegistry.byName("parquet");
@@ -6037,7 +6115,8 @@ public class FileSplitProviderTests extends ESTestCase {
             formatRegistry,
             settings,
             executor,
-            listingService
+            listingService,
+            warnings
         );
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -86,7 +86,7 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
 
     @Before
     public void setupClusters() throws Exception {
-        final Map<String, EndpointClusterState> inferenceEndpoints = Map.of(
+        final Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
             SPARSE_INFERENCE_ID,
             sparseEmbeddingServiceSettings(),
             DENSE_INFERENCE_ID,

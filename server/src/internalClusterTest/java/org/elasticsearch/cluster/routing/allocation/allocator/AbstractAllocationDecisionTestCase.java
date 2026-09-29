@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -163,24 +164,21 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
 
     public static class TestAllocationDecider extends AllocationDecider {
 
-        public static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, "test_decider", null);
-        public static final Decision NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", null);
-
         /**
          * These tests aren't about rebalancing, disable it so it doesn't interfere with the results
          */
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return NO_DECISION;
+            return TestDecisions.NO;
         }
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_ALLOCATE_NO_IDS.contains(node.nodeId())) {
-                return NO_DECISION;
+                return TestDecisions.NO;
             }
             if (CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return NOT_PREFERRED_DECISION;
+                return TestDecisions.NOT_PREFERRED;
             }
             if (CAN_ALLOCATE_THROTTLE_NODE_IDS.contains(node.nodeId()) && allocation.isSimulating() == false) {
                 return Decision.THROTTLE;
@@ -191,9 +189,9 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
-                return NO_DECISION;
+                return TestDecisions.NO;
             } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return NOT_PREFERRED_DECISION;
+                return TestDecisions.NOT_PREFERRED;
             }
             return Decision.YES;
         }

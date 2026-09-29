@@ -3128,19 +3128,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static Knn inferSimilarityForRuntimeKnn(
-            Knn knn,
-            Map<NameId, String> vectorSimilarities,
-            AnalyzerContext context
-        ) {
+        private static Knn inferSimilarityForRuntimeKnn(Knn knn, Map<NameId, String> vectorSimilarities, AnalyzerContext context) {
             if (knn.isRuntimeSearch() == false) {
                 return knn;
             }
 
             String fieldInferenceId = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
             SimilarityMeasure fieldSimilarity = fieldInferenceId != null ? resolveSimilarity(fieldInferenceId, context) : null;
-            String queryInferenceId = knn.query() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) :
-                inferExpressionInferenceId(knn.query());
+            String queryInferenceId = knn.query() instanceof Attribute attribute
+                ? vectorSimilarities.get(attribute.id())
+                : inferExpressionInferenceId(knn.query());
 
             SimilarityMeasure querySimilarity = queryInferenceId != null ? resolveSimilarity(queryInferenceId, context) : null;
 

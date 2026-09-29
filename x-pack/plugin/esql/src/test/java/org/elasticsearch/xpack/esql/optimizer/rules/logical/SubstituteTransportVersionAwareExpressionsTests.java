@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -33,6 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -211,7 +211,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
         LogicalPlan optimized = new SubstituteTransportVersionAwareExpressions().apply(
             plan,
-            new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), oldVersion)
+            logicalOptimizerContext(TEST_CFG, FoldContext.small(), oldVersion)
         );
 
         Expression evaluated = ((Eval) optimized).fields().getFirst().child();

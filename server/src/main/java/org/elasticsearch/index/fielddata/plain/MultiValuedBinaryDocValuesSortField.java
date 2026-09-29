@@ -35,7 +35,8 @@ import java.io.IOException;
  * {@link BinaryDocValuesFormat} the mapping chose; see {@link #binaryFormat()}.
  *
  * <p>For single-valued documents the blob is the raw term bytes and no decoding is needed, except under
- * {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}, which frames every document. For multi-valued documents this
+ * {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}, which frames every document; under
+ * {@link BinaryDocValuesFormat#PLAIN} every document is single-valued. For multi-valued documents this
  * class extracts either the minimum or maximum value as the sort key, consistent with how
  * {@code SortedSetSortField} behaves with a {@code MIN} or {@code MAX} selector.
  */
@@ -78,9 +79,8 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         return switch (binaryFormat) {
             // The payload carries its own count, so there is nothing to advance alongside it.
             case COLUMNAR_PAYLOAD -> new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
-            case PLAIN -> throw new AssertionError(
-                "PLAIN fields use a plain BinarySortField, not MultiValuedBinaryDocValuesSortField; field=[" + getField() + "]"
-            );
+            // One value per document, as its own bytes: already the sort key.
+            case PLAIN -> values;
             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                 String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
                 NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
@@ -126,9 +126,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     public static BytesRef decodeExtreme(BytesRef raw, long count, boolean maxMode, BinaryDocValuesFormat format) throws IOException {
         return switch (format) {
             case COLUMNAR_PAYLOAD -> new StringBinaryPayload.Decoder().extreme(raw, maxMode);
-            case PLAIN -> throw new AssertionError(
-                "PLAIN fields use a plain BinarySortField, not MultiValuedBinaryDocValuesSortField; decodeExtreme should never be called"
-            );
+            case PLAIN -> raw;
             // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
             case ARRAY_ORDER_INLINE_NULL -> count <= 1
                 ? raw

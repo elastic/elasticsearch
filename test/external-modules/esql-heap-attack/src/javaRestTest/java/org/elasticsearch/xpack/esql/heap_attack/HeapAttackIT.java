@@ -502,7 +502,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testHugeToBase64() throws IOException {
         initGiantTextField(1, false, 5);
-        assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        // Lower the request breaker so the chain trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> toBase64Chain(int levels) throws IOException {

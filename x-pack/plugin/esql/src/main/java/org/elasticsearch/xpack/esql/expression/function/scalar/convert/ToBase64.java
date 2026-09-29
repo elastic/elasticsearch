@@ -95,10 +95,10 @@ public class ToBase64 extends UnaryScalarFunction implements AnyNullIsNull {
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
         int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
-        byte[] bytes = new byte[field.length];
-        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(outLength);
         oScratch.clear();
+        byte[] bytes = new byte[field.length];
+        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         int encodedSize = Base64.getEncoder().encode(bytes, oScratch.bytes());
         return new BytesRef(oScratch.bytes(), 0, encodedSize);
     }

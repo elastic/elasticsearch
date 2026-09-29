@@ -15,9 +15,10 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Comparison tests that parse the same JSON with both Jackson (via {@link XContentParser}) and
@@ -35,7 +36,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
     private List<String> walkWithJackson(String json, boolean allowDuplicateKeys) throws IOException {
         List<String> events = new ArrayList<>();
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = json.getBytes(UTF_8);
         try (XContentParser p = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bytes)) {
             if (allowDuplicateKeys) {
                 p.allowDuplicateKeys(true);
@@ -290,6 +291,168 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
             expectThrows(XContentParseException.class, () -> walkWithJackson(json, false));
             expectThrows(JsonParsingException.class, () -> walkJson(json, true));
         }
+    }
+
+    // Leading zeroes in the integer part (e.g. "007", "00", "-01") are invalid per RFC 8259;
+    // both parsers reject them.
+    public void testLeadingZeroRejectedByBothParsers() {
+        List<String> invalidDocuments = List.of(
+            "{\"n\":00}",
+            "{\"n\":01}",
+            "{\"n\":-00}",
+            "{\"n\":-01}",
+            "{\"n\":007}",
+            "{\"n\":00.5}",
+            "{\"n\":01e5}",
+            "{\"a\":[01]}",
+            "{\"a\":[12, 01]}"
+        );
+        for (String json : invalidDocuments) {
+            XContentParseException jacksonEx = expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+            JsonParsingException simdEx = expectThrows(JsonParsingException.class, () -> walkJson(json));
+            assertTrue("Jackson message: " + jacksonEx.getMessage(), jacksonEx.getMessage().contains("Leading zeroes not allowed"));
+            assertTrue("simdjson message: " + simdEx.getMessage(), simdEx.getMessage().contains("Leading zeroes not allowed"));
+        }
+    }
+
+    // Both parsers prefix leading-zero messages with a "[line:column]" location (see
+    // SimdJsonDirectWalker#computeLineAndColumn).
+    public void testLineNumberMatchesBothParsers() {
+        List<String> documents = List.of(
+            "{\"n\":00}",                        // no newlines
+            "{\n\"n\":00}",                      // one newline, right before the field
+            "{\n\n\n\"n\":00}",                  // several consecutive newlines
+            "{\n\"a\":1,\n\"n\":00\n}",          // newlines scattered across multiple tokens
+            "{\n\"a\":[\n1,\n01\n]\n}",          // leading zero inside an array element
+            "{\"a\":{\n\"b\":1\n},\n\"n\":00}"   // leading zero after a nested object
+        );
+        for (String json : documents) {
+            assertLineNumbersMatch(json);
+        }
+    }
+
+    // Same property as above, but with a randomized amount and placement of whitespace.
+    public void testLineNumberMatchesBothParsersRandomized() {
+        int iterations = randomIntBetween(20, 100);
+        for (int i = 0; i < iterations; i++) {
+            String json = withRandomWhitespace("{", "\"a\"", ":", "1", ",", "\"n\"", ":", "00", "}");
+            assertLineNumbersMatch(json);
+        }
+    }
+
+    // Joins tokens with a random run of insignificant JSON whitespace before, between, and
+    // after each - JSON permits whitespace in all of these positions, so this should never
+    // change parsing outcome, only line/column tracking.
+    private String withRandomWhitespace(String... tokens) {
+        StringBuilder sb = new StringBuilder(randomWhitespace());
+        for (String token : tokens) {
+            sb.append(token).append(randomWhitespace());
+        }
+        return sb.toString();
+    }
+
+    // A random run of insignificant JSON whitespace - space, tab, "\n", "\r", or "\r\n" -
+    // including none. All 4 RFC 8259 whitespace characters are covered; "\r" is emitted as
+    // either a lone CR or part of a CRLF pair, since both parsers treat each as one line break.
+    private static final String[] WHITESPACE_UNITS = { " ", "\t", "\n", "\r", "\r\n" };
+
+    private String randomWhitespace() {
+        StringBuilder sb = new StringBuilder();
+        int n = randomIntBetween(0, 6);
+        for (int i = 0; i < n; i++) {
+            sb.append(WHITESPACE_UNITS[randomIntBetween(0, WHITESPACE_UNITS.length - 1)]);
+        }
+        return sb.toString();
+    }
+
+    private void assertLineNumbersMatch(String json) {
+        int jacksonLine = parseLocation(expectThrows(XContentParseException.class, () -> walkWithJackson(json)).getMessage())[0];
+        int simdLine = parseLocation(expectThrows(JsonParsingException.class, () -> walkJson(json)).getMessage())[0];
+        assertEquals("json=" + json, jacksonLine, simdLine);
+    }
+
+    // Absolute columns aren't compared directly: the parsers anchor to different bytes, and
+    // the offset isn't even constant ({@code "00"} vs {@code "-00"}). Instead, this checks via
+    // delta from each parser's own baseline that both advance by UTF-8 bytes, not code points.
+    public void testColumnCountsUtf8BytesNotCodePointsInBothParsers() {
+        int jacksonBaseline = columnFor("", true);
+        int simdBaseline = columnFor("", false);
+
+        // character(s), expected UTF-8 byte length
+        Object[][] cases = {
+            { "x", 1 },              // ASCII
+            { "xyz", 3 },            // several ASCII characters
+            { "\u00e9", 2 },         // é - 2-byte
+            { "\u20ac", 3 },         // € - 3-byte
+            { "\ud83d\ude00", 4 },   // 😀 - 4-byte, encoded as a surrogate pair in Java
+            { "a\u00e9\u20ac\ud83d\ude00z", 1 + 2 + 3 + 4 + 1 } // mixed byte widths
+        };
+        for (Object[] c : cases) {
+            String content = (String) c[0];
+            int expectedBytes = (Integer) c[1];
+            assertEquals("jackson, content=" + content, expectedBytes, columnFor(content, true) - jacksonBaseline);
+            assertEquals("simdjson, content=" + content, expectedBytes, columnFor(content, false) - simdBaseline);
+        }
+    }
+
+    // Property-based version of the above: for randomly generated content mixing ASCII and
+    // multi-byte code points, both parsers' columns must advance by exactly the content's
+    // UTF-8 byte length, never by its code point count.
+    public void testColumnCountsUtf8BytesNotCodePointsRandomized() {
+        int jacksonBaseline = columnFor("", true);
+        int simdBaseline = columnFor("", false);
+
+        int iterations = randomIntBetween(20, 100);
+        for (int i = 0; i < iterations; i++) {
+            String content = randomSafeUnicodeString(randomIntBetween(1, 12));
+            int expectedBytes = content.getBytes(UTF_8).length;
+
+            assertEquals("jackson, content=" + content, expectedBytes, columnFor(content, true) - jacksonBaseline);
+            assertEquals("simdjson, content=" + content, expectedBytes, columnFor(content, false) - simdBaseline);
+        }
+    }
+
+    // Code points spanning every UTF-8 byte width (1 through 4), all safe to embed unescaped
+    // in a JSON string literal (no quote, backslash, or control characters).
+    private static final int[] SAFE_CODE_POINTS = {
+        'a',
+        'Z',
+        '5', // 1-byte
+        0x00e9,
+        0x00f1,
+        0x00df, // 2-byte: é, ñ, ß
+        0x20ac,
+        0x4e2d,
+        0x0439, // 3-byte: €, 中, й
+        0x1f600,
+        0x1f4a9,
+        0x10000 // 4-byte: 😀, 💩, and the first supplementary-plane code point
+    };
+
+    private String randomSafeUnicodeString(int codePointCount) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < codePointCount; i++) {
+            sb.appendCodePoint(SAFE_CODE_POINTS[randomIntBetween(0, SAFE_CODE_POINTS.length - 1)]);
+        }
+        return sb.toString();
+    }
+
+    // The reported column of the leading-zero error in {"a":"<content>","n":00}, for either
+    // Jackson or simdjson.
+    private int columnFor(String content, boolean useJackson) {
+        String json = "{\"a\":\"" + content + "\",\"n\":00}";
+        String message = useJackson
+            ? expectThrows(XContentParseException.class, () -> walkWithJackson(json)).getMessage()
+            : expectThrows(JsonParsingException.class, () -> walkJson(json)).getMessage();
+        return parseLocation(message)[1];
+    }
+
+    // Parses the leading "[line:column]" prefix shared by both exception message formats.
+    private static int[] parseLocation(String message) {
+        assertTrue("no [line:column] prefix: " + message, message.startsWith("["));
+        int colon = message.indexOf(':');
+        int close = message.indexOf(']');
+        return new int[] { Integer.parseInt(message.substring(1, colon)), Integer.parseInt(message.substring(colon + 1, close)) };
     }
 
     // Shared with SimdJsonDirectWalkerTests via SimdJsonTestDocuments.

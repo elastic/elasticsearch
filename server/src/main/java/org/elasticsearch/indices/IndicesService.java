@@ -146,6 +146,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
@@ -166,7 +167,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -208,6 +208,7 @@ import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA
 import static org.elasticsearch.index.IndexVersions.MINIMUM_COMPATIBLE;
 import static org.elasticsearch.index.IndexVersions.MINIMUM_READONLY_COMPATIBLE;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -1018,7 +1019,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final var store = indexShard.store();
             if (store.tryIncRef() == false) {
                 assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                listener.onRecoveryAborted();
+                listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null), ABORT);
                 return;
             }
             final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
@@ -1037,7 +1038,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
                             // concrete index - no name clash, it uses uuid
                             .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
+                            .source(mapping.source().string());
                         client.execute(
                             TransportAutoPutMappingAction.TYPE,
                             putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),

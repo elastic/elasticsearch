@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.action.StreamQueryTestUtils;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -133,6 +134,27 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("ndjson");
         assertSplitDiscoveryCpuNanos("ndjson");
+    }
+
+    public void testMetricsCollectorStreamingNdJson() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.ndjson"), createNdjson(100));
+
+        registerDataset("metrics_streaming_ndjson_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(
+            client(),
+            syncEsqlQueryRequest("FROM metrics_streaming_ndjson_ds | LIMIT 200"),
+            subscriber
+        );
+        assertThat(subscriber.rowCount.get(), greaterThan(0));
+
+        assertReadCpuNanos("streaming-ndjson");
+        assertSplitDiscoveryCpuNanos("streaming-ndjson");
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
     }
 
     /**
@@ -335,9 +357,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same CSV dataset do not accumulate
-     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
-     * remain zero. CSV uses the parallel-parse path; {@code freshCounters()} gives each split an
-     * isolated counter instance.
+     * {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_cpu_nanos}.
      */
     public void testCsvReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -362,13 +384,12 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same Parquet dataset do not accumulate
-     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
-     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
-     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
-     * and gets an isolated counter instance.
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_nanos} and {@code read_cpu_nanos}.
      *
-     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
-     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     * <p>The assertion {@code Q_10 < 5 * Q_1} catches the geometric growth from accumulation
+     * (Q_10 ≈ 10 * Q_1) while tolerating normal timing variance (up to 5×).
      */
     public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -381,13 +402,13 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Runs {@code query} five times and asserts that {@code read_cpu_nanos} is positive on each run
-     * and does not grow by more than 3× from the first to the fifth query (which would indicate
+     * Runs {@code query} ten times and asserts that {@code read_cpu_nanos} is positive on each run
+     * and does not grow by more than 5× from the first to the last query (which would indicate
      * counter accumulation across queries). Also verifies that the registry singleton for
      * {@code readerName} has zero counters after the runs.
      */
     private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
-        int numQueries = 5;
+        int numQueries = 10;
         long[] readNanos = new long[numQueries];
         long[] readCpuNanos = new long[numQueries];
         for (int i = 0; i < numQueries; i++) {
@@ -406,17 +427,19 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     private static void assertIsolated(String metric, long[] values, int numQueries) {
-        long maxAllowed = values[0] * 3;
+        long maxAllowed = values[0] * 5;
         assertTrue(
-            "Q_5."
+            "Q_"
+                + numQueries
+                + "."
                 + metric
                 + "="
                 + values[numQueries - 1]
-                + " must be < 3 * Q_1."
+                + " must be < 5 * Q_1."
                 + metric
                 + "="
                 + values[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
+                + "; a value >= 5x indicates counter accumulation across queries",
             values[numQueries - 1] < maxAllowed
         );
     }

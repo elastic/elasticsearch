@@ -126,7 +126,12 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "unmapped_multi_synthetic",
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
-        "unmapped_object_data"
+        "unmapped_object_data",
+        // all_types_unmapped* drop every typed column from mapping-all-types.json so each ES scalar type lands in _source only.
+        // Same dynamic:false reasoning as the datasets exclusions above.
+        "all_types_unmapped",
+        "all_types_unmapped_synthetic",
+        "logsdb_partial_mapping"
     );
 
     /**
@@ -382,8 +387,11 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     @Override
     protected Set<String> additionalAllowedErrors() {
         Set<String> errors = new HashSet<>(super.additionalAllowedErrors());
-        // All mode-difference substrings are acceptable on either side of the pipeline.
-        errors.addAll(ALLOWED_MODE_DIFFERENCE_SUBSTRINGS);
+        // Mode-difference substrings are literal strings; quote them so the base-class regex
+        // compiler treats them as literals rather than as regex patterns.
+        for (String s : ALLOWED_MODE_DIFFERENCE_SUBSTRINGS) {
+            errors.add(Pattern.quote(s));
+        }
         return errors;
     }
 

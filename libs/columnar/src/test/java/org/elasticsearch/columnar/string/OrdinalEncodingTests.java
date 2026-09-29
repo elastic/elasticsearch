@@ -94,7 +94,7 @@ public class OrdinalEncodingTests extends ColumnarStringTestCase {
         assertEquals("a packed column keeps the small block", 128, ordinals.blockSize());
         assertArrayEquals(
             "a packed column still sets its runs and outliers aside",
-            NumericPipeline.ordinalPipeline(ordinals.blockSize()).transformIds(),
+            NumericPipeline.runsAndOutliersPipeline(ordinals.blockSize()).transformIds(),
             ordinals.transformIds()
         );
     }

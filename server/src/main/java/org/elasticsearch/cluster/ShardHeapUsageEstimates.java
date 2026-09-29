@@ -28,6 +28,13 @@ public record ShardHeapUsageEstimates(
         perShard = Map.copyOf(perShard);
     }
 
+    /**
+     * Get the {@link ShardAndIndexHeapUsage} for the given shard, or the default if not present
+     */
+    public ShardAndIndexHeapUsage getOrDefault(ShardId shardId) {
+        return perShard.getOrDefault(shardId, defaultForShardsWithoutMetrics);
+    }
+
     public static ShardHeapUsageEstimates empty() {
         return new ShardHeapUsageEstimates(Map.of(), ShardAndIndexHeapUsage.ZERO);
     }

@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -415,6 +416,42 @@ class S3Repository extends MeteredBlobStoreRepository {
         );
     }
 
+    static final String MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE = "S3 client endpoint is missing a URL scheme";
+
+    static final String REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE = "S3 client region is not configured";
+
+    static String missingEndpointSchemeDeprecationWarning(String configuredEndpoint, String endpointOverride) {
+        return Strings.format("""
+            This repository's S3 client endpoint [%s] is missing a URL scheme. Elasticsearch guessed it should be [%s]; \
+            add a scheme prefix to the endpoint before upgrade.""", configuredEndpoint, endpointOverride);
+    }
+
+    static String regionGuessedFromEndpointDeprecationWarning(String configuredEndpoint, String guessedRegionId) {
+        return Strings.format("""
+            This repository's S3 client has endpoint [%s] but no configured region. Elasticsearch guessed it should use [%s]; \
+            configure the region before upgrade.""", configuredEndpoint, guessedRegionId);
+    }
+
+    static String regionGuessedAsUsEast1DeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1]; \
+            configure the region before upgrade.""", endpointDescription);
+    }
+
+    static String regionFellBackToCrossRegionAccessDeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1] and enabling \
+            cross-region access; configure the region before upgrade.""", endpointDescription);
+    }
+
+    static final String CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE = "S3 repository client could not be created";
+
+    static String clientCreationFailureDeprecationWarning(String clientName) {
+        return Strings.format("""
+            This repository is configured to use S3 client [%s] which could not be created on this node. Configure that client, or \
+            change the repository's [%s] setting, before upgrade.""", clientName, CLIENT_NAME.getKey());
+    }
+
     @Override
     public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
         final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
@@ -459,7 +496,96 @@ class S3Repository extends MeteredBlobStoreRepository {
                 )
             );
         }
+        addClientDeprecationInfo(deprecationInfos);
         return deprecationInfos;
+    }
+
+    private void addClientDeprecationInfo(List<RepositoryDeprecationInfo> deprecationInfos) {
+        final S3ClientSettings clientSettings;
+        try {
+            clientSettings = service.settings(getProjectId(), getMetadata());
+        } catch (Exception ignored) {
+            // Client construction happens lazily so this repository might have an invalid config (e.g. if it was created before this node
+            // joined the cluster, or created with `?verify=false`). If so, we can't validate its client-specific config which might hide
+            // some critical deprecations, thus we must also consider this state to be critically-deprecated:
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    clientCreationFailureDeprecationWarning(CLIENT_NAME.get(getMetadata().settings())),
+                    false
+                )
+            );
+            return;
+        }
+        final var deprecatedLeniencyHandler = new S3DeprecatedLeniencyHandler() {
+            @Override
+            public void missingEndpointScheme(String configuredEndpoint, String endpointOverride) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        missingEndpointSchemeDeprecationWarning(configuredEndpoint, endpointOverride),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedFromEndpoint(String configuredEndpoint, String guessedRegionId) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedFromEndpointDeprecationWarning(configuredEndpoint, guessedRegionId),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedAsUsEast1(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedAsUsEast1DeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionFellBackToCrossRegionAccess(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionFellBackToCrossRegionAccessDeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+        };
+        try {
+            service.getClientRegion(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // unexpected, but we need to continue regardless
+            logger.warn("failure getting S3 client region", e);
+            assert false : e;
+        }
+        try {
+            service.getClientEndpoint(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // e.g. URI.create failed? we need to continue regardless
+            logger.warn("failure getting S3 client endpoint", e);
+            assert e instanceof IllegalArgumentException && e.getCause() instanceof URISyntaxException : e;
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {

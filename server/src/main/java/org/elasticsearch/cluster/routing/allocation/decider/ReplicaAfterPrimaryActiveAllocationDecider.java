@@ -29,7 +29,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
-            return allocation.decision(NO_DECISION, NAME, "shard is primary and can be allocated");
+            return allocation.decision(Decision.YES, NAME, "shard is primary and can be allocated");
         }
         ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
         if (primary == null) {

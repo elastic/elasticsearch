@@ -110,6 +110,14 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
+    task.skipTest(
+      "ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.4; field no longer supported"
+    )
+    task.skipTest(
+      "ml/datafeeds_crud/Test put datafeed with invalid max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.4; field no longer supported"
+    )
     task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")

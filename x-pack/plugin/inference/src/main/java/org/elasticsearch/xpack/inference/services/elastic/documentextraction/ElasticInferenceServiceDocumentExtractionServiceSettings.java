@@ -92,13 +92,7 @@ public class ElasticInferenceServiceDocumentExtractionServiceSettings extends Fi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        assert false : "should never be called when supportsVersion is used";
         return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return version.supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED);
     }
 
     @Override

@@ -75,6 +75,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
@@ -1810,11 +1811,12 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "scroll_size")));
     }
 
-    public void testBuild_GivenEsqlQueryWithChunkingOffShouldSucceed() {
+    public void testBuild_GivenEsqlQueryWithChunkingOffThrows() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setChunkingConfig(ChunkingConfig.newOff());
 
-        assertThat(builder.build().getChunkingConfig(), equalTo(ChunkingConfig.newOff()));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED));
     }
 
     public void testBuild_GivenEsqlQueryAloneSucceeds() {
@@ -1970,8 +1972,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     private DatafeedConfig.Builder createEsqlDatafeedBuilder() {
+        // ES|QL datafeeds source indices from the query itself; DatafeedConfig.Builder.build() rejects
+        // `indices` combined with `esql_query` (DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD).
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("logs"));
         builder.setEsqlQuery("FROM logs");
         builder.setSourceTimeField("@timestamp");
         builder.setGroupingInterval(TimeValue.timeValueHours(1));

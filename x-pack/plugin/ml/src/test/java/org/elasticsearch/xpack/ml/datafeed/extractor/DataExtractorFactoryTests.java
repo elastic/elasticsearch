@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.junit.Before;
 
@@ -672,30 +671,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
-        );
-
-        DataExtractorFactory.create(
-            client,
-            cloudCredentialManager,
-            datafeedConfig,
-            null,
-            jobBuilder.build(new Date()),
-            xContentRegistry(),
-            timingStatsReporter,
-            listener
-        );
-    }
-
-    public void testCreateDataExtractorFactoryGivenEsqlQueryWithChunkingOffRoutesToBareEsqlFactory() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-
-        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").setChunkingConfig(ChunkingConfig.newOff()).build();
-
-        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
-            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(EsqlDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(

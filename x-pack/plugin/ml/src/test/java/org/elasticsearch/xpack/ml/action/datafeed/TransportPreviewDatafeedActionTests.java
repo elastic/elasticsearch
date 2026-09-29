@@ -98,7 +98,12 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectPreview() {
-        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setChunkingConfig(ChunkingConfig.newOff()).build();
+        // Manual chunking (rather than ChunkingConfig.newOff()) keeps the config valid: DatafeedConfig.Builder.build()
+        // now rejects ES|QL datafeeds with chunking disabled (DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED); the
+        // mixed-version rejection under test is orthogonal to that chunking-mode validation.
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setChunkingConfig(
+            ChunkingConfig.newManual(TimeValue.timeValueMinutes(10))
+        ).build();
         ClusterState state = ClusterState.builder(new ClusterName("test"))
             .putCompatibilityVersions(
                 "older-node",

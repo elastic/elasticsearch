@@ -233,7 +233,7 @@ Learn more about using [ES|QL for search use cases](docs-content://solutions/sea
 * On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
 * Fields are analyzed up to a maximum of 1 million characters. Text beyond this limit is not analyzed or highlighted.
 * `HIGHLIGHT` cannot automatically reuse a `WHERE` query across commands that aggregate, summarize, or join rows, such as `STATS`, `LOOKUP JOIN`, or `FORK`. In those queries, specify the query directly on `HIGHLIGHT`.
-* If you rename or drop a field between `WHERE` and `HIGHLIGHT`, the reused `WHERE` query still refers to the original field name. Provide an explicit query and `ON` clause that match the new column names in scope.
+* If you drop a field targeted by the reused `WHERE` query before `HIGHLIGHT`, the implicit query can no longer highlight that field. If no other reusable fields remain, provide an explicit query and `ON` clause using columns that are still in scope.
 
 ## Examples
 

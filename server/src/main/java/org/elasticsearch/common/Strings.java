@@ -1044,4 +1044,17 @@ public class Strings {
     public static String stripDisallowedChars(String string) {
         return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
+
+    public static int indexOfAny(String s, char... chars) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            for (char target : chars) {
+                if (c == target) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
 }

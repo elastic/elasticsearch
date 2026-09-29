@@ -16,6 +16,7 @@ import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
 import org.elasticsearch.columnar.ColumnarStringMatchQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
@@ -99,6 +100,23 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
         assertNotEquals(queries.prefix(FIELD, "abc", true), queries.prefix(FIELD, "abd", true));
         assertNotEquals(queries.caseInsensitiveTerm(FIELD, "abc"), queries.caseInsensitiveTerm(FIELD, "abd"));
         assertNotEquals(queries.regexp(FIELD, "a.*", 0, 0, 10000, null), queries.regexp(FIELD, "b.*", 0, 0, 10000, null));
+    }
+
+    // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
+
+    public void testColumnarCircuitBreakerConsultedForCaseSensitiveWildcard() {
+        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
+        final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        queries.wildcard(FIELD, COMPLEX_WILDCARD, false, breaker);
+        assertTrue("circuit breaker should be consulted during case-sensitive wildcard automaton construction", breaker.wasCalled());
+    }
+
+    public void testColumnarCircuitBreakerConsultedForCaseInsensitiveWildcard() {
+        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
+        final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        queries.wildcard(FIELD, COMPLEX_WILDCARD, true, breaker);
+        assertTrue("circuit breaker should be consulted during case-insensitive wildcard automaton construction", breaker.wasCalled());
     }
 
     /** A columnar field is answered by its column, so asking for a scan of one fails where it is asked. */

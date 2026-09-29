@@ -61,6 +61,8 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
+    private final boolean onDiskMerge;
+    private final boolean shouldWriteOnDiskMerge;
     private final FlatVectorsWriter rawVectorDelegate;
     protected final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
@@ -73,6 +75,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         return false;
     }
 
+    /** @param shouldWriteOnDiskMerge whether this codec version records {@code onDiskMerge} in the meta */
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
@@ -85,9 +88,13 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         String centroidExtension,
         String clusterExtension,
         boolean shouldWriteDirectIoReads,
-        int flatVectorThreshold
+        int flatVectorThreshold,
+        boolean onDiskMerge,
+        boolean shouldWriteOnDiskMerge
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
+        this.onDiskMerge = onDiskMerge;
+        this.shouldWriteOnDiskMerge = shouldWriteOnDiskMerge;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
@@ -637,6 +644,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         if (shouldWriteDirectIoReads) {
             assert useDirectIOReads != null : "shouldWriteDirectIoReads is true but useDirectIOReads is null";
             ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        }
+        if (shouldWriteOnDiskMerge) {
+            ivfMeta.writeByte(onDiskMerge ? (byte) 1 : 0);
+        } else {
+            assert onDiskMerge == false : "onDiskMerge is true but shouldWriteOnDiskMerge is false";
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));

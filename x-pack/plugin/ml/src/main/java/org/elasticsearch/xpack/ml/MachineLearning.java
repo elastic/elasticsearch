@@ -1891,9 +1891,12 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
+        // Registered regardless of which ML features are enabled: search-time callers such as the text_embedding
+        // query vector builder and sparse_vector query rely on it to reach inference endpoints via the inference API,
+        // which does not require NLP (ML nodes) to be enabled.
+        actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         return actionHandlers;
     }
 

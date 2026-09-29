@@ -87,8 +87,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
 
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = Decision.single(Decision.Type.NO, "no with label", "explanation");
-        final var notPreferred = Decision.single(Decision.Type.NOT_PREFERRED, "test_decider", null);
-        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, notPreferred, Decision.THROTTLE));
+        var allDecisions = generateDecisions(
+            expectedDecision,
+            () -> randomFrom(Decision.YES, TestDecisions.NOT_PREFERRED, Decision.THROTTLE)
+        );
         var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
@@ -101,7 +103,8 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 TestDecisions.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
-                TestDecisions.NO
+                TestDecisions.NO,
+                Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
         var expectedDecision = collectToMultiDecision(allDecisions);
@@ -116,7 +119,8 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 TestDecisions.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
-                TestDecisions.NO
+                TestDecisions.NO,
+                Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
         var expectedDecision = filterAndCollectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);

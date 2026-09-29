@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -155,6 +157,37 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             "a filter above a LIMIT must not prune the source — LIMIT does not commute with WHERE",
             guarded.get(0).filters().isEmpty()
         );
+    }
+
+    /**
+     * The row demand must not survive a command that changes the row count. {@code LIMIT 5} above a {@code WHERE}
+     * asks for five rows <em>after</em> filtering, so the relation below it cannot be told to stop after five: the
+     * filter may reject every one of them. Carrying the demand past the filter makes the scan plan too few splits
+     * and the query return fewer rows than it asked for.
+     * <p>
+     * The rule is carried by the {@link Streaming} marker, which
+     * {@code Filter} deliberately does not implement, and nothing else enforces it - so this is the assertion that
+     * keeps the marker honest.
+     */
+    public void testTheRowDemandDoesNotSurviveAFilter() {
+        ExternalRelation relation = externalRelation();
+        Expression year = new Equals(SRC, relation.output().get(0), new Literal(SRC, 2025, DataType.INTEGER));
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), new Filter(SRC, relation, year));
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("a filtered limit leaves the relation with no demand at all", FormatReader.NO_LIMIT, guarded.get(0).rowLimit());
+    }
+
+    /** The complement: with nothing between the limit and the relation, the demand does reach it. */
+    public void testTheRowDemandReachesARelationDirectlyUnderTheLimit() {
+        LogicalPlan fragment = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), externalRelation());
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("an unfiltered limit is the case the budget exists for", 5, guarded.get(0).rowLimit());
     }
 
     /** The complement: with the filter <em>below</em> the limit, WHERE genuinely runs first and pruning is sound. */

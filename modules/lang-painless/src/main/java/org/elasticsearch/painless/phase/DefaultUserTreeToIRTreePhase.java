@@ -1519,7 +1519,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userLambdaNode, new IRNodeDecoration(irExpressionNode));
     }
 
-    /** The variable a reference captures the script from: {@code #scriptThis} when cancellation or tracking defined it, else {@code this}. */
+    /**
+     * The variable a reference captures the script from: {@code #scriptThis} when cancellation or tracking defined it, else
+     * {@code this}.
+     */
     private static String scriptCaptureName(ScriptScope scriptScope) {
         boolean scriptThisDefined = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
             || scriptScope.getScriptClassInfo().supportsCancellation();

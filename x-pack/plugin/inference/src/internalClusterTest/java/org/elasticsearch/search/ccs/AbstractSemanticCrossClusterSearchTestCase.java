@@ -190,6 +190,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return response.getPointInTimeId();
     }
 
+    /**
+     * Like {@link #assertSearchResponse(QueryBuilder, List, ExpectedHits, ClusterFailure, Consumer, Consumer)}, with hits expected in
+     * {@code expectedSearchResults} order and no response consumer.
+     */
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
         @Nullable List<String> indices,
@@ -208,6 +212,13 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     }
 
     /**
+     * Runs {@code queryBuilder}, boosting hits from {@link #LOCAL_INDEX_NAME} by 10, and asserts the hits and each cluster's status.
+     *
+     * @param indices the indices to search, or {@code null} for all
+     * @param expectedHits the expected hits; their count also sets the request size
+     * @param expectedRemoteFailure the expected status and failures for {@link #REMOTE_CLUSTER}, or {@code null} to expect all clusters
+     *                              to succeed
+     * @param searchRequestModifier applied to the request before it is sent, or {@code null}
      * @param responseConsumer runs before the assertions below, so a caller capturing state from the response (a scroll ID, say) still
      *                         gets it when one of them fails. The response is released once this method returns, so do not retain it.
      */

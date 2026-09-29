@@ -948,7 +948,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         1,
                         cannotRemainMoveAttributes(
                             "not_preferred",
-                            decisionLabel(moveDecision.getCanRemainDecision()),
+                            moveDecision.getCanRemainDecision().label(),
                             null,  // there is never a conflict between not-preferred and not-preferred
                             shardRouting.primary(),
                             nodeName(shardRouting.currentNodeId()),
@@ -1062,9 +1062,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 1,
                                 cannotRemainMoveAttributes(
                                     "no",
-                                    decisionLabel(moveDecision.getCanRemainDecision()),
+                                    moveDecision.getCanRemainDecision().label(),
                                     moveDecision.getCanAllocateDecision() != null
-                                        ? decisionLabel(moveDecision.getCanAllocateDecision())
+                                        ? moveDecision.getCanAllocateDecision().label()
                                         : null,
                                     shardRouting.primary(),
                                     nodeName(shardRouting.currentNodeId()),
@@ -1124,22 +1124,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             } finally {
                 allocation.setDebugMode(oldDebugMode);
             }
-        }
-
-        @Nullable
-        private static String decisionLabel(Decision decision) {
-            return switch (decision) {
-                case Decision.Single s -> s.label();
-                case Decision.Multi m -> {
-                    Decision.Single worst = null;
-                    for (Decision.Single s : m.decisions()) {
-                        if (worst == null || worst.type().compareToBetweenDecisions(s.type()) > 0) {
-                            worst = s;
-                        }
-                    }
-                    yield worst != null ? worst.label() : null;
-                }
-            };
         }
 
         private static Map<String, Object> cannotRemainMoveAttributes(

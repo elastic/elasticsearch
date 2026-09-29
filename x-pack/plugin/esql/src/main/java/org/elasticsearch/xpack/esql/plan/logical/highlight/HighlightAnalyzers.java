@@ -198,7 +198,7 @@ public final class HighlightAnalyzers {
         if (analyzerName != null) {
             try {
                 NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(analyzerName, analysisRegistry);
-return resolved.getPositionIncrementGap(fieldName) == gap ? resolved : new NamedAnalyzer(resolved, gap);
+                return resolved.getPositionIncrementGap(fieldName) == gap ? resolved : new NamedAnalyzer(resolved, gap);
             } catch (InvalidArgumentException e) {
                 // index.analysis names are withheld, so this is a plugin analyzer this node did not load.
                 fallbackReason = "analyzer [" + analyzerName + "] is not registered on this node";
@@ -215,7 +215,7 @@ return resolved.getPositionIncrementGap(fieldName) == gap ? resolved : new Named
                     + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."
             );
         }
-NamedAnalyzer fallback = standard(analysisRegistry);
+        NamedAnalyzer fallback = standard(analysisRegistry);
         return fallback.getPositionIncrementGap(fieldName) == gap ? fallback : new NamedAnalyzer(fallback, gap);
     }
 

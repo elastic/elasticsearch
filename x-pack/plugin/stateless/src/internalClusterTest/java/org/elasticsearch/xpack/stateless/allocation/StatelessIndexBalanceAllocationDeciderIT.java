@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeights;
@@ -308,7 +309,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             return CollectionUtils.appendToCopy(super.createAllocationDeciders(settings, clusterSettings), new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
-                    return Decision.NO;
+                    return TestDecisions.NO;
                 }
             });
         }

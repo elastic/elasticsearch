@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -354,7 +355,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             return List.of(new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
-                    return Decision.NO;
+                    return TestDecisions.NO;
                 }
             });
         }

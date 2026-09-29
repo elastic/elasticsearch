@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
  * <p>
  * {@link Decision#NO} and {@link Decision#NOT_PREFERRED} do not define a label, and {@link AllocationDeciders}
  * asserts that any time a NO or NOT_PREFERRED decision is returned it should have a label. We don't want to
- * add labels to {@link Decision#NO} and {@link Decision#NOT_PREFERRED} because we don't want people to use them
- * they should create their own {@link Decision} instances with accurate label values populated.
+ * add labels to {@link Decision#NO} and {@link Decision#NOT_PREFERRED} because we don't want people to use them.
+ * They should create their own {@link Decision} instances with accurate label values populated.
  */
 public class TestDecisions {
 

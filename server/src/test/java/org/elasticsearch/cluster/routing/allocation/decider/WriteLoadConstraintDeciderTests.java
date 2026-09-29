@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -457,7 +458,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .findFirst()
             .orElseThrow();
         Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
-        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
+        assertThat(decision, isNotPreferredDecision());
         assertThat(
             decision.getExplanation(),
             equalTo(
@@ -569,7 +570,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .orElseThrow();
 
         decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
-        assertEquals(decision.getExplanation(), decision.type(), Decision.NOT_PREFERRED.type());
+        assertThat(decision.getExplanation(), decision, isNotPreferredDecision());
         assertThat(
             decision.getExplanation(),
             matchesPattern(

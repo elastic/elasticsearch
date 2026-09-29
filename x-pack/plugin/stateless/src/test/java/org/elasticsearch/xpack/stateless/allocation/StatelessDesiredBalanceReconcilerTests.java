@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler;
@@ -107,7 +108,7 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 // allocation on desired nodes is temporarily not possible
-                return desiredNodes.contains(node.nodeId()) ? Decision.NO : Decision.YES;
+                return desiredNodes.contains(node.nodeId()) ? TestDecisions.NO : Decision.YES;
             }
         };
 

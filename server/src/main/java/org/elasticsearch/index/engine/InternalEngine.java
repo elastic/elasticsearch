@@ -1155,26 +1155,38 @@ public class InternalEngine extends Engine {
         return versionValue;
     }
 
-    private VersionValue getVersionFromMap(BytesRef id) {
-        if (versionMap.isUnsafe()) {
-            synchronized (versionMap) {
-                // we are switching from an unsafe map to a safe map. This might happen concurrently
-                // but we only need to do this once since the last operation per ID is to add to the version
-                // map so once we pass this point we can safely lookup from the version map.
-                if (versionMap.isUnsafe()) {
-                    refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
-                    // After the refresh, the doc that triggered it must now be part of the last commit.
-                    // In rare cases, there could be other flush cycles completed in between the above line
-                    // and the line below which push the last commit generation further. But that's OK.
-                    // The invariant here is that doc is available within the generations of commits upto
-                    // lastUnsafeSegmentGenerationForGets (inclusive). Therefore it is ok for it be larger
-                    // which means the search shard needs to wait for extra generations and these generations
-                    // are guaranteed to happen since they are all committed.
-                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+    private VersionValue getVersionFromMap(BytesRef id, OperationPurpose purpose) throws IOException {
+        if (purpose == OperationPurpose.GET_FROM_TRANSLOG) {
+            if (versionMap.isUnsafeForGets()) {
+                synchronized (versionMap) {
+                    if (versionMap.isUnsafeForGets()) {
+                        refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                        // After the refresh, the doc that triggered it must now be part of the last commit.
+                        // In rare cases, there could be other flush cycles completed in between the above line
+                        // and the line below which push the last commit generation further. But that's OK.
+                        // The invariant here is that doc is available within the generations of commits upto
+                        // lastUnsafeSegmentGenerationForGets (inclusive). Therefore it is ok for it be larger
+                        // which means the search shard needs to wait for extra generations and these generations
+                        // are guaranteed to happen since they are all committed.
+                        lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+                    }
+                    versionMap.enforceSafeAccess();
                 }
-                versionMap.enforceSafeAccess();
+                // The versionMap can still be unsafe for gets at this point due to archive being unsafe.
             }
-            // The versionMap can still be unsafe at this point due to archive being unsafe
+        } else {
+            if (versionMap.isUnsafe()) {
+                synchronized (versionMap) {
+                    // we are switching from an unsafe map to a safe map. This might happen concurrently
+                    // but we only need to do this once since the last operation per ID is to add to the version
+                    // map so once we pass this point we can safely lookup from the version map.
+                    if (versionMap.isUnsafe()) {
+                        // TODO also skip flush inside `refreshInternalSearcher` below.
+                        refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                    }
+                    versionMap.enforceSafeAccess();
+                }
+            }
         }
         return versionMap.getUnderLock(id);
     }

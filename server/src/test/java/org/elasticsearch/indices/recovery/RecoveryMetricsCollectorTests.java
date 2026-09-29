@@ -35,6 +35,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
             () -> null,
+            () -> 0L,
             () -> 0L
         );
         final String gateName = randomIdentifier();
@@ -75,6 +76,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             var ignored = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 blockedState::get,
+                () -> 0L,
                 relativeTimeMillis::get
             )
         ) {

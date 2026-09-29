@@ -146,7 +146,7 @@ public class NumericBlockEncoderTests extends ESTestCase {
 
     public void testOrdinalPipelineIds() {
         int blockSize = randomValidBlockSize();
-        NumericPipeline pipeline = NumericPipeline.ordinalPipeline(blockSize);
+        NumericPipeline pipeline = NumericPipeline.runsAndOutliersPipeline(blockSize);
         assertEquals(ForTerminal.ID, pipeline.terminalId());
         assertArrayEquals(
             new byte[] { RunTransform.ID, DeltaTransform.ID, OffsetTransform.ID, PatchedTransform.ID },

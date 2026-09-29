@@ -2031,7 +2031,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private void assertCacheCount(TestTelemetryPlugin telemetryPlugin, CacheType type, long expectedCount) {
-        List<Measurement> metrics = telemetryPlugin.getLongGaugeMeasurement(type.metricsPrefix() + ".count.current");
+        List<Measurement> metrics = telemetryPlugin.getLongAsyncGaugeMeasurement(type.metricsPrefix() + ".count.current");
         final Long actual;
         if (metrics.isEmpty()) {
             actual = 0L;
@@ -3334,7 +3334,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (apiKeyMetadata == null) {
             assertThat(restoredApiKeyMetadata, anEmptyMap());
         } else {
+            // the service returns a new object each time
             assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
+            assertThat(restoredApiKeyMetadata, not(sameInstance(apiKeyMetadata)));
+
+            // but the authentication itself just returns references to the same object
+            assertThat(apiKeyAuthentication.getApiKeyMetadata(), sameInstance(apiKeyAuthentication.getApiKeyMetadata()));
         }
 
         final Authentication authentication = AuthenticationTests.randomAuthentication(

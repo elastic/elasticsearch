@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -52,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.ProjectMetadata.isProjectUnderDeletion;
 import static org.elasticsearch.persistent.PersistentTasks.getAllTasks;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
@@ -642,16 +645,30 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
         for (ProjectId projectId : projectIds) {
             if (previousProjectIds.contains(projectId)) {
+                final var tasks = PersistentTasksCustomMetadata.get(event.state().metadata().getProject(projectId));
                 if (Objects.equals(
-                    PersistentTasksCustomMetadata.get(event.state().metadata().getProject(projectId)),
+                    tasks,
                     PersistentTasksCustomMetadata.get(event.previousState().metadata().getProject(projectId))
                 ) == false) {
+                    return true;
+                }
+                // Nodes treat the tasks of a project under deletion as gone, so the block appearing is a change to them.
+                if (tasks != null
+                    && tasks.tasks().isEmpty() == false
+                    && isProjectUnderDeletion(event.state().blocks(), projectId)
+                    && isProjectUnderDeletion(event.previousState().blocks(), projectId) == false) {
                     return true;
                 }
             } else {
                 if (PersistentTasksCustomMetadata.get(event.state().metadata().getProject(projectId)) != null) {
                     return true;
                 }
+            }
+        }
+        // A removed project takes its tasks with it; nodes must notice so that they cancel the tasks still running locally
+        for (ProjectId projectId : event.projectDelta().removed()) {
+            if (PersistentTasksCustomMetadata.get(event.previousState().metadata().getProject(projectId)) != null) {
+                return true;
             }
         }
         return false;
@@ -704,11 +721,13 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     private static PersistentTasks.Builder<?> builder(ClusterState currentState, @Nullable ProjectId projectId) {
         if (projectId == null) {
             return ClusterPersistentTasksCustomMetadata.builder(ClusterPersistentTasksCustomMetadata.get(currentState.metadata()));
-        } else {
-            return PersistentTasksCustomMetadata.builder(
-                PersistentTasksCustomMetadata.get(currentState.getMetadata().getProject(projectId))
-            );
         }
+        final ProjectMetadata project = currentState.metadata().projects().get(projectId);
+        if (project == null) {
+            // The project and its tasks are gone, e.g. a task still running on a node reports completion after its project was deleted
+            throw new ResourceNotFoundException("project [{}] not found", projectId);
+        }
+        return PersistentTasksCustomMetadata.builder(PersistentTasksCustomMetadata.get(project));
     }
 
     @FixForMultiProject(description = "Consider formalize this into ProjectResolver")
@@ -723,6 +742,18 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             logger.debug("skipping error on resolving project-id", e);
             return null;
         }
+    }
+
+    /**
+     * The METADATA_WRITE block check for actions on an existing task (complete, update, remove). The request only carries the task id,
+     * so the task's scope is determined the same way as in {@link #maybeNullProjectIdForClusterTask}: a cluster-scoped task is subject
+     * to the cluster-wide blocks only, a project-scoped task also to the project-global ones (e.g. project under deletion).
+     */
+    static ClusterBlockException checkMetadataWriteBlock(ClusterState state, ProjectResolver projectResolver, String taskId) {
+        final ProjectId projectId = maybeNullProjectIdForClusterTask(state, resolveProjectIdHint(projectResolver), taskId);
+        return projectId == null
+            ? state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE)
+            : state.blocks().globalBlockedException(projectId, ClusterBlockLevel.METADATA_WRITE);
     }
 
     /**

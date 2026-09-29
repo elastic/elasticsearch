@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -37,6 +38,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -53,9 +56,11 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -92,7 +97,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     public static final String CACHE_NAME = "user_managed_service_account";
 
-    static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
+    public static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
 
     private static final Logger logger = LogManager.getLogger(UserManagedServiceAccountStore.class);
 
@@ -294,12 +299,86 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists.
+     * Runs a caller-shaped search over the stored accounts and reports one page of it. The caller has already
+     * restricted the query to service-account documents and translated its field names; this only adds the checks
+     * that the index can be searched at all and turns hits into accounts. A hit that does not parse is dropped, as in
+     * {@link #listAccounts}, which can leave fewer items than {@link QueryResult#total()} claims.
+     */
+    void queryAccounts(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryResult> listener) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryResult.EMPTY);
+            return;
+        }
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            return;
+        }
+        final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
+        projectSecurityIndex.checkIndexVersionThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                TransportSearchAction.TYPE,
+                searchRequest,
+                ActionListener.wrap(searchResponse -> {
+                    final long total = searchResponse.getHits().getTotalHits().value();
+                    if (total == 0) {
+                        logger.debug("no service accounts found for query [{}]", searchSourceBuilder.query());
+                        listener.onResponse(QueryResult.EMPTY);
+                        return;
+                    }
+                    final List<QueryResult.Item> items = Arrays.stream(searchResponse.getHits().getHits())
+                        .map(UserManagedServiceAccountStore::toQueryResultItem)
+                        .filter(Objects::nonNull)
+                        .toList();
+                    listener.onResponse(new QueryResult(items, total));
+                }, listener::onFailure)
+            )
+        );
+    }
+
+    @Nullable
+    private static QueryResult.Item toQueryResultItem(SearchHit hit) {
+        final Map<String, Object> source = hit.getSourceAsMap();
+        if (source == null) {
+            logger.warn("service account document [{}] has no source", hit.getId());
+            return null;
+        }
+        if (source.get("username") instanceof String principal) {
+            final UserManagedServiceAccount account = parseAccountDocument(principal, source);
+            return account == null ? null : new QueryResult.Item(account, hit.getSortValues());
+        }
+        logger.warn("service account document [{}] has an invalid [username] field", hit.getId());
+        return null;
+    }
+
+    /**
+     * One page of a query. {@code total} counts every hit of the query, not just the page's, so a caller can tell how
+     * far through the result it is.
+     */
+    public record QueryResult(List<Item> items, long total) {
+
+        public static final QueryResult EMPTY = new QueryResult(List.of(), 0);
+
+        /**
+         * An account and the sort values of the hit it came from, which are what a caller passes back as
+         * {@code search_after}. Empty when the query was not sorted.
+         */
+        public record Item(UserManagedServiceAccount account, Object[] sortValues) {}
+    }
+
+    /**
+     * Creates the account, or replaces it wholesale if it already exists. A {@code null} description leaves the
+     * account without one.
      */
     void putAccount(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
@@ -311,12 +390,12 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles);
+        final ValidationException validationException = validatePutRequest(accountId, roles, description);
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        try (XContentBuilder builder = newAccountDocument(accountId, sortedDistinct(roles), enabled)) {
+        try (XContentBuilder builder = newAccountDocument(accountId, sortedDistinct(roles), enabled, description)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(docIdForPrincipal(accountId.asPrincipal()))
                 .setSource(builder)
@@ -419,7 +498,11 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     @Nullable
-    private static ValidationException validatePutRequest(ServiceAccountId accountId, @Nullable List<String> roles) {
+    private static ValidationException validatePutRequest(
+        ServiceAccountId accountId,
+        @Nullable List<String> roles,
+        @Nullable String description
+    ) {
         final ValidationException validationException = new ValidationException();
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateNamespace(accountId.namespace()));
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateServiceName(accountId.serviceName()));
@@ -429,6 +512,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
             addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(description));
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }
 
@@ -446,15 +530,27 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         return roles.stream().distinct().sorted().toList();
     }
 
-    private XContentBuilder newAccountDocument(ServiceAccountId accountId, List<String> roles, boolean enabled) throws IOException {
-        return XContentFactory.jsonBuilder()
+    /**
+     * The description is left out of the document rather than written as {@code null}, so that an account without one
+     * looks the same as one written before the field existed.
+     */
+    private XContentBuilder newAccountDocument(
+        ServiceAccountId accountId,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description
+    ) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .field("doc_type", SERVICE_ACCOUNT_DOC_TYPE)
             .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
-            .field("enabled", enabled)
-            .endObject();
+            .field("enabled", enabled);
+        if (description != null) {
+            builder.field("description", description);
+        }
+        return builder.endObject();
     }
 
     /**
@@ -482,8 +578,19 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (roles == null) {
             return null;
         }
+        // Absent in documents written before the field existed, and for accounts written without one since.
+        final Object descriptionValue = source.get("description");
+        if (descriptionValue != null && descriptionValue instanceof String == false) {
+            logger.warn("service account document [{}] has an invalid [description] field", expectedPrincipal);
+            return null;
+        }
         if (source.get("enabled") instanceof Boolean enabled) {
-            return new UserManagedServiceAccount(ServiceAccountId.fromPrincipal(expectedPrincipal), roles, enabled);
+            return new UserManagedServiceAccount(
+                ServiceAccountId.fromPrincipal(expectedPrincipal),
+                roles,
+                enabled,
+                (String) descriptionValue
+            );
         }
         logger.warn("service account document [{}] has an invalid [enabled] field", expectedPrincipal);
         return null;

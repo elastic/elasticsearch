@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -159,6 +160,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock file storage provider for testing.
      */
     private static class MockFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("file");
@@ -300,6 +306,11 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class PayloadFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, byte[]> payloadByPath;
 
         PayloadFileStorageProvider(Map<String, byte[]> payloadByPath) {
@@ -1251,6 +1262,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock storage provider for testing custom plugin registration.
      */
     private static class MockStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("custom");

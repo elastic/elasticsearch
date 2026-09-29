@@ -24,6 +24,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlHistogramFractionTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlHistogramFractionTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testClassicHistogramFractionLowersToAggregateAndDropsLe() {
         LogicalPlan translated = planClassic(
             "PROMQL index=prom_hist step=1m result=(histogram_fraction(0.5, 1.5, " + "sum by (job, le) (request_duration_seconds_bucket)))",

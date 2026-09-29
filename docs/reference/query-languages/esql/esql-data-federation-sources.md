@@ -49,7 +49,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description.
-- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `http` or `https` URL.
+- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
 For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
@@ -71,12 +71,13 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
+| [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
 
 ### Create or update a data source
 
 `PUT` creates a new data source or replaces an existing one entirely with one exception. Secrets you omit from the request are carried forward from the existing definition rather than cleared, so you can update non-secret settings without re-sending credentials.
 
-The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct, create a dataset that references the data source and query it.
+The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 
 :::{important}
 Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.
@@ -203,6 +204,78 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 A data source cannot be deleted while datasets still reference it. Delete the dependent datasets first, or the request returns a `409 Conflict` error.
 :::
 
+### Test a connection
+```{applies_to}
+stack: experimental 9.6+
+```
+
+Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
+
+The response contains a `status` field with one of three values:
+
+| Status | Meaning |
+|---|---|
+| `success` | The probe ran on every eligible node and the backend is reachable with the given credentials. |
+| `failure` | The probe ran but the backend was unreachable or rejected the credentials. An `error` field contains a human-readable reason. |
+| `untestable` | The configuration cannot be verified at the data source level. An optional `message` field, when present, explains why. Common reasons: the backend type has no connectivity probe; credentials are scoped to a container or bucket rather than the account; authentication uses anonymous or managed-identity access that requires a dataset path to resolve the endpoint; or no eligible node could complete the probe. The configuration may still be correct — create a dataset and run a query to validate access. |
+
+The probe runs on every eligible node in parallel, with a 30-second timeout per node. If any node cannot complete the probe, the result is `untestable` rather than `success`.
+
+::::{tab-set}
+:group: api-ref
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query/data_source/_test
+{
+  "type": "s3",
+  "settings": {
+    "auth": "static_credentials",
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}
+```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query/data_source/_test" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "type": "s3",
+  "settings": {
+    "auth": "static_credentials",
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+:::
+
+::::
+
+Example responses:
+
+```json
+{ "status": "success" }
+```
+
+```json
+{ "status": "failure", "error": "The AWS Access Key Id you provided does not exist in our records." }
+```
+
+```json
+{ "status": "untestable", "message": "Anonymous access targets public buckets; create a dataset to validate read access." }
+```
+
+:::{note}
+An unknown `type` value returns a `400 Bad Request` rather than a `failure` status, because the type is not registered — it is a client error, not a connectivity problem.
+:::
+
 ## Data source settings
 
 Settings vary by data source type.
@@ -215,11 +288,36 @@ The following settings are available for `s3` data sources:
 
 | Setting | Required | Description |
 |---|---|---|
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `http` or `https` URL with a host, for example `https://minio.example.com:9000`. <br> A value without a scheme, or with a host the URL syntax does not allow (such as an underscore or a non-numeric port), is rejected when the data source is created. {applies_to}`stack: experimental 9.6+` |
-| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
+| `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a supported AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region, which is the recommended configuration. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
+| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Because `auto` resolves to path-style whenever `endpoint` is set, set `virtual_hosted` if reads through a VPC interface endpoint fail with an addressing error. |
+
+$$$s3-endpoint-requirements$$$
+::::{dropdown} S3 endpoint requirements
+:applies_to: stack: experimental 9.6+
+Accepted endpoint forms. The first three are accepted in every AWS partition; the global form exists only in the commercial partition:
+
+- Regional: `https://s3.us-east-1.amazonaws.com`
+- Historical: `https://s3-us-west-2.amazonaws.com`
+- VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
+- Global: `https://s3.amazonaws.com`
+
+A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
 
 :::{note}
-The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. For standard AWS S3 (no endpoint override), the SDK redirects transparently. For custom-endpoint stores, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+`https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets; other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the dataset's `region` setting.
+:::
+
+Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+
+A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. A host it names is also accepted over plain `http` for `endpoint`; `sts_endpoint` always requires `https`.
+
+:::{warning}
+A data source created before these endpoint restrictions were introduced keeps working for queries, but updating it requires an endpoint that passes the validation described above.
+:::
+::::
+
+:::{note}
+The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
 :::
 
 **Authentication settings:**
@@ -231,7 +329,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity` (Subject to the same URL requirements as `endpoint`. {applies_to}`stack: experimental 9.6+`) |
+| `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token; only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

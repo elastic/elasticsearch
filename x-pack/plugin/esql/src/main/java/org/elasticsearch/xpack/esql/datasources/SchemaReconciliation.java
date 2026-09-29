@@ -109,6 +109,8 @@ import java.util.function.Consumer;
  */
 public final class SchemaReconciliation {
 
+    private static final String STRICT_MISMATCH_FIX = "; set [schema_resolution] to [union_by_name] to merge schemas";
+
     private SchemaReconciliation() {}
 
     /**
@@ -131,13 +133,13 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema (nothing retyped this file),
-        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated by the UNION_BY_NAME pin
-        // (reconcileUnionByName / pinToReconciledTypes) with the full pre-pin type map, and by the declared overlay
-        // (ExternalSourceResolver.applyNonStrictOverlay), which preserves an upstream pin's snapshot when present and
-        // otherwise snapshots its own pre-overlay types. It lets stats boundaries recover the file's real inferred types:
-        // the split-level boundary normalizes footer range stats with them instead of the retyped types, and the
-        // resolve/commit boundaries identify the retyped (pinned) column set to safe-miss its read-schema-blind cached stats.
+        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema,
+        // except on an inferred FIRST_FILE_WINS glob where a missing snapshot means the native
+        // types were never obtained and must not be filled from the pinned read schema.
+        // Populated by the UNION_BY_NAME pin, the declared overlay, and FIRST_FILE_WINS (which
+        // snapshots every file's own footer types when known, including files that agree with
+        // the anchor). Lets stats boundaries normalize footer stats with the real inferred types
+        // and identify pinned columns to safe-miss on the read-schema-blind cache.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
@@ -233,16 +235,16 @@ public final class SchemaReconciliation {
     ) {
         if (refSchema.size() != fileSchema.size()) {
             throw new IllegalArgumentException(
-                "Schema mismatch in ["
+                "["
                     + filePath
-                    + "]: expected "
-                    + refSchema.size()
-                    + " columns (from reference file ["
-                    + refPath
-                    + "]) but found "
+                    + "] has ["
                     + fileSchema.size()
-                    + " columns."
-                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    + "] columns, ["
+                    + refPath
+                    + "] has ["
+                    + refSchema.size()
+                    + "]"
+                    + STRICT_MISMATCH_FIX
             );
         }
         if (compareByName) {
@@ -254,18 +256,18 @@ public final class SchemaReconciliation {
             Attribute fileAttr = fileSchema.get(i);
             if (refAttr.name().equals(fileAttr.name()) == false) {
                 throw new IllegalArgumentException(
-                    "Schema mismatch in ["
+                    "["
                         + filePath
                         + "]: column "
                         + i
                         + " is ["
                         + fileAttr.name()
-                        + "] but reference file ["
+                        + "], in ["
                         + refPath
-                        + "] has ["
+                        + "] it is ["
                         + refAttr.name()
-                        + "]."
-                        + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                        + "]"
+                        + STRICT_MISMATCH_FIX
                 );
             }
             validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
@@ -286,14 +288,7 @@ public final class SchemaReconciliation {
             Attribute fileAttr = fileAttributes.get(refAttr.name());
             if (fileAttr == null) {
                 throw new IllegalArgumentException(
-                    "Schema mismatch in ["
-                        + filePath
-                        + "]: column ["
-                        + refAttr.name()
-                        + "] from reference file ["
-                        + refPath
-                        + "] is missing."
-                        + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    "[" + filePath + "] has no column [" + refAttr.name() + "], which [" + refPath + "] has" + STRICT_MISMATCH_FIX
                 );
             }
             validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
@@ -303,18 +298,18 @@ public final class SchemaReconciliation {
     private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
         if (refAttr.dataType() != fileAttr.dataType()) {
             throw new IllegalArgumentException(
-                "Schema mismatch in ["
+                "["
                     + filePath
                     + "]: column ["
                     + fileAttr.name()
-                    + "] has type ["
+                    + "] is ["
                     + fileAttr.dataType().typeName()
-                    + "] but reference file ["
+                    + "], in ["
                     + refPath
-                    + "] has type ["
+                    + "] it is ["
                     + refAttr.dataType().typeName()
-                    + "]."
-                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    + "]"
+                    + STRICT_MISMATCH_FIX
             );
         }
     }
@@ -339,11 +334,14 @@ public final class SchemaReconciliation {
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
-        // Per-column accumulator. We record *every* file's inferred type for every column up
-        // front (it's cheap and gives the warning emitters a complete contributor list), then
-        // decide at the end which warning, if any, the unified type warrants. Building this
-        // lazily inside the merge branch would lose pre-merge files when a column finally
-        // changes type on its third or later file.
+        // Warning detail quotes at most MAX_FILES_IN_WARNING_DETAIL paths, then "+N more", then the
+        // distinct types in first-seen order. Later files still update the type set and the count, so a
+        // type change after the third file is not lost, but their paths are never stored: the printer
+        // does not quote them, and a columns × files map is a heap spike discarded when this method
+        // returns. The scratch is O(columns) and dead before return, so it is not charged on
+        // ExternalPlanningReservation. chargeQuery holds until query close; reserving this scratch would
+        // sit on the breaker after the objects are gone. The 760 × files credit is for the retained
+        // schema map, not this.
         LinkedHashMap<String, ColumnContributions> contributions = new LinkedHashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -596,12 +594,11 @@ public final class SchemaReconciliation {
         }
         // The local is not stored anywhere; the side effect of add() is the emit.
         SkipWarnings warnings = new SkipWarnings(
-            "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
-                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead.",
+            "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail(DataType.KEYWORD));
+            warnings.add(fb.buildDetail());
         }
     }
 
@@ -627,38 +624,46 @@ public final class SchemaReconciliation {
             return;
         }
         SkipWarnings warnings = new SkipWarnings(
-            "Schema reconciliation widened long and double columns to double; integers above 2^53"
-                + " are not exact. Hint: use schema_resolution = \"strict\" to fail instead.",
+            "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
+                + "set [schema_resolution] to [strict] to fail instead",
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail(DataType.DOUBLE));
+            warnings.add(fb.buildDetail());
         }
     }
 
     /**
-     * Per-column accumulator: every file that contributed a value for the column, together with
-     * that file's inferred type. Insertion-ordered so the emitted message reflects the user's
-     * glob order. Recording is unconditional during merge; the emit step decides whether the
-     * unified type warrants a warning.
+     * Per-column warning scratch. Keeps the first {@link #MAX_FILES_IN_WARNING_DETAIL} contributing
+     * files in glob order, the contributor count for the "+N more" suffix, and the distinct inferred
+     * types in first-seen order. A file that lacks the column is not a contributor. Discarded when
+     * {@link #reconcileUnionByName} returns, so it is not charged on the planning breaker.
      */
     private static final class ColumnContributions {
         private final String columnName;
-        private final LinkedHashMap<StoragePath, DataType> contributions = new LinkedHashMap<>();
+        private final StoragePath[] sampleFiles = new StoragePath[MAX_FILES_IN_WARNING_DETAIL];
+        private final DataType[] sampleTypes = new DataType[MAX_FILES_IN_WARNING_DETAIL];
+        private int contributorCount;
+        // LinkedHashSet, not EnumSet: warning text must follow first-seen order, and EnumSet would reorder it.
+        private final LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>();
 
         ColumnContributions(String columnName) {
             this.columnName = columnName;
         }
 
         void add(StoragePath file, DataType inferredType) {
-            // First inference wins per (column, file). A single file can't contribute two
-            // different types for the same column (validateNoDuplicateColumns guarantees
-            // unique names within a file), so putIfAbsent and put are equivalent here.
-            contributions.putIfAbsent(file, inferredType);
+            // One pass per file, and validateNoDuplicateColumns already rejects two types for the same
+            // name in one file, so there is no per-file dedup to do here.
+            if (contributorCount < MAX_FILES_IN_WARNING_DETAIL) {
+                sampleFiles[contributorCount] = file;
+                sampleTypes[contributorCount] = inferredType;
+            }
+            contributorCount++;
+            distinctTypes.add(inferredType);
         }
 
         boolean hasNonStringContributor() {
-            for (DataType type : contributions.values()) {
+            for (DataType type : distinctTypes) {
                 if (isStringType(type) == false) {
                     return true;
                 }
@@ -667,42 +672,26 @@ public final class SchemaReconciliation {
         }
 
         boolean hasLongAndDoubleContributor() {
-            boolean sawLong = false;
-            boolean sawDouble = false;
-            for (DataType type : contributions.values()) {
-                if (type == DataType.LONG) {
-                    sawLong = true;
-                } else if (type == DataType.DOUBLE) {
-                    sawDouble = true;
-                }
-            }
-            return sawLong && sawDouble;
+            return distinctTypes.contains(DataType.LONG) && distinctTypes.contains(DataType.DOUBLE);
         }
 
-        String buildDetail(DataType unifiedType) {
-            // Pair each file with its inferred type so users can tell which file disagreed.
-            // Long file lists are truncated with a "+N more" suffix; the distinct-type roll-up
-            // at the end keeps an at-a-glance type picture even when files are truncated.
-            StringBuilder sb = new StringBuilder("Column [").append(columnName)
-                .append("] widened to ")
-                .append(unifiedType.typeName())
-                .append(": ");
-            int shown = 0;
-            int total = contributions.size();
-            for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
-                if (shown == MAX_FILES_IN_WARNING_DETAIL && total > MAX_FILES_IN_WARNING_DETAIL) {
-                    sb.append(", +").append(total - shown).append(" more");
-                    break;
-                }
-                if (shown > 0) {
+        String buildDetail() {
+            // Pair each sampled file with its inferred type so users can tell which file disagreed; the type
+            // the column is read as is in the summary. Lists longer than the sample cap get a "+N more" suffix;
+            // the distinct-type roll-up keeps an at-a-glance type picture even when files are truncated.
+            StringBuilder sb = new StringBuilder("column [").append(columnName).append("]: ");
+            int shown = Math.min(contributorCount, MAX_FILES_IN_WARNING_DETAIL);
+            for (int i = 0; i < shown; i++) {
+                if (i > 0) {
                     sb.append(", ");
                 }
-                sb.append(e.getKey()).append(" (").append(e.getValue().typeName()).append(")");
-                shown++;
+                sb.append(sampleFiles[i]).append(" (").append(sampleTypes[i].typeName()).append(")");
             }
-            LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
+            if (contributorCount > MAX_FILES_IN_WARNING_DETAIL) {
+                sb.append(", +").append(contributorCount - shown).append(" more");
+            }
             if (distinctTypes.size() > 1) {
-                sb.append("; distinct types: [");
+                sb.append("; types [");
                 int t = 0;
                 for (DataType type : distinctTypes) {
                     if (t > 0) {

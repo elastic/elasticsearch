@@ -54,9 +54,11 @@ public final class NumericPipeline {
     }
 
     /**
-     * Pipeline for a dictionary column's ordinals stored packed. The standard chain with {@link RunTransform}
-     * and {@link PatchedTransform} around it: an ordinal stream has both the shapes those stages look for,
-     * which a field's own values do not, and a field would pay to look for them on every block it decodes.
+     * The standard chain with {@link RunTransform} and {@link PatchedTransform} around it, for a column a
+     * layout writes about its own values rather than one a field wrote: the ordinals naming a dictionary
+     * column's values, and the counts saying how many slots each document holds. Both arrive in runs and
+     * both carry the occasional value much wider than the rest, which a field's own values do not, and a
+     * field would pay to look for them on every block it decodes.
      *
      * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave
      * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Gcd is not here:
@@ -64,7 +66,7 @@ public final class NumericPipeline {
      * one. Stateless transforms are shared singletons; the terminal, Run and Patched own scratch and stay
      * per-pipeline.
      */
-    public static NumericPipeline ordinalPipeline(int blockSize) {
+    public static NumericPipeline runsAndOutliersPipeline(int blockSize) {
         return new NumericPipeline(
             new BlockTransform[] { new RunTransform(blockSize), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, new PatchedTransform() },
             new ForTerminal(blockSize),

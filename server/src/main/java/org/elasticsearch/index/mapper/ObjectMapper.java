@@ -521,6 +521,9 @@ public class ObjectMapper extends Mapper {
 
                 if (existingBuilder == null) {
                     Mapper.Builder incomingBuilder = entry.getValue();
+                    if (incomingBuilder instanceof NestedObjectMapper.Builder) {
+                        objectMergeContext.checkNestedFieldCount();
+                    }
                     if (objectMergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
                         mergedBuilders.put(incomingName, incomingBuilder);
                     } else if (incomingBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
@@ -751,8 +754,11 @@ public class ObjectMapper extends Mapper {
                                 + " Check the documentation."
                         );
                     }
+                    // Count multi-fields before parsing so they are claimed atomically with the parent.
+                    int multiFieldCount = propNode.get("fields") instanceof Map<?, ?> fieldsMap ? fieldsMap.size() : 0;
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.value() != Subobjects.ENABLED) {
+                        parserContext.checkFieldNameLength(fieldName);
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -761,16 +767,20 @@ public class ObjectMapper extends Mapper {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         validateFieldName(realFieldName, parserContext.indexVersionCreated());
+                        parserContext.checkFieldNameLength(realFieldName);
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             String intermediateObjectName = fieldNameParts[i];
                             validateFieldName(intermediateObjectName, parserContext.indexVersionCreated());
+                            parserContext.checkFieldNameLength(intermediateObjectName);
                             Builder intermediate = new Builder(intermediateObjectName, Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
                     }
-                    objBuilder.add(fieldBuilder);
+                    if (parserContext.tryAddFields(1 + multiFieldCount)) {
+                        objBuilder.add(fieldBuilder);
+                    }
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();

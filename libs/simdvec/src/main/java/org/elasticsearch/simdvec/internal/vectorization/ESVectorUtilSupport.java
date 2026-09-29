@@ -155,6 +155,14 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
+    /**
+     * See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfLineTerminatorLeadByte}. Specialized
+     * (rather than a general "index of any of N marker bytes" method) so implementations backed by
+     * fixed marker constants (e.g. SIMD broadcasts) can be built once rather than reconstructed on
+     * every call.
+     */
+    int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length);
+
     int codePointCount(BytesRef bytesRef);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
@@ -175,7 +183,7 @@ public interface ESVectorUtilSupport {
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 
-    float[] matrixMultiply(float[] a, float[] b, int m, int k, int n);
+    void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result);
 
     void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
 }

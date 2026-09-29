@@ -183,6 +183,33 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         return SubscribableListener.newForked(l -> service.sendProjectRemoveRequest(projectId, taskId, TEST_REQUEST_TIMEOUT, l));
     }
 
+    public static SubscribableListener<PersistentTask<?>> updateProjectTaskState(
+        PersistentTasksService service,
+        ProjectId projectId,
+        PersistentTask<?> task
+    ) {
+        return SubscribableListener.newForked(
+            l -> service.sendProjectUpdateStateRequest(
+                projectId,
+                task.getId(),
+                task.getAllocationId(),
+                new State(randomAlphaOfLength(5)),
+                TEST_REQUEST_TIMEOUT,
+                l
+            )
+        );
+    }
+
+    public static SubscribableListener<PersistentTask<?>> completeProjectTask(
+        PersistentTasksService service,
+        ProjectId projectId,
+        PersistentTask<?> task
+    ) {
+        return SubscribableListener.newForked(
+            l -> service.sendProjectCompletionRequest(projectId, task.getId(), task.getAllocationId(), null, null, TEST_REQUEST_TIMEOUT, l)
+        );
+    }
+
     public static SubscribableListener<PersistentTask<?>> removeClusterTask(PersistentTasksService service, String taskId) {
         return SubscribableListener.newForked(l -> service.sendClusterRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, l));
     }

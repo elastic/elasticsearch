@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159621
+summary: Bump zstd-jni to 1.5.7-16
+type: upgrade

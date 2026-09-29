@@ -94,7 +94,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 ? in.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : null;
             this.dlmFrozenTransitionsHealthInfo = in.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)
-                ? in.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::new)
+                ? in.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::readFrom)
                 : null;
         }
 

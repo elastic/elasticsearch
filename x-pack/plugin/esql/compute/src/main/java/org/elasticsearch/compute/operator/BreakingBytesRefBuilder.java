@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -169,5 +170,40 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     @Override
     public void close() {
         breaker.addWithoutBreaking(-ramBytesUsed());
+    }
+
+    /**
+     * Releases every non-null builder in {@code builders} exactly as if {@link #close()} had been
+     * called on each individually -- but as a single batched breaker call rather than one per
+     * builder. This matters for high-cardinality grouping keys, where a per-builder release loop
+     * repeatedly hammers the shared parent breaker's accounting.
+     *
+     * <p>All non-null builders in {@code builders} must share the same {@link CircuitBreaker}
+     * instance; this is discovered from the first non-null builder and asserted against every
+     * other one. That holds automatically wherever every builder in the array was constructed
+     * against the same breaker, e.g. {@link org.elasticsearch.compute.aggregation.BytesRefArrayState}.
+     *
+     * <p>This also releases {@code builders} itself, so callers must not separately close it.
+     */
+    public static void closeAll(ObjectArray<BreakingBytesRefBuilder> builders) {
+        try {
+            CircuitBreaker breaker = null;
+            long releasedBytes = 0;
+            for (int i = 0; i < builders.size(); i++) {
+                var builder = builders.get(i);
+                if (builder != null) {
+                    if (breaker == null) {
+                        breaker = builder.breaker;
+                    }
+                    assert builder.breaker == breaker : "all builders in the array must share the same breaker";
+                    releasedBytes += builder.ramBytesUsed();
+                }
+            }
+            if (releasedBytes != 0) {
+                breaker.addWithoutBreaking(-releasedBytes);
+            }
+        } finally {
+            builders.close();
+        }
     }
 }

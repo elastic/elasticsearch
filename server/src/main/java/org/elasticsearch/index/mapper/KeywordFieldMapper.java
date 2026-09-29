@@ -2304,7 +2304,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 case BINARY_COLUMNAR_SINGLE_VALUE ->
                     // Single-valued columnar field: raw bytes, no payload framing. The FieldType attribute
                     // flows into FieldInfo so the codec producer returns the value directly.
-                    context.doc().add(new SingleValuedBinaryDocValuesField(fieldType().name(), binaryValue));
+                    context.doc().add(new SingleValuedColumnarBinaryDocValuesField(fieldType().name(), binaryValue));
                 case NONE, SORTED_SET -> throw new AssertionError(
                     "field [" + fieldType().name() + "] uses binary doc values but resolved to layout [" + fieldType().diskFormat() + "]"
                 );

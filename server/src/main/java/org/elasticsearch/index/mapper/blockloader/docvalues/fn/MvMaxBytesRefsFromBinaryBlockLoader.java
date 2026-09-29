@@ -50,8 +50,10 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
             }
             case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, MvMaxBytesRefsFromArrayOrderInlineNull::new);
             case SEPARATE_COUNT -> withCounts(breaker, context, MvMaxBytesRefsFromBinarySeparateCount::new);
-            // PLAIN is single-valued: no companion column, so withCounts falls through to the raw-bytes path.
-            case PLAIN -> withCounts(breaker, context, MvMaxBytesRefsFromBinarySeparateCount::new);
+            case PLAIN -> {
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(binary);
+            }
         };
     }
 

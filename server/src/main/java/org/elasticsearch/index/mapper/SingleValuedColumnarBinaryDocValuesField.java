@@ -21,7 +21,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
  * first indexed. The ColumNAR producer reads it back to return the raw value bytes rather than
  * building a payload.
  */
-public final class SingleValuedBinaryDocValuesField extends Field {
+public final class SingleValuedColumnarBinaryDocValuesField extends Field {
 
     public static final FieldType TYPE;
     static {
@@ -31,7 +31,7 @@ public final class SingleValuedBinaryDocValuesField extends Field {
         TYPE.freeze();
     }
 
-    public SingleValuedBinaryDocValuesField(String name, BytesRef value) {
+    public SingleValuedColumnarBinaryDocValuesField(String name, BytesRef value) {
         super(name, TYPE);
         fieldsData = value;
     }

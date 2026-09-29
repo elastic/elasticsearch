@@ -65,12 +65,10 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
                 context,
                 (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
             );
-            // PLAIN is single-valued: no companion column, so withCounts falls through to the raw-bytes path.
-            case PLAIN -> withCounts(
-                breaker,
-                context,
-                (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
-            );
+            case PLAIN -> {
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new SingleValued(binary);
+            }
         };
     }
 

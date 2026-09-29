@@ -71,6 +71,12 @@ import java.util.Arrays;
  */
 public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
+    /**
+     * Controls whether doc-values prefetch is active. Settable by benchmarks and tests to isolate
+     * the prefetch contribution from other codec differences.
+     */
+    public static volatile boolean prefetchEnabled = true;
+
     final IntObjectHashMap<NumericEntry> numerics;
     final IntObjectHashMap<BinaryEntry> binaries;
     final IntObjectHashMap<SortedEntry> sorted;
@@ -279,7 +285,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public boolean advanceExact(int target) throws IOException {
                         doc = target;
-                        bytesSlice.prefetch((long) doc * length, length);
+                        if (prefetchEnabled) bytesSlice.prefetch((long) doc * length, length);
                         return true;
                     }
 
@@ -353,8 +359,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public boolean advanceExact(int target) throws IOException {
                         doc = target;
-                        long startOffset = addresses.get(doc);
-                        bytesSlice.prefetch(startOffset, addresses.get(doc + 1L) - startOffset);
+                        if (prefetchEnabled) {
+                            long startOffset = addresses.get(doc);
+                            bytesSlice.prefetch(startOffset, addresses.get(doc + 1L) - startOffset);
+                        }
                         return true;
                     }
 
@@ -452,7 +460,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public boolean advanceExact(int target) throws IOException {
                         if (disi.advanceExact(target)) {
-                            bytesSlice.prefetch((long) disi.index() * length, length);
+                            if (prefetchEnabled) bytesSlice.prefetch((long) disi.index() * length, length);
                             return true;
                         }
                         return false;
@@ -479,9 +487,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public boolean advanceExact(int target) throws IOException {
                         if (disi.advanceExact(target)) {
-                            final int index = disi.index();
-                            long startOffset = addresses.get(index);
-                            bytesSlice.prefetch(startOffset, addresses.get(index + 1L) - startOffset);
+                            if (prefetchEnabled) {
+                                final int index = disi.index();
+                                long startOffset = addresses.get(index);
+                                bytesSlice.prefetch(startOffset, addresses.get(index + 1L) - startOffset);
+                            }
                             return true;
                         }
                         return false;
@@ -529,7 +539,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     doc = target;
-                    decoder.prefetchBlock(doc, entry.numCompressedBlocks);
+                    if (prefetchEnabled) decoder.prefetchBlock(doc, entry.numCompressedBlocks);
                     return true;
                 }
 
@@ -635,7 +645,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (disi.advanceExact(target)) {
-                        decoder.prefetchBlock(disi.index(), entry.numCompressedBlocks);
+                        if (prefetchEnabled) decoder.prefetchBlock(disi.index(), entry.numCompressedBlocks);
                         return true;
                     }
                     return false;
@@ -668,6 +678,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput readAhead;
         private long lastBlockId = -1;
         private boolean blockDecompressed = false;
+        private boolean offsetsDecompressed = false;
         private final int[] uncompressedDocStarts;
         private final int biggestUncompressedBlockSize;
         // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
@@ -710,6 +721,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 docOffsetsDecoder.decode(uncompressedDocStarts, numDocsInBlock, compressedData);
             }
 
+            offsetsDecompressed = true;
             return header;
         }
 
@@ -805,7 +817,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
-            if (blockId != lastBlockId) {
+            if (blockId != lastBlockId || offsetsDecompressed == false) {
                 decompressOffsets(blockId, numDocsInBlock);
                 lastBlockId = blockId;
             }
@@ -987,7 +999,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
-                if (blockId != lastBlockId) {
+                if (blockId != lastBlockId || blockDecompressed == false) {
                     decompressBlock(blockId, numDocsInBlock);
                 }
 
@@ -1044,6 +1056,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             limitDocNumForBlock = docOffsets.get(blockId + 1);
             lastBlockId = blockId;
             blockDecompressed = false;
+            offsetsDecompressed = false;
             long blockStart = addresses.get(blockId);
             // addresses has numBlocks+1 entries: the sentinel gives the end of the last block.
             readAhead.prefetch(blockStart, addresses.get(blockId + 1) - blockStart);
@@ -1823,7 +1836,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
             blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
             bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
-            if (entry.termsDataLength > 0) {
+            if (entry.termsDataLength > 0 && prefetchEnabled) {
                 bytes.prefetch(0, 1);
             }
             blockMask = (1L << termsDictBlockLz4Shift) - 1;
@@ -2665,12 +2678,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     doc = target;
-                    final long blockIndex = target >>> numericBlockShift;
-                    if (blockIndex != prefetchedBlockIndex) {
-                        prefetchedBlockIndex = blockIndex;
-                        final long startOffset = indexReader.get(blockIndex);
-                        final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
-                        valuesData.prefetch(startOffset, endOffset - startOffset);
+                    if (prefetchEnabled) {
+                        final long blockIndex = target >>> numericBlockShift;
+                        if (blockIndex != prefetchedBlockIndex) {
+                            prefetchedBlockIndex = blockIndex;
+                            final long startOffset = indexReader.get(blockIndex);
+                            final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
+                            valuesData.prefetch(startOffset, endOffset - startOffset);
+                        }
                     }
                     return true;
                 }
@@ -2824,12 +2839,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (disi.advanceExact(target)) {
-                        final long blockIndex = disi.index() >>> numericBlockShift;
-                        if (blockIndex != prefetchedBlockIndex) {
-                            prefetchedBlockIndex = blockIndex;
-                            final long startOffset = indexReader.get(blockIndex);
-                            final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
-                            valuesData.prefetch(startOffset, endOffset - startOffset);
+                        if (prefetchEnabled) {
+                            final long blockIndex = disi.index() >>> numericBlockShift;
+                            if (blockIndex != prefetchedBlockIndex) {
+                                prefetchedBlockIndex = blockIndex;
+                                final long startOffset = indexReader.get(blockIndex);
+                                final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
+                                valuesData.prefetch(startOffset, endOffset - startOffset);
+                            }
                         }
                         return true;
                     }
@@ -3073,7 +3090,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     end = addresses.get(target + 1L);
                     count = (int) (end - start);
                     doc = target;
-                    values.prefetch(start);
+                    if (prefetchEnabled) values.prefetch(start);
                     return true;
                 }
 

@@ -25,12 +25,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Setup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,19 +44,19 @@ import java.util.Random;
  * Benchmark for {@link SourceLoader.SyntheticFieldLoader.DocValuesLoader} against a
  * stateless-simulated Directory, exercising the prefetch path in TSDB doc values codecs.
  *
- * <p>Builds an index with configurable numeric (long) and keyword fields, then loads
- * synthetic source for a batch of scattered doc IDs. When {@code indexSort=true}, a sort
- * on {@code @timestamp} activates the ES95 TSDB doc values format whose iterators
- * implement {@code Prefetchable}.
+ * <p>Always uses the ES95TSDB doc values format (index-sorted on {@code @timestamp}). The
+ * {@code prefetch} parameter controls whether {@link AbstractTSDBDocValuesProducer#prefetchEnabled}
+ * is set, so the two rows differ only in prefetch behavior — not in codec or compression.
  *
  * <p>Sweeps via {@link Param}:
  * <ul>
  *   <li>{@code numericFields} — number of long fields</li>
  *   <li>{@code keywordFields} — number of keyword fields</li>
+ *   <li>{@code binaryFields} — number of binary fields (exercises the compressed binary prefetch path)</li>
  *   <li>{@code numDocs} — index size</li>
  *   <li>{@code batchSize} — doc IDs loaded per query invocation</li>
  *   <li>{@code sparsity} — fraction of docs with a value for numeric fields (1.0 = dense)</li>
- *   <li>{@code indexSort} — whether to add an index sort (activates ES95 TSDB DV format)</li>
+ *   <li>{@code prefetch} — whether doc-values prefetch is active</li>
  * </ul>
  *
  * <h2>Usage</h2>
@@ -61,7 +64,7 @@ import java.util.Random;
  * ./gradlew -p benchmarks run --args '
  *   DocValuesLoaderBenchmark
  *   -p cacheState=COLD -p firstByteLatencyMs=100
- *   -p indexSort=true,false
+ *   -p binaryFields=20
  * '
  * }</pre>
  */
@@ -101,11 +104,17 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
     @Param({ "1.0", "0.5" })
     public double sparsity;
 
+    /** Whether to enable doc-values prefetch in the ES95TSDB codec. */
     @Param({ "true", "false" })
-    public boolean indexSort;
+    public boolean prefetch;
 
     private SourceLoader sourceLoader;
     private int[] docIdBatch;
+
+    @Setup(Level.Trial)
+    public void setupPrefetch() {
+        AbstractTSDBDocValuesProducer.prefetchEnabled = prefetch;
+    }
 
     @Override
     protected Settings extraNodeSettings() {
@@ -114,18 +123,15 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
 
     @Override
     protected IndexWriterConfig indexWriterConfig() {
-        DocValuesFormat dvFormat = indexSort ? DocValuesFormat.forName("ES95TSDB") : DocValuesFormat.forName("Lucene90");
         IndexWriterConfig iwc = new IndexWriterConfig();
         iwc.setCodec(new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return dvFormat;
+                return DocValuesFormat.forName("ES95TSDB");
             }
         });
         iwc.setUseCompoundFile(false);
-        if (indexSort) {
-            iwc.setIndexSort(new Sort(new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)));
-        }
+        iwc.setIndexSort(new Sort(new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)));
         return iwc;
     }
 
@@ -146,9 +152,7 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
             + "-d"
             + numDocs
             + "-s"
-            + sparsity
-            + "-sort"
-            + indexSort;
+            + sparsity;
     }
 
     @Override

@@ -34,10 +34,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests for {@link ScriptFieldsPhase} behaviour (field population, exception handling).
  * <p>
- * Circuit-breaker accounting for script fields is now done by {@code FetchPhase#nextDoc} after all
- * sub-phases have run, using {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}.
- * The byte-level accounting assertions formerly in this class have moved to
- * {@code DocumentFieldAccountingTests}.
+ * Script fields do not charge the circuit breaker directly; bytes are charged by
+ * {@code FetchPhase#nextDoc} after all sub-phases have run, via
+ * {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}.
+ * Byte-level accounting is covered by {@code DocumentFieldAccountingTests}.
  */
 public class ScriptFieldsPhaseTests extends ESTestCase {
 
@@ -81,8 +81,8 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
     }
 
     /**
-     * ScriptFieldsPhase must NOT charge any bytes directly to the configured checker.
-     * Bytes are now charged by FetchPhase#nextDoc after all sub-phases have run.
+     * ScriptFieldsPhase must not charge bytes directly; they are charged by
+     * FetchPhase#nextDoc after all sub-phases have run.
      */
     public void testScriptFieldPhaseDoesNotChargeBytes() throws Exception {
         List<Long> received = new ArrayList<>();

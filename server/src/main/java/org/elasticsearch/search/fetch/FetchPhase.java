@@ -265,20 +265,20 @@ public final class FetchPhase {
     }
 
     /**
-     * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
-     * streaming modes. In streaming mode, only per-hit source/document-field bytes exceeding
-     * {@link SearchContext#memAccountingBufferSize()} are charged to the request circuit breaker;
-     * In non-streaming mode, bytes are accumulated and charged once the threshold is crossed, and
-     * held until the fetch response is released.
+     * Creates the docs iterator for both sync and streaming modes.
      * <p>
-     * Document-field bytes (covering {@code fields}, {@code stored_fields}, {@code docvalue_fields} and
-     * {@code script_fields}) are charged once per hit, after all sub-phases have run, using the estimate
-     * from {@link SearchHitRamUsageEstimator#estimateDocumentFields(SearchHit)}. This is the only charge
-     * site for document fields; charging inside individual sub-phases is structurally incorrect because
-     * later sub-phases can replace or mutate earlier entries in the hit's field maps.
+     * In streaming mode, only per-hit bytes exceeding {@link SearchContext#memAccountingBufferSize()}
+     * are charged to the request circuit breaker. In non-streaming mode, bytes accumulate until the
+     * threshold is crossed, then are held until the fetch response is released.
      * <p>
-     * Inner-hit bytes are charged separately through the {@link FetchContext#chargeInnerHitsBytes(long)}
-     * hook which transfers them from the nested {@code FetchSearchResult} onto this iterator's counter.
+     * Document-field bytes (covering {@code fields}, {@code stored_fields}, {@code docvalue_fields}
+     * and {@code script_fields}) are charged once per hit after all sub-phases have run, via
+     * {@link SearchHitRamUsageEstimator#estimateDocumentFields(SearchHit)}. This is the only charge
+     * site for document fields; charging inside individual sub-phases is incorrect because later
+     * sub-phases can replace earlier entries in the hit's field maps.
+     * <p>
+     * Inner-hit bytes are charged separately via the {@link FetchContext#chargeInnerHitsBytes(long)}
+     * hook, which transfers them from the nested {@code FetchSearchResult} onto this iterator's counter.
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,

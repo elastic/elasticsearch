@@ -292,9 +292,8 @@ public class FetchContext {
     }
 
     /**
-     * Charges {@code bytes} for an inner-hit {@link org.elasticsearch.common.document.DocumentField}
-     * against the configured checker. Called by {@code InnerHitsPhase} to transfer the bytes that were
-     * accumulated by the nested fetch onto the parent fetch context's circuit-breaker counter.
+     * Forwards {@code bytes} from a completed inner-hit fetch to the registered checker, charging
+     * them against the parent fetch context's circuit-breaker counter. Called by {@code InnerHitsPhase}.
      */
     public void chargeInnerHitsBytes(long bytes) {
         if (bytes <= 0L) {

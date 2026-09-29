@@ -1193,8 +1193,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             // bytes must be held in the breaker until the fetch result is released
             assertThat("document field bytes must be charged to the request circuit breaker", breaker.getUsed(), greaterThan(0L));
         }
-        // try-with-resources closes the search context, which decRefs the FetchSearchResult,
-        // which calls giveBackCircuitBreakerBytes() — returning all charged bytes to the breaker
+        // closing the search context decRefs the FetchSearchResult, releasing all charged bytes
         assertThat("document field bytes must be released when the fetch result is closed", breaker.getUsed(), equalTo(0L));
 
         r.close();

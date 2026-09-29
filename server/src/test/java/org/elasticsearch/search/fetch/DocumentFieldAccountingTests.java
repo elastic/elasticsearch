@@ -64,8 +64,8 @@ public class DocumentFieldAccountingTests extends ESTestCase {
     }
 
     /**
-     * Inner-hit bytes are accounted separately and transferred to the parent by InnerHitsPhase.
-     * estimateDocumentFields must NOT include them to avoid double-counting.
+     * Inner-hit bytes are charged separately by InnerHitsPhase; {@code estimateDocumentFields}
+     * must exclude them to avoid double-counting.
      */
     public void testEstimateExcludesInnerHits() {
         SearchHit hitWithInner = SearchHit.unpooled(0, null);
@@ -109,8 +109,7 @@ public class DocumentFieldAccountingTests extends ESTestCase {
     // ----- FetchContext.chargeInnerHitsBytes hook ----------------------------------------
 
     /**
-     * The InnerHitsPhase hook (chargeInnerHitsBytes) must forward the bytes to the installed checker.
-     * This mirrors the pattern in ScriptFieldsPhaseTests for the renamed method.
+     * The InnerHitsPhase hook (chargeInnerHitsBytes) must forward bytes to the installed checker.
      */
     public void testChargeInnerHitsBytesForwardsToChecker() throws Exception {
         try (TestSearchContext searchContext = new TestSearchContext((SearchExecutionContext) null)) {

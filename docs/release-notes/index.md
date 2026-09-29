@@ -622,6 +622,7 @@ protection correctly during repository analysis.
 Searches that target multiple shards on the same data node now batch shards into a single round-trip per data node, with partial reductions performed on the data nodes.
 This reduces transport layer overhead and spreads the load of reductions across multiple nodes.
 The enhancement is controlled by a setting `search.batched_query_phase`, which is enabled by default in 9.5.0.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-batched-query-phase).
 ::::
 
 ::::{dropdown} Improved reindex resilience and new reindex management APIs
@@ -635,8 +636,8 @@ is the preferred approach for deep pagination, and allows reindex to
 benefit from recent improvements to PIT resilience (where available).
 Finally, we are adding dedicated new APIs to monitor and manage
 reindex operations, providing a better user-experience than the older
-tasks APIs. Read more about these changes in the blog at
-https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.
+tasks APIs.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless).
 ::::
 
 ::::{dropdown} Data stream lifecycle can move data to the frozen tier
@@ -648,6 +649,8 @@ sits alongside `data_retention` and `downsampling` in the lifecycle
 configuration, with no ILM policy required. DLM writes frozen data to a new
 cluster-level default snapshot repository. This capability requires an
 Enterprise license and is not available in Elastic Cloud Serverless.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/data-stream-lifecycle-frozen-tier).
 ::::
 
 ::::{dropdown} Support for `flattened` fields in ES|QL
@@ -662,6 +665,7 @@ part of the key, so the same dotted form addresses both originally-flat and orig
 sub-fields. When a sub-field holds multiple values, the result is a multi-valued `keyword`.
 
 Both the `flattened` type support and the `FIELD_EXTRACT` function are in Technical Preview.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/schema-on-read-esql-json-keys).
 ::::
 
 ::::{dropdown} `date_range` field type available as tech preview
@@ -680,11 +684,15 @@ and ES|QL `TS` queries will interpret the data automatically, taking the tempora
 query syntax for this functionality. Existing queries will continue to work as expected. The temporality is also respected
 and preserved during downsampling. Metrics ingested using other means can use the new `index.time_series.temporality_field`
 index setting to define the dimension field storing the temporality.
+
+Read more about these changes in the {{es-labs}} [Skip the stateful OTel Collector](https://www.elastic.co/search-labs/blog/otel-metrics-cumulative-delta-elasticsearch) and [Native OTLP metrics ingestion on Elastic Cloud Hosted](https://www.elastic.co/observability-labs/blog/opentelemetry-histograms-elastic-cloud-hosted) blogs.
 ::::
 
 ::::{dropdown} PromQL: Add basic support for native (exponential) histograms
 You can now query exponential_histogram fields with PromQL syntax for native histograms.
 The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/promql-elasticsearch-compute-engine).
 ::::
 
 ::::{dropdown} ES|QL Data Federation
@@ -737,6 +745,8 @@ defaults, suitable for general-purpose indices and data streams.
 
 Improved columnar storage: An optimized doc values format is used by default,
 further reducing storage footprint, especially when combined with index sorting.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage).
 ::::
 
 ::::{dropdown} Create backing indices for backfilling past timestamps in TSDB (opt-in)
@@ -748,6 +758,7 @@ cluster setting is enabled (defaults to `false`), Elasticsearch now creates the
 necessary backing indices needed to cover it before indexing, instead of rejecting
 the write. Timestamps outside the eligible window, or in the future, are still
 rejected.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-data-backfill).
 ::::
 
 ::::{dropdown} ES95 is the default TSDB doc values codec
@@ -756,6 +767,7 @@ metrics data it reduces total doc values storage by about 30% versus ES819,
 driven by `@timestamp` (up to 90% smaller) and floating-point gauges and counters
 via adaptive floating-point encoding, at no indexing or query cost. Existing
 indices keep their codec; opt out with `index.time_series.es95_codec.enabled: false`.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-database-compression-elasticsearch).
 ::::
 
 ::::{dropdown} Release support for match with non-mapped expressions
@@ -768,6 +780,7 @@ Elasticsearch mapped field, but has the `text` data type, we evaluate
 the `match` function on-the-fly by analyzing the value of the expression
 for each row and checking whether any of the analyzed tokens match the
 analyzed tokens of the given query string.
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/full-text-search-unindexed-data).
 ::::
 
 ### Features and enhancements [elasticsearch-9.5.0-features-enhancements]

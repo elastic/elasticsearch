@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -92,6 +91,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -206,7 +206,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
 
-        optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
+        optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), minimumVersion));
 
         boolean viewsEnabled;
         ViewMetadata viewMetadata;

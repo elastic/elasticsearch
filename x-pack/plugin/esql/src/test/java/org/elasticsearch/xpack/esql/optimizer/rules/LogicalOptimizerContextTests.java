@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,7 +27,7 @@ public class LogicalOptimizerContextTests extends ESTestCase {
     public void testToString() {
         // Random looking numbers for FoldContext are indeed random. Just so we have consistent numbers to assert on in toString.
         // Same for the transport version.
-        LogicalOptimizerContext ctx = new LogicalOptimizerContext(
+        LogicalOptimizerContext ctx = logicalOptimizerContext(
             EsqlTestUtils.TEST_CFG,
             new FoldContext(102),
             FieldAttribute.ESQL_FIELD_ATTRIBUTE_DROP_TYPE

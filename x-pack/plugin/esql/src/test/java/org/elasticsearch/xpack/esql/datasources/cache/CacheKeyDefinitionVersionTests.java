@@ -70,8 +70,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         Map<String, Object> auditor = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "AUDITORTOKEN");
         assertNotEquals(
             "two identities over one prefix must not address one listing",
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config(readerVersion, reader), ""),
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config(auditorVersion, auditor), "")
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config(readerVersion, reader), ""),
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config(auditorVersion, auditor), "")
         );
     }
 
@@ -79,8 +79,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     public void testOneIdentityOverOneBucketAddressesOneListing() {
         Map<String, Object> settings = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "TOKEN");
         assertEquals(
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config("v1", settings), ""),
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", config("v1", settings), "")
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config("v1", settings), ""),
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config("v1", settings), "")
         );
     }
 

@@ -45,8 +45,7 @@ public record ListingCacheKey(
     String scheme,
     String bucketOrContainer,
     String prefixAndGlob,
-    String endpoint,
-    String region,
+    String storageIdentity,
     long credentialHashH1,
     long credentialHashH2,
     long listingDiscriminatorH1,
@@ -63,25 +62,29 @@ public record ListingCacheKey(
         "token"
     );
 
+    /**
+     * @param storageIdentity what the storage provider that would list this prefix says identifies the objects it
+     *                        reads. Passed in rather than read out of {@code config}: only that provider knows
+     *                        which of its settings name the same store twice, and this key used to guess with two
+     *                        literals that named nothing for a provider addressed by an account.
+     */
     public static ListingCacheKey build(
         String scheme,
         String bucket,
         String prefixAndGlob,
+        String storageIdentity,
         Map<String, Object> config,
         String listingDiscriminator
     ) {
-        // Both EndpointRegion.of() and computeCredentialHash() walk the _datasource sub-map themselves
-        // (belt-and-suspenders). Callers should still pass storageConfig(config) so any future dimension
-        // added to the key is equally resilient without requiring a separate sub-map walk.
-        EndpointRegion location = EndpointRegion.of(config);
+        // computeCredentialHash() walks the _datasource sub-map itself. It stays until the inline path that has no
+        // definition version goes, because there it is the only thing separating two sets of credentials.
         long[] hash = computeCredentialHash(config);
         long[] discriminatorHash = sha256Truncated(listingDiscriminator);
         return new ListingCacheKey(
             scheme,
             bucket,
             prefixAndGlob,
-            location.endpoint(),
-            location.region(),
+            storageIdentity,
             hash[0],
             hash[1],
             discriminatorHash[0],

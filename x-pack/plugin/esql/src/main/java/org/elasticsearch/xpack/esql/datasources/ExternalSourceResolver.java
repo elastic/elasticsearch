@@ -1059,10 +1059,22 @@ public class ExternalSourceResolver {
             // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
             // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
             if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
-                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping, demand));
+                listener.onResponse(
+                    resolveStrictMultiFile(path, storagePath, provider, storageIdentity, hints, fileConfig, declaredMapping, demand)
+                );
                 return;
             }
-            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
+            FileList listing = listAndRecord(
+                path,
+                storagePath,
+                provider,
+                storageIdentity,
+                hints,
+                fileConfig,
+                schemaResolution,
+                cacheable,
+                demand
+            );
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1455,6 +1467,7 @@ public class ExternalSourceResolver {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
@@ -1464,7 +1477,7 @@ public class ExternalSourceResolver {
         long discoveryStartNanos = System.nanoTime();
         int listingBound = listingBoundFor(demand, SchemaBreadth.of(schemaResolution), config, hints);
         FileList listing = cacheable && listingBound == Integer.MAX_VALUE
-            ? cachedListing(path, storagePath, provider, hints, config)
+            ? cachedListing(path, storagePath, provider, storageIdentity, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath, listingBound);
         assert listing.isTruncated() == false || listingBound != Integer.MAX_VALUE
             : "a listing was truncated without a bound being asked for";
@@ -1565,6 +1578,7 @@ public class ExternalSourceResolver {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) throws Exception {
@@ -1572,6 +1586,7 @@ public class ExternalSourceResolver {
             storagePath.scheme(),
             storagePath.host(),
             storagePath.path(),
+            storageIdentity,
             storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
@@ -3729,6 +3744,7 @@ public class ExternalSourceResolver {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
@@ -3758,7 +3774,7 @@ public class ExternalSourceResolver {
                 listingBound
             );
         } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
-            listing = cachedListing(path, storagePath, provider, hints, config);
+            listing = cachedListing(path, storagePath, provider, storageIdentity, hints, config);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath, listingBound);
         }

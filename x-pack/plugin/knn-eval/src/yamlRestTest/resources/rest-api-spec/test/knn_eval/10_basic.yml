@@ -115,7 +115,8 @@ teardown:
         body:
           field: emb
           k: 10
-          sample:
+          query_source:
+            from: docs
             size: 10
             seed: 42
           baseline:
@@ -152,7 +153,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -170,7 +172,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -185,7 +188,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 30
           baseline:
             visit_percentage: 100
@@ -231,7 +235,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -274,7 +279,8 @@ teardown:
         body:
           field: obj.emb
           k: 1
-          sample:
+          query_source:
+            from: docs
             size: 3
             seed: 42
           baseline:
@@ -323,7 +329,8 @@ teardown:
         body:
           field: obj.emb
           k: 1
-          sample:
+          query_source:
+            from: docs
             size: 3
           baseline:
             visit_percentage: 100
@@ -340,7 +347,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 10
           baseline:
             visit_percentage: 100
@@ -364,7 +372,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 10
           baseline:
             exact: true
@@ -395,7 +404,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -411,7 +421,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             exact: true
@@ -427,7 +438,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 10
           knn_settings:
             - visit_percentage: 100
@@ -446,7 +458,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 10
           baseline:
             visit_percentage: 100
@@ -479,7 +492,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             exact: true
@@ -493,7 +507,8 @@ teardown:
         body:
           field: emb
           k: 5
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -513,12 +528,14 @@ teardown:
           field: emb
           k: 10
           # caller supplied queries, so the search size is exactly k rather than k + 1
-          queries:
-            - id: q1
-              query_vector: [ 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6,
-                              0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2,
-                              0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
-                              0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4 ]
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [ 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6,
+                                0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2,
+                                0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+                                0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4 ]
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -540,9 +557,11 @@ teardown:
         body:
           field: emb
           k: 3
-          queries:
-            - id: q1
-              query_vector: [-0.5066, -0.5988, -0.7856, 0.2846, -0.2543, -0.982, -0.0682, 0.9076, 0.9207, -0.1837, 0.7398, 0.7174, -0.505, 0.5349, 0.4207, -0.4278, -0.8079, 0.432, 0.766, -0.8993, -0.4932, -0.6579, 0.6501, -0.4784, 0.9356, -0.7755, 0.6813, 0.6655, -0.476, 0.5317, -0.536, 0.9113, 0.5461, 0.1026, -0.2761, 0.6285, -0.3388, -0.7675, -0.6958, -0.5769, -0.436, -0.9055, -0.3174, 0.8529, -0.4445, -0.071, 0.4391, 0.7084, 0.105, 0.123, -0.0026, 0.137, -0.6446, -0.359, -0.1863, -0.6536, 0.6445, -0.632, 0.2302, 0.2349, -0.1278, -0.513, -0.7754, 0.2911]
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [-0.5066, -0.5988, -0.7856, 0.2846, -0.2543, -0.982, -0.0682, 0.9076, 0.9207, -0.1837, 0.7398, 0.7174, -0.505, 0.5349, 0.4207, -0.4278, -0.8079, 0.432, 0.766, -0.8993, -0.4932, -0.6579, 0.6501, -0.4784, 0.9356, -0.7755, 0.6813, 0.6655, -0.476, 0.5317, -0.536, 0.9113, 0.5461, 0.1026, -0.2761, 0.6285, -0.3388, -0.7675, -0.6958, -0.5769, -0.436, -0.9055, -0.3174, 0.8529, -0.4445, -0.071, 0.4391, 0.7084, 0.105, 0.123, -0.0026, 0.137, -0.6446, -0.359, -0.1863, -0.6536, 0.6445, -0.632, 0.2302, 0.2349, -0.1278, -0.513, -0.7754, 0.2911]
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -559,9 +578,11 @@ teardown:
         body:
           field: emb
           k: 3
-          queries:
-            - id: encoded
-              query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
+          query_source:
+            from: vectors
+            vectors:
+              - id: encoded
+                query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -606,7 +627,8 @@ teardown:
         body:
           field: emb
           k: 1
-          sample:
+          query_source:
+            from: docs
             size: 2
           baseline:
             exact: true
@@ -624,11 +646,13 @@ teardown:
         body:
           field: emb
           k: 3
-          queries:
-            - id: good
-              query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
-            - id: bad
-              query_vector: "not a vector"
+          query_source:
+            from: vectors
+            vectors:
+              - id: good
+                query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
+              - id: bad
+                query_vector: "not a vector"
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -649,7 +673,8 @@ teardown:
         body:
           field: emb
           k: 0
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
@@ -665,14 +690,15 @@ teardown:
         body:
           field: emb
           k: 10
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100
           knn_settings: []
 
 ---
-"exactly one of queries and sample is required":
+"query_source is required":
   - do:
       catch: bad_request
       knn_eval:
@@ -692,11 +718,8 @@ teardown:
         body:
           field: emb
           k: 10
-          sample:
-            size: 5
-          queries:
-            - id: q1
-              query_vector: [ 1.0, 2.0 ]
+          query_source:
+            from: unknown_source
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -711,7 +734,8 @@ teardown:
         body:
           field: emb
           k: 10
-          sample:
+          query_source:
+            from: docs
             size: 5
           baseline:
             visit_percentage: 100

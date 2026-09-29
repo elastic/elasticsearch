@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,17 +25,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** One recall-versus-cost evaluation: queries or a sample, a baseline, and the settings measured against it. */
+/** One recall-versus-cost evaluation: a query source, a baseline, and the settings measured against it. */
 final class KnnEvalSpec implements Writeable, ToXContentObject {
 
     static final int MAX_QUERIES = 1_000;
     static final int MAX_K = 1_000;
     static final int MAX_KNN_SETTINGS = 32;
 
+    /** Wire format added {@code query_source} as a single discriminated field replacing top-level {@code queries} and {@code sample}. */
+    static final TransportVersion KNN_EVAL_QUERY_SOURCE = TransportVersion.fromName("knn_eval_query_source");
+
     static final ParseField FIELD_FIELD = new ParseField("field");
     static final ParseField K_FIELD = new ParseField("k");
-    static final ParseField QUERIES_FIELD = new ParseField("queries");
-    static final ParseField SAMPLE_FIELD = new ParseField("sample");
+    static final ParseField QUERY_SOURCE_FIELD = KnnEvalQuerySource.QUERY_SOURCE_FIELD;
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
 
@@ -47,50 +50,39 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         args -> new KnnEvalSpec(
             (String) args[0],
             (Integer) args[1],
-            (List<KnnEvalQuery>) args[2],
-            (KnnEvalSample) args[3],
-            args[4] == null ? DEFAULT_BASELINE : (KnnEvalSettings) args[4],
-            (List<KnnEvalSettings>) args[5]
+            (KnnEvalQuerySource) args[2],
+            args[3] == null ? DEFAULT_BASELINE : (KnnEvalSettings) args[3],
+            (List<KnnEvalSettings>) args[4]
         )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), K_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalQuery.fromXContent(p), QUERIES_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSample.fromXContent(p), SAMPLE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalQuerySource.fromXContent(p), QUERY_SOURCE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), BASELINE_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), KNN_SETTINGS_FIELD);
     }
 
     private final String field;
     private final int k;
-    @Nullable
-    private final List<KnnEvalQuery> queries;
-    @Nullable
-    private final KnnEvalSample sample;
+    private final KnnEvalQuerySource querySource;
     private final KnnEvalSettings baseline;
     private final List<KnnEvalSettings> knnSettings;
 
-    KnnEvalSpec(
-        String field,
-        int k,
-        @Nullable List<KnnEvalQuery> queries,
-        @Nullable KnnEvalSample sample,
-        KnnEvalSettings baseline,
-        List<KnnEvalSettings> knnSettings
-    ) {
+    KnnEvalSpec(String field, int k, KnnEvalQuerySource querySource, KnnEvalSettings baseline, List<KnnEvalSettings> knnSettings) {
         validateBounds(field, k);
-        validateQuerySource(queries, sample);
+        Objects.requireNonNull(querySource, "[" + QUERY_SOURCE_FIELD.getPreferredName() + "] must be provided");
+        validateVectorsSource(querySource, k);
         baseline = normalizeBaseline(baseline);
+        boolean sampling = querySource instanceof KnnEvalQuerySource.DocsSource || querySource instanceof KnnEvalQuerySource.QueriesSource;
         // a sampled query also retrieves its own document, so it searches one extra candidate
-        int maxNumCandidates = sample == null ? KnnEvalRescore.MAX_NUM_CANDIDATES : KnnEvalRescore.MAX_NUM_CANDIDATES - 1;
-        validateNumCandidates(baseline, k, maxNumCandidates);
-        validateCandidates(knnSettings, k, maxNumCandidates);
+        int maxNumCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
+        validateNumCandidates(baseline, k, maxNumCandidates, sampling);
+        validateCandidates(knnSettings, k, maxNumCandidates, sampling);
         this.field = field;
         this.k = k;
-        this.queries = queries == null ? null : List.copyOf(queries);
-        this.sample = sample;
+        this.querySource = querySource;
         this.baseline = baseline;
         this.knnSettings = List.copyOf(knnSettings);
     }
@@ -104,27 +96,25 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
     }
 
-    private static void validateQuerySource(@Nullable List<KnnEvalQuery> queries, @Nullable KnnEvalSample sample) {
-        if ((queries == null) == (sample == null)) {
-            throw new IllegalArgumentException(
-                "exactly one of [" + QUERIES_FIELD.getPreferredName() + "] and [" + SAMPLE_FIELD.getPreferredName() + "] must be provided"
-            );
-        }
-        if (queries != null) {
-            if (queries.isEmpty()) {
-                throw new IllegalArgumentException("[" + QUERIES_FIELD.getPreferredName() + "] must not be empty");
+    private static void validateVectorsSource(KnnEvalQuerySource querySource, int k) {
+        if (querySource instanceof KnnEvalQuerySource.VectorsSource vs) {
+            List<KnnEvalQuery> vectors = vs.vectors();
+            if (vectors.isEmpty()) {
+                throw new IllegalArgumentException("[" + KnnEvalQuerySource.VECTORS_FIELD.getPreferredName() + "] must not be empty");
             }
-            if (queries.size() > MAX_QUERIES) {
+            if (vectors.size() > MAX_QUERIES) {
                 throw new IllegalArgumentException(
-                    "[" + QUERIES_FIELD.getPreferredName() + "] must contain at most " + MAX_QUERIES + " entries"
+                    "[" + KnnEvalQuerySource.VECTORS_FIELD.getPreferredName() + "] must contain at most " + MAX_QUERIES + " entries"
                 );
             }
             Set<String> ids = new HashSet<>();
-            for (KnnEvalQuery query : queries) {
+            for (KnnEvalQuery query : vectors) {
                 if (ids.add(query.getId()) == false) {
                     throw new IllegalArgumentException("duplicate query id [" + query.getId() + "]");
                 }
             }
+        } else if (querySource instanceof KnnEvalQuerySource.QueriesSource) {
+            throw new IllegalArgumentException("[from: queries] is not yet implemented; use [from: docs] to sample from stored documents");
         }
     }
 
@@ -139,7 +129,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return baseline;
     }
 
-    private static void validateCandidates(List<KnnEvalSettings> knnSettings, int k, int maxNumCandidates) {
+    private static void validateCandidates(List<KnnEvalSettings> knnSettings, int k, int maxNumCandidates, boolean sampling) {
         if (knnSettings == null || knnSettings.isEmpty() || knnSettings.size() > MAX_KNN_SETTINGS) {
             throw new IllegalArgumentException(
                 "[" + KNN_SETTINGS_FIELD.getPreferredName() + "] must contain between 1 and " + MAX_KNN_SETTINGS + " entries"
@@ -147,7 +137,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
         Set<KnnEvalSettings> uniqueCandidates = new HashSet<>();
         for (KnnEvalSettings candidate : knnSettings) {
-            validateNumCandidates(candidate, k, maxNumCandidates);
+            validateNumCandidates(candidate, k, maxNumCandidates, sampling);
             if (uniqueCandidates.add(candidate) == false) {
                 throw new IllegalArgumentException("duplicate entry in [" + KNN_SETTINGS_FIELD.getPreferredName() + "]: " + candidate);
             }
@@ -161,7 +151,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     /** The kNN query rejects this too, but here the error can name the offending settings entry rather than one failed query. */
-    private static void validateNumCandidates(KnnEvalSettings knnSettings, int k, int maxNumCandidates) {
+    private static void validateNumCandidates(KnnEvalSettings knnSettings, int k, int maxNumCandidates, boolean sampling) {
         Integer numCandidates = knnSettings.getNumCandidates();
         if (numCandidates != null && numCandidates < k) {
             throw new IllegalArgumentException(
@@ -179,7 +169,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
                     + KnnEvalSettings.NUM_CANDIDATES_FIELD.getPreferredName()
                     + "] cannot exceed "
                     + maxNumCandidates
-                    + (maxNumCandidates < KnnEvalRescore.MAX_NUM_CANDIDATES ? " with [" + SAMPLE_FIELD.getPreferredName() + "]" : "")
+                    + (sampling ? " with sampling" : "")
                     + " in "
                     + knnSettings
             );
@@ -187,14 +177,17 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     KnnEvalSpec(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readVInt(),
-            in.readOptionalCollectionAsList(KnnEvalQuery::new),
-            in.readOptionalWriteable(KnnEvalSample::new),
-            new KnnEvalSettings(in),
-            in.readCollectionAsList(KnnEvalSettings::new)
-        );
+        this(in.readString(), in.readVInt(), readQuerySource(in), new KnnEvalSettings(in), in.readCollectionAsList(KnnEvalSettings::new));
+    }
+
+    private static KnnEvalQuerySource readQuerySource(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(KNN_EVAL_QUERY_SOURCE)) {
+            return KnnEvalQuerySource.read(in);
+        }
+        // Old format: optional collection of explicit queries XOR optional sample
+        List<KnnEvalQuery> queries = in.readOptionalCollectionAsList(KnnEvalQuery::new);
+        KnnEvalSample sample = in.readOptionalWriteable(KnnEvalSample::new);
+        return queries != null ? new KnnEvalQuerySource.VectorsSource(queries) : new KnnEvalQuerySource.DocsSource(sample);
     }
 
     public static KnnEvalSpec parse(XContentParser parser) {
@@ -209,16 +202,20 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return k;
     }
 
-    /** The caller-supplied query set, or {@code null} when the queries are {@link #getSample() sampled} server-side. */
-    @Nullable
-    public List<KnnEvalQuery> getQueries() {
-        return queries;
+    public KnnEvalQuerySource getQuerySource() {
+        return querySource;
     }
 
-    /** The server-side sampling request, or {@code null} when the caller supplied {@link #getQueries() queries} directly. */
+    /** The caller-supplied query set, or {@code null} when queries are sampled server-side. */
+    @Nullable
+    public List<KnnEvalQuery> getQueries() {
+        return querySource instanceof KnnEvalQuerySource.VectorsSource vs ? vs.vectors() : null;
+    }
+
+    /** The server-side sampling parameters, or {@code null} when the caller supplied queries directly. */
     @Nullable
     public KnnEvalSample getSample() {
-        return sample;
+        return querySource instanceof KnnEvalQuerySource.DocsSource ds ? ds.sample() : null;
     }
 
     /** Never {@code null}: an omitted baseline uses the bounded DiskBBQ proxy. */
@@ -234,8 +231,13 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(k);
-        out.writeOptionalCollection(queries);
-        out.writeOptionalWriteable(sample);
+        if (out.getTransportVersion().supports(KNN_EVAL_QUERY_SOURCE)) {
+            querySource.writeTo(out);
+        } else {
+            // Old format: optional queries XOR optional sample
+            out.writeOptionalCollection(getQueries());
+            out.writeOptionalWriteable(getSample());
+        }
         baseline.writeTo(out);
         out.writeCollection(knnSettings);
     }
@@ -245,17 +247,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
-        if (queries != null) {
-            builder.startArray(QUERIES_FIELD.getPreferredName());
-            for (KnnEvalQuery query : queries) {
-                query.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-        if (sample != null) {
-            builder.field(SAMPLE_FIELD.getPreferredName());
-            sample.toXContent(builder, params);
-        }
+        builder.field(QUERY_SOURCE_FIELD.getPreferredName());
+        querySource.toXContent(builder, params);
         builder.field(BASELINE_FIELD.getPreferredName());
         baseline.toXContent(builder, params);
         builder.startArray(KNN_SETTINGS_FIELD.getPreferredName());
@@ -283,14 +276,13 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         KnnEvalSpec other = (KnnEvalSpec) obj;
         return k == other.k
             && Objects.equals(field, other.field)
-            && Objects.equals(queries, other.queries)
-            && Objects.equals(sample, other.sample)
+            && Objects.equals(querySource, other.querySource)
             && Objects.equals(baseline, other.baseline)
             && Objects.equals(knnSettings, other.knnSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, queries, sample, baseline, knnSettings);
+        return Objects.hash(field, k, querySource, baseline, knnSettings);
     }
 }

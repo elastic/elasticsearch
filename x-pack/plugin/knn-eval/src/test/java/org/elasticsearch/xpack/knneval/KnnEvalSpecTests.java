@@ -57,17 +57,18 @@ public class KnnEvalSpecTests extends ESTestCase {
     static KnnEvalSpec createTestItem() {
         // num_candidates must be at least k, and createTestSettings() draws it from [50, 200]. Leave room for mutateTestItem's k + 1.
         int k = randomIntBetween(1, 40);
-        boolean sampled = randomBoolean();
-        List<KnnEvalQuery> queries = null;
-        KnnEvalSample sample = null;
-        if (sampled) {
-            sample = new KnnEvalSample(randomIntBetween(1, KnnEvalSample.MAX_SAMPLE_SIZE), randomBoolean() ? null : randomInt());
+        KnnEvalQuerySource querySource;
+        if (randomBoolean()) {
+            querySource = new KnnEvalQuerySource.DocsSource(
+                new KnnEvalSample(randomIntBetween(1, KnnEvalSample.MAX_SAMPLE_SIZE), randomBoolean() ? null : randomInt())
+            );
         } else {
-            queries = new ArrayList<>();
+            List<KnnEvalQuery> queries = new ArrayList<>();
             int numQueries = randomIntBetween(1, 5);
             for (int i = 0; i < numQueries; i++) {
                 queries.add(createTestQuery("query_" + i));
             }
+            querySource = new KnnEvalQuerySource.VectorsSource(queries);
         }
         List<KnnEvalSettings> candidates = new ArrayList<>();
         int numCandidates = randomIntBetween(1, 4);
@@ -78,7 +79,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             }
         }
         KnnEvalSettings baseline = randomBoolean() ? new KnnEvalSettings(null, null, null, true) : createTestSettings();
-        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, queries, sample, baseline, candidates);
+        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, querySource, baseline, candidates);
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -111,8 +112,7 @@ public class KnnEvalSpecTests extends ESTestCase {
     static KnnEvalSpec mutateTestItem(KnnEvalSpec original) {
         String field = original.getField();
         int k = original.getK();
-        List<KnnEvalQuery> queries = original.getQueries() == null ? null : new ArrayList<>(original.getQueries());
-        KnnEvalSample sample = original.getSample();
+        KnnEvalQuerySource querySource = original.getQuerySource();
         KnnEvalSettings baseline = original.getBaseline();
         List<KnnEvalSettings> candidates = new ArrayList<>(original.getKnnSettings());
 
@@ -127,38 +127,30 @@ public class KnnEvalSpecTests extends ESTestCase {
                 candidates.add(candidate);
             }
             case 3 -> {
-                if (queries == null) {
-                    int size = sample.getSize() == KnnEvalSample.MAX_SAMPLE_SIZE ? sample.getSize() - 1 : sample.getSize() + 1;
-                    sample = new KnnEvalSample(size, sample.getSeed());
-                } else {
-                    queries.add(createTestQuery("mutation"));
+                if (querySource instanceof KnnEvalQuerySource.DocsSource ds) {
+                    KnnEvalSample s = ds.sample();
+                    int size = s.getSize() == KnnEvalSample.MAX_SAMPLE_SIZE ? s.getSize() - 1 : s.getSize() + 1;
+                    querySource = new KnnEvalQuerySource.DocsSource(new KnnEvalSample(size, s.getSeed()));
+                } else if (querySource instanceof KnnEvalQuerySource.VectorsSource vs) {
+                    List<KnnEvalQuery> updated = new ArrayList<>(vs.vectors());
+                    updated.add(createTestQuery("mutation"));
+                    querySource = new KnnEvalQuerySource.VectorsSource(updated);
                 }
             }
             default -> throw new AssertionError("unreachable");
         }
-        return new KnnEvalSpec(field, k, queries, sample, baseline, candidates);
+        return new KnnEvalSpec(field, k, querySource, baseline, candidates);
     }
 
-    public void testQueriesAndSampleAreMutuallyExclusive() {
+    public void testQuerySourceIsRequired() {
         KnnEvalSettings knnSettings = new KnnEvalSettings(100.0f, null, null, false);
         List<KnnEvalSettings> candidates = List.of(new KnnEvalSettings(5.0f, null, null, false));
-        List<KnnEvalQuery> queries = List.of(createTestQuery("q1"));
-        KnnEvalSample sample = new KnnEvalSample(10, 42);
 
-        Exception both = expectThrows(
-            IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, queries, sample, knnSettings, candidates)
-        );
-        assertThat(both.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
-
-        Exception neither = expectThrows(
-            IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, null, null, knnSettings, candidates)
-        );
-        assertThat(neither.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
+        Exception e = expectThrows(NullPointerException.class, () -> new KnnEvalSpec("emb", 10, null, knnSettings, candidates));
+        assertThat(e.getMessage(), containsString("[query_source] must be provided"));
     }
 
-    public void testQueriesAreCapped() {
+    public void testVectorsAreCapped() {
         List<KnnEvalQuery> queries = new ArrayList<>(KnnEvalSpec.MAX_QUERIES + 1);
         for (int i = 0; i <= KnnEvalSpec.MAX_QUERIES; i++) {
             queries.add(new KnnEvalQuery("q" + i, VectorData.fromFloats(new float[] { i })));
@@ -168,50 +160,55 @@ public class KnnEvalSpecTests extends ESTestCase {
             () -> new KnnEvalSpec(
                 "emb",
                 10,
-                queries,
-                null,
+                new KnnEvalQuerySource.VectorsSource(queries),
                 new KnnEvalSettings(100.0f, null, null, false),
                 List.of(new KnnEvalSettings(5.0f, null, null, false))
             )
         );
-        assertThat(e.getMessage(), containsString("[queries] must contain at most " + KnnEvalSpec.MAX_QUERIES + " entries"));
+        assertThat(e.getMessage(), containsString("[vectors] must contain at most " + KnnEvalSpec.MAX_QUERIES + " entries"));
     }
 
     public void testInvalidValuesAreRejected() {
         KnnEvalSettings knnSettings = new KnnEvalSettings(100.0f, null, null, false);
         List<KnnEvalSettings> candidates = List.of(new KnnEvalSettings(5.0f, null, null, false));
-        KnnEvalSample sample = new KnnEvalSample(10, null);
+        KnnEvalQuerySource docsSource = new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null));
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 0, null, sample, knnSettings, candidates))
-                .getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 0, docsSource, knnSettings, candidates)).getMessage(),
             containsString("[k] must be between 1 and 1000")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, knnSettings, List.of()))
-                .getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, docsSource, knnSettings, List.of())).getMessage(),
             containsString("[knn_settings] must contain between 1 and 32 entries")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("", 10, null, sample, knnSettings, candidates)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("", 10, docsSource, knnSettings, candidates)).getMessage(),
             containsString("[field] must be a non-empty field name")
-        );
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, List.of(), null, knnSettings, candidates))
-                .getMessage(),
-            containsString("[queries] must not be empty")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, List.of(createTestQuery("q1"), createTestQuery("q1")), null, knnSettings, candidates)
+                () -> new KnnEvalSpec("emb", 10, new KnnEvalQuerySource.VectorsSource(List.of()), knnSettings, candidates)
+            ).getMessage(),
+            containsString("[vectors] must not be empty")
+        );
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new KnnEvalSpec(
+                    "emb",
+                    10,
+                    new KnnEvalQuerySource.VectorsSource(List.of(createTestQuery("q1"), createTestQuery("q1"))),
+                    knnSettings,
+                    candidates
+                )
             ).getMessage(),
             containsString("duplicate query id [q1]")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, knnSettings, List.of(new KnnEvalSettings(5.0f, 9, null, false)))
+                () -> new KnnEvalSpec("emb", 10, docsSource, knnSettings, List.of(new KnnEvalSettings(5.0f, 9, null, false)))
             ).getMessage(),
             containsString("[num_candidates] cannot be less than [k]")
         );
@@ -245,35 +242,37 @@ public class KnnEvalSpecTests extends ESTestCase {
     public void testResourceLimitsAndRedundantSettingsAreRejected() {
         KnnEvalSettings baseline = new KnnEvalSettings(100.0f, null, null, false);
         KnnEvalSettings candidate = new KnnEvalSettings(5.0f, null, null, false);
-        KnnEvalSample sample = new KnnEvalSample(10, null);
+        KnnEvalQuerySource docsSource = new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null));
+        KnnEvalQuerySource vectorsSource = new KnnEvalQuerySource.VectorsSource(
+            List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })))
+        );
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 1_001, null, sample, baseline, List.of(candidate)))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 1_001, docsSource, baseline, List.of(candidate)))
                 .getMessage(),
             containsString("[k] must be between 1 and 1000")
         );
-        List<KnnEvalQuery> queries = List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })));
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, queries, null, baseline, List.of(new KnnEvalSettings(5.0f, 10_001, null, false)))
+                () -> new KnnEvalSpec("emb", 10, vectorsSource, baseline, List.of(new KnnEvalSettings(5.0f, 10_001, null, false)))
             ).getMessage(),
             containsString("[num_candidates] cannot exceed 10000 in")
         );
         KnnEvalSettings atLimit = new KnnEvalSettings(5.0f, 10_000, null, false);
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(atLimit)))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, docsSource, baseline, List.of(atLimit)))
                 .getMessage(),
-            containsString("[num_candidates] cannot exceed 9999 with [sample]")
+            containsString("[num_candidates] cannot exceed 9999 with sampling")
         );
         assertEquals(
             10_000,
-            (int) new KnnEvalSpec("emb", 10, queries, null, baseline, List.of(atLimit)).getKnnSettings().get(0).getNumCandidates()
+            (int) new KnnEvalSpec("emb", 10, vectorsSource, baseline, List.of(atLimit)).getKnnSettings().get(0).getNumCandidates()
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(candidate, candidate))
+                () -> new KnnEvalSpec("emb", 10, docsSource, baseline, List.of(candidate, candidate))
             ).getMessage(),
             containsString("duplicate entry in [knn_settings]")
         );
@@ -282,7 +281,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             tooManyCandidates.add(new KnnEvalSettings((float) i, null, null, false));
         }
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, tooManyCandidates))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, docsSource, baseline, tooManyCandidates))
                 .getMessage(),
             containsString("[knn_settings] must contain between 1 and 32 entries")
         );
@@ -293,7 +292,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             {
               "field": "emb",
               "k": 10,
-              "sample": { "size": 5 },
+              "query_source": { "from": "docs", "size": 5 },
               "baseline": { "visit_percentage": 100 },
               "knn_settings": [ { "visit_percentage": 5 } ]
             }""";
@@ -313,7 +312,7 @@ public class KnnEvalSpecTests extends ESTestCase {
                 {
                   "field": "emb",
                   "k": 10,
-                  "sample": { "size": 5 },
+                  "query_source": { "from": "docs", "size": 5 },
                   %s
                   "knn_settings": [ { "visit_percentage": 5 } ]
                 }""".replace("%s", baseline);
@@ -331,10 +330,13 @@ public class KnnEvalSpecTests extends ESTestCase {
             {
               "field": "emb",
               "k": 5,
-              "queries": [
-                { "id": "array", "query_vector": [1.5, -2.5] },
-                { "id": "encoded", "query_vector": "P8AAAMAgAAA=" }
-              ],
+              "query_source": {
+                "from": "vectors",
+                "vectors": [
+                  { "id": "array", "query_vector": [1.5, -2.5] },
+                  { "id": "encoded", "query_vector": "P8AAAMAgAAA=" }
+                ]
+              },
               "baseline": { "visit_percentage": 100 },
               "knn_settings": [ { "visit_percentage": 5 } ]
             }""";

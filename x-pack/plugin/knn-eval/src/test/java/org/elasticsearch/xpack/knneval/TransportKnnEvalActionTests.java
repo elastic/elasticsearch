@@ -258,8 +258,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalSpec spec = new KnnEvalSpec(
             "emb",
             K,
-            null,
-            sample,
+            new KnnEvalQuerySource.DocsSource(sample),
             new KnnEvalSettings(100.0f, null, null, false),
             List.of(new KnnEvalSettings(5.0f, null, null, false))
         );
@@ -276,7 +275,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     /** A sampled query spends one hit and one candidate on its own document, so both grow by one to leave it the requested budget. */
     public void testSampledQuerySearchesOneExtraCandidate() {
         KnnEvalSettings settings = new KnnEvalSettings(5.0f, 50, null, false);
-        KnnEvalSpec spec = new KnnEvalSpec("emb", K, null, new KnnEvalSample(10, null), settings, List.of(settings));
+        KnnEvalSpec spec = new KnnEvalSpec(
+            "emb",
+            K,
+            new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null)),
+            settings,
+            List.of(settings)
+        );
         KnnEvalQuery query = new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 }));
         BytesReference pit = new BytesArray("test-pit");
 
@@ -295,8 +300,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalSpec approximate = new KnnEvalSpec(
             "emb",
             K,
-            null,
-            sample,
+            new KnnEvalQuerySource.DocsSource(sample),
             new KnnEvalSettings(100.0f, null, null, false),
             List.of(new KnnEvalSettings(5.0f, null, null, false))
         );
@@ -419,10 +423,22 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     public void testExactBaselineWorkIsCappedByDocumentsTimesQueries() {
         KnnEvalSettings exact = new KnnEvalSettings(null, null, null, true);
         KnnEvalSettings candidate = new KnnEvalSettings(5.0f, null, null, false);
-        KnnEvalSpec atLimit = new KnnEvalSpec("emb", K, null, new KnnEvalSample(10, null), exact, List.of(candidate));
+        KnnEvalSpec atLimit = new KnnEvalSpec(
+            "emb",
+            K,
+            new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null)),
+            exact,
+            List.of(candidate)
+        );
         TransportKnnEvalAction.validateExactWorkload(atLimit, 10_000_000);
 
-        KnnEvalSpec aboveLimit = new KnnEvalSpec("emb", K, null, new KnnEvalSample(11, null), exact, List.of(candidate));
+        KnnEvalSpec aboveLimit = new KnnEvalSpec(
+            "emb",
+            K,
+            new KnnEvalQuerySource.DocsSource(new KnnEvalSample(11, null)),
+            exact,
+            List.of(candidate)
+        );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> TransportKnnEvalAction.validateExactWorkload(aboveLimit, 10_000_000)
@@ -437,7 +453,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportKnnEvalAction action = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(true));
         KnnEvalSettings settings = new KnnEvalSettings(100.0f, null, null, false);
-        KnnEvalSpec spec = new KnnEvalSpec("obj.emb", K, null, new KnnEvalSample(10, null), settings, List.of(settings));
+        KnnEvalSpec spec = new KnnEvalSpec(
+            "obj.emb",
+            K,
+            new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null)),
+            settings,
+            List.of(settings)
+        );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
 
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
@@ -512,8 +534,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         return new KnnEvalSpec(
             "emb",
             K,
-            List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 }))),
-            null,
+            new KnnEvalQuerySource.VectorsSource(List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })))),
             baseline,
             List.of(new KnnEvalSettings(5.0f, null, null, false))
         );
@@ -528,8 +549,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalSpec spec = new KnnEvalSpec(
             "emb",
             K,
-            queries,
-            null,
+            new KnnEvalQuerySource.VectorsSource(queries),
             new KnnEvalSettings(null, null, null, true),
             List.of(new KnnEvalSettings(5.0f, null, null, false))
         );
@@ -603,8 +623,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalSpec explicitSpec = new KnnEvalSpec(
             "emb",
             K,
-            calibratedSpec.getQueries(),
-            null,
+            new KnnEvalQuerySource.VectorsSource(calibratedSpec.getQueries()),
             calibratedSpec.getBaseline(),
             List.of(explicitCandidate)
         );
@@ -755,8 +774,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalSpec spec = new KnnEvalSpec(
             "emb",
             K,
-            queries,
-            null,
+            new KnnEvalQuerySource.VectorsSource(queries),
             new KnnEvalSettings(BASELINE_VISIT_PERCENTAGE, null, baselineOversample, false),
             candidates
         );

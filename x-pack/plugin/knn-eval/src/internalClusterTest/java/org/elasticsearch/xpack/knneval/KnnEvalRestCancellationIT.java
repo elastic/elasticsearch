@@ -57,7 +57,7 @@ public class KnnEvalRestCancellationIT extends ESIntegTestCase {
             {
               "field": "emb",
               "k": 1,
-              "queries": [ { "id": "q", "query_vector": [ 1.0 ] } ],
+              "query_source": { "from": "vectors", "vectors": [ { "id": "q", "query_vector": [ 1.0 ] } ] },
               "knn_settings": [ { "visit_percentage": 1 } ]
             }""");
 

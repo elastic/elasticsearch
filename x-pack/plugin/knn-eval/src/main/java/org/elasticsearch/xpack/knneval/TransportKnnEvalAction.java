@@ -263,7 +263,11 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         if (spec.getBaseline().isExact() == false) {
             return;
         }
-        long queryCount = spec.getQueries() == null ? spec.getSample().getSize() : spec.getQueries().size();
+        long queryCount = switch (spec.getQuerySource()) {
+            case KnnEvalQuerySource.VectorsSource vs -> vs.vectors().size();
+            case KnnEvalQuerySource.DocsSource ds -> ds.sample().getSize();
+            case KnnEvalQuerySource.QueriesSource qs -> qs.size();
+        };
         long comparisons = vectorCount > Long.MAX_VALUE / queryCount ? Long.MAX_VALUE : vectorCount * queryCount;
         if (comparisons > MAX_EXACT_VECTOR_COMPARISONS) {
             throw new IllegalArgumentException(
@@ -295,25 +299,28 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         ActionListener<KnnEvalResponse> listener
     ) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
-        KnnEvalSample sample = spec.getSample();
-        if (sample == null) {
-            evaluate(task, spec, spec.getQueries(), false, rescore, pointInTimeId, listener);
-            return;
-        }
-        var sampleRequest = KnnEvalSearches.buildSampleRequest(spec, sample, pointInTimeId);
-        setParentTask(task, sampleRequest);
-        client.search(sampleRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            List<KnnEvalQuery> sampledQueries = KnnEvalSearches.extractSampledQueries(searchResponse, spec.getField());
-            if (sampledQueries.isEmpty()) {
-                // a recall of zero would read as a catastrophic candidate rather than an empty index or a wrong field name
-                throw new IllegalArgumentException(
-                    "sampling query vectors from field ["
-                        + spec.getField()
-                        + "] returned no documents; check that the indices contain documents with that dense_vector field"
-                );
+        switch (spec.getQuerySource()) {
+            case KnnEvalQuerySource.VectorsSource vs -> evaluate(task, spec, vs.vectors(), false, rescore, pointInTimeId, listener);
+            case KnnEvalQuerySource.DocsSource ds -> {
+                var sampleRequest = KnnEvalSearches.buildSampleRequest(spec, ds.sample(), pointInTimeId);
+                setParentTask(task, sampleRequest);
+                client.search(sampleRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                    List<KnnEvalQuery> sampledQueries = KnnEvalSearches.extractSampledQueries(searchResponse, spec.getField());
+                    if (sampledQueries.isEmpty()) {
+                        // a recall of zero would read as a catastrophic candidate rather than an empty index or a wrong field name
+                        throw new IllegalArgumentException(
+                            "sampling query vectors from field ["
+                                + spec.getField()
+                                + "] returned no documents; check that the indices contain documents with that dense_vector field"
+                        );
+                    }
+                    evaluate(task, spec, sampledQueries, true, rescore, pointInTimeId, delegate);
+                }));
             }
-            evaluate(task, spec, sampledQueries, true, rescore, pointInTimeId, delegate);
-        }));
+            case KnnEvalQuerySource.QueriesSource qs -> listener.onFailure(
+                new IllegalArgumentException("[from: queries] is not yet implemented")
+            );
+        }
     }
 
     private void evaluate(

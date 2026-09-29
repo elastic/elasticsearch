@@ -137,7 +137,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * @param terms        the summarised terms in term order, or null when they are the dictionary
      * @param countsOffset where the counts, one vlong per term, begin
      * @param countsLength how many bytes they occupy
-     * @param numValues    the values the survey saw, which the counts are a share of
+     * @param numValues    the values a dictionary would have to name, which the counts are a share of, so
+     *                     null slots are not among them: a null is named by an ordinal of its own
      */
     record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
 

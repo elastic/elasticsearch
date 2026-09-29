@@ -125,7 +125,7 @@ public final class SnapshotEncryptedData implements Writeable {
             throw new IllegalArgumentException("encrypted_data.type is required");
         }
         return switch (type) {
-            case TYPE_SECURE_SETTING -> throw new IllegalArgumentException("encrypted_data type [secure_setting] is not supported");
+            case TYPE_SECURE_SETTING -> throw new IllegalArgumentException("encrypted_data type [secure_setting] is not supported yet");
             case TYPE_PASSWORD -> new SnapshotEncryptedData(
                 TYPE_PASSWORD,
                 password != null ? new SecureString(password.toCharArray()) : null,

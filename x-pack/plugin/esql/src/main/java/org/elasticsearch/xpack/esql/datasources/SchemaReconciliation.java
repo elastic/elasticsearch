@@ -374,11 +374,14 @@ public final class SchemaReconciliation {
         Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
-        // Per-column accumulator. We record *every* file's inferred type for every column up
-        // front (it's cheap and gives the warning emitters a complete contributor list), then
-        // decide at the end which warning, if any, the unified type warrants. Building this
-        // lazily inside the merge branch would lose pre-merge files when a column finally
-        // changes type on its third or later file.
+        // Warning detail quotes at most MAX_FILES_IN_WARNING_DETAIL paths, then "+N more", then the
+        // distinct types in first-seen order. Later files still update the type set and the count, so a
+        // type change after the third file is not lost, but their paths are never stored: the printer
+        // does not quote them, and a columns × files map is a heap spike discarded when this method
+        // returns. The scratch is O(columns) and dead before return, so it is not charged on
+        // ExternalPlanningReservation. chargeQuery holds until query close; reserving this scratch would
+        // sit on the breaker after the objects are gone. The 760 × files credit is for the retained
+        // schema map, not this.
         LinkedHashMap<String, ColumnContributions> contributions = new LinkedHashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -674,28 +677,36 @@ public final class SchemaReconciliation {
     }
 
     /**
-     * Per-column accumulator: every file that contributed a value for the column, together with
-     * that file's inferred type. Insertion-ordered so the emitted message reflects the user's
-     * glob order. Recording is unconditional during merge; the emit step decides whether the
-     * unified type warrants a warning.
+     * Per-column warning scratch. Keeps the first {@link #MAX_FILES_IN_WARNING_DETAIL} contributing
+     * files in glob order, the contributor count for the "+N more" suffix, and the distinct inferred
+     * types in first-seen order. A file that lacks the column is not a contributor. Discarded when
+     * {@link #reconcileUnionByName} returns, so it is not charged on the planning breaker.
      */
     private static final class ColumnContributions {
         private final String columnName;
-        private final LinkedHashMap<StoragePath, DataType> contributions = new LinkedHashMap<>();
+        private final StoragePath[] sampleFiles = new StoragePath[MAX_FILES_IN_WARNING_DETAIL];
+        private final DataType[] sampleTypes = new DataType[MAX_FILES_IN_WARNING_DETAIL];
+        private int contributorCount;
+        // LinkedHashSet, not EnumSet: warning text must follow first-seen order, and EnumSet would reorder it.
+        private final LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>();
 
         ColumnContributions(String columnName) {
             this.columnName = columnName;
         }
 
         void add(StoragePath file, DataType inferredType) {
-            // First inference wins per (column, file). A single file can't contribute two
-            // different types for the same column (validateNoDuplicateColumns guarantees
-            // unique names within a file), so putIfAbsent and put are equivalent here.
-            contributions.putIfAbsent(file, inferredType);
+            // One pass per file, and validateNoDuplicateColumns already rejects two types for the same
+            // name in one file, so there is no per-file dedup to do here.
+            if (contributorCount < MAX_FILES_IN_WARNING_DETAIL) {
+                sampleFiles[contributorCount] = file;
+                sampleTypes[contributorCount] = inferredType;
+            }
+            contributorCount++;
+            distinctTypes.add(inferredType);
         }
 
         boolean hasNonStringContributor() {
-            for (DataType type : contributions.values()) {
+            for (DataType type : distinctTypes) {
                 if (isStringType(type) == false) {
                     return true;
                 }
@@ -704,37 +715,24 @@ public final class SchemaReconciliation {
         }
 
         boolean hasLongAndDoubleContributor() {
-            boolean sawLong = false;
-            boolean sawDouble = false;
-            for (DataType type : contributions.values()) {
-                if (type == DataType.LONG) {
-                    sawLong = true;
-                } else if (type == DataType.DOUBLE) {
-                    sawDouble = true;
-                }
-            }
-            return sawLong && sawDouble;
+            return distinctTypes.contains(DataType.LONG) && distinctTypes.contains(DataType.DOUBLE);
         }
 
         String buildDetail() {
-            // Pair each file with its inferred type so users can tell which file disagreed; the type the
-            // column is read as is in the summary. Long file lists are truncated with a "+N more" suffix;
-            // the distinct-type roll-up at the end keeps an at-a-glance type picture even when files are truncated.
+            // Pair each sampled file with its inferred type so users can tell which file disagreed; the type
+            // the column is read as is in the summary. Lists longer than the sample cap get a "+N more" suffix;
+            // the distinct-type roll-up keeps an at-a-glance type picture even when files are truncated.
             StringBuilder sb = new StringBuilder("column [").append(columnName).append("]: ");
-            int shown = 0;
-            int total = contributions.size();
-            for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
-                if (shown == MAX_FILES_IN_WARNING_DETAIL && total > MAX_FILES_IN_WARNING_DETAIL) {
-                    sb.append(", +").append(total - shown).append(" more");
-                    break;
-                }
-                if (shown > 0) {
+            int shown = Math.min(contributorCount, MAX_FILES_IN_WARNING_DETAIL);
+            for (int i = 0; i < shown; i++) {
+                if (i > 0) {
                     sb.append(", ");
                 }
-                sb.append(e.getKey()).append(" (").append(e.getValue().typeName()).append(")");
-                shown++;
+                sb.append(sampleFiles[i]).append(" (").append(sampleTypes[i].typeName()).append(")");
             }
-            LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
+            if (contributorCount > MAX_FILES_IN_WARNING_DETAIL) {
+                sb.append(", +").append(contributorCount - shown).append(" more");
+            }
             if (distinctTypes.size() > 1) {
                 sb.append("; types [");
                 int t = 0;

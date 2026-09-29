@@ -157,7 +157,6 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
                 randomDouble(),
                 randomIntBetween(128, 4096),
                 null,
-                null,
                 driverContext,
                 parallelConfig,
                 randomBoolean()

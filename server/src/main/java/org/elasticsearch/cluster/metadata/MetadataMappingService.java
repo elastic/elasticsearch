@@ -113,22 +113,10 @@ public class MetadataMappingService {
         record Noop() implements PreflightResult {}
 
         final class NeedsUpdate implements PreflightResult {
-            private Map<Index, PreflightCacheEntry> cache;
+            final Map<Index, PreflightCacheEntry> cache;
 
             private NeedsUpdate(Map<Index, PreflightCacheEntry> cache) {
                 this.cache = cache;
-            }
-
-            /**
-             * Transfers ownership of the pre-flight cache to the caller. Must be called at most once.
-             */
-            Map<Index, PreflightCacheEntry> takeCache() {
-                if (cache == null) {
-                    throw new IllegalStateException("takeCache() called more than once");
-                }
-                var taken = cache;
-                cache = null;
-                return taken;
             }
         }
     }
@@ -195,10 +183,9 @@ public class MetadataMappingService {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     Map<Index, MapperService> taskServices = new HashMap<>();
-                    // activeEntries tracks which indices were served from the pre-flight cache so that
-                    // applyRequest can skip the merge call for those indices.
-                    Map<Index, PreflightCacheEntry> activeEntries = new HashMap<>();
-                    boolean succeeded = false;
+                    // activeEntries holds the pre-update mapping source for indices served from the
+                    // pre-flight cache, so applyRequest can skip the merge call for those indices.
+                    Map<Index, CompressedXContent> activeEntries = new HashMap<>();
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             currentState.projectState(currentState.metadata().projectFor(index).id()).ensureProjectNotUnderDeletion();
@@ -208,8 +195,6 @@ public class MetadataMappingService {
                             }
                             if (indexMapperServices.containsKey(index)) {
                                 // Already loaded by a prior task in this batch; reuse from the committed map.
-                                // The task's own cache entry for this index (if any) is unconsumed and will be
-                                // closed by the success-path finally block below.
                                 taskServices.put(index, indexMapperServices.get(index));
                             } else {
                                 taskServices.put(index, loadService(task, index, indexMetadata, activeEntries));
@@ -217,7 +202,6 @@ public class MetadataMappingService {
                         }
                         currentState = applyRequest(currentState, request, taskServices, activeEntries);
                         taskContext.success(task);
-                        succeeded = true;
                         indexMapperServices.putAll(taskServices);
                     } catch (Exception e) {
                         // Close task-private services that were not promoted to the committed map.
@@ -228,18 +212,19 @@ public class MetadataMappingService {
                         }
                         // task.onFailure closes and clears the remaining preflightCache entries.
                         taskContext.onFailure(e);
-                    } finally {
-                        if (succeeded) {
-                            // Close unconsumed cache entries: those for indices that were already in
-                            // indexMapperServices and therefore never loaded into taskServices.
-                            IOUtils.closeWhileHandlingException(task.preflightCache.values());
-                            task.preflightCache.clear();
-                        }
                     }
                 }
                 return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
+                // Close any unconsumed pre-flight cache entries across all tasks. For failed tasks
+                // task.onFailure already cleared the map; for successful tasks any entries whose index
+                // was already in indexMapperServices were never consumed by loadService.
+                for (var taskContext : batchExecutionContext.taskContexts()) {
+                    final var task = taskContext.getTask();
+                    IOUtils.closeWhileHandlingException(task.preflightCache.values());
+                    task.preflightCache.clear();
+                }
             }
         }
 
@@ -255,7 +240,7 @@ public class MetadataMappingService {
             PutMappingClusterStateUpdateTask task,
             Index index,
             IndexMetadata indexMetadata,
-            Map<Index, PreflightCacheEntry> activeEntries
+            Map<Index, CompressedXContent> activeEntries
         ) throws IOException {
             // remove() consumes the entry so task.onFailure cannot double-close it.
             final PreflightCacheEntry cached = task.preflightCache.remove(index);
@@ -263,7 +248,7 @@ public class MetadataMappingService {
                 && cached.mappingVersion() == indexMetadata.getMappingVersion()
                 && cached.settingsVersion() == indexMetadata.getSettingsVersion()) {
                 // Cache hit: mapping and settings unchanged since pre-flight.
-                activeEntries.put(index, cached);
+                activeEntries.put(index, cached.preUpdateSource());
                 return cached.mergedService();
             }
             // Cache miss or stale (concurrent mapping/settings update); close the stale entry if present.
@@ -283,7 +268,7 @@ public class MetadataMappingService {
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> taskServices,
-            Map<Index, PreflightCacheEntry> activeEntries
+            Map<Index, CompressedXContent> activeEntries
         ) {
             MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -297,10 +282,9 @@ public class MetadataMappingService {
 
                 final CompressedXContent existingSource;
                 final DocumentMapper mergedMapper;
-                final PreflightCacheEntry cached = activeEntries.get(index);
-                if (cached != null) {
+                if (activeEntries.containsKey(index)) {
                     // Cache hit: the merge was already performed on the MANAGEMENT thread; skip it here.
-                    existingSource = cached.preUpdateSource();
+                    existingSource = activeEntries.get(index);
                     mergedMapper = mapperService.documentMapper();
                 } else {
                     existingSource = mapperService.documentMapper() != null ? mapperService.documentMapper().mappingSource() : null;
@@ -395,7 +379,7 @@ public class MetadataMappingService {
         final var needsUpdate = (PreflightResult.NeedsUpdate) preflightResult;
         taskQueue.submitTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            new PutMappingClusterStateUpdateTask(request, listener, needsUpdate.takeCache()),
+            new PutMappingClusterStateUpdateTask(request, listener, needsUpdate.cache),
             MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
         );
     }

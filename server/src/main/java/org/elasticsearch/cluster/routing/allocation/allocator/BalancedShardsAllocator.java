@@ -1063,9 +1063,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 cannotRemainMoveAttributes(
                                     "no",
                                     moveDecision.getCanRemainDecision().label(),
-                                    moveDecision.getCanAllocateDecision() != null
-                                        ? moveDecision.getCanAllocateDecision().label()
-                                        : null,
+                                    moveDecision.getCanAllocateDecision() != null ? moveDecision.getCanAllocateDecision().label() : null,
                                     shardRouting.primary(),
                                     nodeName(shardRouting.currentNodeId()),
                                     nodeName(moveDecision.getTargetNode())

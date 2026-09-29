@@ -19,9 +19,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * factory so every admit and the final release use that same breaker.
  * <p>
  * Listing and schema-map bytes live until {@link #close()}, which the query listener calls once.
- * Phase-2 bytes belong to a {@link Run}: each compute execution opens one and closes it when that
- * execution finishes, so a later INLINE STATS run does not keep the previous run's split shells reserved.
- * Concurrent runs (UNION siblings) each hold their own {@link Run}.
+ * A {@link Run} holds bytes released before that: phase-2 split shells for one compute execution, and the
+ * private attribute lists of one reconcile gather. Each compute execution closes its run when that execution
+ * finishes, so a later INLINE STATS run does not keep the previous run's split shells reserved. The gather
+ * closes its run when its completion drops those lists. Concurrent runs (UNION siblings) each hold their own.
  */
 public final class ExternalPlanningReservation implements Releasable {
 
@@ -43,7 +44,7 @@ public final class ExternalPlanningReservation implements Releasable {
         return queryHeld.get();
     }
 
-    /** A phase-2 reservation for one compute execution. */
+    /** One compute execution, or one reconcile gather. */
     public Run openRun() {
         refuseAfterRelease(closed, "query");
         Run run = new Run();
@@ -94,16 +95,17 @@ public final class ExternalPlanningReservation implements Releasable {
     }
 
     /**
-     * Phase-2 bytes for one compute execution. {@link #close()} is idempotent, so the execution
-     * listener and {@link ExternalPlanningReservation#close()} can both release it.
+     * Bytes released before query close: phase-2 split shells for one compute execution, or the private
+     * attribute lists of one reconcile gather. {@link #close()} is idempotent, so the owner and
+     * {@link ExternalPlanningReservation#close()} can both release it.
      */
     public final class Run implements Releasable {
         private final AtomicLong held = new AtomicLong();
         private final AtomicBoolean released = new AtomicBoolean();
 
         /**
-         * Survivor-map and split-shell bytes. A trip leaves {@link #held()} unchanged: the breaker
-         * throws before the add.
+         * Survivor-map, split-shell, or private schema-list bytes. A trip leaves {@link #held()} unchanged:
+         * the breaker throws before the add.
          */
         public void charge(long bytes) {
             admit(held, bytes, released, "run");

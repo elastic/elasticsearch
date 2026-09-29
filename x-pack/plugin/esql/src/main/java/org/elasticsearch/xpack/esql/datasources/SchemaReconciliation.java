@@ -262,6 +262,26 @@ public final class SchemaReconciliation {
      * @throws IllegalArgumentException if any file's schema doesn't match
      */
     public static Result reconcileStrict(StoragePath referenceFile, Map<StoragePath, SourceMetadata> fileMetadata) {
+        return reconcileStrict(referenceFile, fileMetadata, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileStrict(StoragePath, Map)}, sharing file schemas and mappings through {@code interner}.
+     * The reference schema on the result is not interned.
+     *
+     * @param referenceFile path of the first (reference) file
+     * @param fileMetadata ordered map of file path → metadata (first entry is the reference)
+     * @param interner shares file schemas and mappings inside this resolve. Callers that do not have a planning
+     *                 reservation pass {@code new SchemaInterner(null, 0)}, which shares without charging.
+     * @return reconciliation result with the reference schema and per-file info
+     * @throws IllegalArgumentException if any file's schema doesn't match
+     */
+    public static Result reconcileStrict(
+        StoragePath referenceFile,
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         SourceMetadata refMeta = fileMetadata.get(referenceFile);
         if (refMeta == null) {
             throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile);
@@ -283,17 +303,18 @@ public final class SchemaReconciliation {
                 validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
             }
 
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
             ColumnMapping mapping;
             if (compareByName) {
-                mapping = computeMapping(refSchema, fileSchema);
+                mapping = interner.intern(computeMapping(refSchema, canonical));
             } else {
-                int[] identity = new int[refSchema.size()];
+                int[] identity = new int[canonical.size()];
                 for (int i = 0; i < identity.length; i++) {
                     identity[i] = i;
                 }
-                mapping = new ColumnMapping(identity, null);
+                mapping = interner.intern(new ColumnMapping(identity, null));
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -405,6 +426,25 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
+        return reconcileUnionByName(fileMetadata, warningSink, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map, Consumer)}, sharing file schemas and mappings through {@code interner}.
+     * The unified output schema is not interned: its {@code NameId}s belong to the plan.
+     *
+     * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
+     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go
+     * @param interner shares file schemas and mappings inside this resolve. Callers without a planning reservation pass
+     *                 {@code new SchemaInterner(null, 0)}
+     * @return reconciliation result with unified schema and per-file mappings
+     */
+    public static Result reconcileUnionByName(
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        Consumer<String> warningSink,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Warning detail quotes at most MAX_FILES_IN_WARNING_DETAIL paths, then "+N more", then the
@@ -484,13 +524,16 @@ public final class SchemaReconciliation {
                     // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
                     // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
                     // safe-miss rather than fold a stale count/extremum.
+                    // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
+                    // That extra charge is not refunded.
                     inferredTypes = typeMap(prePin);
                 }
             }
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
-            ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
+            ColumnMapping mapping = interner.intern(computeMapping(unifiedSchema, canonical));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, inferredTypes));
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));

@@ -164,12 +164,12 @@ public class PartitionMetadataTests extends ESTestCase {
             WarningSinks.FAILING
         );
 
-        PartitionMetadata valued = overThePrefix.valuedOver(filesOf(overTheScan), HIVE);
+        PartitionMetadata valued = overThePrefix.valuedOver(filesOf(resolved, discovered), HIVE);
 
         assertEquals("the columns stay the schema's", overThePrefix.partitionColumns(), valued.partitionColumns());
-        assertEquals(2, valued.filePartitionValues().size());
-        assertEquals(0, valued.filePartitionValues().get(resolved).get("hour"));
-        assertEquals("the file nobody resolved knows its own value", 7, valued.filePartitionValues().get(discovered).get("hour"));
+        assertEquals(2, valued.fileCount());
+        assertEquals(0, valued.getValue(0, "hour"));
+        assertEquals("the file nobody resolved knows its own value", 7, valued.getValue(1, "hour"));
     }
 
     /**
@@ -190,11 +190,11 @@ public class PartitionMetadataTests extends ESTestCase {
         );
         assertEquals("the wider listing typed it as text", DataType.KEYWORD, scanned.partitionColumns().get("hour"));
 
-        PartitionMetadata valued = declaredInteger.valuedOver(filesOf(scanned), HIVE);
+        PartitionMetadata valued = declaredInteger.valuedOver(filesOf(numeric, notNumeric), HIVE);
 
         assertEquals(DataType.INTEGER, valued.partitionColumns().get("hour"));
-        assertEquals("a token the declared type holds is re-cast to it", 7, valued.filePartitionValues().get(numeric).get("hour"));
-        assertNull("and one it cannot hold has no value", valued.filePartitionValues().get(notNumeric).get("hour"));
+        assertEquals("a token the declared type holds is re-cast to it", 7, valued.getValue(0, "hour"));
+        assertNull("and one it cannot hold has no value", valued.getValue(1, "hour"));
     }
 
     /** Nothing to value over: the schema's own answer stands. */
@@ -204,7 +204,7 @@ public class PartitionMetadataTests extends ESTestCase {
             WarningSinks.FAILING
         );
         assertSame(metadata, metadata.valuedOver((FileList) null, HIVE));
-        assertSame(metadata, metadata.valuedOver(filesOf(PartitionMetadata.EMPTY), HIVE));
+        assertSame(metadata, metadata.valuedOver(filesOf(), HIVE));
     }
 
     /**
@@ -245,14 +245,14 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, declaredKeyword.partitionColumns().get("hour"));
         assertEquals(DataType.INTEGER, scanned.partitionColumns().get("hour"));
 
-        PartitionMetadata valued = declaredKeyword.valuedOver(filesOf(scanned), HIVE);
+        PartitionMetadata valued = declaredKeyword.valuedOver(filesOf(text, padded), HIVE);
 
         assertEquals(DataType.KEYWORD, valued.partitionColumns().get("hour"));
         assertEquals(
             "the folder's own spelling, which only the path still holds - re-casting the scan's parsed [0] would "
                 + "have invented [0], and reading nothing would have lost a value that exists",
             "00",
-            valued.filePartitionValues().get(padded).get("hour")
+            valued.getValue(1, "hour")
         );
     }
 
@@ -276,14 +276,14 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals("the sample types it integral", DataType.INTEGER, declared.partitionColumns().get("x"));
         assertEquals("the whole listing does not", DataType.DOUBLE, scanned.partitionColumns().get("x"));
 
-        PartitionMetadata valued = declared.valuedOver(filesOf(scanned), HIVE);
+        PartitionMetadata valued = declared.valuedOver(filesOfEntries(everything), HIVE);
 
-        assertEquals(1, valued.filePartitionValues().get(sample.get(0).path()).get("x"));
-        assertEquals(2, valued.filePartitionValues().get(sample.get(1).path()).get("x"));
+        assertEquals(1, valued.getValue(0, "x"));
+        assertEquals(2, valued.getValue(1, "x"));
         assertNull(
             "and [x=5e1] is not an INTEGER token - castValue is the one definition of what a type accepts, so a "
                 + "folder the declared type cannot spell has no value under it, and the split provider warns about it",
-            valued.filePartitionValues().get(everything.get(2).path()).get("x")
+            valued.getValue(2, "x")
         );
     }
 
@@ -307,10 +307,10 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals("the sample alone types it signed", DataType.LONG, declaredLong.partitionColumns().get("id"));
         assertEquals("the whole listing does not", DataType.UNSIGNED_LONG, scanned.partitionColumns().get("id"));
 
-        PartitionMetadata valued = declaredLong.valuedOver(filesOf(scanned), HIVE);
+        PartitionMetadata valued = declaredLong.valuedOver(filesOf(small, huge), HIVE);
 
-        assertEquals("the value the folder names, not its encoding", 3000000000L, valued.filePartitionValues().get(small).get("id"));
-        assertNull("and a value beyond the signed range has none under it", valued.filePartitionValues().get(huge).get("id"));
+        assertEquals("the value the folder names, not its encoding", 3000000000L, valued.getValue(0, "id"));
+        assertNull("and a value beyond the signed range has none under it", valued.getValue(1, "id"));
     }
 
     /**
@@ -330,13 +330,13 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals("the template names the columns", Set.of("year", "month"), declared.partitionColumns().keySet());
 
         PartitionMetadata valued = declared.valuedOver(
-            filesOf(scanned),
+            filesOf(sampled, beyond),
             new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}")
         );
 
-        assertEquals(2024, valued.filePartitionValues().get(sampled).get("year"));
-        assertEquals("and a folder the sample never saw keeps its value too", 2025, valued.filePartitionValues().get(beyond).get("year"));
-        assertEquals(6, valued.filePartitionValues().get(beyond).get("month"));
+        assertEquals(2024, valued.getValue(0, "year"));
+        assertEquals("and a folder the sample never saw keeps its value too", 2025, valued.getValue(1, "year"));
+        assertEquals(6, valued.getValue(1, "month"));
     }
 
     /**
@@ -355,13 +355,13 @@ public class PartitionMetadataTests extends ESTestCase {
         assertTrue("the fixture is the shape a bounded listing has", truncated.isTruncated());
         assertTrue(
             "and such a list carries no per-file evidence to copy",
-            truncated.partitionMetadata() == null || truncated.partitionMetadata().filePartitionValues().isEmpty()
+            truncated.partitionMetadata() == null || truncated.partitionMetadata().fileCount() == 0
         );
 
         PartitionMetadata valued = declared.valuedOver(truncated, new PartitionConfig(PartitionConfig.Strategy.HIVE, null));
 
-        assertEquals(0, valued.filePartitionValues().get(entries.get(0).path()).get("hour"));
-        assertEquals(7, valued.filePartitionValues().get(entries.get(1).path()).get("hour"));
+        assertEquals(0, valued.getValue(0, "hour"));
+        assertEquals(7, valued.getValue(1, "hour"));
     }
 
     /** AUTO tries the hive grammar first, the order detection itself uses. */
@@ -375,7 +375,7 @@ public class PartitionMetadataTests extends ESTestCase {
 
         PartitionMetadata valued = declared.valuedOver(files, new PartitionConfig(PartitionConfig.Strategy.AUTO, "{year}"));
 
-        assertEquals("the key=value segment wins over the template", 2024, valued.filePartitionValues().get(hive).get("year"));
+        assertEquals("the key=value segment wins over the template", 2024, valued.getValue(0, "year"));
     }
 
     /** A number the declared type cannot hold exactly still has no value under it. */
@@ -397,27 +397,22 @@ public class PartitionMetadataTests extends ESTestCase {
             WarningSinks.FAILING
         );
 
-        assertNull(
-            "a fraction is not an integer",
-            declaredInteger.valuedOver(filesOf(scannedFraction), HIVE).filePartitionValues().get(fraction).get("x")
-        );
-        assertNull(
-            "and neither is a magnitude outside the type",
-            declaredInteger.valuedOver(filesOf(scannedHuge), HIVE).filePartitionValues().get(huge).get("x")
-        );
+        assertNull("a fraction is not an integer", declaredInteger.valuedOver(filesOf(fraction), HIVE).getValue(0, "x"));
+        assertNull("and neither is a magnitude outside the type", declaredInteger.valuedOver(filesOf(huge), HIVE).getValue(0, "x"));
     }
 
     private static final PartitionConfig HIVE = new PartitionConfig(PartitionConfig.Strategy.HIVE, null);
 
-    /**
-     * The file set a scan would hold for the files a detection saw. Values now come from the paths, so a test that
-     * has a scanned {@link PartitionMetadata} in hand names its files this way.
-     */
-    private static FileList filesOf(PartitionMetadata scanned) {
+    /** The file set a scan would hold over these paths. */
+    private static FileList filesOf(StoragePath... paths) {
         List<StorageEntry> entries = new ArrayList<>();
-        for (StoragePath path : scanned.filePartitionValues().keySet()) {
+        for (StoragePath path : paths) {
             entries.add(new StorageEntry(path, 1, Instant.EPOCH));
         }
+        return filesOfEntries(entries);
+    }
+
+    private static FileList filesOfEntries(List<StorageEntry> entries) {
         return GlobExpander.fileListOf(entries, "s3://b/" + "**");
     }
 

@@ -543,18 +543,20 @@ public class FileSplitProvider implements SplitProvider {
         // One example per column is what a reader needs to find the folder; the walk stops once every column has
         // one, so a dataset whose values all fit pays one pass and a dataset whose values do not pays less.
         Map<String, Object> examples = new LinkedHashMap<>();
-        for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues().entrySet()) {
-            Map<String, Object> after = conformed.filePartitionValues().get(file.getKey());
-            if (after == null) {
-                continue;
-            }
-            for (Map.Entry<String, Object> value : file.getValue().entrySet()) {
-                if (value.getValue() != null && after.get(value.getKey()) == null) {
-                    examples.putIfAbsent(value.getKey(), value.getValue());
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(handed.config());
+        // Read from the paths, like the values themselves: a bounded listing carries no parsed values to compare
+        // against, but it still names its files. A column is reported when the path says something and the
+        // declared type could not hold it - which is exactly the case that reads null without saying so.
+        for (int file = 0; file < listed.fileCount() && examples.size() < conformed.partitionColumns().size(); file++) {
+            StoragePath path = listed.path(file);
+            for (String column : conformed.partitionColumns().keySet()) {
+                if (conformed.getValue(file, path, column) != null) {
+                    continue;
                 }
-            }
-            if (examples.size() == conformed.partitionColumns().size()) {
-                break;
+                String token = PartitionMetadata.tokenFor(path, column, partitionConfig);
+                if (token != null) {
+                    examples.putIfAbsent(column, token);
+                }
             }
         }
         // Keyed on the columns rather than the example values: a dataset with many folders that do not fit would
@@ -966,11 +968,8 @@ public class FileSplitProvider implements SplitProvider {
             } else {
                 Map<String, Object> values = new LinkedHashMap<>();
                 if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                    if (filePartitions != null) {
-                        // Copy references only. Do not mutate the listing map.
-                        values.putAll(filePartitions);
-                    }
+                    // Copy references only. Do not mutate the listing arrays.
+                    partitionInfo.putValues(i, filePath, values);
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
@@ -1075,12 +1074,17 @@ public class FileSplitProvider implements SplitProvider {
     ) {
         LinkedHashMap<String, Object> kept = null;
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-            Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-            if (filePartitions != null) {
-                for (Map.Entry<String, Object> entry : filePartitions.entrySet()) {
-                    if (entry.getValue() != null && retained.contains(entry.getKey())) {
-                        kept = putRetained(kept, entry.getKey(), entry.getValue());
+            int resolved = partitionInfo.resolveFileIndex(index, filePath);
+            if (resolved >= 0) {
+                int column = 0;
+                for (String key : partitionInfo.partitionColumns().keySet()) {
+                    if (retained.contains(key)) {
+                        Object value = partitionInfo.getValueAt(resolved, column);
+                        if (value != null) {
+                            kept = putRetained(kept, key, value);
+                        }
                     }
+                    column++;
                 }
             }
         }

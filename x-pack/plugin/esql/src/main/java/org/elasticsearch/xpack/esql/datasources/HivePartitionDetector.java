@@ -97,21 +97,22 @@ public final class HivePartitionDetector implements PartitionDetector {
             partitionColumns.put(e.getKey(), inferType(e.getValue()));
         }
 
-        LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
-        // One interner for this detect pass. Sibling files share Integer/Long/keyword instances.
-        // The maps published on PartitionMetadata are not rewritten afterwards.
+        // Keep the columnar layout: one Object[] per surfaced column, aligned to the listing ordinal.
+        // One interner for this detect pass so sibling files share Integer/Long/keyword instances.
         CastInterner interner = new CastInterner();
-        for (int i = 0; i < files.size(); i++) {
-            Map<String, String> raw = allRawPartitions.get(i);
-            LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                String surfaced = surfacedNames.get(e.getKey());
-                typed.put(surfaced, castValue(e.getValue(), partitionColumns.get(surfaced), interner));
+        int fileCount = files.size();
+        Object[][] valuesByColumn = new Object[partitionColumns.size()][];
+        int col = 0;
+        for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
+            DataType type = partitionColumns.get(e.getKey());
+            List<String> raws = e.getValue();
+            Object[] column = new Object[fileCount];
+            for (int i = 0; i < fileCount; i++) {
+                column[i] = castValue(raws.get(i), type, interner);
             }
-            filePartitionValues.put(files.get(i).path(), typed);
+            valuesByColumn[col++] = column;
         }
-
-        return new PartitionMetadata(partitionColumns, filePartitionValues);
+        return PartitionMetadata.columnar(partitionColumns, valuesByColumn, fileCount);
     }
 
     /**

@@ -1264,7 +1264,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final Map<String, Comparator<ShardRouting>> comparatorCache = new HashMap<>();
             private final ClusterInfo clusterInfo;
 
-            public BestShardMovementsTracker(ClusterInfo clusterInfo) {
+            BestShardMovementsTracker(ClusterInfo clusterInfo) {
                 this.clusterInfo = clusterInfo;
             }
 

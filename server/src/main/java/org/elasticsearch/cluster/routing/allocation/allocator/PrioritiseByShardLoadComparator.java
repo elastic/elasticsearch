@@ -120,6 +120,4 @@ public class PrioritiseByShardLoadComparator implements Comparator<ShardRouting>
             super(clusterInfo.getShardWriteLoads(), routingNode);
         }
     }
-
-    // TODO - PrioritiseByShardSearchLoadComparator?
 }

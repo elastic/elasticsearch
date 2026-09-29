@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -68,7 +69,12 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         }
 
         final var nodeId = randomIdentifier();
-        final var clusterState = createStateWithIndices(List.of(nodeId), shardId -> nodeId, indices.toArray(IndexMetadata.Builder[]::new));
+        final var clusterState = createStateWithIndices(
+            List.of(nodeId),
+            shardId -> nodeId,
+            randomBoolean(),
+            indices.toArray(IndexMetadata.Builder[]::new)
+        );
 
         final var allShards = clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
         final var shardWriteLoads = new HashMap<ShardId, Double>();
@@ -147,6 +153,61 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
     }
 
     /**
+     * No shard on the node has a load, so {@link PrioritiseByShardLoadComparator#compare} takes the missing-load shortcut.
+     */
+    public void testCompareReturnsZeroWhenEveryLoadIsMissing() {
+        final RoutingNode node = startedShardsOnSingleNode(2);
+        final var shards = shardsOn(node);
+        final var comparator = writeLoadComparator(node, Map.of());
+
+        assertComparesEqual(comparator, shards.get(0), shards.get(1));
+    }
+
+    /**
+     * Two shards have no load while another shard on the node does, so the missing pair compares equal
+     * without taking the empty-map shortcut.
+     */
+    public void testCompareReturnsZeroWhenBothShardsHaveNoLoad() {
+        final RoutingNode node = startedShardsOnSingleNode(3);
+        final var shards = shardsOn(node);
+        final var comparator = writeLoadComparator(node, Map.of(shards.get(2).shardId(), 10.0));
+
+        assertComparesEqual(comparator, shards.get(0), shards.get(1));
+    }
+
+    /**
+     * Two shards share a load strictly inside one band. The other shard holds the node maximum,
+     * so the pair is neither missing nor at the maximum.
+     */
+    public void testCompareReturnsZeroWhenLoadsAreEqualInsideABand() {
+        final double maxLoad = 10.0;
+        final double threshold = maxLoad * THRESHOLD_RATIO;
+        // Upper band is [threshold, max). Lower band is [0, threshold).
+        final double equalLoad = randomBoolean() ? (threshold + maxLoad) / 2 : threshold / 2;
+
+        final RoutingNode node = startedShardsOnSingleNode(3);
+        final var shards = shardsOn(node);
+        final var comparator = writeLoadComparator(
+            node,
+            Map.of(shards.get(0).shardId(), equalLoad, shards.get(1).shardId(), equalLoad, shards.get(2).shardId(), maxLoad)
+        );
+
+        assertComparesEqual(comparator, shards.get(0), shards.get(1));
+    }
+
+    /**
+     * Every compared shard is at the node maximum, so neither is preferred.
+     */
+    public void testCompareReturnsZeroWhenBothShardsHaveTheNodeMaximum() {
+        final double maxLoad = randomDoubleBetween(1.0, 100.0, true);
+        final RoutingNode node = startedShardsOnSingleNode(2);
+        final var shards = shardsOn(node);
+        final var comparator = writeLoadComparator(node, Map.of(shards.get(0).shardId(), maxLoad, shards.get(1).shardId(), maxLoad));
+
+        assertComparesEqual(comparator, shards.get(0), shards.get(1));
+    }
+
+    /**
      * Randomly select a shard and add a random write-load for it
      *
      * @param shardWriteLoads The map of shards to write-loads, this will be added to
@@ -171,15 +232,48 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).numberOfShards(1).numberOfReplicas(0);
     }
 
+    private static void assertComparesEqual(PrioritiseByShardLoadComparator comparator, ShardRouting left, ShardRouting right) {
+        assertThat(comparator.compare(left, right), equalTo(0));
+        assertThat(comparator.compare(right, left), equalTo(0));
+    }
+
+    private static PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator writeLoadComparator(
+        RoutingNode node,
+        Map<ShardId, Double> shardWriteLoads
+    ) {
+        return new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(
+            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
+            node
+        );
+    }
+
+    private RoutingNode startedShardsOnSingleNode(int shardCount) {
+        final String nodeId = randomIdentifier();
+        final var indices = new IndexMetadata.Builder[shardCount];
+        for (int i = 0; i < shardCount; i++) {
+            indices[i] = anIndex("index-" + i);
+        }
+        final ClusterState clusterState = createStateWithIndices(List.of(nodeId), shardId -> nodeId, true, indices);
+        return clusterState.getRoutingNodes().node(nodeId);
+    }
+
+    private static List<ShardRouting> shardsOn(RoutingNode node) {
+        final var shards = new ArrayList<ShardRouting>();
+        for (ShardRouting shard : node) {
+            shards.add(shard);
+        }
+        return shards;
+    }
+
     private static ClusterState createStateWithIndices(
         List<String> nodeNames,
         Function<ShardId, String> shardAllocator,
+        boolean assignShards,
         IndexMetadata.Builder... indexMetadataBuilders
     ) {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        final boolean allocateShards = randomBoolean();
-        if (allocateShards == false) {
+        if (assignShards == false) {
             for (var index : indexMetadataBuilders) {
                 var indexMetadata = index.build();
                 metadataBuilder.put(indexMetadata, false);

@@ -194,14 +194,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        assertEquals(
-            "americas",
-            values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("region")
-        );
-        assertEquals(
-            "sao_paulo",
-            values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("city")
-        );
+        assertEquals("americas", values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("region"));
+        assertEquals("sao_paulo", values(result, files, "s3://bucket/data/americas/sao_paulo/file.parquet").get("city"));
     }
 
     public void testUrlEncodedValues() {
@@ -484,7 +478,6 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
             sink
         );
     }
-
 
     private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
         for (int i = 0; i < files.size(); i++) {

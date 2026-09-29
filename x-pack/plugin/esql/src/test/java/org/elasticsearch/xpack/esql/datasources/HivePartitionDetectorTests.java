@@ -119,9 +119,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
         assertEquals(true, values(result, files, "s3://bucket/data/flag=True/file1.parquet").get("flag"));
-        assertNull(
-            values(result, files, "s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet").get("flag")
-        );
+        assertNull(values(result, files, "s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet").get("flag"));
     }
 
     public void testUnsignedLongPartitionFoldersInferAndCast() {
@@ -139,9 +137,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=1/file1.parquet", "1");
         assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=9223372036854775808/file2.parquet", "9223372036854775808");
         assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=18446744073709551615/file3.parquet", "18446744073709551615");
-        assertNull(
-            values(result, files, "s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet").get("id")
-        );
+        assertNull(values(result, files, "s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet").get("id"));
     }
 
     public void testMixedNegativeAndUnsignedLongPartitionFoldersInferKeyword() {
@@ -155,10 +151,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("id"));
         assertEquals("-1", values(result, files, "s3://bucket/data/id=-1/file1.parquet").get("id"));
-        assertEquals(
-            "9223372036854775808",
-            values(result, files, "s3://bucket/data/id=9223372036854775808/file2.parquet").get("id")
-        );
+        assertEquals("9223372036854775808", values(result, files, "s3://bucket/data/id=9223372036854775808/file2.parquet").get("id"));
     }
 
     public void testMixedTypesInferKeyword() {
@@ -216,10 +209,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertFalse("snapshot-gated reserved name must not surface as-is", result.partitionColumns().containsKey("_tier"));
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._tier"));
-        assertEquals(
-            "hot",
-            values(result, files, "s3://bucket/data/_tier=hot/file1.parquet").get("_partition._tier")
-        );
+        assertEquals("hot", values(result, files, "s3://bucket/data/_tier=hot/file1.parquet").get("_partition._tier"));
 
         assertEquals(
             List.of(
@@ -558,12 +548,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         );
     }
 
-    private static void assertUnsignedLongPartitionValue(
-        PartitionMetadata result,
-        List<StorageEntry> files,
-        String path,
-        String expected
-    ) {
+    private static void assertUnsignedLongPartitionValue(PartitionMetadata result, List<StorageEntry> files, String path, String expected) {
         Object value = value(result, files, path, "id");
         assertTrue(value instanceof Long);
         Number decoded = NumericUtils.unsignedLongAsNumber((Long) value);

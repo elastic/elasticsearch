@@ -54,19 +54,11 @@ public final class PartitionMetadata {
     private final StoragePath[] pathsByFile;
 
     /**
-     * Columnar constructor. {@code valuesByColumn[c].length} must equal {@code rowCount}. When
-     * {@code fileToRow} is {@code null}, {@code fileCount} must equal {@code rowCount}.
+     * Takes ownership of {@code valuesByColumn}, {@code fileToRow} and {@code pathsByFile}: every caller builds
+     * them fresh, and copying here would double peak memory for large listings. Callers must not mutate them
+     * afterwards. {@code valuesByColumn[c].length} must equal {@code rowCount}; when {@code fileToRow} is
+     * {@code null}, {@code fileCount} must equal {@code rowCount}.
      */
-    public PartitionMetadata(
-        Map<String, DataType> partitionColumns,
-        Object[][] valuesByColumn,
-        int rowCount,
-        int fileCount,
-        @Nullable int[] fileToRow
-    ) {
-        this(partitionColumns, valuesByColumn, rowCount, fileCount, fileToRow, null);
-    }
-
     private PartitionMetadata(
         Map<String, DataType> partitionColumns,
         Object[][] valuesByColumn,
@@ -111,24 +103,15 @@ public final class PartitionMetadata {
                     throw new IllegalArgumentException("fileToRow[" + f + "]=" + row + " out of range for rowCount=" + rowCount);
                 }
             }
-            this.fileToRow = fileToRow.clone();
+            this.fileToRow = fileToRow;
         }
         if (pathsByFile != null && pathsByFile.length != fileCount) {
             throw new IllegalArgumentException("pathsByFile length must equal fileCount");
         }
-        this.valuesByColumn = copyColumns(valuesByColumn, rowCount);
+        this.valuesByColumn = valuesByColumn;
         this.rowCount = rowCount;
         this.fileCount = fileCount;
-        this.pathsByFile = pathsByFile == null ? null : pathsByFile.clone();
-    }
-
-    private static Object[][] copyColumns(Object[][] valuesByColumn, int rowCount) {
-        Object[][] copy = new Object[valuesByColumn.length][];
-        for (int c = 0; c < valuesByColumn.length; c++) {
-            copy[c] = valuesByColumn[c].clone();
-            assert copy[c].length == rowCount;
-        }
-        return copy;
+        this.pathsByFile = pathsByFile;
     }
 
     /**
@@ -167,7 +150,7 @@ public final class PartitionMetadata {
             return EMPTY;
         }
         if (nFiles == 0) {
-            return new PartitionMetadata(cols, new Object[nCols][0], 0, 0, null, null);
+            return new PartitionMetadata(cols, new Object[nCols][0], 0, 0, null, new StoragePath[0]);
         }
         Object[][] byCol = new Object[nCols][nFiles];
         StoragePath[] paths = new StoragePath[nFiles];
@@ -184,7 +167,8 @@ public final class PartitionMetadata {
     }
 
     /**
-     * Factory for detectors: one row per file, identity mapping, no path index.
+     * Factory for detectors: one row per file, identity mapping, no path index. Takes ownership of
+     * {@code valuesByColumn}; the caller must not mutate it afterwards.
      */
     public static PartitionMetadata columnar(Map<String, DataType> partitionColumns, Object[][] valuesByColumn, int fileCount) {
         return new PartitionMetadata(partitionColumns, valuesByColumn, fileCount, fileCount, null, null);
@@ -207,8 +191,18 @@ public final class PartitionMetadata {
     }
 
     /**
+     * Whether this metadata can be attached to a listing of {@code listingFileCount} files. Ordinal-aligned
+     * metadata must cover exactly that many files, since values are looked up by listing position.
+     * Path-keyed metadata resolves by {@link StoragePath} and is exempt.
+     */
+    public boolean coversFileCount(int listingFileCount) {
+        return isEmpty() || pathsByFile != null || fileCount == listingFileCount;
+    }
+
+    /**
      * Resolves the metadata file index for a listing ordinal and path. Detector-built metadata uses the
-     * ordinal; path-keyed compat metadata looks up {@code path}. Returns {@code -1} when there is no row.
+     * ordinal, which must be in range: an out-of-range ordinal means the metadata and the listing are
+     * misaligned. Path-keyed compat metadata looks up {@code path} and returns {@code -1} when it has no row.
      */
     public int resolveFileIndex(int fileIndex, @Nullable StoragePath path) {
         if (pathsByFile != null) {
@@ -223,6 +217,7 @@ public final class PartitionMetadata {
             return -1;
         }
         if (fileIndex < 0 || fileIndex >= fileCount) {
+            assert false : "file index [" + fileIndex + "] out of range for partition metadata covering [" + fileCount + "] files";
             return -1;
         }
         return fileIndex;
@@ -297,17 +292,19 @@ public final class PartitionMetadata {
      * Rewrites this metadata so each distinct directory group owns one value row and files point at their
      * group via {@code fileToRow}. No-op when {@code groupCount >= fileCount} (no memory win), when
      * metadata is empty, or when this instance still carries a path index (ordinal remap would be unsafe).
-     * {@code fileGroups.length} must equal {@link #fileCount()}.
+     * <p>
+     * Sharing is only a memory optimisation, so it never fails the query: if the grouping does not fit this
+     * metadata (wrong length, out-of-range group, empty group) or siblings in one group carry different
+     * values, it trips an assertion and returns {@code this} unshared. Hive and template values are
+     * directory-bound, so disagreement means a detector or grouping bug.
      */
     public PartitionMetadata shareByGroups(short[] fileGroups, int groupCount) {
         if (isEmpty() || fileCount == 0 || groupCount >= fileCount || pathsByFile != null) {
             return this;
         }
-        if (fileGroups == null || fileGroups.length != fileCount) {
-            throw new IllegalArgumentException("fileGroups length must equal fileCount [" + fileCount + "]");
-        }
-        if (groupCount <= 0) {
-            throw new IllegalArgumentException("groupCount must be positive");
+        if (fileGroups == null || fileGroups.length != fileCount || groupCount <= 0) {
+            assert false : "directory grouping does not fit partition metadata covering [" + fileCount + "] files";
+            return this;
         }
         Object[][] shared = new Object[columnNames.length][groupCount];
         boolean[] filled = new boolean[groupCount];
@@ -315,34 +312,29 @@ public final class PartitionMetadata {
         for (int f = 0; f < fileCount; f++) {
             int g = Short.toUnsignedInt(fileGroups[f]);
             if (g >= groupCount) {
-                throw new IllegalArgumentException("fileGroups[" + f + "]=" + g + " out of range for groupCount=" + groupCount);
+                assert false : "fileGroups[" + f + "]=" + g + " out of range for groupCount=" + groupCount;
+                return this;
             }
             mapping[f] = g;
+            int oldRow = rowIndex(f);
             if (filled[g] == false) {
-                int oldRow = rowIndex(f);
                 for (int c = 0; c < columnNames.length; c++) {
                     shared[c][g] = valuesByColumn[c][oldRow];
                 }
                 filled[g] = true;
             } else {
-                // Hive / template tuples are directory-bound; siblings in a group must agree.
-                int oldRow = rowIndex(f);
                 for (int c = 0; c < columnNames.length; c++) {
                     if (Objects.equals(shared[c][g], valuesByColumn[c][oldRow]) == false) {
-                        throw new IllegalStateException(
-                            "partition values disagree within directory group ["
-                                + g
-                                + "] for column ["
-                                + columnNames[c]
-                                + "]"
-                        );
+                        assert false : "partition values disagree within directory group [" + g + "] for column [" + columnNames[c] + "]";
+                        return this;
                     }
                 }
             }
         }
         for (int g = 0; g < groupCount; g++) {
             if (filled[g] == false) {
-                throw new IllegalArgumentException("group [" + g + "] has no files");
+                assert false : "directory group [" + g + "] has no files";
+                return this;
             }
         }
         return new PartitionMetadata(partitionColumns, shared, groupCount, fileCount, mapping, null);

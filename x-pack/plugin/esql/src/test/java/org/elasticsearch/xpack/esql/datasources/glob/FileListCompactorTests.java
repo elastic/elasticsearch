@@ -471,6 +471,15 @@ public class FileListCompactorTests extends ESTestCase {
         assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
     }
 
+    /** Values are looked up by listing position, so metadata covering a different file count must not be attached. */
+    public void testListingRejectsMisalignedPartitionMetadata() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2025/f2.parquet");
+        PartitionMetadata twoFiles = raw.partitionMetadata();
+        List<StorageEntry> oneFile = List.of(raw.files().get(0));
+        expectThrows(AssertionError.class, () -> new GenericFileList(oneFile, raw.originalPattern(), twoFiles));
+    }
+
     /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */
     public void testPlanningBytesIgnoresEmptyPartitionMetadata() {
         StorageEntry file = new StorageEntry(StoragePath.of("s3://b/f.parquet"), 100L, Instant.EPOCH);

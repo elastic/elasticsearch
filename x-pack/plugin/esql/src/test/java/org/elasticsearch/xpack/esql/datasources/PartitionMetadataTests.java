@@ -174,13 +174,49 @@ public class PartitionMetadataTests extends ESTestCase {
         assertSame(pm, pm.shareByGroups(new short[] { 0, 1 }, 2));
     }
 
-    public void testShareByGroupsRejectsDisagreeingSiblingValues() {
+    /**
+     * Sibling disagreement is a detector or grouping bug, so it trips an assertion in tests. Sharing only
+     * saves memory, so production code must not fail the query over it.
+     */
+    public void testShareByGroupsAssertsOnDisagreeingSiblingValues() {
         LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
         cols.put("year", DataType.INTEGER);
-        // Same directory group, different values — must not silently first-wins.
         PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> pm.shareByGroups(new short[] { 0, 0 }, 1));
-        assertTrue(ex.getMessage().contains("disagree"));
+        AssertionError e = expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0 }, 1));
+        assertTrue(e.getMessage().contains("disagree"));
+    }
+
+    public void testShareByGroupsAssertsOnMisfitGrouping() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2024, 2024 } }, 3);
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0 }, 1));
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0, 2 }, 2));
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0, 0 }, 2));
+    }
+
+    public void testOutOfRangeOrdinalIsAnAssertionFailure() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        assertEquals(1, pm.resolveFileIndex(1, null));
+        expectThrows(AssertionError.class, () -> pm.resolveFileIndex(2, null));
+        expectThrows(AssertionError.class, () -> pm.resolveFileIndex(-1, null));
+    }
+
+    public void testCoversFileCount() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata ordinal = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        assertTrue(ordinal.coversFileCount(2));
+        assertFalse(ordinal.coversFileCount(3));
+        assertTrue(PartitionMetadata.EMPTY.coversFileCount(7));
+        PartitionMetadata pathKeyed = new PartitionMetadata(
+            cols,
+            Map.of(StoragePath.of("s3://b/year=2024/f.parquet"), Map.of("year", 2024))
+        );
+        assertTrue("path-keyed metadata resolves by path, not position", pathKeyed.coversFileCount(3));
+        assertTrue(new PartitionMetadata(cols, Map.of()).coversFileCount(3));
     }
 
     public void testPlanningBytesTracksStructureNotOldFlatConstant() {
@@ -219,15 +255,5 @@ public class PartitionMetadataTests extends ESTestCase {
         assertEquals(left.hashCode(), right.hashCode());
         assertEquals(2024, left.getValue(0, a, "year"));
         assertEquals(2024, right.getValue(0, a, "year"));
-    }
-
-    public void testConstructorDefensivelyCopiesValueArrays() {
-        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
-        cols.put("year", DataType.INTEGER);
-        Object[] years = new Object[] { 2024 };
-        Object[][] byCol = new Object[][] { years };
-        PartitionMetadata pm = PartitionMetadata.columnar(cols, byCol, 1);
-        years[0] = 2099;
-        assertEquals(2024, pm.getValue(0, "year"));
     }
 }

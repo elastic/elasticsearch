@@ -38,10 +38,12 @@ final class FileListCompactor {
      * original list when compaction does not apply or overflows.
      * <p>
      * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — that is
-     * the cost heuristic for layouts with repeated directories worth grouping. When DGF wins, compaction
-     * also rewrites partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so
-     * identical Hive tuples are stored once per directory. {@link GlobExpander} attaches no partition
-     * metadata when hive partitioning is off, so such listings take the dictionary encoding directly.
+     * the cost heuristic for layouts with repeated directories worth grouping. Building that candidate also
+     * rewrites its partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so identical
+     * Hive tuples are stored once per directory; if the dictionary encoding is then kept, the shared copy is
+     * discarded with the candidate and the dictionary list carries the unshared metadata. {@link GlobExpander}
+     * attaches no partition metadata when hive partitioning is off, so such listings take the dictionary
+     * encoding directly.
      */
     static FileList compact(String basePath, GenericFileList raw) {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {

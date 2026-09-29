@@ -1297,6 +1297,43 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code month == 6} splices {@code month=6}, which is not walk-eligible, so the cache key used to ignore a
+     * deeper open range. The empty splice retries the original {@code month=*}, and that walk keeps different days
+     * for {@code day > 5} and {@code day < 5}. Equal discriminators would cache one listing for the other.
+     */
+    public void testRewrittenWalkableOriginalSeparatesDeeperRangeHints() throws IOException {
+        String glob = "s3://bucket/data/month=*/*/*.parquet";
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/month=06/day=01/a.parquet", 100),
+            entry("s3://bucket/data/month=06/day=10/b.parquet", 100)
+        );
+        var greater = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN, 5)
+        );
+        var less = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN, 5)
+        );
+
+        String greaterKey = GlobExpander.listingCacheDiscriminator(glob, greater, HIVE_ON);
+        String lessKey = GlobExpander.listingCacheDiscriminator(glob, less, HIVE_ON);
+        assertNotEquals(greaterKey, lessKey);
+
+        Map<String, List<String>> listingByDiscriminator = new HashMap<>();
+        for (var hints : List.of(greater, less)) {
+            String discriminator = GlobExpander.listingCacheDiscriminator(glob, hints, HIVE_ON);
+            List<String> listed = paths(GlobExpander.expand(glob, new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX));
+            List<String> previous = listingByDiscriminator.putIfAbsent(discriminator, listed);
+            if (previous != null) {
+                assertEquals("same discriminator must mean the same listing", previous, listed);
+            }
+        }
+        assertEquals(List.of("s3://bucket/data/month=06/day=10/b.parquet"), listingByDiscriminator.get(greaterKey));
+        assertEquals(List.of("s3://bucket/data/month=06/day=01/a.parquet"), listingByDiscriminator.get(lessKey));
+    }
+
     public void testRewriteGlobMultipleHints() {
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),

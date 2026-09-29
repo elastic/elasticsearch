@@ -20,8 +20,8 @@ import java.io.IOException;
  * a {@link ColumnIterator} on read. Three shapes, distinguished by {@link #offset}:
  *
  * <ul>
- *   <li>{@link #OFFSET_EMPTY} — no document has a value; nothing is written to the data file.</li>
- *   <li>{@link #OFFSET_DENSE} — every document has a value; nothing is written to the data file
+ *   <li>{@link #OFFSET_EMPTY} — no document has a value; nothing is written.</li>
+ *   <li>{@link #OFFSET_DENSE} — every document has a value; nothing is written
  *       because the document id is its own rank.</li>
  *   <li>a non-negative offset — a sparse structure written at {@code [offset, offset + length)}.</li>
  * </ul>

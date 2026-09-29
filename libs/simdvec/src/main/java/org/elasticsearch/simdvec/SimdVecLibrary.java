@@ -29,11 +29,7 @@ import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkSparse;
 /**
  * Class providing vector similarity functions.
  */
-@LibrarySpecification(
-    name = "vec",
-    unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 },
-    symbolResolver = VecCapsSymbolResolver.class
-)
+@LibrarySpecification(name = "vec", unavailableOn = { Platform.DARWIN_X64 }, symbolResolver = VecCapsSymbolResolver.class)
 public abstract class SimdVecLibrary {
 
     private static final Logger logger = LogManager.getLogger(SimdVecLibrary.class);
@@ -142,9 +138,7 @@ public abstract class SimdVecLibrary {
 
     /** Whether the host CPU/OS/JDK combination can run the native vector library. */
     public static boolean isNativeVectorLibSupported() {
-        var supportedPlatform = Platform.current().equals(Platform.DARWIN_AARCH64)
-            || Platform.current().equals(Platform.LINUX_AARCH64)
-            || Platform.current().equals(Platform.LINUX_X64);
+        var supportedPlatform = Platform.current().equals(Platform.DARWIN_X64) == false;
         return Runtime.version().feature() >= 22 && supportedPlatform && checkEnableSystemProperty();
     }
 

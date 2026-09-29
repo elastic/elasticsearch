@@ -261,9 +261,10 @@ public abstract class FieldMapper extends Mapper {
             return false;
         }
         if (resolvesColumnGroup()) {
-            // A group mapper is dispatched through mapColumnGroupBatch over a whole subtree of leaves, which never fans out to
-            // multi-fields, so it cannot carry any. Defensive: flattened, the only group mapper today, already rejects [fields] at
-            // mapping-parse time.
+            // A group mapper is dispatched through mapColumnGroupBatch, which — unlike mapColumnBatch below —
+            // never fans out to multi-fields, so a group mapper carrying [fields] would index the parent column
+            // and silently skip every sub-field. Load-bearing for geo_point, which accepts [fields] at
+            // mapping-parse time; flattened rejects them there already (FlattenedFieldMapper.Builder#build).
             return builderParams.multiFields.mappers.length == 0;
         }
         for (FieldMapper subMapper : builderParams.multiFields) {

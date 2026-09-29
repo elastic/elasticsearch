@@ -19,6 +19,7 @@ import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 
 import java.io.IOException;
 
@@ -64,6 +65,15 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String META_EXTENSION = "cnm";
     static final String SKIP_CODEC = "ColumNARSkipIndex";
     static final String SKIP_EXTENSION = "cns";
+    /** What is kept per document: presence, slot counts, value addresses. */
+    static final String ADDRESSING_CODEC = "ColumNARAddressing";
+    static final String ADDRESSING_EXTENSION = "cna";
+    /** A plain column's value lengths, which place its values and say which slots are null. */
+    static final String LENGTHS_CODEC = "ColumNARLengths";
+    static final String LENGTHS_EXTENSION = "cnl";
+    /** What is kept per block or per chunk and locates everything else; small, and read up front. */
+    static final String NAVIGATION_CODEC = "ColumNARNavigation";
+    static final String NAVIGATION_EXTENSION = "cnn";
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
@@ -72,6 +82,9 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
 
     /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
     public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
+
+    /** The bound a column's vocabulary is left behind under when a field names none of its own. */
+    public static final SummaryPolicy DEFAULT_SUMMARY_POLICY = StringColumnOptions.DEFAULT_SUMMARY;
 
     /**
      * SPI constructor. Read-only: it serves the producer, which reads each field's type from the column
@@ -95,7 +108,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         final ColumnarFieldTypeSelector typeSelector,
         int blockSize
     ) {
-        this(pipelineSelector, typeSelector, blockSize, DEFAULT_DICTIONARY_POLICY);
+        this(pipelineSelector, typeSelector, blockSize, DEFAULT_DICTIONARY_POLICY, DEFAULT_SUMMARY_POLICY);
     }
 
     /**
@@ -107,13 +120,14 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         final NumericPipelineSelector pipelineSelector,
         final ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        final DictionaryPolicy dictionaryPolicy
+        final DictionaryPolicy dictionaryPolicy,
+        final SummaryPolicy summaryPolicy
     ) {
         this(
             pipelineSelector,
             typeSelector,
             blockSize,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withDictionary(dictionaryPolicy))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy, summaryPolicy))
         );
     }
 

@@ -82,8 +82,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     public void testBothKindsAreReportedTogether() {
         stubUserManagedAccounts(
             List.of(
-                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("deployer"), true),
-                new ServiceAccountInfo.UserManaged("aaa/first", List.of("reader"), false)
+                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("deployer"), true, null),
+                new ServiceAccountInfo.UserManaged("aaa/first", List.of("reader"), false, null)
             )
         );
         final List<ServiceAccountInfo> infos = infosFor(bothKinds());
@@ -121,7 +121,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final ServiceAccountInfo.UserManaged account = new ServiceAccountInfo.UserManaged(
             "engineering/deploy_bot",
             List.of("deployer"),
-            true
+            true,
+            null
         );
         stubUserManagedAccounts(List.of(account));
         assertThat(infosFor(userManagedOnly()), contains(account));

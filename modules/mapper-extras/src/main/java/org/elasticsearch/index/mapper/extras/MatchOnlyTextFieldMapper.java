@@ -633,7 +633,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         binaryDocValues = switch (format) {
                             case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(context.reader(), fieldName);
                             case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
-                            case SEPARATE_COUNT -> MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
+                            case SEPARATE_COUNT, PLAIN -> MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
                         };
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);

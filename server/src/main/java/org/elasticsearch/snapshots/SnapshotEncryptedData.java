@@ -32,13 +32,7 @@ import java.util.stream.Collectors;
  */
 public final class SnapshotEncryptedData implements Writeable {
 
-    /**
-     * Wire-format transport version that added {@code encrypted_data} to
-     * {@link org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest}
-     * and to {@link SnapshotInfo}.
-     */
     public static final TransportVersion TRANSPORT_VERSION = TransportVersion.fromName("snapshot_encrypted_data");
-
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("snapshot_encrypted_data");
 
     public static final String TYPE_PASSWORD = "password";
@@ -105,9 +99,8 @@ public final class SnapshotEncryptedData implements Writeable {
     }
 
     /**
-     * Parses an {@code encrypted_data} map value (the object that was the value of the
-     * {@code "encrypted_data"} key in the request body). Throws {@link IllegalArgumentException}
-     * for malformed input, missing required fields, or unsupported types.
+     * Parses an {@code encrypted_data} map value (the object that was the value of the {@code "encrypted_data"} key in the request body)
+     * . Throws {@link IllegalArgumentException} for malformed input, missing required fields, or unsupported types.
      */
     @SuppressWarnings("unchecked")
     public static SnapshotEncryptedData fromMap(Object value) {
@@ -143,6 +136,19 @@ public final class SnapshotEncryptedData implements Writeable {
             );
             default -> throw new IllegalArgumentException("unknown encrypted_data.type [" + type + "]");
         };
+    }
+
+    /**
+     * Validates that this instance is self-consistent. Throws {@link IllegalArgumentException} if any
+     * type-specific required field is missing or invalid.
+     */
+    public void validate() {
+        if (TYPE_PASSWORD.equals(type)) {
+            if (password == null) {
+                throw new IllegalArgumentException("encrypted_data.password is required for type [password]");
+            }
+            validatePassword(password);
+        }
     }
 
     /**

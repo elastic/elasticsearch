@@ -20,7 +20,7 @@ import org.elasticsearch.core.Nullable;
  *
  * <p>Contract: return the <em>same</em> {@link Metadata} instance if no transformation is
  * needed; a different instance signals that the state was modified. Returning the same instance
- * avoids unnecessary serialisation work.
+ * avoids unnecessary serialization work.
  *
  * <p>Providers are discovered via {@code pluginsService.loadServiceProviders} in
  * {@code NodeConstruction} and handed to both {@link SnapshotsService} (for use during

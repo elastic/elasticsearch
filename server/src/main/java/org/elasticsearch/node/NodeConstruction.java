@@ -248,6 +248,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTr
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -1272,9 +1273,7 @@ class NodeConstruction {
             snapshotMetrics
         );
 
-        final var snapshotGlobalStateTransformers = pluginsService.loadServiceProviders(
-            org.elasticsearch.snapshots.SnapshotGlobalStateTransformer.class
-        );
+        final var snapshotGlobalStateTransformers = pluginsService.loadServiceProviders(SnapshotGlobalStateTransformer.class);
         snapshotsService.setSnapshotGlobalStateTransformers(snapshotGlobalStateTransformers);
 
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
@@ -1750,12 +1749,6 @@ class NodeConstruction {
             transportService.getLocalNodeConnection(),
             transportService.getRemoteClusterService()
         );
-
-        // Wire global-state transformers into TransportCreateSnapshotAction for pre-flight checks.
-        injector.getInstance(org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction.class)
-            .setSnapshotGlobalStateTransformers(
-                injector.getInstance(org.elasticsearch.snapshots.SnapshotsService.class).getSnapshotGlobalStateTransformers()
-            );
 
         logger.debug("initializing HTTP handlers ...");
         actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered(), f -> {

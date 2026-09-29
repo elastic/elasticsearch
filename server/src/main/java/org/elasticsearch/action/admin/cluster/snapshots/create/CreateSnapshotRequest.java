@@ -170,19 +170,10 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             if (includeGlobalState == false) {
                 validationException = addValidationError("encrypted_data requires include_global_state to be true", validationException);
             }
-            if (SnapshotEncryptedData.TYPE_PASSWORD.equals(encryptedData.type())) {
-                if (encryptedData.password() == null) {
-                    validationException = addValidationError(
-                        "encrypted_data.password is required for type [password]",
-                        validationException
-                    );
-                } else {
-                    try {
-                        SnapshotEncryptedData.validatePassword(encryptedData.password());
-                    } catch (IllegalArgumentException e) {
-                        validationException = addValidationError(e.getMessage(), validationException);
-                    }
-                }
+            try {
+                encryptedData.validate();
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
             }
         }
         return validationException;
@@ -602,6 +593,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + uuid
             + ", encryptedDataType="
             + (encryptedData != null ? encryptedData.type() : null)
+            + ", encryptedDataPasswordId="
+            + (encryptedData != null ? encryptedData.passwordId() : null)
             + '}';
     }
 }

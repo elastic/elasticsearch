@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -297,9 +298,49 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return snapshotGlobalStateTransformers;
     }
 
-    /** Returns the setting value for pre-flight checks in {@code TransportCreateSnapshotAction}. */
-    public boolean isEncryptedDataRequired() {
-        return encryptedDataRequired;
+    /**
+     * Runs the encrypted-data pre-flight check for a create-snapshot request. Must be called from the master-operation thread,
+     * before any cluster-state task is submitted.
+     *
+     * @return {@code true} if the caller should proceed, {@code false} if the listener was already resolved with an error.
+     */
+    public boolean preflightEncryptedDataCheck(
+        ProjectId projectId,
+        CreateSnapshotRequest request,
+        Metadata metadata,
+        ActionListener<?> listener
+    ) {
+        if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false || request.encryptedData() != null) {
+            return true;
+        }
+        if (request.includeGlobalState() == false) {
+            return true;
+        }
+        boolean hasEncryptedData = false;
+        for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
+            if (transformer.containsEncryptedData(projectId, metadata)) {
+                hasEncryptedData = true;
+                break;
+            }
+        }
+        if (hasEncryptedData == false) {
+            return true;
+        }
+        if (encryptedDataRequired) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Snapshot request rejected: the cluster contains encrypted project data and "
+                        + "[snapshot.encrypted_data.required] is true. "
+                        + "Supply [encrypted_data] in the request to include the data in the snapshot."
+                )
+            );
+            return false;
+        }
+        HeaderWarning.addWarning(
+            "This snapshot will not include encrypted project data because no [encrypted_data] was supplied. "
+                + "The data can only be restored if it is re-configured manually after restore."
+        );
+        return true;
     }
 
     /**

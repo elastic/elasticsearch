@@ -16,22 +16,17 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotEncryptedData;
-import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 
 /**
  * Transport action for create snapshot operation
@@ -40,7 +35,6 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     public static final ActionType<CreateSnapshotResponse> TYPE = new ActionType<>("cluster:admin/snapshot/create");
     private final SnapshotsService snapshotsService;
     private final ProjectResolver projectResolver;
-    private List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers = List.of();
 
     @Inject
     public TransportCreateSnapshotAction(
@@ -65,10 +59,6 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         this.projectResolver = projectResolver;
     }
 
-    public void setSnapshotGlobalStateTransformers(List<SnapshotGlobalStateTransformer> transformers) {
-        this.snapshotGlobalStateTransformers = List.copyOf(transformers);
-    }
-
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
         // We only check metadata block, as we want to snapshot closed indices (which have a read block)
@@ -83,35 +73,9 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         final ActionListener<CreateSnapshotResponse> listener
     ) {
         final ProjectId projectId = projectResolver.getProjectId();
-        final Metadata metadata = state.metadata();
 
-        if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() && request.encryptedData() == null) {
-            // No encrypted_data supplied — check whether the cluster has encrypted data and warn or reject.
-            if (request.includeGlobalState()) {
-                boolean hasEncryptedData = false;
-                for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
-                    if (transformer.containsEncryptedData(projectId, metadata)) {
-                        hasEncryptedData = true;
-                        break;
-                    }
-                }
-                if (hasEncryptedData) {
-                    if (snapshotsService.isEncryptedDataRequired()) {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "Snapshot request rejected: the cluster contains encrypted project data and "
-                                    + "[snapshot.encrypted_data.required] is true. "
-                                    + "Supply [encrypted_data] in the request to include the data in the snapshot."
-                            )
-                        );
-                        return;
-                    }
-                    HeaderWarning.addWarning(
-                        "This snapshot will not include encrypted project data because no [encrypted_data] was supplied. "
-                            + "The data can only be restored if it is re-configured manually after restore."
-                    );
-                }
-            }
+        if (snapshotsService.preflightEncryptedDataCheck(projectId, request, state.metadata(), listener) == false) {
+            return;
         }
 
         if (request.waitForCompletion()) {

@@ -27,6 +27,7 @@ required_capability: external_source_metadata_wins_over_physical_column
 required_capability: external_source_standard_metadata_columns
 required_capability: external_source_file_metadata_columns
 required_capability: external_dataset_messages
+required_capability: runtime_score_fix
 dataset: md_collision: "{{md_collision}}"
 
 // {any} is not usable on date: the spec runner reformats expected dates before the wildcard check.
@@ -64,6 +65,7 @@ required_capability: external_source_metadata_wins_over_physical_column
 required_capability: external_source_standard_metadata_columns
 required_capability: external_source_file_metadata_columns
 required_capability: external_dataset_messages
+required_capability: runtime_score_fix
 dataset: md_collision: "{{md_collision}}"
 
 FROM md_collision METADATA _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, _file.path, _file.name, _file.directory, _file.size, _file.modified, _file.record_ref

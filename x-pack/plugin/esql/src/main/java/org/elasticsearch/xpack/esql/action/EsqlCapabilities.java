@@ -4126,6 +4126,17 @@ public class EsqlCapabilities {
          */
         EXTERNAL_DATASET_MESSAGES,
 
+        /**
+         * Runtime search ({@code MATCH}, {@code MATCH_PHRASE}, runtime {@code KNN}) produces a correct {@code _score}:
+         * <ul>
+         *     <li>{@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime search
+         *     over it adds its per-row score rather than returning {@code null} (elastic/esql-planning#1976).</li>
+         *     <li>A {@code _score} predicate in the same filter as a runtime search sees the score that search contributes,
+         *     rather than the incoming score, which dropped rows that should pass and kept rows that should not.</li>
+         * </ul>
+         */
+        RUNTIME_SCORE_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

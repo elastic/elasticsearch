@@ -683,7 +683,13 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(
+                    unresolvedRelation,
+                    response,
+                    resolvedViews,
+                    patterns,
+                    wildcardsMatchViews
+                );
                 if (cpsEnabled) {
                     // Append the per-resolved-view ViewShadowRelations as additional siblings at
                     // this same level. They live under suffixed names so they don't collide with
@@ -750,7 +756,8 @@ public class ViewResolver {
         UnresolvedRelation unresolvedRelation,
         EsqlResolveViewAction.Response response,
         HashMap<String, ViewPlan> resolvedViews,
-        String[] originalPatterns
+        String[] originalPatterns,
+        boolean wildcardsMatchViews
     ) {
         List<ViewPlan> result = new ArrayList<>();
         HashSet<String> addedViews = new HashSet<>();
@@ -808,6 +815,20 @@ public class ViewResolver {
                     unresolvedInsertPos = result.size();
                 }
                 patternsNeedingUnresolved.add(expr.original());
+            }
+        }
+
+        // When wildcards_match_views=false, wildcard patterns are excluded from the resolver request
+        // so they never appear in the response. Re-add them here so they reach field-caps.
+        if (wildcardsMatchViews == false) {
+            for (String pattern : originalPatterns) {
+                if (patternIsExclusion(pattern) == false
+                    && Regex.isSimpleMatchPattern(RemoteClusterAware.splitIndexName(pattern).indexExpression())) {
+                    if (unresolvedInsertPos < 0) {
+                        unresolvedInsertPos = result.size();
+                    }
+                    patternsNeedingUnresolved.add(pattern);
+                }
             }
         }
 

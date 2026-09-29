@@ -59,6 +59,28 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
             }
+
+            // in combination with index
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
         }
     }
 

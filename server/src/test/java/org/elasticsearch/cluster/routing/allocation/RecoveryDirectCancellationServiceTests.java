@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecisions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -974,8 +974,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 ) {
                     final String allocId = allocationIds.get(node.nodeId());
                     return cancelIfStartedThisRound.contains(allocId)
-                        ? TestAllocationDecider.NO_DECISION
-                        : randomFrom(TestAllocationDecider.NOT_PREFERRED_DECISION, Decision.YES);
+                        ? TestAllocationDecisions.NO_DECISION
+                        : randomFrom(TestAllocationDecisions.NOT_PREFERRED_DECISION, Decision.YES);
                 }
             };
 
@@ -1834,7 +1834,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 RoutingAllocation allocation
             ) {
                 return shardRouting.shardId().equals(shardId) && shardRouting.primary() == primary && node.nodeId().equals(forbiddenNodeId)
-                    ? TestAllocationDecider.NO_DECISION
+                    ? TestAllocationDecisions.NO_DECISION
                     : Decision.YES;
             }
         };

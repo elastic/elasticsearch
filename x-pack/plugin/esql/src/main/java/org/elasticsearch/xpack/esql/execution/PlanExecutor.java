@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.telemetry.StreamingQueryMetrics;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -70,6 +71,7 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
+    private final StreamingQueryMetrics streamingQueryMetrics;
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
@@ -140,6 +142,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
+        this.streamingQueryMetrics = new StreamingQueryMetrics(meterRegistry);
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
@@ -405,6 +408,10 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    public StreamingQueryMetrics streamingQueryMetrics() {
+        return this.streamingQueryMetrics;
     }
 
     public DataSourceModule dataSourceModule() {

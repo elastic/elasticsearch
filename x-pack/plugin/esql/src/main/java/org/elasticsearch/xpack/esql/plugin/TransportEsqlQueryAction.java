@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
+import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -101,6 +102,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
 
     private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
+
+    /**
+     * CCS usage feature tag set on streaming queries ({@code POST /_query?streaming=true}).
+     * Mirrors {@link CCSUsageTelemetry#ASYNC_FEATURE} so streaming and async can be distinguished
+     * in the cross-cluster usage stats.
+     */
+    public static final String STREAMING_FEATURE = "streaming";
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
@@ -517,6 +525,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
         if (request.async()) {
             usageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+        }
+        if (request instanceof EsqlStreamQueryRequest) {
+            usageBuilder.setFeature(STREAMING_FEATURE);
         }
 
         AtomicInteger remotesCount = new AtomicInteger();

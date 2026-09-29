@@ -26,6 +26,11 @@ import java.util.stream.Collectors;
  * {@link org.elasticsearch.xpack.esql.action.EsqlQueryResponse}. Response-derived fields are sourced
  * instead from the {@link EsqlExecutionInfo} (mutated in place during execution), the final
  * {@link Result}, and the {@link PageStreamPublisher} row counter.
+ *
+ * <p>Both the success and failure paths use this class so that failed streaming queries log the same
+ * streaming-specific fields (indices, clusters, shard info, and rows delivered before failure) that
+ * successful queries do. {@link #getRollupCounters()} returns {@link java.util.Optional#empty()} on
+ * failure because completion info is unavailable — it is populated only after compute finishes.
  */
 class EsqlStreamLogContext extends EsqlLogContext {
 
@@ -33,6 +38,7 @@ class EsqlStreamLogContext extends EsqlLogContext {
     private final PageStreamPublisher publisher;
     private final Result result;
 
+    /** Success-path constructor. {@code result} must not be {@code null}. */
     EsqlStreamLogContext(
         Task task,
         EsqlQueryRequest request,
@@ -45,6 +51,20 @@ class EsqlStreamLogContext extends EsqlLogContext {
         this.executionInfo = executionInfo;
         this.publisher = publisher;
         this.result = result;
+    }
+
+    EsqlStreamLogContext(
+        Task task,
+        EsqlQueryRequest request,
+        long tookInNanos,
+        EsqlExecutionInfo executionInfo,
+        PageStreamPublisher publisher,
+        Exception error
+    ) {
+        super(task, request, tookInNanos, error);
+        this.executionInfo = executionInfo;
+        this.publisher = publisher;
+        this.result = null;
     }
 
     /**
@@ -88,6 +108,9 @@ class EsqlStreamLogContext extends EsqlLogContext {
 
     @Override
     Optional<RollupCounters> getRollupCounters() {
+        if (result == null) {
+            return Optional.empty();
+        }
         var ci = result.completionInfo();
         return Optional.of(
             new RollupCounters(

@@ -39,6 +39,7 @@ sourceSets {
 
 dependencies {
   api project(":test:framework")
+  implementation project(":test:yaml-rest-runner")
 
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')

@@ -394,7 +394,7 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
             contains(new LongWithAttributes(deterministicTaskQueue.getCurrentTimeMillis() - shard4WaitingTimestamp))
         );
 
-        // Move shard3 out of WAITING state:
+        // Move shard4 out of WAITING state:
         snapshots = updateSnapshot(snapshots, snapshot3, List.of(index4), Map.of(shard4, initStatus));
         applyNewSnapshotsInProgress(clusterService, deterministicTaskQueue, "shard4 no longer waiting", snapshots);
         // No waiting shards left, so expect metric to be zero:

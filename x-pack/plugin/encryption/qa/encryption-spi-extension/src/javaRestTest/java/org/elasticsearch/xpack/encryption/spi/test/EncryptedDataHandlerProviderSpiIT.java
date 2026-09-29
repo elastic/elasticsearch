@@ -11,6 +11,7 @@ import org.apache.http.Header;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -102,11 +103,12 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the snapshot Warning header is emitted when the cluster has encrypted data in project state.
-     * The test handler's reEncrypt seeds a TestEncryptedBlob on the first rotation, so the Warning fires once the
-     * coordinator has run at least once.
+     * Verifies that the snapshot Warning header is emitted when the cluster has encrypted data in project state and
+     * the snapshot encryption feature flag is disabled. When the flag is enabled, callers can supply a password to
+     * include encrypted data in the snapshot, so no warning is needed.
      */
     public void testSnapshotWarningEmittedWhenEncryptedDataPresent() throws Exception {
+        assumeFalse("warning is suppressed when snapshot encryption feature is available", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
         // Wait for the key rotation coordinator to seed the TestEncryptedBlob into cluster state.
         assertBusy(() -> {
             var response = client().performRequest(new Request("GET", "/_test/encryption_spi/invocations"));

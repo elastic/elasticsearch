@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 160525
+summary: Verify enrollment TLS leaf chains to pinned CA
+type: bug

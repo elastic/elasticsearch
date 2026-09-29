@@ -3096,18 +3096,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Indexed fields deliberately do not participate because their mapping remains the source of truth.
      */
     private static class InferKnnSimilarity extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-
-        private record InferredSimilarity(String inferenceId, SimilarityMeasure similarity) {}
-
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            Map<NameId, InferredSimilarity> vectorSimilarities = new HashMap<>();
+            Map<NameId, String> attributeToInferenceId = new HashMap<>();
+
             plan.forEachDown(LogicalPlan.class, node -> {
                 if (node instanceof DenseVector denseVector) {
-                    InferredSimilarity similarity = inferenceSimilarity(denseVector.inferenceId(), context);
-                    if (similarity != null) {
+                    String inferenceId = foldInferenceId(denseVector.inferenceId());
+                    if (inferenceId != null) {
                         for (Attribute generatedAttribute : denseVector.generatedAttributes()) {
-                            vectorSimilarities.put(generatedAttribute.id(), similarity);
+                            attributeToInferenceId.put(generatedAttribute.id(), inferenceId);
                         }
                     }
                 }
@@ -3116,46 +3114,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Visit producers before consumers so chains of EVAL assignments and RENAME projections retain their provenance.
             // Only direct aliases preserve it: expressions that modify vector values may require a different similarity.
             plan.forEachExpressionUp(Alias.class, alias -> {
-                InferredSimilarity similarity = alias.child() instanceof Attribute child
-                    ? vectorSimilarities.get(child.id())
-                    : inferExpressionSimilarity(alias.child(), context);
-                if (similarity != null) {
-                    vectorSimilarities.put(alias.id(), similarity);
+                String inferenceId = alias.child() instanceof Attribute child
+                    ? attributeToInferenceId.get(child.id())
+                    : inferExpressionInferenceId(alias.child());
+                if (inferenceId != null) {
+                    attributeToInferenceId.put(alias.id(), inferenceId);
                 }
             });
 
             return plan.transformUp(
                 LogicalPlan.class,
-                node -> node.transformExpressionsOnly(Knn.class, knn -> inferSimilarityForRuntimeKnn(knn, vectorSimilarities, context))
+                node -> node.transformExpressionsOnly(Knn.class, knn -> inferSimilarityForRuntimeKnn(knn, attributeToInferenceId, context))
             );
         }
 
         private static Knn inferSimilarityForRuntimeKnn(
             Knn knn,
-            Map<NameId, InferredSimilarity> vectorSimilarities,
+            Map<NameId, String> vectorSimilarities,
             AnalyzerContext context
         ) {
             if (knn.isRuntimeSearch() == false) {
                 return knn;
             }
 
-            InferredSimilarity fieldSimilarity = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
-            InferredSimilarity querySimilarity = knn.query() instanceof Attribute attribute
-                ? vectorSimilarities.get(attribute.id())
-                : inferExpressionSimilarity(knn.query(), context);
+            String fieldInferenceId = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
+            SimilarityMeasure fieldSimilarity = fieldInferenceId != null ? resolveSimilarity(fieldInferenceId, context) : null;
+            String queryInferenceId = knn.query() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) :
+                inferExpressionInferenceId(knn.query());
 
-            if (fieldSimilarity != null && querySimilarity != null && fieldSimilarity.similarity() != querySimilarity.similarity()) {
+            SimilarityMeasure querySimilarity = queryInferenceId != null ? resolveSimilarity(queryInferenceId, context) : null;
+
+            if (fieldSimilarity != null && querySimilarity != null && fieldSimilarity != querySimilarity) {
                 String error = "KNN field inference endpoint ["
-                    + fieldSimilarity.inferenceId()
+                    + fieldInferenceId
                     + "] uses similarity ["
-                    + fieldSimilarity.similarity()
+                    + fieldSimilarity
                     + "] but query inference endpoint ["
-                    + querySimilarity.inferenceId()
+                    + queryInferenceId
                     + "] uses similarity ["
-                    + querySimilarity.similarity()
+                    + querySimilarity
                     + "]";
                 InferenceFunction<?> queryFunction = (InferenceFunction<?>) knn.query();
-                Expression unresolvedQuery = queryFunction.withInferenceResolutionError(querySimilarity.inferenceId(), error);
+                Expression unresolvedQuery = queryFunction.withInferenceResolutionError(queryInferenceId, error);
                 return knn.replaceQuery(unresolvedQuery);
             }
 
@@ -3163,38 +3163,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return knn;
             }
 
-            InferredSimilarity inferred = fieldSimilarity != null ? fieldSimilarity : querySimilarity;
+            SimilarityMeasure inferred = fieldSimilarity != null ? fieldSimilarity : querySimilarity;
             if (inferred == null) {
                 return knn;
             }
 
             List<Expression> entries = knn.options() == null ? new ArrayList<>() : new ArrayList<>(knn.options().children());
             entries.add(Literal.keyword(knn.source(), Knn.SIMILARITY_FUNCTION_OPTION));
-            entries.add(Literal.keyword(knn.source(), inferred.similarity().toString()));
+            entries.add(Literal.keyword(knn.source(), inferred.toString()));
             return knn.replaceOptions(new MapExpression(knn.source(), entries));
         }
 
         @Nullable
-        private static InferredSimilarity inferExpressionSimilarity(Expression expression, AnalyzerContext context) {
+        private static String inferExpressionInferenceId(Expression expression) {
             if (expression instanceof InferenceFunction == false) {
                 return null;
             }
-            return inferenceSimilarity(((InferenceFunction<?>) expression).inferenceId(), context);
+            return foldInferenceId(((InferenceFunction<?>) expression).inferenceId());
         }
 
         @Nullable
-        private static InferredSimilarity inferenceSimilarity(Expression inferenceId, AnalyzerContext context) {
+        private static String foldInferenceId(Expression inferenceId) {
             if (inferenceId == null
                 || inferenceId.resolved() == false
                 || inferenceId.foldable() == false
                 || DataType.isString(inferenceId.dataType()) == false) {
                 return null;
             }
-            String id = BytesRefs.toString(inferenceId.fold(FoldContext.small()));
-            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(id);
-            return resolvedInference == null || resolvedInference.similarity() == null
-                ? null
-                : new InferredSimilarity(id, resolvedInference.similarity());
+            return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
+        }
+
+        private static SimilarityMeasure resolveSimilarity(String inferenceId, AnalyzerContext context) {
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+            return resolvedInference == null ? null : resolvedInference.similarity();
         }
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -124,7 +125,8 @@ public final class DatasetListingService {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         StoragePath storagePath,
-        ListingExtents extents
+        ListingExtents extents,
+        ListingMemory memory
     ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
@@ -135,7 +137,8 @@ public final class DatasetListingService {
             maxDiscoveredFiles.getAsInt(),
             maxGlobExpansion.getAsInt(),
             maxListedObjects.getAsInt(),
-            extents
+            extents,
+            memory
         );
     }
 
@@ -149,7 +152,8 @@ public final class DatasetListingService {
         StoragePath storagePath,
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
+        Map<String, Object> config,
+        ListingMemory memory
     ) throws Exception {
         ListingCacheKey listingKey = ListingCacheKey.build(
             storagePath.scheme(),
@@ -160,11 +164,12 @@ public final class DatasetListingService {
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
         FileList listing;
+        boolean[] servedFromCacheHolder = { true };
         try {
-            listing = cacheService.getOrComputeListing(
-                listingKey,
-                k -> expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED)
-            );
+            listing = cacheService.getOrComputeListing(listingKey, k -> {
+                servedFromCacheHolder[0] = false;
+                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory);
+            });
         } catch (ExecutionException e) {
             throw asListingFailure(e);
         }
@@ -173,6 +178,11 @@ public final class DatasetListingService {
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;
         // this re-check is for the hit path.
         GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
+        // A hit allocated nothing in the walk, so nothing was reserved there; the caller still holds a reference
+        // for as long as its query runs, and reserves for it here.
+        if (servedFromCacheHolder[0]) {
+            memory.reserve(listing.planningBytes());
+        }
         return listing;
     }
 }

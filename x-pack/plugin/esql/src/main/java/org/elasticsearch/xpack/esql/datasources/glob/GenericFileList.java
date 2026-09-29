@@ -130,7 +130,7 @@ final class GenericFileList implements FileList {
     @Override
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
-        return 64 + files.size() * 700L + listingWarningBytes();
+        return 64 + files.size() * FileList.LISTING_BYTES_PER_ENTRY + listingWarningBytes();
     }
 
     @Override

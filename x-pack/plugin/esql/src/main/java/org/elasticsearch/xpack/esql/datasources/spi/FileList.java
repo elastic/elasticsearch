@@ -181,6 +181,12 @@ public interface FileList {
      * map is built. Not a measured deep size. When {@link #partitionMetadata()} is missing or empty, the result is
      * {@link #estimatedBytes()}. Otherwise it adds 560 bytes for each file in {@link PartitionMetadata#filePartitionValues()}.
      */
+    /**
+     * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
+     * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
+     */
+    long LISTING_BYTES_PER_ENTRY = 700L;
+
     default long planningBytes() {
         PartitionMetadata metadata = partitionMetadata();
         if (metadata == null || metadata.isEmpty()) {

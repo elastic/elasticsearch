@@ -5759,6 +5759,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
+        // The charge is no longer one atomic call: the walk reserves for the entries it retains AS it retains
+        // them, which is what lets a listing this node cannot hold trip partway through rather than once it is
+        // built. So a trip on the top-up leaves the walk's own reservation held - those entries really were in
+        // heap - and closing the reservation is what returns them.
+        assertThat(trippedReservation.queryHeld(), greaterThan(0L));
+        trippedReservation.close();
         assertEquals(0L, trippedReservation.queryHeld());
         assertEquals(tripBaseline, narrow.getUsed());
     }
@@ -5813,6 +5819,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
+        // The charge is no longer one atomic call: the walk reserves for the entries it retains AS it retains
+        // them, which is what lets a listing this node cannot hold trip partway through rather than once it is
+        // built. So a trip on the top-up leaves the walk's own reservation held - those entries really were in
+        // heap - and closing the reservation is what returns them.
+        assertThat(trippedReservation.queryHeld(), greaterThan(0L));
+        trippedReservation.close();
         assertEquals(0L, trippedReservation.queryHeld());
         assertEquals(tripBaseline, narrow.getUsed());
     }

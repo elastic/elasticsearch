@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,11 @@ public record SplitDiscoveryContext(
     // How many rows the query needs from this relation, or FormatReader.NO_LIMIT when the commands above it make no
     // promise about that count. A provider may use it to stop producing splits once the demand is covered; one that
     // ignores it produces them all, which every provider but FileSplitProvider does.
-    int rowLimit
+    int rowLimit,
+    // Reserves heap for the listing this query performs when the schema's listing was a prefix of the dataset.
+    // Null when nothing is accounting for the query (tests, and providers reached outside a query). Live like
+    // isCancelled rather than data: it draws on the query's own reservation and must not outlive it.
+    @Nullable ListingMemory listingMemory
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -137,7 +142,8 @@ public record SplitDiscoveryContext(
             declaredReadSpec,
             metadataColumnNames,
             retainedPartitionKeys,
-            rowLimit
+            rowLimit,
+            listingMemory
         );
     }
 
@@ -171,7 +177,8 @@ public record SplitDiscoveryContext(
             declaredReadSpec,
             metadataColumnNames,
             retainedPartitionKeys,
-            FormatReader.NO_LIMIT
+            FormatReader.NO_LIMIT,
+            null
         );
     }
 

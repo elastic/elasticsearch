@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -556,6 +557,14 @@ public class FileSplitProvider implements SplitProvider {
      * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
      * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
      */
+    /**
+     * Reserves this query's own listing. The context carries the reservation when the query has one; a provider
+     * reached outside a query (tests) reserves nothing.
+     */
+    private static ListingMemory scanMemory(SplitDiscoveryContext context) {
+        return context.listingMemory() == null ? ListingMemory.NONE : context.listingMemory();
+    }
+
     private FileList listForQuery(SplitDiscoveryContext context) throws Exception {
         String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
@@ -585,8 +594,8 @@ public class FileSplitProvider implements SplitProvider {
             // filters the cache key already distinguishes. Without this a warm second query over the same dataset
             // pays the listing again, where resolution's own listing would have been served from the cache.
             return listingService.isCacheable(provider)
-                ? listingService.cachedListing(pattern, storagePath, provider, narrowing, config)
-                : listingService.expand(pattern, provider, narrowing, config, storagePath, ListingExtents.UNBOUNDED);
+                ? listingService.cachedListing(pattern, storagePath, provider, narrowing, config, scanMemory(context))
+                : listingService.expand(pattern, provider, narrowing, config, storagePath, ListingExtents.UNBOUNDED, scanMemory(context));
         } finally {
             StorageProviderCache.closeLease(provider);
         }

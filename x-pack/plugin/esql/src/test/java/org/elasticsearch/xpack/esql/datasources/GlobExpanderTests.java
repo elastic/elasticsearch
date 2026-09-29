@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -36,8 +39,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class GlobExpanderTests extends ESTestCase {
@@ -4702,7 +4708,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
 
         assertEquals("the bound is a key budget, so it decides the file count here", 1000, result.fileCount());
@@ -4731,7 +4738,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(10, 10)
+            new ListingExtents(10, 10),
+            ListingMemory.NONE
         );
         FileList complete = GlobExpander.expand(
             "s3://bucket/data/" + "**/*.parquet",
@@ -4741,7 +4749,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            ListingExtents.UNBOUNDED
+            ListingExtents.UNBOUNDED,
+            ListingMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -4777,7 +4786,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            ListingExtents.UNBOUNDED
+            ListingExtents.UNBOUNDED,
+            ListingMemory.NONE
         );
 
         assertEquals(5000, result.fileCount());
@@ -4806,7 +4816,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
 
         assertEquals("the file past the bound is still found", 1, result.fileCount());
@@ -4834,7 +4845,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1, 1)
+            new ListingExtents(1, 1),
+            ListingMemory.NONE
         );
 
         assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
@@ -4863,7 +4875,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1, 1)
+            new ListingExtents(1, 1),
+            ListingMemory.NONE
         );
 
         assertEquals(2, result.fileCount());
@@ -4891,7 +4904,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
 
         assertTrue(result.isTruncated());
@@ -4920,7 +4934,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
 
         assertTrue(result.isTruncated());
@@ -4948,7 +4963,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
         FileList unbounded = GlobExpander.expand(
             "s3://bucket/data/" + "**/*.parquet",
@@ -4958,7 +4974,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            ListingExtents.UNBOUNDED
+            ListingExtents.UNBOUNDED,
+            ListingMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -5000,7 +5017,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(1000, 1000)
+            new ListingExtents(1000, 1000),
+            ListingMemory.NONE
         );
         FileList full = GlobExpander.expandAndCompact(
             pattern,
@@ -5011,7 +5029,8 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            ListingExtents.UNBOUNDED
+            ListingExtents.UNBOUNDED,
+            ListingMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -5031,10 +5050,80 @@ public class GlobExpanderTests extends ESTestCase {
      * well is what let the two statements drift; the decline it used to assert now lives in
      * {@code ExternalSourceResolverTests#testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt}.
      */
-    public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+    /**
+     * A listing reserves heap as it accumulates, not once it is built. The difference is the whole point of
+     * reserving at all: a reservation taken after the walk reports the memory but cannot refuse it, so a dataset
+     * this node cannot hold would already be in heap by the time anyone objected.
+     */
+    public void testAListingReservesHeapWhileItIsStillGrowing() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+        List<Long> reservations = new ArrayList<>();
 
-        FileList bounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, new ListingExtents(1, 1));
+        FileList listed = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            Map.of(),
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            reservations::add
+        );
+
+        assertEquals(5000, listed.fileCount());
+        assertThat("reserved in batches as it walked, not once at the end", reservations.size(), greaterThan(1));
+        long reserved = reservations.stream().mapToLong(Long::longValue).sum();
+        assertThat("and covers what the listing reports it holds", reserved, greaterThan(listed.planningBytes() / 2));
+    }
+
+    /**
+     * And a node that cannot afford the listing refuses partway through it rather than once it is built. The
+     * refusal count is what shows the ordering: the walk stopped early, so the entries past it were never held.
+     */
+    public void testAListingTooLargeToAffordIsRefusedPartwayThrough() {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+        AtomicInteger reservations = new AtomicInteger();
+
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/*.parquet",
+                provider,
+                null,
+                Map.of(),
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                bytes -> {
+                    if (reservations.incrementAndGet() > 2) {
+                        throw new CircuitBreakingException("no room", CircuitBreaker.Durability.TRANSIENT);
+                    }
+                }
+            )
+        );
+
+        assertThat("it gave up while still listing, not after", reservations.get(), lessThan(5));
+    }
+
+    public void testTheExpanderHonoursTheExtentsItIsGiven() throws IOException {
+        // The hint must keep the page's first key, or the value filter empties the bounded page and the listing
+        // re-lists in full - which is its own documented behaviour (testBoundedListingMatchingNothingRelistsInFull)
+        // and would not exercise the bound at all. hiveTree lists year=2024 first.
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+
+        FileList bounded = GlobExpander.expand(
+            "s3://bucket/data/**",
+            hiveTree(),
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            new ListingExtents(1, 1),
+            ListingMemory.NONE
+        );
 
         assertTrue("the extents are the caller's decision, and this caller asked for one key", bounded.isTruncated());
         assertEquals(1, bounded.fileCount());

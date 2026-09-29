@@ -6062,7 +6062,8 @@ public class FileSplitProviderTests extends ESTestCase {
             base.declaredReadSpec(),
             base.metadataColumnNames(),
             base.retainedPartitionKeys(),
-            rowLimit
+            rowLimit,
+            null
         );
     }
 
@@ -6081,7 +6082,8 @@ public class FileSplitProviderTests extends ESTestCase {
             base.declaredReadSpec(),
             base.metadataColumnNames(),
             base.retainedPartitionKeys(),
-            base.rowLimit()
+            base.rowLimit(),
+            null
         );
     }
 

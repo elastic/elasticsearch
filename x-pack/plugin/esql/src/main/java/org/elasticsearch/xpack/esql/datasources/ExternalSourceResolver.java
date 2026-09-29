@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -340,13 +341,35 @@ public class ExternalSourceResolver {
      * Reserves listing memory plus the per-file schema map before reconciliation or the strict schema loop
      * builds that map. A trip leaves the reservation unchanged: the breaker throws before the add is recorded.
      */
+    /**
+     * Reserves this resolution's listing against the query's planning reservation, as it is listed.
+     * <p>
+     * The listing walk reserves a batch of entries at a time, so a dataset this node cannot hold trips the breaker
+     * partway through its own listing rather than once the whole thing is in heap. That ordering is the point: a
+     * reservation taken after the allocation reports the memory but cannot refuse it.
+     */
+    private ListingMemory planningMemory() {
+        ExternalPlanningReservation reservation = planningReservation;
+        return reservation == null ? ListingMemory.NONE : reservation::chargeQuery;
+    }
+
+    /**
+     * Reserves the per-file schema map this listing will carry. The listing's own entries were reserved as they
+     * were listed ({@link #planningMemory()}); this is the map built over them afterwards, whose size is known
+     * only once the listing is complete.
+     */
     private void chargeListingPlanning(FileList listing) {
         ExternalPlanningReservation reservation = planningReservation;
         if (reservation == null) {
             return;
         }
-        long bytes = listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
-        reservation.chargeQuery(bytes);
+        // The walk already reserved one LISTING_BYTES_PER_ENTRY for each entry it retained, as it retained them.
+        // What is left is the listing's fixed overhead - its header and any notices it carries - plus the per-file
+        // schema map built over it, neither of which is known until the listing is complete. The two together come
+        // to exactly what this charged in one go before the walk started reserving.
+        long alreadyReserved = listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY;
+        long remainder = listing.planningBytes() - alreadyReserved + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
+        reservation.chargeQuery(Math.max(0L, remainder));
     }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
@@ -1605,7 +1628,7 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         ListingExtents extents
     ) throws Exception {
-        return listingService.expand(path, provider, hints, config, storagePath, extents);
+        return listingService.expand(path, provider, hints, config, storagePath, extents, planningMemory());
     }
 
     /**
@@ -1620,7 +1643,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) throws Exception {
-        return listingService.cachedListing(path, storagePath, provider, hints, config);
+        return listingService.cachedListing(path, storagePath, provider, hints, config, planningMemory());
     }
 
     /**
@@ -3774,7 +3797,8 @@ public class ExternalSourceResolver {
                 listingService.maxDiscoveredFiles(),
                 listingService.maxGlobExpansion(),
                 listingService.maxListedObjects(),
-                extents
+                extents,
+                planningMemory()
             );
         } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
             listing = cachedListing(path, storagePath, provider, schemaHints, config);

@@ -535,7 +535,11 @@ public final class SplitDiscoveryPhase {
             exec.declaredReadSpec(),
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
-            rowLimit
+            rowLimit,
+            // The query's reservation does not reach this layer yet, so this query's own listing reserves
+            // nothing. Resolution's listing already reserves as it lists; wiring the phase-2 run through to
+            // here is what closes the other half.
+            null
         );
 
         SplitDiscoveryResult result;
@@ -591,7 +595,11 @@ public final class SplitDiscoveryPhase {
             exec.declaredReadSpec(),
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
-            rowLimit
+            rowLimit,
+            // The query's reservation does not reach this layer yet, so this query's own listing reserves
+            // nothing. Resolution's listing already reserves as it lists; wiring the phase-2 run through to
+            // here is what closes the other half.
+            null
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

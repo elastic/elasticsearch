@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
@@ -110,8 +109,8 @@ public final class LiteralSelector extends Selector {
         if (foldedPlan != null) {
             // a compile-time relation carries its own step column
             Attribute foldedStep = find(foldedPlan.output(), context.cmd().stepColumnName());
-            return new IntermediateResult(foldedPlan, TranslationConstraint.EMPTY, literal, foldedStep, matcher, Kind.CONSTANT);
+            return new IntermediateResult(foldedPlan, literal, foldedStep, matcher, Kind.CONSTANT);
         }
-        return new IntermediateResult(input, TranslationConstraint.EMPTY, literal, context.stepAttr(), matcher);
+        return new IntermediateResult(input, literal, context.stepAttr(), matcher);
     }
 }

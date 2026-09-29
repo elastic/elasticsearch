@@ -31,11 +31,13 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.promoted;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.rest;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.deliveredRequirement;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.emitNullExpression;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.find;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapPromoted;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapToRef;
 
 /**
@@ -119,7 +121,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     /**
      * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}): collapse the child to one row
      * per series, then rank and keep the top {@code k}. A {@code by} clause only partitions the ranking; it does
-     * not change output header.
+     * not change the exposed labels.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
@@ -129,21 +131,27 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
 
         // Ranking happens per series, so the child stays at series grain whatever the enclosing translation regroups
         // by; the partition labels must be exposed to rank within them.
-        List<String> partitions = mapFinite(groupings());
-        TranslationConstraint childRequired = union(union(context.required(), open()), finite(partitions));
+        List<String> partitions = mapPromoted(groupings());
+        // The child requirement already carries the partitions alongside the whole rest.
+        TranslationConstraint childRequired = union(union(context.required(), rest()), promoted(partitions));
         IntermediateResult childResult = context.withRequired(childRequired).translate(child());
         if (childResult.kind().constant) {
             return childResult;
         }
 
-        var header = union(childResult.header(), finite(partitions));
+        // Group by the child's labels - the ones the relation stores for a raw child, what an aggregated child delivers -
+        // plus the partitions, which null-fill when the child lacks them.
+        TranslationConstraint childLabels = childResult.kind().afterInitialAggregation
+            ? deliveredRequirement(childResult.plan(), childResult.step(), childResult.value())
+            : context.rawRequirement(childResult, childRequired);
+        TranslationConstraint requirement = union(childLabels, promoted(partitions));
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
-            ? context.regroup(childResult, header, false, childResult.value())
-            : context.collapse(childResult, header, childResult.value());
+            ? context.regroup(childResult, requirement, false, childResult.value())
+            : context.collapse(childResult, requirement, childResult.value());
         LogicalPlan result = emitTopNBy(context, aggregated, partitions, promqlCtx);
-        return aggregated.with(result, aggregated.header(), aggregated.value());
+        return aggregated.with(result, aggregated.value());
     }
 
     /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step and partition. */
@@ -159,7 +167,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
             var nulls = new ArrayList<Alias>();
             for (String partition : partitions) {
-                Attribute carrier = table.label(partition);
+                Attribute carrier = find(table.plan().output(), partition);
                 if (carrier == null) {
                     // a partition label absent from every series ranks as one partition, like Prometheus
                     nulls.add(emitNullExpression(mapToRef(partition)));

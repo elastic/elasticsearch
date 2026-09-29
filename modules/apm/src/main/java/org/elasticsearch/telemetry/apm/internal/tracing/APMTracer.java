@@ -42,7 +42,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.OtelContext;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportTracerSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
@@ -55,7 +54,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -280,8 +278,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 return null; // return null to discard and not record in map of spans
             }
 
-            logger.trace("Recording trace [{}] [{}]", spanId, spanName);
-            return updateThreadContext(traceContext, services, context -> context.with(span).with(SPAN_LOCAL_DEPTH_KEY, localDepth));
+            final Context contextForNewSpan = Context.current().with(span).with(SPAN_LOCAL_DEPTH_KEY, localDepth);
+            if (span.isRecording()) {
+                logger.trace("Recording trace [{}] [{}]", spanId, spanName);
+                updateThreadContext(traceContext, services, contextForNewSpan);
+            }
+
+            return contextForNewSpan;
         });
     }
 
@@ -304,9 +307,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.startSpan();
     }
 
-    private static Context updateThreadContext(TraceContext traceContext, APMServices services, UnaryOperator<Context> contextUpdateFn) {
+    private static void updateThreadContext(TraceContext traceContext, APMServices services, Context context) {
         // The new span context can be used as the parent context directly within the same Java process...
-        var context = OtelContext.updateAndGet(traceContext, contextUpdateFn);
+        traceContext.putTransient(Task.APM_TRACE_CONTEXT, context);
 
         // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the traceContext so
         // that they can be propagated.
@@ -315,8 +318,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 tc.putHeader(key, value);
             }
         });
-
-        return context;
     }
 
     private Context getRemoteParentContext(TraceContext traceContext) {

@@ -9,14 +9,11 @@
 
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
-import io.opentelemetry.context.ContextKey;
-
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.telemetry.apm.internal.OtelContext;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -36,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestRequestMetrics {
 
+    private static final String STATE_KEY = State.class.getName();
     private static final double NANOS_PER_MS = MILLISECONDS.toNanos(1);
 
     // 1 ms to 30 sec
@@ -87,11 +85,11 @@ public class RestRequestMetrics {
             return;
         }
 
-        OtelContext.updateAndGet(threadContext, context -> context.with(State.KEY, new State(durationHistogram, System.nanoTime())));
+        threadContext.putTransient(STATE_KEY, new State(durationHistogram, System.nanoTime()));
     }
 
     Releasable prepareEnd(ThreadContext threadContext, RestResponse response) {
-        State state = OtelContext.getValueOrNullFromContext(threadContext, State.KEY);
+        State state = threadContext.getTransient(STATE_KEY);
         if (state == null) {
             return () -> {};
         }
@@ -105,8 +103,5 @@ public class RestRequestMetrics {
 
     private record RouteKey(RestRequest.Method method, String route) {}
 
-    private record State(DoubleHistogram requestDuration, long startNanos) {
-
-        private static final ContextKey<State> KEY = ContextKey.named("elasticsearch-rest-request-metrics-state");
-    }
+    private record State(DoubleHistogram requestDuration, long startNanos) {}
 }

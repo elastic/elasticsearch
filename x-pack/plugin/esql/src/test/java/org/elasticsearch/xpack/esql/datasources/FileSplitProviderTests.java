@@ -130,6 +130,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -5702,6 +5703,40 @@ public class FileSplitProviderTests extends ESTestCase {
      * folder, with eleven more past it whose values all fit the type that folder produced, reads every value
      * correctly and says nothing. A warning here would fire on every bounded partitioned query.
      */
+    /**
+     * A cap the discovered listing exceeds must answer the same way whether or not the listing was cacheable. The
+     * cache reports a loader failure as a checked {@code ExecutionException}, which carries no status: handed on it
+     * answers 500, where the cap's own {@link IllegalArgumentException} names the setting to raise and answers 400.
+     * Asserted over both rails, because the whole point is that they agree.
+     */
+    public void testACapExceededAnswersTheSameWayCachedOrNot() throws Exception {
+        for (boolean cached : List.of(true, false)) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = twoParquetFiles(payloads);
+            ExternalSourceCacheService cache = cached ? new ExternalSourceCacheService(Settings.EMPTY) : null;
+            try {
+                FileSplitProvider provider = rangeAwareProvider(
+                    createMockRangeReader(List.of(new SplitRange(0, 2000))),
+                    null,
+                    Settings.EMPTY,
+                    createMultiFileStorageRegistry(payloads, null, everyFile),
+                    new DatasetListingService(Settings.EMPTY, cache, () -> 1, null, null)
+                );
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    "cached=" + cached,
+                    () -> provider.discoverSplits(overAPrefixOf(everyFile))
+                );
+                assertThat("cached=" + cached, e.getMessage(), containsString("too many files (2, limit 1)"));
+                assertThat("cached=" + cached, ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+            } finally {
+                if (cache != null) {
+                    cache.close();
+                }
+            }
+        }
+    }
+
     /**
      * A prefix context over a two-file dataset whose schema's listing held only the first file, so split discovery has
      * to list the dataset itself.

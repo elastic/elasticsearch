@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.IntSupplier;
 
 /**
@@ -96,6 +97,26 @@ public final class DatasetListingService {
         return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
     }
 
+    /**
+     * The failure the listing itself produced, rather than the cache's report of it.
+     * <p>
+     * {@code Cache#computeIfAbsent} wraps whatever the loader threw in an {@link ExecutionException}, which is a
+     * checked exception no caller of a listing expects and which carries no status of its own. Handed on as-is it
+     * answers 500: a cap the listing exceeded throws {@link IllegalArgumentException} with the text telling the user
+     * which setting to raise, and that is a 400 the client can act on. Unwrapping here rather than at each caller is
+     * what keeps a cacheable dataset and a non-cacheable one answering the same way.
+     */
+    private static Exception asListingFailure(ExecutionException wrapper) {
+        Throwable cause = wrapper.getCause();
+        if (cause instanceof Exception cachedFailure) {
+            return cachedFailure;
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return wrapper;
+    }
+
     /** One live listing under the current caps. */
     public FileList expand(
         String path,
@@ -138,10 +159,15 @@ public final class DatasetListingService {
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
-        FileList listing = cacheService.getOrComputeListing(
-            listingKey,
-            k -> expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED)
-        );
+        FileList listing;
+        try {
+            listing = cacheService.getOrComputeListing(
+                listingKey,
+                k -> expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED)
+            );
+        } catch (ExecutionException e) {
+            throw asListingFailure(e);
+        }
         assert listing.isTruncated() == false : "a truncated listing must never enter the shared listing cache: " + path;
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;

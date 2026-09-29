@@ -14,6 +14,9 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Writes a document extraction result in the following json format:
@@ -47,6 +53,21 @@ public record DocumentExtractionResults(List<Result> results) implements Inferen
 
     public static final String NAME = "document_extraction_service_results";
     public static final String DOCUMENT_EXTRACTION = "document_extraction";
+
+    public static ConstructingObjectParser<DocumentExtractionResults, Void> createParser(boolean ignoreUnknownFields) {
+        @SuppressWarnings("unchecked")
+        ConstructingObjectParser<DocumentExtractionResults, Void> parser = new ConstructingObjectParser<>(
+            "document_extraction_results",
+            ignoreUnknownFields,
+            a -> new DocumentExtractionResults((List<Result>) a[0])
+        );
+        parser.declareObjectArray(
+            constructorArg(),
+            (p, c) -> Result.createParser(ignoreUnknownFields).apply(p, c),
+            new ParseField(DOCUMENT_EXTRACTION)
+        );
+        return parser;
+    }
 
     public DocumentExtractionResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Result::new));
@@ -92,6 +113,24 @@ public record DocumentExtractionResults(List<Result> results) implements Inferen
         public static final String CONTENT = "content";
         public static final String FORMAT = "format";
         public static final String METADATA = "metadata";
+
+        public static ConstructingObjectParser<Result, Void> createParser(boolean ignoreUnknownFields) {
+            @SuppressWarnings("unchecked")
+            ConstructingObjectParser<Result, Void> parser = new ConstructingObjectParser<>(
+                "document_extraction_result",
+                ignoreUnknownFields,
+                a -> new Result((String) a[0], (String) a[1], (Map<String, Object>) a[2])
+            );
+            parser.declareString(constructorArg(), new ParseField(CONTENT));
+            parser.declareString(constructorArg(), new ParseField(FORMAT));
+            parser.declareField(
+                optionalConstructorArg(),
+                (p, c) -> p.mapOrdered(),
+                new ParseField(METADATA),
+                ObjectParser.ValueType.OBJECT
+            );
+            return parser;
+        }
 
         public Result(String content, String format, @Nullable Map<String, Object> metadata) {
             this.content = Objects.requireNonNull(content);

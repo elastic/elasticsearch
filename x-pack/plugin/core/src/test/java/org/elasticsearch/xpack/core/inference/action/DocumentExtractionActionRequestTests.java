@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -16,15 +17,17 @@ import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequestTests;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction.Request.parseRequest;
@@ -32,12 +35,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Tests wire serialization and parsing of {@link DocumentExtractionAction.Request}. This test does not extend a BWC serialization test
- * case because the document extraction action was introduced together with this request, so the request is never (de)serialized by a
- * node on an older version.
- */
-public class DocumentExtractionActionRequestTests extends AbstractWireSerializingTestCase<DocumentExtractionAction.Request> {
+public class DocumentExtractionActionRequestTests extends AbstractBWCWireSerializationTestCase<DocumentExtractionAction.Request> {
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
     public void testConstructor_WithNullTimeout_UsesPlaceholder() {
         var request = new DocumentExtractionAction.Request(randomAlphanumericOfLength(8), randomDocumentExtractionRequest(), null);
@@ -107,6 +106,33 @@ public class DocumentExtractionActionRequestTests extends AbstractWireSerializin
 
     public void testValidate_withValidRequest_returnsNull() {
         assertThat(createRandom().validate(), is(nullValue()));
+    }
+
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing pdf
+     * inputs, which every document extraction request may carry, so we filter those out of the bwc versions to avoid test failures.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+    }
+
+    @Override
+    protected DocumentExtractionAction.Request mutateInstanceForVersion(
+        DocumentExtractionAction.Request instance,
+        TransportVersion version
+    ) {
+        var context = instance.getContext();
+        if (version.supports(INFERENCE_CONTEXT) == false) {
+            context = InferenceContext.EMPTY_INSTANCE;
+        }
+
+        return new DocumentExtractionAction.Request(
+            instance.getInferenceEntityId(),
+            instance.getDocumentExtractionRequest(),
+            context,
+            instance.getTimeout()
+        );
     }
 
     @Override

@@ -9,31 +9,30 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES;
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-/**
- * Tests wire serialization and parsing of {@link DocumentExtractionRequest}. This test does not extend a BWC serialization test case
- * because the request is only carried by the document extraction action, which was introduced together with this class, so the request
- * is never (de)serialized by a node on an older version.
- */
-public class DocumentExtractionRequestTests extends AbstractWireSerializingTestCase<DocumentExtractionRequest> {
+public class DocumentExtractionRequestTests extends AbstractBWCSerializationTestCase<DocumentExtractionRequest> {
 
     public void testParser_WithSingleContentInput() throws IOException {
         var requestJson = Strings.format("""
@@ -200,6 +199,25 @@ public class DocumentExtractionRequestTests extends AbstractWireSerializingTestC
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             expectThrows(XContentParseException.class, () -> DocumentExtractionRequest.PARSER.apply(parser, null));
         }
+    }
+
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing pdf
+     * inputs, which every document extraction request may carry, so we filter those out of the bwc versions to avoid test failures.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+    }
+
+    @Override
+    protected DocumentExtractionRequest mutateInstanceForVersion(DocumentExtractionRequest instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected DocumentExtractionRequest doParseInstance(XContentParser parser) throws IOException {
+        return DocumentExtractionRequest.PARSER.parse(parser, null);
     }
 
     @Override

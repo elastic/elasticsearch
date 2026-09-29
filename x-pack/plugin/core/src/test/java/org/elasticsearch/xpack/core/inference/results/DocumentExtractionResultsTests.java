@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class DocumentExtractionResultsTests extends AbstractWireSerializingTestCase<DocumentExtractionResults> {
+public class DocumentExtractionResultsTests extends AbstractChunkedBWCSerializationTestCase<DocumentExtractionResults> {
 
     public void testToXContent_CreatesTheRightFormatForASingleResult() {
         var result = new DocumentExtractionResults(
@@ -142,5 +144,15 @@ public class DocumentExtractionResultsTests extends AbstractWireSerializingTestC
         var results = new ArrayList<>(instance.results());
         results.add(createRandomResult());
         return new DocumentExtractionResults(results);
+    }
+
+    @Override
+    protected DocumentExtractionResults mutateInstanceForVersion(DocumentExtractionResults instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected DocumentExtractionResults doParseInstance(XContentParser parser) throws IOException {
+        return DocumentExtractionResults.createParser(false).apply(parser, null);
     }
 }

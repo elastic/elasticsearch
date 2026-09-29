@@ -2064,7 +2064,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         boolean hasResult(InferenceStringGroup group) {
             assert getTaskType() == TaskType.EMBEDDING;
-            return embeddingOutcomeMap.get(group) instanceof EmbeddingOutcome.Success;
+            return embeddingOutcomeMap.containsKey(group);
         }
 
         /**

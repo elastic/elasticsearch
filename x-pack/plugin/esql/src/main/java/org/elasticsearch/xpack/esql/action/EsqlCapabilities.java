@@ -3319,6 +3319,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -3607,6 +3613,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
          * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
          * See https://github.com/elastic/elasticsearch/issues/158466.
@@ -3760,6 +3772,14 @@ public class EsqlCapabilities {
          * "missing references". Grouping columns now keep their names through the fuse.
          */
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
+
+        /**
+         * PromQL math and arithmetic now preserve non-finite IEEE-754 results ({@code NaN}, {@code +Inf},
+         * {@code -Inf}) instead of dropping the series, matching Prometheus. Affects e.g. {@code metric * Inf},
+         * {@code metric * NaN}, {@code metric / 0}, {@code metric % 0}, {@code sqrt(-x)}, {@code ln(-x)},
+         * {@code log2(-x)}, {@code log10(-x)}, and {@code clamp(metric, max, min)} when {@code min > max}.
+         */
+        PROMQL_NON_FINITE_MATH,
 
         /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:

@@ -188,9 +188,9 @@ public class ComputeService {
      * Fixed per-file allowance for phase 2: 1000 for the frozen survivor map and 160 for one split shell.
      * Not a measured deep size. Counted per file, not per split — a text or compressed file can become many
      * splits, and that count is only known after the discovery this reservation precedes, so those files are
-     * under-charged. 560 on {@link org.elasticsearch.xpack.esql.datasources.spi.FileList#planningBytes()} is the
-     * per-file partition-map allowance {@code estimatedBytes()} leaves out, and 760 is the per-file schema-map
-     * allowance charged with the listing.
+     * under-charged. {@link org.elasticsearch.xpack.esql.datasources.spi.FileList#planningBytes()} adds the
+     * columnar partition-value allowance {@code estimatedBytes()} leaves out, and 760 is the per-file
+     * schema-map allowance charged with the listing.
      */
     private static final long PHASE2_BYTES_PER_FILE = 1160L;
     private final SearchService searchService;

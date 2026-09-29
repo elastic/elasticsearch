@@ -82,12 +82,6 @@ public class CachingSnapshotAndShardByStateMetricsService {
         return Optional.of(recalculateIfStale(state));
     }
 
-    private void resetCachedState() {
-        synchronized (waitingTimestamps) {
-            waitingTimestamps.clear();
-        }
-    }
-
     private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {
         if (cachedSnapshotStateMetrics == null || cachedSnapshotStateMetrics.isStale(currentState)) {
             cachedSnapshotStateMetrics = recalculateSnapshotStats(currentState);

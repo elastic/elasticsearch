@@ -616,8 +616,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     public void testLongestWaitingTimeMetric() throws Exception {
         final String indexName = randomIdentifier();
-        final String boundNode = internalCluster().startDataOnlyNode();
-        final String destinationNode = internalCluster().startDataOnlyNode();
+        final String originalNode = internalCluster().startDataOnlyNode();
+        final String nodeToRelocateTo = internalCluster().startDataOnlyNode();
         LongSupplier milliClock = internalCluster().getInstance(ClusterService.class).threadPool()::absoluteTimeInMillis;
 
         // Create with single shard so we can reliably delay relocation:
@@ -626,7 +626,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(REQUIRE_NODE_NAME_SETTING, boundNode)
+                .put(REQUIRE_NODE_NAME_SETTING, originalNode)
                 .build()
         );
         indexRandom(true, indexName, randomIntBetween(100, 300));
@@ -635,7 +635,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repositoryName, "mock");
 
         // Intercept the relocation's primary hand-off:
-        final MockTransportService transportService = MockTransportService.getInstance(destinationNode);
+        final MockTransportService transportService = MockTransportService.getInstance(nodeToRelocateTo);
         final CyclicBarrier primaryHandoffStarted = new CyclicBarrier(2);
         final CyclicBarrier primaryHandoffFinished = new CyclicBarrier(2);
         transportService.addRequestHandlingBehavior(
@@ -651,7 +651,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         client().admin()
             .indices()
             .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, destinationNode).build())
+            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, nodeToRelocateTo).build())
             .get();
         safeAwait(primaryHandoffStarted); // wait until primary handoff has started
 

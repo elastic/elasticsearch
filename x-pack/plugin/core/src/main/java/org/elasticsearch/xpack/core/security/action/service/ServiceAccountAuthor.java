@@ -38,9 +38,13 @@ import java.util.Objects;
  * The realm domain is carried whole so that the stored form matches the {@code creator} mapping of the security
  * index, which API keys already use. Responses render only its name, as an authentication response does. It is
  * absent for an author who acted through an API key, since the key's metadata does not carry the owner's domain.
+ * <p>
+ * The user is reported as {@code username}, as the authenticate and API key responses name a user. The store keeps it
+ * under {@code principal}, the name the {@code creator} mapping gives it, and the query API translates between the
+ * two as it does for API keys.
  */
 public record ServiceAccountAuthor(
-    String principal,
+    String username,
     @Nullable String fullName,
     @Nullable String email,
     String realm,
@@ -49,7 +53,7 @@ public record ServiceAccountAuthor(
     @Nullable ApiKey apiKey
 ) implements Writeable, ToXContentObject {
 
-    public static final String PRINCIPAL_FIELD = "principal";
+    public static final String USERNAME_FIELD = "username";
     public static final String FULL_NAME_FIELD = "full_name";
     public static final String EMAIL_FIELD = "email";
     public static final String REALM_FIELD = "realm";
@@ -58,7 +62,7 @@ public record ServiceAccountAuthor(
     public static final String API_KEY_FIELD = "api_key";
 
     public ServiceAccountAuthor {
-        Objects.requireNonNull(principal, "principal cannot be null");
+        Objects.requireNonNull(username, "username cannot be null");
         Objects.requireNonNull(realm, "realm cannot be null");
         Objects.requireNonNull(realmType, "realm type cannot be null");
     }
@@ -67,14 +71,14 @@ public record ServiceAccountAuthor(
      * An author who acted directly rather than through an API key.
      */
     public ServiceAccountAuthor(
-        String principal,
+        String username,
         @Nullable String fullName,
         @Nullable String email,
         String realm,
         String realmType,
         @Nullable RealmDomain realmDomain
     ) {
-        this(principal, fullName, email, realm, realmType, realmDomain, null);
+        this(username, fullName, email, realm, realmType, realmDomain, null);
     }
 
     /**
@@ -166,7 +170,7 @@ public record ServiceAccountAuthor(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(principal);
+        out.writeString(username);
         out.writeOptionalString(fullName);
         out.writeOptionalString(email);
         out.writeString(realm);
@@ -183,7 +187,7 @@ public record ServiceAccountAuthor(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(PRINCIPAL_FIELD, principal);
+        builder.field(USERNAME_FIELD, username);
         if (fullName != null) {
             builder.field(FULL_NAME_FIELD, fullName);
         }

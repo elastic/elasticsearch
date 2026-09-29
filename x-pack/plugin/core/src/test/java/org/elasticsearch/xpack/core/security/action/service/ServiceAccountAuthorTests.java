@@ -46,7 +46,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
     protected ServiceAccountAuthor mutateInstance(ServiceAccountAuthor instance) {
         return switch (between(0, 6)) {
             case 0 -> new ServiceAccountAuthor(
-                randomValueOtherThan(instance.principal(), () -> randomAlphaOfLengthBetween(3, 8)),
+                randomValueOtherThan(instance.username(), () -> randomAlphaOfLengthBetween(3, 8)),
                 instance.fullName(),
                 instance.email(),
                 instance.realm(),
@@ -55,7 +55,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 1 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 randomValueOtherThan(instance.fullName(), ServiceAccountAuthorTests::randomOptionalName),
                 instance.email(),
                 instance.realm(),
@@ -64,7 +64,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 2 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 instance.fullName(),
                 randomValueOtherThan(instance.email(), ServiceAccountAuthorTests::randomOptionalName),
                 instance.realm(),
@@ -73,7 +73,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 3 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 instance.fullName(),
                 instance.email(),
                 randomValueOtherThan(instance.realm(), () -> randomAlphaOfLengthBetween(3, 8)),
@@ -82,7 +82,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 4 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 instance.fullName(),
                 instance.email(),
                 instance.realm(),
@@ -91,7 +91,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 5 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 instance.fullName(),
                 instance.email(),
                 instance.realm(),
@@ -100,7 +100,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
                 instance.apiKey()
             );
             case 6 -> new ServiceAccountAuthor(
-                instance.principal(),
+                instance.username(),
                 instance.fullName(),
                 instance.email(),
                 instance.realm(),
@@ -121,14 +121,14 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
         final User user = authentication.getEffectiveSubject().getUser();
         final Authentication.RealmRef realm = authentication.getEffectiveSubject().getRealm();
-        assertThat(author.principal(), equalTo(user.principal()));
+        assertThat(author.username(), equalTo(user.principal()));
         assertThat(author.fullName(), equalTo(user.fullName()));
         assertThat(author.email(), equalTo(user.email()));
         assertThat(author.realm(), equalTo(realm.getName()));
         assertThat(author.realmType(), equalTo(realm.getType()));
         assertThat(author.realmDomain(), equalTo(realm.getDomain()));
         if (authentication.isRunAs()) {
-            assertThat(author.principal(), not(equalTo(authentication.getAuthenticatingSubject().getUser().principal())));
+            assertThat(author.username(), not(equalTo(authentication.getAuthenticatingSubject().getUser().principal())));
         }
     }
 
@@ -142,7 +142,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
         final User user = authentication.getEffectiveSubject().getUser();
         final Map<String, Object> metadata = authentication.getEffectiveSubject().getMetadata();
-        assertThat(author.principal(), equalTo(user.principal()));
+        assertThat(author.username(), equalTo(user.principal()));
         assertThat(author.fullName(), equalTo(user.fullName()));
         assertThat(author.email(), equalTo(user.email()));
         assertThat(author.realm(), equalTo(metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)));
@@ -240,7 +240,8 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
     }
 
     /**
-     * Absent fields are left out rather than written as {@code null}, and the domain is reduced to its name.
+     * Absent fields are left out rather than written as {@code null}, the domain is reduced to its name, and the user
+     * is named {@code username} as the API key and authenticate responses name one, not {@code principal} as stored.
      */
     public void testToXContentLeavesOutAbsentFieldsAndNamesTheDomain() throws IOException {
         final RealmDomain domain = AuthenticationTestHelper.randomDomain(randomBoolean());
@@ -249,7 +250,7 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
             toMap(author),
             equalTo(
                 Map.of(
-                    "principal",
+                    "username",
                     "alice",
                     "full_name",
                     "Alice",
@@ -266,14 +267,15 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
         );
 
         final ServiceAccountAuthor bare = new ServiceAccountAuthor("alice", null, null, "ldap1", "ldap", null);
-        assertThat(toMap(bare), equalTo(Map.of("principal", "alice", "realm", "ldap1", "realm_type", "ldap")));
+        assertThat(toMap(bare), equalTo(Map.of("username", "alice", "realm", "ldap1", "realm_type", "ldap")));
+        assertThat(toMap(bare), not(hasKey("principal")));
         assertThat(toMap(bare), not(hasKey("full_name")));
         assertThat(toMap(bare), not(hasKey("realm_domain")));
         assertThat(toMap(bare), not(hasKey("api_key")));
         assertThat(bare.realmDomain(), nullValue());
     }
 
-    public void testTheAuthorRequiresAPrincipalAndARealm() {
+    public void testTheAuthorRequiresAUsernameAndARealm() {
         expectThrows(NullPointerException.class, () -> new ServiceAccountAuthor(null, null, null, "realm", "type", null));
         expectThrows(NullPointerException.class, () -> new ServiceAccountAuthor("alice", null, null, null, "type", null));
         expectThrows(NullPointerException.class, () -> new ServiceAccountAuthor("alice", null, null, "realm", null, null));

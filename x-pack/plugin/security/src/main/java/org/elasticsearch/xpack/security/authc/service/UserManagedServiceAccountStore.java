@@ -104,6 +104,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     public static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
 
+    /**
+     * The stored name of an author's username: the name the {@code creator} mapping gives it, which API keys
+     * established and the updater mirrors. Responses and queries call it {@code username}, as the API key APIs do for
+     * their creator.
+     */
+    private static final String AUTHOR_PRINCIPAL_FIELD = "principal";
+
     private static final Logger logger = LogManager.getLogger(UserManagedServiceAccountStore.class);
 
     private final Clock clock;
@@ -620,7 +627,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
      */
     private static void addAuthor(XContentBuilder builder, String fieldName, ServiceAccountAuthor author) throws IOException {
         builder.startObject(fieldName)
-            .field(ServiceAccountAuthor.PRINCIPAL_FIELD, author.principal())
+            .field(AUTHOR_PRINCIPAL_FIELD, author.username())
             .field(ServiceAccountAuthor.FULL_NAME_FIELD, author.fullName())
             .field(ServiceAccountAuthor.EMAIL_FIELD, author.email())
             .field(ServiceAccountAuthor.REALM_FIELD, author.realm())
@@ -715,7 +722,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (value instanceof Map<?, ?> map) {
             try {
                 return new ServiceAccountAuthor(
-                    requiredString(map, ServiceAccountAuthor.PRINCIPAL_FIELD),
+                    requiredString(map, AUTHOR_PRINCIPAL_FIELD),
                     optionalString(map, ServiceAccountAuthor.FULL_NAME_FIELD),
                     optionalString(map, ServiceAccountAuthor.EMAIL_FIELD),
                     requiredString(map, ServiceAccountAuthor.REALM_FIELD),

@@ -1174,7 +1174,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
      */
     private static Map<String, Object> storedAuthor(ServiceAccountAuthor author) {
         final Map<String, Object> stored = new HashMap<>();
-        stored.put("principal", author.principal());
+        stored.put("principal", author.username());
         stored.put("full_name", author.fullName());
         stored.put("email", author.email());
         stored.put("realm", author.realm());

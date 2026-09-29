@@ -345,7 +345,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                     "enabled",
                     true,
                     "created_by",
-                    Map.of("principal", "alice", "full_name", "Alice", "realm", "native1", "realm_type", "native"),
+                    Map.of("username", "alice", "full_name", "Alice", "realm", "native1", "realm_type", "native"),
                     "created_at",
                     1_700_000_000_000L
                 )
@@ -369,7 +369,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         );
         assertThat(
             editedMap.get("updated_by"),
-            equalTo(Map.of("principal", "bob", "email", "bob@example.com", "realm", "ldap1", "realm_type", "ldap"))
+            equalTo(Map.of("username", "bob", "email", "bob@example.com", "realm", "ldap1", "realm_type", "ldap"))
         );
         assertThat(editedMap.get("updated_at"), equalTo(1_700_000_001_000L));
         assertThat(editedMap.get("created_by"), equalTo(createdMap.get("created_by")));
@@ -402,7 +402,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         assertThat(resolved.updatedByProfileUid(), nullValue());
         final Map<String, Object> rendered = innerToMap(resolved);
         assertThat(rendered.get("created_by_profile_uid"), equalTo("u_alice"));
-        assertThat(rendered.get("created_by"), equalTo(Map.of("principal", "alice", "realm", "native1", "realm_type", "native")));
+        assertThat(rendered.get("created_by"), equalTo(Map.of("username", "alice", "realm", "native1", "realm_type", "native")));
         assertThat(rendered, not(hasKey("updated_by_profile_uid")));
         assertThat(innerToMap(created.withProfileUids(null, null)), equalTo(innerToMap(created)));
 

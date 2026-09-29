@@ -967,12 +967,12 @@ public class ProfileService {
         if (realmRef == null) {
             logger.debug(
                 "encountered service account author [{}] from realm [{}], where that realm is not currently configured on the local node",
-                author.principal(),
+                author.username(),
                 realmIdentifier
             );
             return null;
         }
-        return new Subject(new User(author.principal(), Strings.EMPTY_ARRAY), realmRef);
+        return new Subject(new User(author.username(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {

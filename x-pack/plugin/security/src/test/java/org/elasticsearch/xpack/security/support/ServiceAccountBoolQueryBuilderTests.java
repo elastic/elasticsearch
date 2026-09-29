@@ -38,14 +38,14 @@ import static org.mockito.Mockito.verify;
 public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
     /**
-     * Query-level names that are also the index-level names: the account's own fields and those of its updater.
+     * Query-level names that are also the index-level names: the account's own fields and those of its updater, apart
+     * from its username.
      */
     private static final List<String> IDEM_FIELDS = List.of(
         "username",
         "roles",
         "enabled",
         "description",
-        "updated_by.principal",
         "updated_by.full_name",
         "updated_by.email",
         "updated_by.realm",
@@ -56,11 +56,11 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
     /**
      * Query-level names whose index-level names differ, by their index-level names. The creator and the creation time
-     * are stored in the fields that API keys established, and the realm domain of either author is queried by the
-     * name a response reports.
+     * are stored in the fields that API keys established, either author's username is stored as {@code principal} as
+     * an API key creator's is, and the realm domain of either author is queried by the name a response reports.
      */
     private static final Map<String, String> TRANSLATED_FIELDS = Map.ofEntries(
-        Map.entry("created_by.principal", "creator.principal"),
+        Map.entry("created_by.username", "creator.principal"),
         Map.entry("created_by.full_name", "creator.full_name"),
         Map.entry("created_by.email", "creator.email"),
         Map.entry("created_by.realm", "creator.realm"),
@@ -69,6 +69,7 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         Map.entry("created_by.api_key.id", "creator.api_key.id"),
         Map.entry("created_by.api_key.name", "creator.api_key.name"),
         Map.entry("created_at", "creation_time"),
+        Map.entry("updated_by.username", "updated_by.principal"),
         Map.entry("updated_by.realm_domain", "updated_by.realm_domain.name"),
         Map.entry("updated_at", "update_time")
     );
@@ -234,8 +235,9 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
                 "creator.metadata",
                 "creator.realm_domain",
                 "creator.realm_domain.realms.name",
-                "created_by.principal",
+                "created_by.username",
                 "created_at",
+                "updated_by.username",
                 "updated_by.realm_domain",
                 "updated_at"
             )) {

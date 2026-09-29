@@ -11,6 +11,7 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -47,7 +48,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricColumnarBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
@@ -56,6 +60,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,8 +75,8 @@ import java.util.concurrent.TimeUnit;
  * It also handles the response according to the OpenTelemetry Protocol specifications,
  * including success, partial success responses, and errors due to bad data or server errors.
  *
- * <p>When {@link BatchIndexingEnabled} is active cluster-wide <em>and</em> all data-point values and
- * attributes in the request are scalar
+ * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all data-point values and
+ * attributes in the request are scalar,
  * (gauges and monotonic sums with string/bool/int/double attributes only), metrics are written
  * directly into an {@link EscfBatch} without a CBOR intermediate representation, and the coordinator
  * derives {@code _tsid} column-major via
@@ -142,23 +147,72 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
         context.consume(allGroups::add);
 
-        String firstTarget = allGroups.isEmpty() ? null : allGroups.get(0).targetIndex().index();
-        boolean singleTarget = firstTarget != null && allGroups.stream().allMatch(g -> firstTarget.equals(g.targetIndex().index()));
+        boolean exemplarIngestionEnabled = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
 
-        if (singleTarget && resolveEscfEligible(projectMetadata, firstTarget, allGroups) && isEscfEligible(allGroups)) {
+        if (canUseBatchIndexing(exemplarIngestionEnabled, projectMetadata, allGroups)) {
+            String firstTarget = allGroups.getFirst().targetIndex().index();
             MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);
             addEscfBatch(bulkRequestBuilder, metricColumnarBuilder, allGroups, firstTarget);
             return context;
         }
 
         long totalExpandedBytes = 0;
+        MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
+        ExemplarDocumentBuilder exemplarDocumentBuilder = exemplarIngestionEnabled ? new ExemplarDocumentBuilder(byteStringAccessor) : null;
         for (DataPointGroupingContext.DataPointGroup group : allGroups) {
             IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
-            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
             totalExpandedBytes = addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, totalExpandedBytes);
+        }
+        if (exemplarDocumentBuilder != null) {
+            int firstExemplarDocumentPosition = bulkRequestBuilder.numberOfActions();
+            Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
+            Map<String, IndexVersion> exemplarIndexVersions = new HashMap<>();
+            for (DataPointGroupingContext.DataPointGroup group : allGroups) {
+                totalExpandedBytes = addExemplarIndexRequests(
+                    bulkRequestBuilder,
+                    exemplarDocumentBuilder,
+                    group,
+                    context,
+                    projectMetadata,
+                    exemplarIndexVersions,
+                    exemplarIdentities,
+                    totalExpandedBytes
+                );
+            }
+            if (bulkRequestBuilder.numberOfActions() > firstExemplarDocumentPosition) {
+                context.recordFirstExemplarDocument(firstExemplarDocumentPosition);
+            }
         }
 
         return context;
+    }
+
+    boolean canUseBatchIndexing(
+        boolean exemplarIngestionEnabled,
+        ProjectMetadata projectMetadata,
+        List<DataPointGroupingContext.DataPointGroup> groups
+    ) {
+        if (groups.isEmpty()) {
+            return false;
+        }
+        if (exemplarIngestionEnabled && hasExemplars(groups)) {
+            return false;
+        }
+        String firstTarget = groups.getFirst().targetIndex().index();
+        return groups.stream().allMatch(group -> firstTarget.equals(group.targetIndex().index()))
+            && isEscfEligible(groups)
+            && resolveEscfEligible(projectMetadata, firstTarget, groups);
+    }
+
+    static boolean hasExemplars(List<DataPointGroupingContext.DataPointGroup> groups) {
+        for (DataPointGroupingContext.DataPointGroup group : groups) {
+            for (DataPoint dataPoint : group.dataPoints()) {
+                if (dataPoint.getExemplars().isEmpty() == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -371,4 +425,77 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         return true;
     }
+
+    private long addExemplarIndexRequests(
+        BulkRequestBuilder bulkRequestBuilder,
+        ExemplarDocumentBuilder exemplarDocumentBuilder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
+        DataPointGroupingContext context,
+        ProjectMetadata projectMetadata,
+        Map<String, IndexVersion> indexVersions,
+        Set<ExemplarIdentity> exemplarIdentities,
+        long totalExpandedBytes
+    ) throws IOException {
+        TargetIndex targetIndex = dataPointGroup.targetIndex().exemplarsTarget();
+        if (targetIndex == null) {
+            int exemplarCount = 0;
+            for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
+                exemplarCount += dataPoint.getExemplars().size();
+            }
+            context.recordExemplarsWithoutTarget(exemplarCount);
+            return totalExpandedBytes;
+        }
+        String dataStreamName = targetIndex.index();
+        IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
+        for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
+            if (dataPoint.getExemplars().isEmpty()) {
+                continue;
+            }
+            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
+            for (Exemplar exemplar : dataPoint.getExemplars()) {
+                if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
+                    context.recordExemplarWithoutValue();
+                    continue;
+                }
+                ExemplarIdentity identity = new ExemplarIdentity(
+                    targetIndex.index(),
+                    tsid,
+                    TimeUnit.NANOSECONDS.toMillis(exemplar.getTimeUnixNano())
+                );
+                if (exemplarIdentities.add(identity) == false) {
+                    context.recordDuplicateExemplar();
+                    continue;
+                }
+                try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+                    exemplarDocumentBuilder.buildExemplarDocument(xContentBuilder, dataPointGroup, dataPoint, exemplar, targetIndex);
+                    IndexRequest indexRequest = new IndexRequest(targetIndex.index()).opType(DocWriteRequest.OpType.CREATE)
+                        .setRequireDataStream(true)
+                        .source(xContentBuilder)
+                        .setIncludeSourceOnError(false);
+                    if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+                        indexRequest.tsid(tsid);
+                    }
+                    totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                    bulkRequestBuilder.add(indexRequest);
+                }
+            }
+        }
+        return totalExpandedBytes;
+    }
+
+    private static IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, String dataStreamName) {
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
+            if (alias != null && alias.getWriteDataStream() != null) {
+                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
+            }
+        }
+        if (dataStream != null && dataStream.getWriteIndex() != null) {
+            return projectMetadata.getIndexSafe(dataStream.getWriteIndex()).getCreationVersion();
+        }
+        return IndexVersion.current();
+    }
+
+    private record ExemplarIdentity(String index, BytesRef tsid, long timestamp) {}
 }

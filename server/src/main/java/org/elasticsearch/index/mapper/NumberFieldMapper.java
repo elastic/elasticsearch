@@ -2920,19 +2920,19 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (stored) {
             if (type == NumberType.HALF_FLOAT) {
-                // half_float DV encodes as sortable shorts, but stored fields need sortable float ints for FLOAT-kind decoding.
-                EscfColumnData halfFloatStoredData = NumberColumnTransform.toHalfFloatStoredLongColumn(
-                    EscfColumn.from(outData),
-                    ctx.recycler()
+                // The row path stores the parsed float itself, un-narrowed, while outData is already
+                // quantized to half precision. Re-read the source at float precision rather than
+                // widening outData back, which would store the quantized value.
+                EscfColumnData halfFloatStoredData = NumberColumnTransform.toSortableLongColumn(
+                    source,
+                    NumberType.FLOAT,
+                    coerce(),
+                    ctx.recycler(),
+                    nullValue != null ? NumberType.FLOAT.toSortableLong(nullValue) : null,
+                    ctx::addResource
                 );
                 ctx.addColumn(
-                    LuceneLongColumn.of(
-                        halfFloatStoredData,
-                        fieldType().name(),
-                        FLOAT_STORED_ONLY_FIELD_TYPE,
-                        LongColumn.NumericKind.FLOAT
-                    ),
-                    halfFloatStoredData
+                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));

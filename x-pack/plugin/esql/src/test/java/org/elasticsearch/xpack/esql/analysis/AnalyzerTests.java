@@ -4200,8 +4200,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
 
         LogicalPlan plan = analyzer.query("""
-            FROM test
-            | EVAL runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
             | WHERE KNN(runtime_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
             | LIMIT 10
             """);
@@ -4217,8 +4216,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .addInferenceResolution("query-endpoint", TaskType.EMBEDDING, SimilarityMeasure.L2_NORM);
 
         LogicalPlan plan = analyzer.query("""
-            FROM test
-            | EVAL runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
             | WHERE KNN(runtime_vector, EMBEDDING("italian food recipe", "query-endpoint"))
             | LIMIT 10
             """);
@@ -4308,6 +4306,99 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Knn knn = findKnn(plan);
         MapExpression options = as(knn.options(), MapExpression.class);
         assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnInfersSimilarityThroughAliases() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        for (String aliases : List.of(
+            "RENAME vector AS emb",
+            "EVAL emb = vector",
+            "EVAL intermediate = vector, emb = intermediate",
+            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector | KEEP copied_vector | RENAME copied_vector AS emb",
+            "EVAL emb = vector | EVAL vector = TO_DENSE_VECTOR([0.0, 1.0, 0.0])"
+        )) {
+            LogicalPlan plan = analyzer.query(
+                "FROM books | DENSE_VECTOR vector = title WITH { \"inference_id\": \"field-endpoint\" } | "
+                    + aliases + " | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10"
+            );
+            MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+            assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+        }
+    }
+
+    /**
+     * Same test as above, except tests similarity function inference works for query vector through aliases.
+     */
+    public void testKnnInfersQuerySimilarityThroughAliases() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        for (String aliases : List.of(
+            "RENAME vector AS query_vector",
+            "EVAL query_vector = vector",
+            "EVAL intermediate = vector, query_vector = intermediate",
+            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector | KEEP copied_vector, dense_vector_field | RENAME copied_vector AS query_vector"
+        )) {
+            LogicalPlan plan = analyzer.query(
+                "ROW dense_vector_field = TO_DENSE_VECTOR([1.0, 0.0, 0.0]) | " +
+                "EVAL vector = TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\") | "
+                 + aliases + " | WHERE KNN(dense_vector_field, query_vector) | LIMIT 10"
+            );
+            MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+            assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+        }
+    }
+
+    public void testKnnAliasSimilarityHonorsOverrideAndRejectsConflicts() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
+        String pipeline = """
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | RENAME vector AS intermediate
+            | EVAL emb = intermediate
+            """;
+
+        LogicalPlan plan = analyzer.query(
+            pipeline + " | WHERE KNN(emb, [1.0, 0.0, 0.0], { \"similarity_function\": \"dot_product\" }) | LIMIT 10"
+        );
+        MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
+
+        analyzer.error(
+            pipeline + " | WHERE KNN(emb, TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\")) | LIMIT 10",
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+    }
+
+    public void testKnnDoesNotInferSimilarityThroughModifiedVector() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL modified = vector * 2.0 | RENAME modified AS emb
+                | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10
+                """);
+        assertThat(findKnn(plan).options(), nullValue());
     }
 
     private static void assumeKnnRuntimeEnabled() {

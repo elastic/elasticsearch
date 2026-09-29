@@ -3091,7 +3091,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves the similarity used by runtime KNN from the inference endpoints that directly produced either vector.
+     * Resolves the similarity used by runtime KNN from the inference endpoints that produced either vector,
+     * following aliases that preserve the generated vector's values.
      * Indexed fields deliberately do not participate because their mapping remains the source of truth.
      */
     private static class InferKnnSimilarity extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -3100,33 +3101,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            Map<NameId, InferredSimilarity> denseVectorSimilarities = new HashMap<>();
+            Map<NameId, InferredSimilarity> vectorSimilarities = new HashMap<>();
             plan.forEachDown(LogicalPlan.class, node -> {
                 if (node instanceof DenseVector denseVector) {
                     InferredSimilarity similarity = inferenceSimilarity(denseVector.inferenceId(), context);
                     if (similarity != null) {
                         for (Attribute generatedAttribute : denseVector.generatedAttributes()) {
-                            denseVectorSimilarities.put(generatedAttribute.id(), similarity);
+                            vectorSimilarities.put(generatedAttribute.id(), similarity);
                         }
                     }
                 }
             });
 
+            // Visit producers before consumers so chains of EVAL assignments and RENAME projections retain their provenance.
+            // Only direct aliases preserve it: expressions that modify vector values may require a different similarity.
+            plan.forEachExpressionUp(Alias.class, alias -> {
+                InferredSimilarity similarity = alias.child() instanceof Attribute child
+                    ? vectorSimilarities.get(child.id())
+                    : inferExpressionSimilarity(alias.child(), context);
+                if (similarity != null) {
+                    vectorSimilarities.put(alias.id(), similarity);
+                }
+            });
+
             return plan.transformUp(
                 LogicalPlan.class,
-                node -> node.transformExpressionsOnly(Knn.class, knn -> inferSimilarity(knn, denseVectorSimilarities, context))
+                node -> node.transformExpressionsOnly(Knn.class, knn -> inferSimilarityForRuntimeKnn(knn, vectorSimilarities, context))
             );
         }
 
-        private static Knn inferSimilarity(Knn knn, Map<NameId, InferredSimilarity> denseVectorSimilarities, AnalyzerContext context) {
+        private static Knn inferSimilarityForRuntimeKnn(
+            Knn knn,
+            Map<NameId, InferredSimilarity> vectorSimilarities,
+            AnalyzerContext context
+        ) {
             if (knn.isRuntimeSearch() == false) {
                 return knn;
             }
 
-            InferredSimilarity fieldSimilarity = knn.field() instanceof Attribute attribute
-                ? denseVectorSimilarities.get(attribute.id())
-                : null;
-            InferredSimilarity querySimilarity = querySimilarity(knn.query(), context);
+            InferredSimilarity fieldSimilarity = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
+            InferredSimilarity querySimilarity = knn.query() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id())
+                : inferExpressionSimilarity(knn.query(), context);
 
             if (fieldSimilarity != null && querySimilarity != null && fieldSimilarity.similarity() != querySimilarity.similarity()) {
                 String error = "KNN field inference endpoint ["
@@ -3159,11 +3174,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         @Nullable
-        private static InferredSimilarity querySimilarity(Expression query, AnalyzerContext context) {
-            if (query instanceof InferenceFunction == false) {
+        private static InferredSimilarity inferExpressionSimilarity(Expression expression, AnalyzerContext context) {
+            if (expression instanceof InferenceFunction == false) {
                 return null;
             }
-            return inferenceSimilarity(((InferenceFunction<?>) query).inferenceId(), context);
+            return inferenceSimilarity(((InferenceFunction<?>) expression).inferenceId(), context);
         }
 
         @Nullable

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -945,7 +946,9 @@ public class ExternalSourceResolver {
          * which forces coordinator execution down paths that never see per-split byte ranges and yields incorrect counts.
          */
         StoragePath storagePath = StoragePath.of(path);
-        StorageProvider provider = resolveProvider(storagePath, config);
+        Configured<StorageProvider> resolvedProvider = resolveProvider(storagePath, config);
+        StorageProvider provider = resolvedProvider.value();
+        String storageIdentity = resolvedProvider.identity();
         try {
             String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
             final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
@@ -957,7 +960,9 @@ public class ExternalSourceResolver {
             // applied by the caller after this returns. Connector/catalog sources skip the file-format
             // stamp and keep the factory's sourceType (e.g. flight).
             if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
-                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, fileConfig, declaredMapping, datasetFormat));
+                listener.onResponse(
+                    resolveStrictSingleFile(path, storagePath, provider, storageIdentity, fileConfig, declaredMapping, datasetFormat)
+                );
                 return;
             }
 
@@ -968,7 +973,7 @@ public class ExternalSourceResolver {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
-                FileMetadata meta = fileMetadataOf(storagePath, provider, fileConfig);
+                FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity, fileConfig);
                 String formatType = detectFormatType(storagePath, fileConfig);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
@@ -1039,7 +1044,9 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
-        StorageProvider provider = resolveProvider(storagePath, config);
+        Configured<StorageProvider> resolvedProvider = resolveProvider(storagePath, config);
+        StorageProvider provider = resolvedProvider.value();
+        String storageIdentity = resolvedProvider.identity();
         // Lease covers the synchronous prologue only (glob / cache listing). FIRST_FILE_WINS
         // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
         // resolveSingleSourceAsync re-borrow and must not capture this provider.
@@ -1597,9 +1604,14 @@ public class ExternalSourceResolver {
      * mtime is the version token that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton
      * {@code StorageEntry}.
      */
-    private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, Map<String, Object> config) throws Exception {
+    private FileMetadata fileMetadataOf(
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        Map<String, Object> config
+    ) throws Exception {
         if (isCacheable(provider)) {
-            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), storageConfig(config));
+            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), storageIdentity, storageConfig(config));
             return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
         }
         return probeFileMetadata(storagePath, provider);
@@ -1618,12 +1630,21 @@ public class ExternalSourceResolver {
         return new FileMetadata(probe.length(), mtime);
     }
 
-    private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
+    /**
+     * The provider for this path, paired with what that provider says identifies the objects it reads.
+     * <p>
+     * Captured here because this is the only point that has it. The provider itself is a pooled lease the
+     * asynchronous continuations deliberately do not capture, and re-deriving the identity per file would take a
+     * fresh lease and decrypt the credentials again — so the string is what travels, and it is passed rather than
+     * stashed: one query can resolve several external relations, and a shared field would carry one relation's
+     * identity into another's keys.
+     */
+    private Configured<StorageProvider> resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         if (config != null && config.isEmpty() == false) {
-            return registry.createProvider(storagePath.scheme(), settings, storageConfig(config));
+            return registry.createProviderTrackingConsumedKeys(storagePath.scheme(), settings, storageConfig(config));
         }
-        return registry.provider(storagePath);
+        return Configured.empty(registry.provider(storagePath));
     }
 
     /**
@@ -3497,6 +3518,7 @@ public class ExternalSourceResolver {
         String path,
         StoragePath storagePath,
         StorageProvider provider,
+        String storageIdentity,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
         String sourceType
@@ -3505,7 +3527,7 @@ public class ExternalSourceResolver {
         // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
         // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
         // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
-        FileMetadata meta = fileMetadataOf(storagePath, provider, config);
+        FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity, config);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);

@@ -385,7 +385,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFileMetadataHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "", Map.of());
 
             FileMetadata meta1 = service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -413,7 +413,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             service.setEnabled(false);
             AtomicInteger loaderCalls = new AtomicInteger();
-            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "", Map.of());
 
             service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -431,13 +431,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFileMetadataDifferentEndpointSeparateEntries() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
+            // Two providers that say they address different objects. The endpoint is no longer read out of the
+            // config here: the provider reports what identifies what it reads, and this key carries that.
             FileMetadataCacheKey key1 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
-                Map.of("endpoint", "us-east-1.amazonaws.com")
+                "8:endpoint23:us-east-1.amazonaws.com",
+                Map.of()
             );
             FileMetadataCacheKey key2 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
-                Map.of("endpoint", "eu-west-1.amazonaws.com")
+                "8:endpoint23:eu-west-1.amazonaws.com",
+                Map.of()
             );
             assertNotEquals(key1, key2);
 
@@ -454,22 +458,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testFileMetadataCredentialIndependentKey() {
-        // The file-metadata key is credential-independent so entries are shared across users, exactly
-        // like the schema cache — only endpoint/region participate in identity.
-        FileMetadataCacheKey withCredA = FileMetadataCacheKey.build(
-            "s3://bucket/data/file.parquet",
-            Map.of("access_key", "userA", "endpoint", "e", "region", "r")
-        );
-        FileMetadataCacheKey withCredB = FileMetadataCacheKey.build(
-            "s3://bucket/data/file.parquet",
-            Map.of("access_key", "userB", "endpoint", "e", "region", "r")
-        );
+        // Still shared across users: a storage identity omits every field its configuration declares secret, so
+        // two principals reaching one object report the same identity and share the entry. What separates them
+        // when they must be separated is the definition version, not this key guessing at credential names.
+        FileMetadataCacheKey withCredA = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "1:e", Map.of());
+        FileMetadataCacheKey withCredB = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "1:e", Map.of());
         assertEquals(withCredA, withCredB);
     }
 
     public void testClearAllEmptiesFileMetadataCache() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "", Map.of());
             service.getOrComputeFileMetadata(key, k -> new FileMetadata(1L, 1L));
             assertEquals(1, service.usageStats().get("file_metadata_cache.count"));
 

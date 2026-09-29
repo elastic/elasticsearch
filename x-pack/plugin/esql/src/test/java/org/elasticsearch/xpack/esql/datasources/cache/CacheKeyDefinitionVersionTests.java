@@ -101,8 +101,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     public void testFileMetadataKeysDifferAcrossDefinitionVersions() {
         Map<String, Object> settings = Map.of("auth", "anonymous");
         assertNotEquals(
-            FileMetadataCacheKey.build("s3://warehouse/data/a.parquet", config("v1", settings)),
-            FileMetadataCacheKey.build("s3://warehouse/data/a.parquet", config("v2", settings))
+            FileMetadataCacheKey.build("s3://warehouse/data/a.parquet", "", config("v1", settings)),
+            FileMetadataCacheKey.build("s3://warehouse/data/a.parquet", "", config("v2", settings))
         );
     }
 

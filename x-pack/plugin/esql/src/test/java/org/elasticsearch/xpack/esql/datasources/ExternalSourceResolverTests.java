@@ -7448,15 +7448,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        FileMetadataCacheKey rawA = FileMetadataCacheKey.build("s3://bucket/file.csv", configA);
-        FileMetadataCacheKey rawB = FileMetadataCacheKey.build("s3://bucket/file.csv", configB);
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
-
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        FileMetadataCacheKey flatA = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configA));
-        FileMetadataCacheKey flatB = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configB));
-        assertNotEquals("flattened config also exposes endpoint → file-metadata keys must differ", flatA, flatB);
+        // The endpoint reaches this key two ways now, and neither is the key reading the config for it. The
+        // provider reports what identifies the objects it reads, and the definition version covers every stored
+        // setting including the endpoint — so two datasets differing in it address different entries even when the
+        // provider reports nothing.
+        FileMetadataCacheKey rawA = FileMetadataCacheKey.build(
+            "s3://bucket/file.csv",
+            "8:endpoint27:http://endpoint-a.example.com",
+            configA
+        );
+        FileMetadataCacheKey rawB = FileMetadataCacheKey.build(
+            "s3://bucket/file.csv",
+            "8:endpoint27:http://endpoint-b.example.com",
+            configB
+        );
+        assertNotEquals("distinct storage identities must address distinct file-metadata entries", rawA, rawB);
     }
 
     /**

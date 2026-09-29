@@ -34,18 +34,6 @@ public class ListingExtentsTests extends ESTestCase {
         );
     }
 
-    /**
-     * The combination that would sample a listing returning every file: partition columns typed from part of a
-     * dataset the listing shipped whole, and no partition values at all past the sample. Refused rather than
-     * documented, because the two sites that did it were found in review rather than by reading.
-     */
-    public void testAnUnboundedFileSetCannotCarryABoundedSample() {
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new ListingExtents(Integer.MAX_VALUE, 10)).getMessage(),
-            containsString("an unbounded file set cannot carry a bounded partition sample")
-        );
-    }
-
     public void testBoundsFileSetIsTrueOnlyWhenTheFileSetIsCapped() {
         assertTrue(new ListingExtents(10, 10).boundsFileSet());
         assertFalse(ListingExtents.UNBOUNDED.boundsFileSet());
@@ -62,4 +50,27 @@ public class ListingExtentsTests extends ESTestCase {
     private static StorageEntry entry(String name) {
         return new StorageEntry(StoragePath.of("s3://bucket/data/" + name + ".parquet"), 100, Instant.EPOCH);
     }
+
+    /**
+     * A sample smaller than the file set it types is refused. It would ship partition metadata covering a prefix
+     * of the listing's own files, and since that metadata became ordinal-aligned, the files past the sample read
+     * null or throw on an index into them depending only on whether assertions are on.
+     * <p>
+     * The unbounded case is the same rule: every file the pattern matches must be typed from every one of them.
+     */
+    public void testASampleSmallerThanTheFileSetItTypesIsRefused() {
+        IllegalArgumentException narrower = expectThrows(IllegalArgumentException.class, () -> new ListingExtents(3, 2));
+        assertThat(narrower.getMessage(), containsString("cannot be smaller than the file set it types"));
+
+        IllegalArgumentException unbounded = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ListingExtents(Integer.MAX_VALUE, 1000)
+        );
+        assertThat(unbounded.getMessage(), containsString("cannot be smaller than the file set it types"));
+
+        // Equal is what both production sites pass, and a sample wider than the file set is harmless.
+        new ListingExtents(3, 3);
+        new ListingExtents(3, 4);
+    }
+
 }

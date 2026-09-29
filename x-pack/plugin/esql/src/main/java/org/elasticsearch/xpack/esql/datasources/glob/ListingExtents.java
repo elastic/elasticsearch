@@ -42,12 +42,19 @@ public record ListingExtents(int maxFiles, int maxPartitionPaths) {
         if (maxPartitionPaths < 1) {
             throw new IllegalArgumentException("maxPartitionPaths must be positive, got [" + maxPartitionPaths + "]");
         }
-        // The invariant the sampling rests on, enforced rather than described: a listing that returns every file
-        // the pattern matches must type its partition columns from every one of them. Sampling such a listing
-        // ships partition metadata covering a prefix of its own files - types from part of the dataset, and no
-        // partition values at all past the sample - and nothing downstream can tell.
-        if (maxFiles == Integer.MAX_VALUE && maxPartitionPaths != Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("an unbounded file set cannot carry a bounded partition sample");
+        // The invariant the sampling rests on, enforced rather than described: a listing must type its partition
+        // columns from every file it returns. Sampling fewer ships partition metadata covering a prefix of the
+        // listing's own files - types from part of it, and no values at all past the sample. Since partition
+        // metadata became ordinal-aligned, values are looked up by listing position, so such a listing asserts on
+        // construction (FileList's coversFileCount) or, with assertions off, reads null for the files past the
+        // sample and throws for an index into them. Nothing downstream can tell either way.
+        //
+        // Nothing constructs one: both production sites pass the two equal or both unbounded. The type allowed it,
+        // which is the only reason this has to say so.
+        if (maxPartitionPaths < maxFiles) {
+            throw new IllegalArgumentException(
+                "a partition sample [" + maxPartitionPaths + "] cannot be smaller than the file set it types [" + maxFiles + "]"
+            );
         }
     }
 

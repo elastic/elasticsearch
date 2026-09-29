@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,7 +88,12 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         FileList handed = createFileList(1);
         FileList discovered = createFileList(3);
         ExternalSourceExec exec = createExternalSourceExec(handed, "parquet");
-        SplitProvider discovers = context -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, Map.of());
+        // A non-empty schema map, or dropping withSchemaMap goes unnoticed: Map.of() is what the exec already has.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> contracts = new HashMap<>();
+        for (int file = 0; file < discovered.fileCount(); file++) {
+            contracts.put(discovered.path(file), new SchemaReconciliation.FileSchemaInfo(ExternalSchema.EMPTY, null, null));
+        }
+        SplitProvider discovers = context -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, contracts);
 
         SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
             exec,
@@ -98,6 +104,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec resolved = (ExternalSourceExec) result.plan();
         assertEquals("the plan carries the set that was planned over", 3, resolved.fileList().fileCount());
         assertEquals("and the fall-through counts that set, not the prefix", 3, result.filesScanned());
+        assertEquals("the read contracts travel with it", 3, resolved.schemaMap().size());
     }
 
     public void testNoExternalSourceUnchanged() {

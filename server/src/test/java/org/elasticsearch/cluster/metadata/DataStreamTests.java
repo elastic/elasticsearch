@@ -2323,6 +2323,37 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         return indices;
     }
 
+    public void testEffectiveLifecycle() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long now = System.currentTimeMillis();
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+        Metadata.Builder builder = Metadata.builder();
+        DataStream nonTsdbDataStream = createDataStream(
+            builder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+
+        assertThat(nonTsdbDataStream.getDataLifecycle(), nullValue());
+        assertThat(nonTsdbDataStream.getEffectiveDataLifecycle(false), nullValue());
+        assertThat(nonTsdbDataStream.getEffectiveDataLifecycle(true), nullValue());
+
+        DataStream tsdbDataStream = DataStream.builder("tsdb-" + dataStreamName, List.of(new Index(randomIndexName(), randomUUID())))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        assertThat(tsdbDataStream.getDataLifecycle(), nullValue());
+        assertThat(tsdbDataStream.getEffectiveDataLifecycle(false), nullValue());
+        assertThat(tsdbDataStream.getEffectiveDataLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+    }
+
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         List<Index> indices = randomIndexInstances();

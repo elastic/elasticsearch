@@ -828,11 +828,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the backing indices.
+     * Retrieves the configured lifecycle configuration meant for the backing indices.
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
         return lifecycle;
+    }
+
+    /**
+     * Retrieves the effective lifecycle configuration meant for the backing indices,
+     * it might be the configured, or in certain cases, if non is configured the default.
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean isEnabledForTimeSeries) {
+        if (lifecycle != null) {
+            return lifecycle;
+        }
+        return isEnabledForTimeSeries && indexMode == IndexMode.TIME_SERIES ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : lifecycle;
     }
 
     /**

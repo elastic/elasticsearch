@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -127,6 +129,10 @@ public class Verifier {
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);
+
+        if (unmappedResolution.loadsUnmappedFields()) {
+            checkLoadModeRequiresIndex(plan, failures, unmappedResolution);
+        }
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
@@ -563,6 +569,30 @@ public class Verifier {
         });
         if (promql.get() != null) {
             failures.add(fail(promql.get(), "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+        }
+    }
+
+    /**
+     * A {@code ROW} carries no {@code _source}, so a loading mode over one is a user mistake. Only fail when the query names no index at
+     * all: a ROW can be unioned or joined with one, and subqueries, LOOKUP JOIN and ENRICH all bring an index the check must respect.
+     */
+    private static void checkLoadModeRequiresIndex(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
+        var firstRow = new Holder<Row>();
+        boolean hasIndex = plan.forEachDownMayReturnEarly((p, foundIndex) -> {
+            if (p instanceof Row row) {
+                firstRow.setIfAbsent(row);
+            } else if (p instanceof LeafPlan || p instanceof Enrich) {
+                foundIndex.set(true);
+            }
+        });
+        if (hasIndex == false && firstRow.get() != null) {
+            failures.add(
+                fail(
+                    firstRow.get(),
+                    "unmapped_fields=\"{}\" requires an index to load from; this query's only source is a ROW",
+                    unmappedResolution.settingValue()
+                )
+            );
         }
     }
 

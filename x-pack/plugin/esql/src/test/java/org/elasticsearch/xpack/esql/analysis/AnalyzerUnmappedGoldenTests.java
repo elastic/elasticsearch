@@ -1295,8 +1295,18 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      * It should not treat it as unmapped, because there is clearly a nanos attribute in the EVAL's input.
      */
     public void testDoNotResolveUnmappedFieldPresentInChildren() throws Exception {
-        runInNullifyAndLoadModes("""
+        nullify("""
             ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
+            | SORT millis ASC
+            | WHERE millis < "2000-01-01"
+            | EVAL nanos = MV_MIN(nanos)
+            """).run();
+    }
+
+    public void testDoNotResolveUnmappedFieldPresentInChildrenFromIndex() throws Exception {
+        runInNullifyAndLoadModes("""
+            FROM employees
+            | EVAL millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
             | EVAL nanos = MV_MIN(nanos)

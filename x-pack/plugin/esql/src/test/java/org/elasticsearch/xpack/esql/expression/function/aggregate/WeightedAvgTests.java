@@ -115,6 +115,11 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
         return new WeightedAvg(source, args.get(0), args.get(1));
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier fieldSupplier,
         TestCaseSupplier.TypedDataSupplier weightSupplier

@@ -29,6 +29,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
@@ -97,7 +98,19 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
 
     public abstract MergePlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output);
 
-    public abstract MergePlan refreshOutput();
+    /**
+     * Re-derives this merge's output from its children's, keeping everything else about the node intact.
+     * <p>
+     * Deliberately {@code final} and expressed in terms of {@link #replaceSubPlansAndOutput}: a per-subclass
+     * implementation only has to construct the node itself, and any such implementation that names a concrete
+     * constructor silently downgrades a further subclass. {@link ViewUnionAll} is the case in point — it carries a
+     * named-subqueries map and view-branch keys that a {@code new UnionAll(...)} here would drop, turning its view
+     * boundaries back into anonymous union branches. Subclasses only need {@link #replaceSubPlansAndOutput} to be
+     * faithful, which they already need for every other rewrite.
+     */
+    public final MergePlan refreshOutput() {
+        return replaceSubPlansAndOutput(children(), refreshedOutput());
+    }
 
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
@@ -134,7 +147,12 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     protected List<Attribute> refreshedOutput() {
-        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+        List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        // LOAD_ALL stamps $$unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        if (unmappedFieldsAttributeFromChildren() != null) {
+            converted = keepExistingUnsupportedAttributes(converted, this.output());
+        }
+        return withUnmappedFieldsAttributeFromChildren(converted);
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {

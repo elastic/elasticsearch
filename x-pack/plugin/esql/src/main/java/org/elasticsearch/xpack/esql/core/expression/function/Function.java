@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -39,11 +40,26 @@ public abstract class Function extends Expression {
         return Expressions.nullable(children());
     }
 
+    /**
+     * NB: the hash code is currently used for key generation, so the class is included as a variation to avoid clashes
+     * between different functions over the same arguments.
+     */
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children());
+        return this instanceof NonFiniteSupport nonFinite
+            ? Objects.hash(getClass(), children(), nonFinite.allowNonFinite())
+            : Objects.hash(getClass(), children());
     }
 
+    /**
+     * Two functions are equal when they are of the same type and have equal children.
+     * <p>
+     *     A {@link NonFiniteSupport} function additionally distinguishes its non-finite-preserving form from its strict
+     *     one, because the two evaluate different math. Expression tree transformations decide whether anything changed
+     *     by comparing the old node with the new one, so substituting one form for the other would be silently
+     *     discarded if they compared equal.
+     * </p>
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -55,6 +71,10 @@ public abstract class Function extends Expression {
         }
 
         Function other = (Function) obj;
+        // The class check above guarantees that either both sides support non-finite results, or neither does.
+        if (this instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite() != ((NonFiniteSupport) other).allowNonFinite()) {
+            return false;
+        }
         return Objects.equals(children(), other.children());
     }
 

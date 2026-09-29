@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
@@ -144,6 +145,68 @@ public class PlannerUtils {
     }
 
     /**
+     * Recursively decomposes a physical plan containing nested {@link MergeExec} nodes into an immutable {@link SubPlan} tree. Each
+     * {@link MergeExec} becomes a {@link SubPlan.Merge} node: the merge is replaced by an {@link ExchangeSourceExec} in the coordinator
+     * segment plan, and each of its children is wrapped in an {@link ExchangeSinkExec} before recursion. A plan with no {@link MergeExec}
+     * becomes a {@link SubPlan.Leaf}.
+     * <p>
+     * A coordinator segment may contain only one topmost {@link MergeExec} — encountering a second one at the same level is a planning
+     * error, because one compute context supplies one exchange source to all {@link ExchangeSourceExec} nodes in the segment.
+     * <p>
+     * Example — a 3-level nested plan (outer MergeExec with both leaf and inner MergeExec children):
+     * <pre>
+     * Input physical plan:
+     *   LimitExec
+     *   └─ MergeExec                          ← outer merge
+     *      ├─ LeafA                            ← plain producer branch
+     *      ├─ MergeExec                        ← inner merge A
+     *      │  ├─ LeafB
+     *      │  └─ LeafC
+     *      └─ MergeExec                        ← inner merge B
+     *         ├─ LeafD
+     *         └─ LeafE
+     *
+     * Result SubPlan tree:
+     *   Merge(plan = LimitExec → ExchangeSourceExec)           ← outer merge replaced by ExchangeSourceExec
+     *   ├─ Leaf(plan = ExchangeSinkExec → LeafA)               ← plain leaf wrapped in ExchangeSinkExec
+     *   ├─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge A: produces to outer (ExchangeSinkExec)
+     *   │  ├─ Leaf(plan = ExchangeSinkExec → LeafB)            │  and consumes from its children (ExchangeSourceExec)
+     *   │  └─ Leaf(plan = ExchangeSinkExec → LeafC)
+     *   └─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge B: same structure
+     *      ├─ Leaf(plan = ExchangeSinkExec → LeafD)
+     *      └─ Leaf(plan = ExchangeSinkExec → LeafE)
+     * </pre>
+     * <p>
+     * There is an additional split of each leaf into a data-node plan and coordinator plan. That split is performed later by
+     * {@link #breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan, Configuration)}.
+     */
+    public static SubPlan buildSubPlan(PhysicalPlan plan) {
+        var topmostMerge = new Holder<MergeExec>();
+        PhysicalPlan segmentPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof MergeExec merge) {
+                if (topmostMerge.get() != null) {
+                    // this plan shape is not possible with the current planner
+                    LOGGER.debug("expected a single topmost MergeExec in a coordinator segment, found multiple in [{}]", plan);
+                    throw new EsqlIllegalArgumentException("expected a single topmost MergeExec in a coordinator segment");
+                }
+                topmostMerge.set(merge);
+                skipBranch.set(true);
+                return new ExchangeSourceExec(merge.source(), merge.output(), false);
+            }
+            return p;
+        });
+        if (topmostMerge.get() == null) {
+            return new SubPlan.Leaf(segmentPlan);
+        }
+        List<SubPlan> children = topmostMerge.get()
+            .children()
+            .stream()
+            .map(child -> buildSubPlan(new ExchangeSinkExec(child.source(), child.output(), false, child)))
+            .toList();
+        return new SubPlan.Merge(segmentPlan, children, topmostMerge.get().kind());
+    }
+
+    /**
      * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
      * we need to break the plan into sub plans and a main coordinator plan.
      * The result pages from each sub plan will be funneled to the main coordinator plan.
@@ -210,7 +273,12 @@ public class PlannerUtils {
      * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
      */
     public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        var logicalContext = new LocalLogicalOptimizerContext(
+            context.configuration(),
+            context.foldCtx(),
+            context.searchStats(),
+            context.flags()
+        );
         // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
@@ -324,7 +392,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -366,7 +436,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -413,7 +485,9 @@ public class PlannerUtils {
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
                 plannerSettings,
@@ -428,11 +502,30 @@ public class PlannerUtils {
         return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
-    public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
+    /**
+     * Stamps the request {@code esFilter} onto every {@link FragmentExec} so it is pushed into the Lucene scan — except fragments
+     * under a view branch, whose filter {@code ViewRequestFilterRewriter} has already installed as a logical {@code Filter} above
+     * the view's output. When {@code minimumVersion} is too old for that rewrite to have run
+     * ({@link ViewRequestFilterRewriter#supportsRewrite}), view-branch fragments are stamped like any other so the filter is not
+     * lost; see the rewriter's class javadoc for why that fallback is only approximately right.
+     */
+    public static PhysicalPlan integrateEsFilterIntoFragment(
+        PhysicalPlan plan,
+        @Nullable QueryBuilder esFilter,
+        TransportVersion minimumVersion
+    ) {
         if (esFilter == null) {
             return plan;
         }
+        boolean viewBranchesFilteredAtOutput = ViewRequestFilterRewriter.supportsRewrite(minimumVersion);
         return plan.transformUp(FragmentExec.class, f -> {
+            // View-branch fragments must not receive the Lucene esFilter: the request filter has already been applied
+            // as a logical Filter above the view's output boundary (by ViewRequestFilterRewriter). Pushing the raw DSL
+            // filter into the Lucene scan would apply it before any aggregation or field computation the view performs,
+            // returning wrong results for fields that exist only as computed values (EVAL, STATS, RENAME, etc.).
+            if (f.isFromViewBranch() && viewBranchesFilteredAtOutput) {
+                return f;
+            }
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene

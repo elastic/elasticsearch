@@ -103,47 +103,23 @@ public final class SharedErrorBudget {
     }
 
     /**
-     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded.
+     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded. Nothing is added to a warnings
+     * collector first: a warning added just before a throw never reaches the client, since driver warnings travel
+     * only with a successful response.
      *
-     * @param warnings   optional warning sink; receives the budget-exceeded line before the exception is thrown
      * @param errorKind  describes what the error count covers, in plural form (e.g. {@code "dropped rows"})
      */
-    public void checkBudget(@Nullable SkipWarnings warnings, String errorKind) {
+    public void checkBudget(String errorKind) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {
-            if (warnings != null) {
-                warnings.add(budgetExceededWarning(policy, fileLocation, errorCount, rowCount, errorKind));
-            }
             throw new ParsingException(
                 Source.EMPTY,
-                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] {} in [{}] rows of [{}]; {}",
                 errorCount,
                 errorKind,
                 rowCount,
                 fileLocation,
-                policy.maxErrors(),
-                policy.maxErrorRatio()
+                policy.trippedLimit(errorCount)
             );
         }
-    }
-
-    /**
-     * Formats the budget-exceeded warning line. Shared with
-     * {@link ColumnarRowDropHelper#budgetExceededWarning} for backward compatibility with call
-     * sites that still use the helper's static method.
-     */
-    public static String budgetExceededWarning(ErrorPolicy policy, String fileLocation, long errorCount, long rowCount, String errorKind) {
-        return "Columnar error budget exceeded at ["
-            + fileLocation
-            + "]: ["
-            + errorCount
-            + "] "
-            + errorKind
-            + " in ["
-            + rowCount
-            + "] decoded rows, maximum ["
-            + policy.maxErrors()
-            + "] errors or ratio ["
-            + policy.maxErrorRatio()
-            + "]";
     }
 }

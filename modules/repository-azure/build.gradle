@@ -168,7 +168,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
     'io.netty.incubator.codec.quic.QuicSslContext',
     'io.netty.incubator.codec.quic.QuicSslContextBuilder',
-    'io.netty.incubator.codec.quic.QuicSslEngine',
     'io.netty.incubator.codec.quic.QuicStreamChannel',
     'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
     'io.netty.incubator.codec.quic.QuicTokenHandler',

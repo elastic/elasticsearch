@@ -7,27 +7,26 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.common.ValidationException;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
 
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletionException;
 
 /**
  * Provider-specific resource validation for S3 URIs, invoked at {@code PUT /_query/dataset} time
  * via {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withResourceCheck}.
  *
- * <p>Three forms of resource URI are syntactically invalid for S3 but pass the scheme check:
- * <ul>
- *   <li><b>Empty location</b> — {@code s3://} with no bucket (and therefore no key). The scheme
- *       matches, but the URI is not an object location.</li>
- *   <li><b>Multi-region access points (MRAP)</b> — not supported; the user must use a regional
- *       endpoint instead.</li>
- *   <li><b>ARN resources</b> — S3 does not accept ARNs as bucket identifiers in standard SDK calls;
- *       the user must use a bucket name or an access-point alias.</li>
- * </ul>
- *
- * <p>Parsing is done on the raw resource string. {@code StoragePath.of} must not be called here
- * because it throws {@code Malformed authority in location} on ARNs before any check can run. The SDK's
- * {@code Arn.fromString} is also not used — the string checks below cover all cases.
+ * <p>Refuses an empty location, an ARN, a multi-region access point, and any bucket name that routes off the
+ * regional object endpoint on its own. The check does not see the data source's {@code endpoint}, and an S3 on
+ * Outposts alias routes there even when one is set. ARNs are checked on the raw string because
+ * {@code StoragePath.of} throws on them; everything else checks {@link StoragePath#host()}, the bucket the read
+ * binds to, so a port or {@code userInfo} cannot make the check and the read disagree.
  */
 class S3ResourceCheck {
 
@@ -39,17 +38,10 @@ class S3ResourceCheck {
     private S3ResourceCheck() {}
 
     /**
-     * Validates that {@code resource} names a bucket (not an empty location, ARN, or MRAP).
-     * Adds a {@link ValidationException} error for each problem found; does not throw.
-     *
-     * <p>Empty authority is rejected first: {@code s3://} matches the scheme check but is not an
-     * object location, and format inference would otherwise report that as "cannot determine a
-     * format". The MRAP check runs next: an MRAP ARN would otherwise fall through to the generic
-     * ARN branch and receive a misleading "use an access point alias" suggestion (which does not
-     * exist for MRAPs).
+     * Adds an error per problem found; does not throw. An empty location is refused before format inference can
+     * misreport it, and an MRAP ARN before the generic ARN branch can suggest an access point alias it lacks.
      */
     static void validate(String resource, ValidationException errors) {
-        // Extract the authority: everything between "://" and the first "/", lowercased for matching.
         int schemeEnd = resource.indexOf("://");
         if (schemeEnd < 0) {
             return;
@@ -61,29 +53,86 @@ class S3ResourceCheck {
             errors.addValidationError(INCOMPLETE_LOCATION_PREFIX + resource + "].");
             return;
         }
-        String authorityLower = authority.toLowerCase(Locale.ROOT);
 
-        // First path segment (the part of the path up to the next "/"), used for MRAP ARN detection.
-        String firstPathSegmentLower = "";
-        if (firstSlash >= 0) {
-            String afterAuthority = afterScheme.substring(firstSlash + 1);
-            int nextSlash = afterAuthority.indexOf('/');
-            firstPathSegmentLower = (nextSlash < 0 ? afterAuthority : afterAuthority.substring(0, nextSlash)).toLowerCase(Locale.ROOT);
-        }
-
-        // 1. MRAP check: host ends with ".mrap" (short alias) or the AWS global FQDN suffix
-        // ".mrap.accesspoint.s3-global.amazonaws.com" (what the AWS console / SDK resolves to),
-        // OR it's an ARN whose first path segment ends with ".mrap".
-        if (authorityLower.endsWith(".mrap")
-            || authorityLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")
-            || (authorityLower.startsWith("arn:") && firstPathSegmentLower.endsWith(".mrap"))) {
-            errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
+        if (authority.toLowerCase(Locale.ROOT).startsWith("arn:")) {
+            // An MRAP ARN carries its .mrap marker in the first path segment rather than the authority.
+            String path = firstSlash < 0 ? "" : afterScheme.substring(firstSlash + 1);
+            int nextSlash = path.indexOf('/');
+            String firstSegment = (nextSlash < 0 ? path : path.substring(0, nextSlash)).toLowerCase(Locale.ROOT);
+            if (firstSegment.endsWith(".mrap")) {
+                errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
+            } else {
+                errors.addValidationError(ARN_MESSAGE_PREFIX + resource + ARN_MESSAGE_SUFFIX);
+            }
             return;
         }
 
-        // 2. Generic ARN check.
-        if (authorityLower.startsWith("arn:")) {
-            errors.addValidationError(ARN_MESSAGE_PREFIX + resource + ARN_MESSAGE_SUFFIX);
+        String bucket;
+        try {
+            bucket = StoragePath.of(resource).host();
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError("[resource] is not a location this data source can read but was [" + resource + "].");
+            return;
         }
+        if (bucket.isEmpty()) {
+            errors.addValidationError(INCOMPLETE_LOCATION_PREFIX + resource + "].");
+            return;
+        }
+        String bucketLower = bucket.toLowerCase(Locale.ROOT);
+
+        if (bucketLower.endsWith(".mrap") || bucketLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")) {
+            errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
+            return;
+        }
+        // Caught by the resolver check below too; matched first so a directory bucket gets a message naming it.
+        for (String suffix : List.of("--x-s3", "--xa-s3")) {
+            if (bucketLower.endsWith(suffix)) {
+                errors.addValidationError(
+                    "[resource] looks like an S3 Express directory bucket, which is not supported, but was [" + resource + "]."
+                );
+                return;
+            }
+        }
+
+        String host;
+        try {
+            host = resolvedHost(bucket);
+        } catch (CompletionException e) {
+            // The ruleset rejects some names outright, such as one carrying a malformed outpost id.
+            errors.addValidationError("[resource] names a bucket the AWS SDK cannot route to any endpoint but was [" + resource + "].");
+            return;
+        }
+        if (S3EndpointCheck.isPermittedHost(host, S3EndpointCheck.S3_SERVICE) == false) {
+            errors.addValidationError(
+                "[resource] names a bucket that the AWS SDK routes to ["
+                    + host
+                    + "], which is not a supported AWS S3 endpoint, but was ["
+                    + resource
+                    + "]."
+            );
+        }
+    }
+
+    /**
+     * The host the SDK builds for this bucket name alone. Asking the resolver rather than listing spellings keeps
+     * this current: its rules are positional, so a {@code --op-s3} name reaches {@code s3-outposts} only once it is
+     * long enough to carry an outpost id. Path-style leaves an ordinary bucket's host bare; no endpoint is given,
+     * because the data source's is not visible here. Any region will do: a name that steers does so in all of them.
+     */
+    private static String resolvedHost(String bucket) {
+        return S3EndpointProvider.defaultProvider()
+            .resolveEndpoint(
+                S3EndpointParams.builder()
+                    .bucket(bucket)
+                    .region(Region.US_EAST_1)
+                    .useFips(false)
+                    .useDualStack(false)
+                    .accelerate(false)
+                    .forcePathStyle(true)
+                    .build()
+            )
+            .join()
+            .url()
+            .getHost();
     }
 }

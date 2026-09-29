@@ -4240,3 +4240,54 @@ FROM normalized_keyword, normalized_keyword_unmapped
 doc_id:keyword | kw:keyword
 b-1            | HELLO
 ;
+
+loadUnmappedAllTypesNumericAndBooleanShapes
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so there is nothing to read from _source
+
+SET unmapped_fields="load"\;
+FROM all_types_unmapped METADATA _source
+| KEEP keyword, boolean, byte, short, integer, long, unsigned_long, double, float, half_float, scaled_float, _source
+| SORT keyword
+| LIMIT 3
+;
+
+keyword:keyword | boolean:keyword | byte:keyword | short:keyword | integer:keyword | long:keyword | unsigned_long:keyword | double:keyword | float:keyword | half_float:keyword | scaled_float:keyword | _source:_source
+key1            | true            | 1            | 10            | 1               | 100          | 100                   | 1.1            | 1.1           | 1.1                | 1.1                  | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":""foo"",""date"":""2024-01-01T00:00:00.000Z"",""date_nanos"":""2024-01-01T00:00:00.000000001Z"",""double"":1.1,""float"":1.1,""half_float"":1.1,""scaled_float"":1.1,""integer"":1,""ip"":""127.0.0.1"",""keyword"":""key1"",""long"":100,""unsigned_long"":100,""short"":10,""text"":""text1"",""version"":""1.0.0"",""wildcard"":""wild1""}"
+key2            | false           | 2            | 20            | 2               | 200          | 200                   | 2.2            | 2.2           | 2.2                | 2.2                  | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""scaled_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""unsigned_long"":200,""short"":20,""text"":""text2"",""version"":""2.0.0"",""wildcard"":""wild2""}"
+key3            | true            | 3            | 30            | 3               | 300          | 300                   | 3.3            | 3.3           | 3.3                | 3.3                  | "{""boolean"":""true"",""byte"":3,""constant_keyword-foo"":""foo"",""date"":""2024-01-03T00:00:00.000Z"",""date_nanos"":""2024-01-03T00:00:00.000000003Z"",""double"":3.3,""float"":3.3,""half_float"":3.3,""scaled_float"":3.3,""integer"":3,""ip"":""127.0.0.3"",""keyword"":""key3"",""long"":300,""unsigned_long"":300,""short"":30,""text"":""text3"",""version"":""3.0.0"",""wildcard"":""wild3""}"
+;
+
+loadUnmappedAllTypesStringShapesAreNotNormalised
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so there is nothing to read from _source
+
+SET unmapped_fields="load"\;
+FROM all_types_unmapped METADATA _source
+| KEEP keyword, date, date_nanos, ip, version, text, wildcard, `constant_keyword-foo`, _source
+| SORT keyword
+| LIMIT 2
+;
+
+keyword:keyword | date:keyword             | date_nanos:keyword             | ip:keyword | version:keyword | text:keyword | wildcard:keyword | constant_keyword-foo:keyword | _source:_source
+key1            | 2024-01-01T00:00:00.000Z | 2024-01-01T00:00:00.000000001Z | 127.0.0.1  | 1.0.0           | text1        | wild1            | foo                          | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":""foo"",""date"":""2024-01-01T00:00:00.000Z"",""date_nanos"":""2024-01-01T00:00:00.000000001Z"",""double"":1.1,""float"":1.1,""half_float"":1.1,""scaled_float"":1.1,""integer"":1,""ip"":""127.0.0.1"",""keyword"":""key1"",""long"":100,""unsigned_long"":100,""short"":10,""text"":""text1"",""version"":""1.0.0"",""wildcard"":""wild1""}"
+key2            | 2024-01-02T00:00:00.000Z | 2024-01-02T00:00:00.000000002Z | 127.0.0.2  | 2.0.0           | text2        | wild2            | foo                          | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""scaled_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""unsigned_long"":200,""short"":20,""text"":""text2"",""version"":""2.0.0"",""wildcard"":""wild2""}"
+;
+
+loadUnmappedAllTypesSyntheticSourceRoundTripsEveryType
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so there is nothing to read from _source
+
+SET unmapped_fields="load"\;
+FROM all_types_unmapped, all_types_unmapped_synthetic METADATA _index, _source
+| KEEP _index, keyword, boolean, integer, double, date, ip, version, _source
+| SORT keyword, _index
+| LIMIT 4
+;
+
+_index:keyword               | keyword:keyword | boolean:keyword | integer:keyword | double:keyword | date:keyword             | ip:keyword | version:keyword | _source:_source
+all_types_unmapped           | key1            | true            | 1               | 1.1            | 2024-01-01T00:00:00.000Z | 127.0.0.1  | 1.0.0           | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":""foo"",""date"":""2024-01-01T00:00:00.000Z"",""date_nanos"":""2024-01-01T00:00:00.000000001Z"",""double"":1.1,""float"":1.1,""half_float"":1.1,""scaled_float"":1.1,""integer"":1,""ip"":""127.0.0.1"",""keyword"":""key1"",""long"":100,""unsigned_long"":100,""short"":10,""text"":""text1"",""version"":""1.0.0"",""wildcard"":""wild1""}"
+all_types_unmapped_synthetic | key1            | true            | 1               | 1.1            | 2024-01-01T00:00:00.000Z | 127.0.0.1  | 1.0.0           | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":""foo"",""date"":""2024-01-01T00:00:00.000Z"",""date_nanos"":""2024-01-01T00:00:00.000000001Z"",""double"":1.1,""float"":1.1,""half_float"":1.1,""integer"":1,""ip"":""127.0.0.1"",""keyword"":""key1"",""long"":100,""scaled_float"":1.1,""short"":10,""text"":""text1"",""unsigned_long"":100,""version"":""1.0.0"",""wildcard"":""wild1""}"
+all_types_unmapped           | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""scaled_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""unsigned_long"":200,""short"":20,""text"":""text2"",""version"":""2.0.0"",""wildcard"":""wild2""}"
+all_types_unmapped_synthetic | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""scaled_float"":2.2,""short"":20,""text"":""text2"",""unsigned_long"":200,""version"":""2.0.0"",""wildcard"":""wild2""}"
+;

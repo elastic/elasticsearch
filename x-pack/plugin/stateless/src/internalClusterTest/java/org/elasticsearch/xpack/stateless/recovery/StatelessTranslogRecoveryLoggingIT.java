@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -53,6 +54,7 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:DEBUG", reason = "verify empty reader")
     public void testRecoveryWithoutBlobsDoesNotLogInfo() throws Exception {
         startMasterOnlyNode();
         final String indexNode = startIndexNode();
@@ -79,6 +81,14 @@ public class StatelessTranslogRecoveryLoggingIT extends AbstractStatelessPluginI
         }
 
         try (var mockLog = MockLog.capture(TranslogReplicatorReader.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reader opened without blobs",
+                    TranslogReplicatorReader.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog replicator reader opened for recovery []*"
+                )
+            );
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "recovery summary without blobs",

@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
@@ -312,7 +313,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be disabled", decision.canRebalanceCluster(), equalTo(false));
-        assertThat(decision.getCanRemainDecision().type(), equalTo(Decision.Type.NOT_PREFERRED));
+        assertThat(decision.getCanRemainDecision(), isNotPreferredDecision());
         assertNull(decision.getTargetNode());
         assertThat(decision.getAllocationDecision(), equalTo(AllocationDecision.NOT_PREFERRED));
 

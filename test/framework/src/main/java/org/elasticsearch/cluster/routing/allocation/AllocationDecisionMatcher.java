@@ -25,6 +25,10 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
         return new AllocationDecisionMatcher(Decision.Type.NO);
     }
 
+    public static AllocationDecisionMatcher isNotPreferredDecision() {
+        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED);
+    }
+
     @Override
     public boolean matches(Object actual) {
         if (!(actual instanceof Decision)) {

@@ -177,8 +177,11 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         assertEquals(Decision.Type.YES, decider.canAllocate(emptyStore, node, allocation).type());
         assertEquals(
             Decision.Type.YES,
-            decider.canAllocate(state.routingTable().index("index-0").shard(0).primaryShard().initialize(NODE, null, 50 * GB), node, allocation)
-                .type()
+            decider.canAllocate(
+                state.routingTable().index("index-0").shard(0).primaryShard().initialize(NODE, null, 50 * GB),
+                node,
+                allocation
+            ).type()
         );
         var search = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode("search", Set.of(DiscoveryNodeRole.SEARCH_ROLE))))
@@ -239,7 +242,11 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         var nodes = state.mutableRoutingNodes();
         var iterator = nodes.unassigned().iterator();
         iterator.next();
-        var started = nodes.startShard(iterator.initialize(NODE, null, 50 * GB, RoutingChangesObserver.NOOP), RoutingChangesObserver.NOOP, 50 * GB);
+        var started = nodes.startShard(
+            iterator.initialize(NODE, null, 50 * GB, RoutingChangesObserver.NOOP),
+            RoutingChangesObserver.NOOP,
+            50 * GB
+        );
         var source = nodes.relocateShard(
             started,
             "destination",

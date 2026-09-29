@@ -116,10 +116,7 @@ public class StatelessPluginTests extends ESTestCase {
             plugin.additionalSettings().get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
             equalTo("false")
         );
-        assertThat(
-            plugin.additionalSettings().get(InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED.getKey()),
-            equalTo("true")
-        );
+        assertThat(plugin.additionalSettings().get(InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED.getKey()), equalTo("true"));
 
         final var nodeInvalidSettings = Settings.builder()
             .put(STATELESS_ENABLED.getKey(), true)

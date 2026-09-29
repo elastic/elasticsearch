@@ -137,14 +137,14 @@ import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocation
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreStorageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
-import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider;
-import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreStorageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;

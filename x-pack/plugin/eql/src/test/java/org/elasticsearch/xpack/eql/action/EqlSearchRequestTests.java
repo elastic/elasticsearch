@@ -134,7 +134,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         if (version.supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING) == false) {
             // old wire format cannot represent null; a null keepAlive is written as DEFAULT_KEEP_ALIVE
-            mutatedInstance.keepAlive(instance.keepAlive() != null ? instance.keepAlive() : EqlSearchRequest.DEFAULT_KEEP_ALIVE);
+            mutatedInstance.keepAlive(instance.keepAlive() != null ? instance.keepAlive() : EqlSearchRequest.LEGACY_DEFAULT_KEEP_ALIVE);
         } else {
             mutatedInstance.keepAlive(instance.keepAlive());
         }

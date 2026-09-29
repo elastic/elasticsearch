@@ -45,7 +45,6 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest.setWaitForCompletionTimeout(randomPositiveTimeValue());
         }
         searchRequest.setKeepOnCompletion(randomBoolean());
-        // always set a concrete keep_alive in the random instance; null is tested explicitly
         searchRequest.setKeepAlive(randomPositiveTimeValue());
         if (randomBoolean()) {
             searchRequest.getSearchRequest()
@@ -156,6 +155,6 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         var oldVersion = TransportVersionUtils.getPreviousVersion(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING);
         SubmitAsyncSearchRequest roundTripped = copyWriteable(req, writableRegistry(), SubmitAsyncSearchRequest::new, oldVersion);
         // Old receivers read a concrete TimeValue; our DEFAULT_KEEP_ALIVE is written as the fallback
-        assertEquals(SubmitAsyncSearchRequest.DEFAULT_KEEP_ALIVE, roundTripped.getKeepAlive());
+        assertEquals(SubmitAsyncSearchRequest.LEGACY_DEFAULT_KEEP_ALIVE, roundTripped.getKeepAlive());
     }
 }

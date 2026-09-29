@@ -32,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
-    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue LEGACY_DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
@@ -77,7 +77,7 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
         if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
             out.writeOptionalTimeValue(keepAlive);
         } else {
-            out.writeTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+            out.writeTimeValue(keepAlive != null ? keepAlive : LEGACY_DEFAULT_KEEP_ALIVE);
         }
         out.writeBoolean(keepOnCompletion);
     }
@@ -126,8 +126,8 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     }
 
     /**
-     * Sets the amount of time after which the result will expire. A {@code null} value means the transport
-     * action will substitute the current value of the {@code async_search.default_keep_alive} cluster setting.
+     * Sets the amount of time after which the result will expire. A {@code null} value means the value of
+     * the {@code async_search.default_keep_alive} cluster setting will be used.
      */
     public SubmitAsyncSearchRequest setKeepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;

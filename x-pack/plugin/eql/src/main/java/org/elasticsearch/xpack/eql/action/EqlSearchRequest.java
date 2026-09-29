@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP
 public class EqlSearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
-    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue LEGACY_DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] originalIndices;
@@ -526,7 +526,7 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
         if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
             out.writeOptionalTimeValue(keepAlive);
         } else {
-            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : LEGACY_DEFAULT_KEEP_ALIVE);
         }
         out.writeBoolean(keepOnCompletion);
         out.writeString(resultPosition);
@@ -624,7 +624,7 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
             headers,
             null,
             null,
-            keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE
+            keepAlive != null ? keepAlive : LEGACY_DEFAULT_KEEP_ALIVE
         );
     }
 

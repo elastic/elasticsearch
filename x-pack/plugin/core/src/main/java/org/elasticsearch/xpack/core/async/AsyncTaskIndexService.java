@@ -217,10 +217,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Resolves the effective keep-alive duration for a new async request across all four async APIs
-     * ({@code _async_search}, EQL, ES|QL, SQL). A {@code null} input means the caller did not supply a
-     * value, so the current value of {@code async_search.default_keep_alive} is returned. If a maximum
-     * is configured ({@code async_search.max_keep_alive} ≥ 0) and the resolved value exceeds it, an
+     * Resolves the effective keep-alive duration for a new async request. A {@code null} input means the
+     * caller did not supply a value, so the current value of {@code async_search.default_keep_alive} is returned.
+     * If a maximum is configured ({@code async_search.max_keep_alive} ≥ 0) and the resolved value exceeds it, an
      * {@link IllegalArgumentException} is thrown.
      *
      * @param requested the keep-alive the caller explicitly requested, or {@code null} to use the default
@@ -252,9 +251,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Throws {@link IllegalArgumentException} if {@code value} exceeds the configured maximum keep-alive.
      * No-op when the maximum is negative (unbounded). The check is inclusive: exactly equal to the
      * maximum is allowed.
-     * <p>
-     * The error message deliberately does not name the cluster setting; in Elastic Cloud Serverless the
-     * setting is not user-configurable, so calling it out would confuse those users.
      */
     private void checkMaxKeepAlive(TimeValue value) {
         if (maxKeepAlive.millis() >= 0 && value.millis() > maxKeepAlive.millis()) {

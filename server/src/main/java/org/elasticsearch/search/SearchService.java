@@ -320,9 +320,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * The default keep-alive for async search requests when none is specified by the caller. Applies to all four
      * async APIs: {@code _async_search}, EQL async search, ES|QL async query, and SQL async query.
-     * <p>
-     * The minimum of {@code 1m} matches the most restrictive floor across those APIs (EQL and SQL both require at
-     * least 1m), ensuring the resolved default is always valid regardless of which API uses it.
      */
     public static final Setting<TimeValue> ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING = Setting.timeSetting(
         "async_search.default_keep_alive",

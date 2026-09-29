@@ -25,7 +25,7 @@ public interface AsyncTask {
     /**
      * Transport version that made {@code keep_alive} a nullable field in async search request types.
      * When null, the transport action resolves it against the {@code async_search.default_keep_alive} cluster setting.
-     * Older nodes must receive a concrete value, so senders substitute {@code DEFAULT_KEEP_ALIVE} when the receiver
+     * Older nodes must receive a concrete value, so senders substitute hard-coded default when the receiver
      * lacks this version.
      */
     TransportVersion ASYNC_DEFAULT_KEEP_ALIVE_SETTING = TransportVersion.fromName("async_default_keep_alive_setting");

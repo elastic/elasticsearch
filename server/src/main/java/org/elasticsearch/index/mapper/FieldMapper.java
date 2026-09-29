@@ -95,7 +95,9 @@ public abstract class FieldMapper extends Mapper {
      */
     public static final Setting<Boolean> EMPTY_KEYWORD_STRING_AS_NULL_SETTING = Setting.boolSetting(
         "index.mapping.empty_keyword_string_as_null",
-        false,
+        // For a benchmark run only: on by default for the columnar index modes, so a benchmark picks it up without
+        // naming it. This commit is dropped before merging and the default is false.
+        settings -> Boolean.toString(settings != null && IndexSettings.MODE.get(settings).isStrictColumnar()),
         Property.IndexScope,
         Property.Final
     );

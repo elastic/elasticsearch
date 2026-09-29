@@ -627,9 +627,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (maxConsecutiveExtractionFailures != null) {
-            builder.field(MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(), maxConsecutiveExtractionFailures);
-        }
         if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
@@ -1059,15 +1056,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         /**
-         * Sets the number of consecutive extraction failures after which the datafeed stops itself. A value of
-         * {@code -1} disables the behaviour (indefinite retries). Any other non-positive value is rejected. A
-         * {@code null} value clears the setting so the default, which is proportional to the datafeed frequency,
-         * applies.
+         * Not configurable via REST on this branch; the default threshold derived from datafeed frequency applies.
          */
         public Builder setMaxConsecutiveExtractionFailures(Integer maxConsecutiveExtractionFailures) {
-            if (maxConsecutiveExtractionFailures != null
-                && maxConsecutiveExtractionFailures != -1
-                && maxConsecutiveExtractionFailures <= 0) {
+            if (maxConsecutiveExtractionFailures != null) {
                 String msg = getMessage(
                     DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                     DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
@@ -1075,6 +1067,14 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 );
                 throw ExceptionsHelper.badRequestException(msg);
             }
+            this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
+            return this;
+        }
+
+        /**
+         * For transport deserialization and in-memory updates only; must not be used for REST-parsed documents.
+         */
+        Builder setMaxConsecutiveExtractionFailuresFromWire(Integer maxConsecutiveExtractionFailures) {
             this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
             return this;
         }

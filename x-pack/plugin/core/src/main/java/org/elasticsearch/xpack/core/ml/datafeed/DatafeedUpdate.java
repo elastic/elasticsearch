@@ -255,7 +255,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
-        addOptionalField(builder, DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES, maxConsecutiveExtractionFailures);
         if (indicesOptions != null) {
             builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
@@ -393,7 +392,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setMaxEmptySearches(maxEmptySearches);
         }
         if (maxConsecutiveExtractionFailures != null) {
-            builder.setMaxConsecutiveExtractionFailures(maxConsecutiveExtractionFailures);
+            builder.setMaxConsecutiveExtractionFailuresFromWire(maxConsecutiveExtractionFailures);
         }
         if (indicesOptions != null) {
             builder.setIndicesOptions(indicesOptions);
@@ -617,16 +616,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
 
         public Builder setMaxConsecutiveExtractionFailures(int maxConsecutiveExtractionFailures) {
-            if (maxConsecutiveExtractionFailures < -1 || maxConsecutiveExtractionFailures == 0) {
-                String msg = Messages.getMessage(
-                    Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                    DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
-                    maxConsecutiveExtractionFailures
-                );
-                throw ExceptionsHelper.badRequestException(msg);
-            }
-            this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
-            return this;
+            String msg = Messages.getMessage(
+                Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
+                DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
+                maxConsecutiveExtractionFailures
+            );
+            throw ExceptionsHelper.badRequestException(msg);
         }
 
         public Builder setIndicesOptions(IndicesOptions indicesOptions) {

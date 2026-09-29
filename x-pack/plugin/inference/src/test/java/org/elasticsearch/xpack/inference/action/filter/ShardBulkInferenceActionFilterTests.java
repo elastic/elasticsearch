@@ -1465,24 +1465,33 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         return Stream.<EmbeddingResults.Embedding<?>>generate(() -> randomMultimodalEmbedding(model)).limit(count).toList();
     }
 
-    private static List<Float> toFloats(List<?> values) {
-        return values.stream().map(value -> ((Number) value).floatValue()).toList();
-    }
+    private void assertChunkEmbeddings(List<Map<String, Object>> chunks, List<EmbeddingResults.Embedding<?>> expectedEmbeddings) {
+        final Function<EmbeddingResults.Embedding<?>, List<Float>> embeddingToFloats = embedding -> {
+            List<Float> floats = new ArrayList<>();
+            switch (embedding) {
+                case EmbeddingFloatResults.Embedding e -> {
+                    for (float v : e.values()) {
+                        floats.add(v);
+                    }
+                }
+                case EmbeddingByteResults.Embedding e -> {
+                    for (byte v : e.values()) {
+                        floats.add((float) v);
+                    }
+                }
+                default -> throw new AssertionError("Unexpected embedding type: " + embedding.getClass());
+            }
+            return floats;
+        };
+        final Function<List<?>, List<Float>> listToFloats = list -> list.stream().map(value -> ((Number) value).floatValue()).toList();
 
-    private void assertChunkEmbeddings(List<Map<String, Object>> chunks, List<EmbeddingResults.Embedding<?>> expectedEmbeddings)
-        throws IOException {
         assertThat(chunks.size(), equalTo(expectedEmbeddings.size()));
         for (int i = 0; i < expectedEmbeddings.size(); i++) {
-            // Embeddings serialize as JSON arrays, which assertToXContentEquivalent does not compare, so compare the parsed lists.
-            // Comparing as floats makes the check independent of how each side's content type widens the values.
-            try (
-                XContentParser parser = createParser(
-                    JsonXContent.jsonXContent,
-                    expectedEmbeddings.get(i).toBytesRef(JsonXContent.jsonXContent)
-                )
-            ) {
-                assertThat(toFloats((List<?>) chunks.get(i).get("embeddings")), equalTo(toFloats(parser.list())));
-            }
+            // Normalize all numbers to floats to handle differences in how embedding dims are represented in source
+            assertThat(
+                listToFloats.apply((List<?>) chunks.get(i).get("embeddings")),
+                equalTo(embeddingToFloats.apply(expectedEmbeddings.get(i)))
+            );
         }
     }
 

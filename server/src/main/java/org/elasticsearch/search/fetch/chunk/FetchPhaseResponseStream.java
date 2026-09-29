@@ -197,6 +197,16 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Hands the charge accumulated here to the result that now owns the hits.
+     */
+    void transferBreakerBytesTo(FetchSearchResult result) {
+        long bytes = totalBreakerBytes.getAndSet(0);
+        if (bytes > 0L) {
+            result.setCoordinatorSearchHitsSizeBytes(bytes, circuitBreaker);
+        }
+    }
+
+    /**
      * Releases accumulated hits and circuit breaker bytes when hits are released from memory.
      */
     @Override

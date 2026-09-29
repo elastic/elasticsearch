@@ -422,7 +422,8 @@ public class SearchTransportService {
                 connection.getNode(),
                 headers,
                 requestBytesConsumer,
-                resultBytesConsumer
+                resultBytesConsumer,
+                FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled()
             );
             transportService.sendChildRequest(
                 localConnection,

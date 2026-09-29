@@ -112,19 +112,23 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // to count the bytes of the actual data-node round trip.
         private final LongConsumer requestBytesConsumer;
         private final LongConsumer resultBytesConsumer;
+        // Also not serialized. Will be removed with the coordinator_fetch_accounting feature flag.
+        private final boolean transferCharge;
 
         public Request(
             ShardFetchSearchRequest shardFetchRequest,
             DiscoveryNode dataNode,
             Map<String, String> headers,
             LongConsumer requestBytesConsumer,
-            LongConsumer resultBytesConsumer
+            LongConsumer resultBytesConsumer,
+            boolean transferCharge
         ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;
             this.requestBytesConsumer = requestBytesConsumer;
             this.resultBytesConsumer = resultBytesConsumer;
+            this.transferCharge = transferCharge;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -134,6 +138,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.headers = in.readMap(StreamInput::readString);
             this.requestBytesConsumer = l -> {};
             this.resultBytesConsumer = l -> {};
+            this.transferCharge = false;
         }
 
         @Override
@@ -252,6 +257,9 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
             finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
+            if (request.transferCharge) {
+                responseStream.transferBreakerBytesTo(finalResult);
+            }
 
             // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
             try {

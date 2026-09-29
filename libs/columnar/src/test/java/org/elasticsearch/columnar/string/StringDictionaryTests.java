@@ -14,11 +14,11 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
-import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -409,12 +409,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     }
 
     /** A column with nothing worth naming records no summary. */
-    public void testAllDistinctValuesKeepNoSummary() throws IOException {
+    // NOTE: a column whose values are all distinct names none of them, and still summarises them: whether they
+    // repeat is a question about the other segments, which only the merge can answer.
+    public void testAllDistinctValuesKeepASummary() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 800)];
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("id-" + d);
         }
-        withDictionary(docValues, (metadata, reader) -> assertFalse("nothing repeats", reader.hasSummary()));
+        withDictionary(docValues, (metadata, reader) -> assertTrue("summarised for the merge", reader.hasSummary()));
     }
 
     /** What a column recorded of its survey survives the round trip through its metadata. */
@@ -718,6 +720,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     private static StringColumnOptions optionsWithEscapeRankBlock(int escapeRankBlockSize) {
         return new StringColumnOptions(
             ROOMY,
+            StringColumnOptions.DEFAULT_SUMMARY,
             randomChunkCodec(),
             new StringColumnOptions.Sizes(
                 randomValidBlockSize(),
@@ -726,7 +729,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                 StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                 escapeRankBlockSize,
-                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                ColumNARDocValuesFormat.MAX_BLOCK_SIZE
             )
         );
     }
@@ -756,16 +760,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         try (Directory dir = newDirectory()) {
             final BytesRef[][] docSlots = singleValued(docValues);
             final StringColumnMetadata metadata;
-            try (IndexOutput out = dir.createOutput("column.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+            try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "column", segmentId)) {
                 metadata = StringColumnWriter.write(
                     docSlots.length,
-                    numDocsWithField(docSlots),
-                    numValues(docSlots),
-                    numNullSlots(docSlots),
+                    totals(docSlots),
                     () -> cursor(docSlots),
                     new StringColumnOptions(
                         DictionaryPolicy.NONE,
+                        StringColumnOptions.DEFAULT_SUMMARY,
                         randomChunkCodec(),
                         new StringColumnOptions.Sizes(
                             randomValidBlockSize(),
@@ -774,15 +776,15 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-                            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                            ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                         )
                     ),
                     known,
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out.outputs()
                 );
-                ColumnarCodecUtil.writeFooter(out);
             }
             assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());
             assertFalse("nothing recorded for the next merge", metadata.hasSummary());

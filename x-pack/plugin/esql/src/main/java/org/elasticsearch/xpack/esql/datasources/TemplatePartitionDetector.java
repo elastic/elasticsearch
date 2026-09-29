@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -137,11 +138,12 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         }
 
         LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
+        HivePartitionDetector.CastInterner interner = new HivePartitionDetector.CastInterner();
         for (int i = 0; i < files.size(); i++) {
             Map<String, String> raw = allRawPartitions.get(i);
             LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(columnCount);
             for (Map.Entry<String, String> e : raw.entrySet()) {
-                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey())));
+                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey()), interner));
             }
             filePartitionValues.put(files.get(i).path(), typed);
         }
@@ -186,6 +188,44 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         }
         nonEmpty.remove(nonEmpty.size() - 1);
         return nonEmpty;
+    }
+
+    /**
+     * The directory value {@code template} binds to {@code column} on a {@link StoragePath#path()}, or {@code null}
+     * when the template does not bind that column here. Same alignment, literal check, and percent-decode as
+     * {@link #detect}, so a range filter sees the string detection will type — including a default-partition sentinel,
+     * which is text and must widen the column rather than be dropped as a number.
+     */
+    @Nullable
+    public static String columnValue(String path, String column, String template) {
+        List<TemplateSegment> segments = parseTemplate(template);
+        List<String> dirs = directorySegments(path);
+        if (dirs.size() < segments.size()) {
+            return null;
+        }
+        int start = dirs.size() - segments.size();
+        String bound = null;
+        for (int i = 0; i < segments.size(); i++) {
+            String dir = dirs.get(start + i);
+            switch (segments.get(i)) {
+                case TemplateSegment.Literal(String value) -> {
+                    if (value.equals(dir) == false) {
+                        return null;
+                    }
+                }
+                case TemplateSegment.Placeholder(String name) -> {
+                    if (column.equals(ReservedPartitionNames.surface(name)) == false) {
+                        continue;
+                    }
+                    String decoded = HivePartitionDetector.decodePartitionValue(dir);
+                    if (bound != null && bound.equals(decoded) == false) {
+                        return null;
+                    }
+                    bound = decoded;
+                }
+            }
+        }
+        return bound;
     }
 
     private static int pathDepth(StoragePath storagePath) {

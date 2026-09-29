@@ -56,7 +56,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
@@ -491,7 +490,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                          }
                        }
                      }
-            """, XContentType.JSON).get());
+            """).get());
 
         List<Long> minInCommits = new ArrayList<>();
         List<Long> maxInCommits = new ArrayList<>();
@@ -1364,7 +1363,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                          }
                        }
                      }
-            """, XContentType.JSON).get());
+            """).get());
 
         // Constrained positive epoch-millis so the exact minutes assertion stays clean.
         final long tenYearsMillis = TimeValue.timeValueDays(3650).millis();

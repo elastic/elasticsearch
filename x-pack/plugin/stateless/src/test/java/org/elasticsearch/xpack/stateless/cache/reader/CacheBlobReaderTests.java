@@ -431,7 +431,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         nodeEnvironment,
                         settings,
                         threadPool,
-                        meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+                        meterRegistry == null ? BlobCacheMetrics.NOOP : new BlobCacheMetrics(meterRegistry, TestUtils.NOOP_TIME_PROVIDER),
                         clusterService,
                         TestUtils.mockIndicesService(clusterService),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

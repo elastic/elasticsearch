@@ -18,6 +18,7 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
@@ -93,6 +95,8 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
+    @Nullable
+    private final DocValuesFormat idRandomAccessDocValuesFormat;
     private final DocValuesFormat stringColumnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
@@ -109,6 +113,10 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
+        this.idRandomAccessDocValuesFormat = mapperService != null
+            && mapperService.getIndexSettings().getMode() == IndexMode.VECTORDB_COLUMNAR
+                ? ES819Version3TSDBDocValuesFormat.forRandomAccessColumn()
+                : null;
         // Built per supplier for the same reason the TSDB format is: the options it writes a string column
         // with are resolved against this index's mapping, so the format cannot be shared between indices.
         this.stringColumnarDocValuesFormat = mapperService == null
@@ -163,7 +171,8 @@ public class PerFieldFormatSupplier {
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
             mergingExecutorService,
-            -1
+            -1,
+            false
         );
     }
 
@@ -244,7 +253,9 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return idRandomAccessDocValuesFormat != null && IdFieldMapper.NAME.equals(field)
+                ? idRandomAccessDocValuesFormat
+                : tsdbDocValuesFormat;
         }
 
         return docValuesFormat;

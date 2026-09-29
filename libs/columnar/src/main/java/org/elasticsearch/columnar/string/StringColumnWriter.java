@@ -151,7 +151,7 @@ public final class StringColumnWriter {
         // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
         // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
         // nothing where every value differs from the one before it. The stream finds those runs anyway while
-        // sizing its blocks, so what a page could collapse is precomputedVocabulary without comparing anything twice. A column
+        // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
         final boolean valuesWorthNaming;
         final PlainValues.Metadata written;
@@ -285,7 +285,7 @@ public final class StringColumnWriter {
      * Writes the dictionary, an ordinal per value, and the values no term names.
      *
      * <p>Both are staged in temporary files first: the escapes because a stream has to be told its length
-     * before it starts and how many escape is not precomputedVocabulary until the pass is over, the ordinals because the
+     * before it starts and how many escape is not known until the pass is over, the ordinals because the
      * numeric column reads its input more than once and a second pass would look every term up again.
      */
     private static StringColumnMetadata writeDictionary(
@@ -418,7 +418,7 @@ public final class StringColumnWriter {
                             } else {
                                 final int id = vocabulary.terms().find(value);
                                 // A term the survey saw can still have been dropped from the dictionary,
-                                // so the ordinal is shifted only once it is precomputedVocabulary to name one — DROPPED
+                                // so the ordinal is shifted only once it is known to name one, since DROPPED
                                 // shifted would land on a reserved ordinal rather than staying a marker.
                                 final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
                                 ordinal = termOrdinal == Vocabulary.DROPPED

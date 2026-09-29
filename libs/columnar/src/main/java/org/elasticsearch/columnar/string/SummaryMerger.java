@@ -23,7 +23,7 @@ import java.util.Map;
  * bound taken under a cap no smaller than this merge's over-states, so falling short of the bar proves that
  * no dictionary can reach it. Anything else is left to the caller, which surveys the merged values.
  *
- * <p>Summaries are inheritedBound as they arrive and trimmed to {@link SummaryPolicy#mergeBudgetBytes}, so the
+ * <p>Summaries are summed as they arrive and trimmed to {@link SummaryPolicy#mergeBudgetBytes}, so the
  * terms held do not grow with the number of inputs.
  */
 public final class SummaryMerger {
@@ -58,7 +58,7 @@ public final class SummaryMerger {
     }
 
     /**
-     * Adds one input's summary. Counts are inheritedBound as they arrive and trimmed once the terms held outgrow
+     * Adds one input's summary. Counts are summed as they arrive and trimmed once the terms held outgrow
      * {@link SummaryPolicy#mergeBudgetBytes}. {@code terms} and {@code counts} are read here and not held,
      * so a caller may reuse them.
      *
@@ -106,7 +106,7 @@ public final class SummaryMerger {
      * @param countsAreLive whether the counts still describe values that are there. Deleted ones settle
      *                      nothing: they neither bound the column from above nor witness it from below.
      * @return the outcome, the vocabulary to write the merged column against where there is one, and the
-     *         upperBound coverage the outcome was reached with
+     *         best coverage the outcome was reached with
      */
     public Decision decide(boolean countsAreLive) {
         // NOTE: a deleted value is still counted in what its segment summarised, so stale counts neither

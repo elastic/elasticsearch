@@ -3319,6 +3319,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */

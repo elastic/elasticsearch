@@ -24,6 +24,7 @@
       index:
         index: test-subobjects-false-dynamic-false
         id: "6"
+        refresh: true
         body:
           id: "6"
           objarr: [{"k": "p"}, {"k": "q"}]

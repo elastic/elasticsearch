@@ -2410,6 +2410,32 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("service.test.other.dots"));
     }
 
+    /**
+     * Verifies that an array of objects is indexed correctly when subobjects:false and dynamic:false are combined.
+     * Previously, parseArrayDynamic skipped the entire array on dynamic:false without checking whether mapped dotted
+     * fields (e.g. "objarr.k") exist under the array field name, so documents like {"objarr": [{"k":"p"}]} produced
+     * no indexed values for "objarr.k" even though {"objarr": {"k":"p"}} worked fine.
+     */
+    public void testSubobjectsFalseRootDynamicFalseArrayOfObjects() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "false");
+            b.startObject("properties");
+            b.startObject("objarr.j").field("type", "keyword").endObject();
+            b.startObject("objarr.k").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+
+        // plain object: must index objarr.k
+        ParsedDocument docPlain = mapper.parse(source("""
+            { "id": "66", "objarr": { "k": "p" } }"""));
+        assertNotNull(docPlain.rootDoc().getField("objarr.k"));
+
+        // array of objects: must also index objarr.k for each element
+        ParsedDocument docArray = mapper.parse(source("""
+            { "id": "6", "objarr": [ { "k": "p" }, { "k": "q" } ] }"""));
+        assertNotNull(docArray.rootDoc().getField("objarr.k"));
+    }
+
     public void testSubobjectsFalseStructuredPath() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())

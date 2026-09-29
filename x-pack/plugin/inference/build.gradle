@@ -35,6 +35,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':x-pack:plugin:diskbbq')
   testImplementation project(':modules:reindex')

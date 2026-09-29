@@ -19,12 +19,13 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | SORT name ASC;
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
+warningRegex:Some rows in \[.*multifile_ubn_b\.csv\] cannot be read; skipping them
+warningRegex:row \[\d+\]: (\[3\] columns, the schema has \[2\]|cannot read \[.*\] as \[integer\])
 
 name:keyword | age:integer
 alice        | 30
@@ -37,12 +38,13 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | STATS count = COUNT(*);
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
+warningRegex:Some rows in \[.*multifile_ubn_b\.csv\] cannot be read; skipping them
+warningRegex:row \[\d+\]: (\[3\] columns, the schema has \[2\]|cannot read \[.*\] as \[integer\])
 
 count:long
 2
@@ -54,13 +56,14 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | WHERE age IS NOT NULL
 | SORT name ASC;
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
+warningRegex:Some rows in \[.*multifile_ubn_b\.csv\] cannot be read; skipping them
+warningRegex:row \[\d+\]: (\[3\] columns, the schema has \[2\]|cannot read \[.*\] as \[integer\])
 
 name:keyword | age:integer
 alice        | 30
@@ -83,12 +86,13 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | SORT id ASC;
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
+warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
+warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
 
 id:integer | col:integer | note:keyword
 1          | 123         | alpha
@@ -105,13 +109,14 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | WHERE col IS NOT NULL
 | SORT id ASC;
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
+warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
+warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
 
 id:integer | col:integer | note:keyword
 1          | 123         | alpha
@@ -125,12 +130,13 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
+warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
+warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
 
 count:long | non_null_col:long
 6          | 3

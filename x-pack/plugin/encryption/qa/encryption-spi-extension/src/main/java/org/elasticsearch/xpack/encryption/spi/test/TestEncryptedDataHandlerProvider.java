@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.encryption.spi.test;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +42,9 @@ public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerPro
         public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, UnaryOperator<EncryptedData> rewrapper) {
             INVOCATIONS.incrementAndGet();
             if (current == null) {
-                return new TestEncryptedBlob(encryptionService.encrypt("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                var encryptedData =
+                    EncryptionServiceRegistry.getEncryptionService().encrypt("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                return new TestEncryptedBlob(encryptedData);
             }
             EncryptedData rewrapped = rewrapper.apply(current.blob());
             if (rewrapped == null) {

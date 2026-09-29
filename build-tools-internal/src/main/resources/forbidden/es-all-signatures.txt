@@ -74,6 +74,14 @@ org.apache.lucene.search.MatchNoDocsQuery#<init>()
 @defaultMessage Use org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE instead
 org.apache.lucene.search.MatchAllDocsQuery#<init>()
 
+@defaultMessage Use HashMap#newHashMap or HashSet#newHashSet instead
+org.apache.lucene.util.CollectionUtil#newHashMap(int)
+org.apache.lucene.util.CollectionUtil#newHashSet(int)
+
+@defaultMessage Use the List/Collection overload instead of the two-arg concatenate/union
+org.apache.lucene.util.automaton.Operations#concatenate(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
+org.apache.lucene.util.automaton.Operations#union(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
+
 @defaultMessage Use the SortField constructor that takes a missing value instead of setMissingValue()
 org.apache.lucene.search.SortField#setMissingValue(java.lang.Object)
 org.apache.lucene.search.SortedSetSortField#setMissingValue(java.lang.Object)

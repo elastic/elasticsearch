@@ -18,8 +18,11 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -140,7 +143,8 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
      * across chunks and files. COUNT(*) runs first so its row-count-only per-file entries are in place before
      * MIN/MAX, reproducing the production ordering.
      */
-    private void assertWarmAggregatesShortCircuit(String dataset) {
+    private void assertWarmAggregatesShortCircuit(DatasetFiles under) {
+        String dataset = under.dataset();
         // The multi-chunk-per-stripe geometry requires the parallel-parse path (external_parsing_parallelism > 1). That
         // pragma is snapshot-only (rejected in release builds), so this test relies on its node default —
         // EsExecutors.allocatedProcessors(EMPTY), i.e. the machine's cores — and skips on a single-processor
@@ -156,10 +160,27 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(TOTAL));
             coldContributions = capturedContributionsByPath(response);
         }
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        // Zero documents scanned does not say the per-file records answered: over a glob the dataset aggregate
+        // short-circuits the count either way, so a contribution refused for some files and accepted for others
+        // passes every value assertion here while leaving those files cold forever. Two signals separate the
+        // cases — every file carrying a harvested count, and the aggregate fallback not firing.
+        assertThat(
+            "every file the cold scan read must carry a harvested row count",
+            ExternalSourceCacheTestAccess.enrichedPerFileEntries(cacheService, under.marker()),
+            equalTo(FILE_COUNT)
+        );
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
         try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat("warm COUNT(*) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
         // Only meaningful AFTER the warm assertion: the warm serve firing proves the cold profile's
         // contribution snapshot was the complete reconcile input (see capturedContributionsByPath),
         // so the geometry read below cannot race the producer-completion async hop.
@@ -273,7 +294,13 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     }
 
     /** Writes {@code FILE_COUNT} files of the given format into a directory and registers the glob as a dataset. */
-    private String writeAndRegister(String format) throws IOException {
+                                                                                                                    /**
+                                                                                                                     * A registered dataset together with the substring that isolates its per-file cache entries from every other
+                                                                                                                     * test's: the cluster is shared across methods, so the format suffix alone would also match a sibling's files.
+                                                                                                                     */
+    private record DatasetFiles(String dataset, String marker) {}
+
+    private DatasetFiles writeAndRegister(String format) throws IOException {
         Path dir = createTempDir();
         long v = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
@@ -289,7 +316,7 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         if (dirUri.endsWith("/") == false) {
             dirUri += "/";
         }
-        return registerDataset("multichunk_" + format, dirUri + "*." + format, Map.of());
+        return new DatasetFiles(registerDataset("multichunk_" + format, dirUri + "*." + format, Map.of()), dir.getFileName().toString());
     }
 
     // ~50 bytes of padding per row so a 120k-row file clears the 4 MB segment*2 chunking threshold with margin.

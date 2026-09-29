@@ -5237,20 +5237,39 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    public void testHighlightOnTimeSeriesStillRejectsWhereClause() {
-        // The HIGHLIGHT exemption is narrow: full-text functions in WHERE remain rejected on non-STANDARD indices.
-        k8s().error(
-            "TS k8s | WHERE MATCH(event_log, \"fox\")",
-            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
-        );
-        k8s().error(
-            "TS k8s | WHERE event_log : \"fox\"",
-            allOf(containsString("cannot operate on [event_log]"), containsString("non-STANDARD mode"))
-        );
-        // A WHERE violation is still reported when a valid HIGHLIGHT on the same field is present.
-        supportsHighlight(k8s()).error(
-            "TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log",
-            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+    public void testHighlightOnTimeSeriesWithWhereClause() {
+        supportsHighlight(k8s()).query("TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+    }
+
+    /**
+     * Kibana turns a filter pill on a TS data view into {@code field : value}, so the match operator must accept
+     * fields of a TS source, dimensions included.
+     */
+    public void testMatchOperatorAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE cluster : \"prod\"");
+        k8s().query("TS k8s | WHERE event_log : \"fox\"");
+        k8s().query("TS k8s | WHERE events_received : 5");
+    }
+
+    public void testMatchFunctionAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH(cluster, \"prod\")");
+        k8s().query("TS k8s | WHERE MATCH(event_log, \"fox dog\", {\"operator\": \"AND\"})");
+    }
+
+    public void testMatchPhraseAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH_PHRASE(event_log, \"quick fox\")");
+    }
+
+    public void testKnnAcceptedOnTimeSeriesField() {
+        fullTextTimeSeries().query("TS test | WHERE KNN(vector, [0, 1, 2])");
+    }
+
+    public void testFullTextFunctionRejectedOnLookupField() {
+        analyzerWithLanguagesLookup().error(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | WHERE language_name : \"English\"",
+            containsString(
+                "[:] operator cannot operate on [language_name], supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
         );
     }
 
@@ -5398,6 +5417,10 @@ public class VerifierTests extends AnalyzerTestCase {
 
     private TestAnalyzer fullText() {
         return analyzer().addIndex("test", "mapping-full_text_search.json").stripErrorPrefix(true);
+    }
+
+    private TestAnalyzer fullTextTimeSeries() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json", IndexMode.TIME_SERIES).stripErrorPrefix(true);
     }
 
     private TestAnalyzer sampleData() {

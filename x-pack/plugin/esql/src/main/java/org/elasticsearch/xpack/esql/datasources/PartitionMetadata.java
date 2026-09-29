@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -87,10 +84,11 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
         }
         LinkedHashMap<StoragePath, Map<String, Object>> valued = Maps.newLinkedHashMapWithExpectedSize(scanned.filePartitionValues.size());
         for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues.entrySet()) {
+            Map<String, String> tokens = HivePartitionDetector.extractPartitions(file.getKey());
             LinkedHashMap<String, Object> conformed = Maps.newLinkedHashMapWithExpectedSize(partitionColumns.size());
             for (Map.Entry<String, DataType> column : partitionColumns.entrySet()) {
                 String name = column.getKey();
-                conformed.put(name, conform(file.getValue().get(name), column.getValue(), scanned.partitionColumns.get(name)));
+                conformed.put(name, under(tokens.get(name), column.getValue()));
             }
             valued.put(file.getKey(), conformed);
         }
@@ -98,83 +96,24 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
     }
 
     /**
-     * One value under the type the dataset's schema declares for its column, rather than the type the listing it
-     * came from inferred. Same type, or no value: nothing to do.
+     * One value under the type the dataset's schema declares for its column, read from the path itself.
      * <p>
-     * Which medium the conversion goes through is the whole of it. A listing that typed the column as text still
-     * holds the path's own token, so casting that text to the declared type asks the same question the detector
-     * asked and gets the same answer. A listing that typed it as a number has already parsed the token away, and
-     * its text is the number's spelling rather than the path's - {@code 1.0} where the folder said {@code 1} -
-     * so casting that text to a narrower numeric type fails on every value rather than on the one that did not
-     * fit. A number is therefore converted as a number, exactly, and only a value the declared type cannot hold
-     * exactly has none under it.
+     * The path is the only lossless record of a partition value. Everything else is a parse of it under whichever
+     * type <em>that</em> listing inferred, and a parse is not reversible: {@code unsigned_long} is held
+     * sign-flip-encoded so its {@code long} is not the number, a double has already rounded, and {@code 0} cannot
+     * say whether the folder read {@code 0} or {@code 00}. Re-parsing the token under the declared type asks the
+     * same question the detector asked and gets the same answer, for every type.
      * <p>
-     * Under a declared {@link DataType#KEYWORD} nothing can be recovered: the spelling is the value, a parsed
-     * number cannot say whether the folder read {@code 0} or {@code 00}, so the file has no value for that column.
-     */
-    private static Object conform(@Nullable Object value, DataType declared, @Nullable DataType detected) {
-        if (value == null || declared == detected) {
-            return value;
-        }
-        if (declared == DataType.KEYWORD) {
-            return detected == DataType.KEYWORD ? value : null;
-        }
-        if (value instanceof Number number) {
-            return exactlyAs(decoded(number, detected), declared);
-        }
-        try {
-            return HivePartitionDetector.castValue(String.valueOf(value), declared);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    /**
-     * The number a detected value stands for, rather than the number it is stored as.
-     * <p>
-     * {@link DataType#UNSIGNED_LONG} is the one detected type whose in-memory form is not its value: it is held
-     * sign-flip-encoded in a {@code long}, and everything that reads one decodes it first (see
-     * {@code ExternalScalarRenderer}). Narrowing the raw {@code long} would put every value in the column out by
-     * 2^63 — and silently, because a wrongly-converted value is not null and the partition warning only names the
-     * ones that are. Every other numeric type stores its own value.
-     */
-    private static Number decoded(Number number, @Nullable DataType detected) {
-        if (detected == DataType.UNSIGNED_LONG && number instanceof Long encoded) {
-            return NumericUtils.unsignedLongAsBigInteger(encoded);
-        }
-        return number;
-    }
-
-    /**
-     * The same number under {@code declared}, or no value when that type cannot hold it. A fraction under an
-     * integral type and a magnitude outside its range are the two ways a value has none; neither invents one.
-     * <p>
-     * {@link DataType#DOUBLE} is the exception to "exactly", and deliberately: it takes the nearest value a double
-     * holds, because that is what the column's type already means everywhere else. Nulling an integer past 2^53
-     * would lose a value the query can represent.
+     * A token the declared type cannot hold has no value under it, which is confined to the values that genuinely
+     * do not fit rather than falling on every file the schema's listing did not reach.
      */
     @Nullable
-    private static Object exactlyAs(Number number, DataType declared) {
-        if (declared == DataType.DOUBLE) {
-            return number.doubleValue();
-        }
-        BigInteger integral;
-        try {
-            integral = new BigDecimal(number.toString()).toBigIntegerExact();
-        } catch (NumberFormatException | ArithmeticException e) {
-            // Not finite, or a fraction no integral type holds.
+    private static Object under(@Nullable String token, DataType declared) {
+        if (token == null) {
             return null;
         }
         try {
-            if (declared == DataType.INTEGER) {
-                return integral.intValueExact();
-            }
-            if (declared == DataType.LONG) {
-                return integral.longValueExact();
-            }
-            // UNSIGNED_LONG and anything else a number could be: the detector's own coercion decides, from a
-            // spelling that is now an integer literal rather than a float's.
-            return HivePartitionDetector.castValue(integral.toString(), declared);
+            return HivePartitionDetector.castValue(token, declared);
         } catch (RuntimeException e) {
             return null;
         }

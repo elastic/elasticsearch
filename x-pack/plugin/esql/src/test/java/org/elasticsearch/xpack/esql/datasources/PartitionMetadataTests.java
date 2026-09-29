@@ -228,7 +228,7 @@ public class PartitionMetadataTests extends ESTestCase {
      * it as text. A listing that typed the column numerically has parsed the token away, so under a declared
      * keyword — where the spelling is the value — there is nothing to recover and no value is invented.
      */
-    public void testASpellingTheScansListingParsedAwayIsNotInvented() {
+    public void testAKeywordColumnKeepsTheFoldersOwnSpelling() {
         StoragePath text = StoragePath.of("s3://b/hour=morning/a.parquet");
         StoragePath padded = StoragePath.of("s3://b/hour=00/b.parquet");
         PartitionMetadata declaredKeyword = HivePartitionDetector.INSTANCE.detect(
@@ -246,8 +246,10 @@ public class PartitionMetadataTests extends ESTestCase {
         PartitionMetadata valued = declaredKeyword.valuedOver(scanned);
 
         assertEquals(DataType.KEYWORD, valued.partitionColumns().get("hour"));
-        assertNull(
-            "[hour=00] must not come back as the string [0], which is what re-casting a parsed value would give",
+        assertEquals(
+            "the folder's own spelling, which only the path still holds - re-casting the scan's parsed [0] would "
+                + "have invented [0], and reading nothing would have lost a value that exists",
+            "00",
             valued.filePartitionValues().get(padded).get("hour")
         );
     }
@@ -276,9 +278,9 @@ public class PartitionMetadataTests extends ESTestCase {
 
         assertEquals(1, valued.filePartitionValues().get(sample.get(0).path()).get("x"));
         assertEquals(2, valued.filePartitionValues().get(sample.get(1).path()).get("x"));
-        assertEquals(
-            "and a folder the sample missed keeps the value its number holds exactly",
-            50,
+        assertNull(
+            "and [x=5e1] is not an INTEGER token - castValue is the one definition of what a type accepts, so a "
+                + "folder the declared type cannot spell has no value under it, and the split provider warns about it",
             valued.filePartitionValues().get(everything.get(2).path()).get("x")
         );
     }

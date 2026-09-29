@@ -224,7 +224,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         return shared == null ? Set.of() : shared;
     }
 
-    private static Map<String, String> extractPartitions(StoragePath storagePath) {
+    static Map<String, String> extractPartitions(StoragePath storagePath) {
         List<String> segments = directorySegments(storagePath.path());
         if (segments.isEmpty()) {
             return Map.of();

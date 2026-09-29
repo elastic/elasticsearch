@@ -195,8 +195,8 @@ public class ExternalSourceResolver {
     @Nullable
     Consumer<ExternalPlanningReservation.Run> schemaGatherRunProbe;
     /**
-     * Test hook. Invoked once per {@link #gatherPerFile} call after the results-array run is charged,
-     * while the run is still open. Production leaves this null.
+     * Test hook. Invoked once per resolved file within a {@link #gatherPerFile} call after the results-array run is
+     * charged, while the run is still open. Production leaves this null.
      */
     @Nullable
     Consumer<ExternalPlanningReservation.Run> gatherResultsRunProbe;
@@ -2438,6 +2438,11 @@ public class ExternalSourceResolver {
             @Override
             public Optional<List<String>> partitionColumns() {
                 return metadata.partitionColumns();
+            }
+
+            @Override
+            public long planningBytes() {
+                return metadata.planningBytes();
             }
         };
     }

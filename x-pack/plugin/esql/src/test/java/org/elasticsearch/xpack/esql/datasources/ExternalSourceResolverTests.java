@@ -5941,12 +5941,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * When the circuit breaker is too tight to admit the per-file results-array charge, {@code gatherPerFile}
-     * fails with a {@link org.elasticsearch.common.breaker.CircuitBreakingException} once the first resolved file's
-     * {@link SourceMetadata#planningBytes()} would push the breaker over its limit. The results run is released in
-     * {@code onCompletion}, leaving only the listing credit on the breaker.
+     * When the circuit breaker trips during the per-file private-schema-list charge (reconcile path), the results-array
+     * run opened by {@code gatherPerFile} is also released in {@code onCompletion} even though it was never charged.
+     * After completion only the listing credit remains on the breaker.
+     *
+     * <p>Note: in the UNION_BY_NAME reconcile path each file's {@code privateLists.charge} fires before
+     * {@code resultsRun.charge}, so with a narrow limit the private-list charge is what triggers the
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}. This test verifies that the results run is
+     * still cleaned up correctly in that scenario.
      */
-    public void testGatherResultsRunTripsCBOnFirstFileCharge() throws Exception {
+    public void testCBTripDuringReconcileGatherReleasesResultsRun() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
         String file1 = "s3://bucket/data/f1.parquet";
         String file2 = "s3://bucket/data/f2.parquet";

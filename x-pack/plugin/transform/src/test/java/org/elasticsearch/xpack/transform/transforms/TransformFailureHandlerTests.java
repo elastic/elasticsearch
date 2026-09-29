@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -155,6 +156,22 @@ public class TransformFailureHandlerTests extends ESTestCase {
     public void testHandleIndexerFailure_IrrecoverableElasticsearchException() {
         var e = new ElasticsearchStatusException(randomAlphaOfLength(10), RestStatus.NOT_FOUND);
         assertRetryIfUnattendedOtherwiseFail(e);
+    }
+
+    public void testHandleIndexerFailure_TransientAuthorizationFailure() {
+        // A 403 (or 401) ElasticsearchSecurityException can be transient in serverless: during cluster-membership
+        // churn the .security index is briefly unresolvable on the transform node, so role resolution returns empty
+        // and the bulk write is denied. This is retried (bounded by num_failure_retries) rather than failing the
+        // transform immediately; in unattended mode it retries indefinitely.
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(
+                new ElasticsearchSecurityException(
+                    "action [indices:data/write/bulk] is unauthorized for cloud API key [key] with effective roles []",
+                    RestStatus.FORBIDDEN
+                ),
+                unattended
+            );
+        });
     }
 
     public void testHandleIndexerFailure_IllegalArgumentException() {

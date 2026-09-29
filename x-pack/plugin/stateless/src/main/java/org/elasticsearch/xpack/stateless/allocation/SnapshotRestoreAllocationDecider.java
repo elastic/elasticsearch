@@ -16,11 +16,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 
 /** Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve. */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
-    private static final long HEADROOM_BYTES = ByteSizeValue.ofGb(5).getBytes();
+
+    private final RelativeByteSizeValue reservedDisk;
+
+    public SnapshotRestoreAllocationDecider(RelativeByteSizeValue reservedDisk) {
+        this.reservedDisk = reservedDisk;
+    }
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
@@ -57,9 +63,13 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             allocation.unaccountedSearchableSnapshotSize(node)
         );
         long usable = disk.freeBytes() - committed;
+        // Same reserve IndexingDiskController uses as its flush/throttle floor (percent of filesystem total, or absolute).
+        long headroom = reservedDisk.isAbsolute()
+            ? reservedDisk.getAbsolute().getBytes()
+            : reservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
         // Reject undersized targets in simulation so a previous desired assignment can be reconsidered. During
         // reconciliation, THROTTLE keeps the API restore pending rather than marking it failed.
-        boolean fits = usable >= HEADROOM_BYTES && size <= usable - HEADROOM_BYTES;
+        boolean fits = usable >= headroom && size <= usable - headroom;
         return allocation.decision(
             fits ? Decision.YES : allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
             NAME,
@@ -67,7 +77,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             disk.freeBytes(),
             committed,
             size,
-            HEADROOM_BYTES
+            headroom
         );
     }
 }

@@ -2035,7 +2035,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("could not be coerced to the declared column type"))
+                        .filter(w -> w.contains("cannot be read as their declared type"))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2166,7 +2166,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("could not be coerced to type"))
+                        .filter(w -> w.contains("column [ts]: cannot read ["))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2314,9 +2314,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         String message = e.getMessage();
         assertThat("the original symptom is retained as context", message, containsString("empty String"));
-        assertThat("the failing column is named", message, containsString("Column ["));
-        assertThat("the declared type is named", message, containsString("declared type [double]"));
-        assertThat("the tolerance path is pointed at", message, containsString("error_mode=null_field"));
+        assertThat("the failing column is named", message, containsString("column ["));
+        assertThat("the declared type is named", message, containsString("] as [double]: "));
+        assertThat("the tolerance path is pointed at", message, containsString("set [error_mode] to [null_field] to return null instead"));
     }
 
     private Path writeParquetEmptyStringFixture() throws IOException {
@@ -2815,6 +2815,208 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             "declared column [department] is not present"
         );
         assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
+    }
+
+    /**
+     * A declared column that is sparse in the NDJSON file (present in some records but not in the first
+     * {@code schema_sample_size} records) must be queryable under {@code dynamic: true}.
+     * <p>
+     * Before the fix: the overlay rejected the dataset with "declared columns not found in the source: [spin_id]"
+     * because the sample-derived schema did not list {@code spin_id}. After the fix: the column is accepted and the
+     * reader looks it up by name in each record, returning {@code null} for records that lack it.
+     */
+    public void testSampledOutDeclaredColumnReadsItsValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Record 1: no spin_id. Record 2: has spin_id. schema_sample_size=1 ensures the sample only sees record 1,
+        // so the inferred schema has only emp_no and first_name — spin_id is absent from the sample.
+        Path ndjson = createTempFile("dataset-sampled-out-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out | STATS rows = COUNT(*), present = COUNT(spin_id)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("spin_id non-null count", rows.get(0).get(1), equalTo(1L));
+        }
+    }
+
+    /**
+     * A dataset with a sampled-out declared column must not block a query that does not use that column.
+     * Before the fix, {@code COUNT(*)} was rejected even though it never referenced {@code spin_id}.
+     */
+    public void testSampledOutDeclaredColumnDoesNotBlockACount() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-sampled-out-count-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out_count",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out_count | STATS count = COUNT(*)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+        }
+    }
+
+    /**
+     * {@code dynamic: true} and {@code dynamic: false} must return the same values for a sparse declared column.
+     * Before the fix: the {@code dynamic: true} registration threw; {@code dynamic: false} returned the 1 value correctly.
+     */
+    public void testBothDynamicModesAgreeOnASampledOutColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-dynamic-agree-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+
+        // Register same file under dynamic: true (the fix enables this)
+        Map<String, DatasetFieldMapping> propertiesDynamic = new LinkedHashMap<>();
+        propertiesDynamic.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingDynamic = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, propertiesDynamic));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_true",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingDynamic
+                )
+            )
+        );
+
+        // Register same file under dynamic: false (baseline that always worked)
+        Map<String, DatasetFieldMapping> propertiesStrict = new LinkedHashMap<>();
+        propertiesStrict.put("emp_no", new DatasetFieldMapping("integer", null));
+        propertiesStrict.put("first_name", new DatasetFieldMapping("keyword", null));
+        propertiesStrict.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingStrict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, propertiesStrict));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_false",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingStrict
+                )
+            )
+        );
+
+        long dynamicTruePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_true | STATS present = COUNT(spin_id)"))) {
+            dynamicTruePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        long dynamicFalsePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_false | STATS present = COUNT(spin_id)"))) {
+            dynamicFalsePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        assertThat(
+            "dynamic:true and dynamic:false must agree on the declared sparse column count",
+            dynamicTruePresent,
+            equalTo(dynamicFalsePresent)
+        );
+        assertThat("spin_id is present in exactly 1 of 2 records", dynamicTruePresent, equalTo(1L));
+    }
+
+    /**
+     * A declared synthetic column ({@code col2}) that is absent from the sampled rows of a headerless
+     * CSV must be queryable under {@code dynamic: true}.
+     * <p>
+     * Headerless CSV names columns positionally ({@code col0}, {@code col1}, …). When
+     * {@code schema_sample_size: 1} and the sample only sees the first row (2 columns wide), the
+     * inferred schema has {@code col0} and {@code col1} — {@code col2} is absent. Declaring {@code col2}
+     * should be accepted: the per-file schema is widened to 3 columns, the row-width tripwire widens
+     * accordingly, and a row that carries a third field delivers its value for {@code col2}.
+     * <p>
+     * Before the fix: the overlay rejected the dataset with
+     * {@code "declared columns not found in the source: [col2]"}.
+     * After the fix: the column is accepted; the second row's third field is returned as {@code col2},
+     * while the first row null-fills it.
+     */
+    public void testSampledOutSyntheticColumnIsDeclarable() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Row 1: 2 columns. Row 2: 3 columns. schema_sample_size=1 means only row 1 is sampled,
+        // so the inferred schema has col0 and col1 — col2 is "sampled out".
+        Path csv = createTempFile("dataset-headerless-sampled-out-", ".csv");
+        Files.writeString(csv, "1,Alice\n2,Bob,Extra\n");
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("col2", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "csv_headerless_sampled_out",
+                    "local_ds",
+                    csv.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false, "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM csv_headerless_sampled_out | STATS rows = COUNT(*), present = COUNT(col2)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("col2 non-null count", rows.get(0).get(1), equalTo(1L));
+        }
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -3597,10 +3799,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Declared-type twin of {@link #testScalingDifferentialOverAnnotatedSortColumns} for the INT32 case: an
      * {@code INT32 DECIMAL(9,2)} column declared as {@code integer} routes through the {@code case INT} arm of
      * {@code rawValueFromStats} / {@code rawValueFromPageIndex}. That arm does not check
-     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100..2099) to the threshold
-     * comparator instead of declining. The decoded bound is a whole-number integer (1..20), and 100 &gt; 1, so
+     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100, 200, …) to the threshold
+     * comparator instead of declining. The decoded bound is a whole-number integer (1..rowCount), and 100 &gt; 1, so
      * the comparator decides every row group is dominated and skips the rows holding the true minimum. The fix makes
      * the arm yield {@code null} when the annotation rescales, preventing the skip.
+     *
+     * <p>Fixture values are exact wholes after DECIMAL decode ({@code N.00}) so declared integer exact-read
+     * accepts them; non-whole cents would be refused as value errors (see exact whole-number dataset reads).
      *
      * <p>The file is four columns wide so that {@code InsertExternalFieldExtraction} defers enough columns to engage
      * the threshold rail; projecting fewer keeps the scan narrow and the threshold is never published.
@@ -3608,9 +3813,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testScalingDifferentialOverDeclaredIntegerDecimalSortColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Raw unscaled integers 100..2099; with DECIMAL(9,2) annotation, decode divides by 100, giving 1.00..20.99.
-        // Declared integer: the double is cast to int (floor), yielding 1..20. Ascending values so the true minimum
-        // (1) lives in the first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
+        // Raw unscaled multiples of 100 (100, 200, …); DECIMAL(9,2) decode divides by 100 → exact wholes 1.00..N.00.
+        // Declared integer exact-read accepts those wholes as 1..N. Ascending so the true minimum (1) lives in the
+        // first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
         int rowCount = 2000;
         Path file = writeDecimalInt32Fixture("decimal_int32_sort", rowCount);
 
@@ -3997,7 +4202,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * Four-column {@code DECIMAL(9,2)} fixture for {@link #testScalingDifferentialOverDeclaredIntegerDecimalSortColumn}.
-     * Raw unscaled integers {@code 100..100+rowCount-1}, stored as {@code INT32} with a {@code DECIMAL(9,2)} annotation.
+     * Raw unscaled integers {@code (i+1)*100} (100, 200, …), stored as {@code INT32} with a {@code DECIMAL(9,2)}
+     * annotation so decode yields exact wholes {@code 1.00..rowCount.00} — accepted by declared integer exact-read
+     * while still exposing the raw-vs-decoded scaling differential (raw 100 vs decoded 1).
      * Four columns are required so {@code InsertExternalFieldExtraction} defers enough to engage the threshold rail.
      * Very small row groups (256 bytes) ensure there are always later groups for a unit-blind threshold to wrongly skip.
      */
@@ -4023,7 +4230,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             for (int i = 0; i < rowCount; i++) {
                 Group g = factory.newGroup();
-                g.add("amt", 100 + i);
+                g.add("amt", (i + 1) * 100);
                 g.add("id", (long) i);
                 g.add("pri", i);
                 g.add("msg", "m" + i);
@@ -6285,18 +6492,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
         // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
-        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query");
         assertThat(warnings, hasSize(2));
-        assertThat(
-            warnings,
-            hasItem(containsString("has columns whose on-disk type is incompatible with planner type; they are returned as null"))
-        );
+        assertThat(warnings, hasItem(containsString("have a type the query cannot read; returning null")));
         assertThat(warnings, hasItem(containsString("part-b.parquet")));
-        assertThat(warnings, hasItem(containsString("Column [x] in file [")));
-        assertThat(
-            warnings,
-            hasItem(containsString("has type [LONG] incompatible with planner type [INTEGER]; returning nulls for this column"))
-        );
+        assertThat(warnings, hasItem(containsString("column [x]: ")));
+        assertThat(warnings, hasItem(containsString("column [x]: [long] in the file, [integer] in the query")));
         assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6406,10 +6607,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
 
-        List<String> scanWarnings = collectWarningsContaining(
-            "FROM drift_pq_type_default | KEEP x | SORT x",
-            "incompatible with planner type"
-        );
+        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query");
         assertThat(scanWarnings, not(empty()));
         assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));

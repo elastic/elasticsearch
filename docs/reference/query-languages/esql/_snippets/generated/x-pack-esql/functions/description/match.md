@@ -31,7 +31,7 @@ the query string only: how the expression's values are analyzed is declared wher
 created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults to that values
 analyzer (`standard` when none is declared). Analyzer names must name a registered analyzer
 (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
-expression is not backed by an index. On other expression types options are not supported.
+expression is not backed by an index. On non-text expressions only the `lenient` option is supported.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:

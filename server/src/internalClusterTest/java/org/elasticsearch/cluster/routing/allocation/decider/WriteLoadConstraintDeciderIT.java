@@ -773,7 +773,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     private Map<String, Double> getMostRecentAverageWriteLoadMetrics() {
         final var telemetryPlugin = getTelemetryPluginForNode(internalCluster().getMasterName());
         telemetryPlugin.collect();
-        final var measurements = telemetryPlugin.getDoubleGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
+        final var measurements = telemetryPlugin.getDoubleAsyncGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
         return measurements.stream()
             .collect(
                 Collectors.toMap(

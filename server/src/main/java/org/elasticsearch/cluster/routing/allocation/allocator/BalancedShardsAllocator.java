@@ -944,17 +944,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         );
                     }
                     executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
-                    cannotRemainMoveCounter.incrementBy(
-                        1,
-                        cannotRemainMoveAttributes(
-                            "not_preferred",
-                            moveDecision.getCanRemainDecision().label(),
-                            null,  // there is never a conflict between not-preferred and not-preferred
-                            shardRouting.primary(),
-                            nodeName(shardRouting.currentNodeId()),
-                            null  // we'll never include the target node for a not-preferred/yes move
-                        )
-                    );
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
                 } else {
@@ -1058,17 +1047,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
                         || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
-                            cannotRemainMoveCounter.incrementBy(
-                                1,
-                                cannotRemainMoveAttributes(
-                                    "no",
-                                    moveDecision.getCanRemainDecision().label(),
-                                    moveDecision.getCanAllocateDecision() != null ? moveDecision.getCanAllocateDecision().label() : null,
-                                    shardRouting.primary(),
-                                    nodeName(shardRouting.currentNodeId()),
-                                    nodeName(moveDecision.getTargetNode())
-                                )
-                            );
                             shardMoved.set(true);
                         } else {
                             nodeIdsWithNotPreferredMoves.add(shardRouting.currentNodeId());
@@ -1189,6 +1167,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             targetNode.addShard(projectIndex(shard), shard);
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+            }
+            if (type != MoveType.REBALANCE) {
+                final boolean isNotPreferred = type == MoveType.NOT_PREFERRED;
+                final Decision canAllocateDecision = moveDecision.getCanAllocateDecision();
+                cannotRemainMoveCounter.incrementBy(
+                    1,
+                    cannotRemainMoveAttributes(
+                        isNotPreferred ? "not_preferred" : "no",
+                        moveDecision.getCanRemainDecision().label(),
+                        canAllocateDecision != null ? canAllocateDecision.label() : null,
+                        shardRouting.primary(),
+                        nodeName(shardRouting.currentNodeId()),
+                        isNotPreferred ? null : nodeName(moveDecision.getTargetNode())
+                    )
+                );
             }
         }
 

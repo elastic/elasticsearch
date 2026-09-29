@@ -26,16 +26,20 @@ $$$indices-query-bool-max-clause-count$$$
 
 $$$async-search-default-keep-alive$$$
 
-`async_search.default_keep_alive` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Default TTL for async query results when no `keep_alive` is specified in the request. Applies to `_async_search`, EQL, ES|QL async, and SQL async queries. Defaults to `5d`; minimum `1m`. In {{serverless-full}}, this is fixed at `1d` and is not user-configurable.
+% In serverless this is fixed at 1d and is not user-configurable. Document once there is a strategy for serverless defaults: https://github.com/elastic/docs-content/issues/4899
+
+`async_search.default_keep_alive` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Default TTL for async query results when no `keep_alive` is specified in the request. Applies to `_async_search`, EQL, ES|QL async, and SQL async queries. Defaults to `5d`; minimum `1m`.
 
     Existing async results are not affected; this setting only applies to new submissions and keep-alive extensions. Set together with [`async_search.max_keep_alive`](#async-search-max-keep-alive).
 
 
 $$$async-search-max-keep-alive$$$
 
-`async_search.max_keep_alive` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Maximum allowed TTL for async query results. Applies to `_async_search`, EQL, ES|QL async, and SQL async queries. Defaults to `-1` (unbounded). In {{serverless-full}}, this is fixed at `7d` and is not user-configurable.
+% In serverless this is fixed at 7d and is not user-configurable. Document once there is a strategy for serverless defaults: https://github.com/elastic/docs-content/issues/4899
+
+`async_search.max_keep_alive` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Maximum allowed TTL for async query results. Applies to `_async_search`, EQL, ES|QL async, and SQL async queries. Defaults to `-1` (unbounded).
 
     When set to a positive value, any `keep_alive` that exceeds the maximum is rejected with a `400` error. The check is inclusive: a value equal to the maximum is allowed. Existing async results are not affected; this setting only limits new submissions and keep-alive extensions. Set together with [`async_search.default_keep_alive`](#async-search-default-keep-alive).
 

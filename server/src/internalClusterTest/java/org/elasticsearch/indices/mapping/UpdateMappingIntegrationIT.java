@@ -27,7 +27,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
@@ -105,7 +104,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}
-            """, XContentType.JSON).get();
+            """).get();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
@@ -119,7 +118,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
-            {"properties":{"date":{"type":"integer"}}}""", XContentType.JSON).get();
+            {"properties":{"date":{"type":"integer"}}}""").get();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
@@ -137,7 +136,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
                 {"_doc":{"properties":{"body":{"type":"integer"}}}}
-                """, XContentType.JSON).get();
+                """).get();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [text] to [integer]"));
@@ -151,7 +150,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
                 {"_doc":{"properties":{"body":{"type":"text", "norms": true }}}}
-                """, XContentType.JSON).get();
+                """).get();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update parameter [norms] from [false] to [true]"));
@@ -168,7 +167,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"_doc":{"properties":{"body":{"type":"text"}}}}
-            """, XContentType.JSON).get();
+            """).get();
 
         // no changes, we return
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
@@ -245,7 +244,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 assertAcked(indicesAdmin().preparePutMapping("test").setSource("""
                     {"properties":{"date":{"type":"integer"}}}
-                    """, XContentType.JSON));
+                    """));
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -256,7 +255,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 assertBlocked(indicesAdmin().preparePutMapping("test").setSource("""
                     {"properties":{"date":{"type":"integer"}}}
-                    """, XContentType.JSON));
+                    """));
             } finally {
                 disableIndexBlock("test", block);
             }

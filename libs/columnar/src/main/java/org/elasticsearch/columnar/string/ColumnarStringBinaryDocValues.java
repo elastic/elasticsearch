@@ -125,6 +125,26 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public int nonNullLength(int[] length) throws IOException {
+        final int rank = iterator.rank();
+        final long first = reader.firstValueAddress(rank);
+        final long count = reader.valueCount(rank);
+        int found = 0;
+        for (long i = 0; i < count; i++) {
+            final long address = first + i;
+            if (reader.isNullSlot(address)) {
+                continue;
+            }
+            if (++found > 1) {
+                // As with the values: the caller wants the arity, and has it the moment there are two.
+                return 2;
+            }
+            length[0] = reader.byteLengthAt(address);
+        }
+        return found;
+    }
+
+    @Override
     public boolean advanceExact(int target) throws IOException {
         return iterator.advanceExact(target);
     }

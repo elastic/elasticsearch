@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<UnmappedFieldsPattern> {
 
@@ -29,13 +35,14 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
 
     @Override
     protected UnmappedFieldsPattern createTestInstance() {
-        return switch (between(0, 3)) {
+        return switch (between(0, 4)) {
             case 0 -> UnmappedFieldsPattern.ALL;
             case 1 -> UnmappedFieldsPattern.NONE;
             case 2 -> UnmappedFieldsPattern.includes(List.of("first*", "given*"))
                 .intersect(UnmappedFieldsPattern.includes(List.of("last*", "family*")))
                 .withAdditionalExcludes(List.of("secret*", "emp_no"));
             case 3 -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*"));
+            case 4 -> randomPattern();
             default -> throw new AssertionError("unreachable");
         };
     }
@@ -165,9 +172,156 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertFalse(exactOnly.objectSubfieldsCouldMatch("foo"));
 
         var mixed = UnmappedFieldsPattern.forKeep(
-            List.of(new UnresolvedAttribute(Source.EMPTY, "foo"), new UnresolvedNamePattern(Source.EMPTY, null, "bar*", "bar*"))
+            List.of(new UnresolvedAttribute(Source.EMPTY, "foo"), new UnresolvedNamePattern(Source.EMPTY, null, "bar*", "bar*", "bar*"))
         );
         assertFalse(mixed.objectSubfieldsCouldMatch("foo"));
         assertTrue(mixed.objectSubfieldsCouldMatch("bar"));
+    }
+
+    public void testForKeepEscapedStarIsLiteral() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.forKeep(List.of(namePattern("a\\*b*")));
+        assertTrue(pattern.matches("a*b"));
+        assertTrue(pattern.matches("a*b.c"));
+        assertFalse(pattern.matches("ab"));
+        assertFalse(pattern.matches("axb"));
+        assertTrue(pattern.objectSubfieldsCouldMatch("a*b"));
+        assertFalse(pattern.objectSubfieldsCouldMatch("a"));
+        assertFalse(pattern.objectSubfieldsCouldMatch("axb"));
+
+        UnmappedFieldsPattern interior = UnmappedFieldsPattern.forKeep(List.of(namePattern("*x\\*y*z\\*")));
+        assertTrue(interior.matches("x*yz*"));
+        assertTrue(interior.matches("ax*ybz*"));
+        assertFalse(interior.matches("xayz*"));
+        assertFalse(interior.matches("x*yz"));
+        assertFalse(interior.matches("x*y*"));
+    }
+
+    public void testForKeepEscapedBackslashIsLiteral() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.forKeep(List.of(namePattern("a\\\\*")));
+        assertTrue(pattern.matches("a\\"));
+        assertTrue(pattern.matches("a\\b"));
+        assertFalse(pattern.matches("a"));
+        assertFalse(pattern.matches("ab"));
+        assertFalse(pattern.matches("a*"));
+    }
+
+    public void testForDropPrunesOnlyOnAnUnescapedTrailingWildcard() {
+        UnmappedFieldsPattern escapedStarSuffix = UnmappedFieldsPattern.forDrop(List.of(namePattern("*d\\*")));
+        assertFalse(escapedStarSuffix.matches("unmapped*"));
+        assertTrue(escapedStarSuffix.matches("unmapped"));
+        assertTrue(escapedStarSuffix.objectSubfieldsCouldMatch("unmappedd*"));
+
+        UnmappedFieldsPattern escapedBackslashThenWildcard = UnmappedFieldsPattern.forDrop(List.of(namePattern("a\\\\*")));
+        assertFalse(escapedBackslashThenWildcard.matches("a\\b"));
+        assertFalse(escapedBackslashThenWildcard.objectSubfieldsCouldMatch("a\\"));
+        assertTrue(escapedBackslashThenWildcard.objectSubfieldsCouldMatch("ab"));
+    }
+
+    public void testMatchesAgreesWithSimpleMatchOnEscapeFreeGlobs() {
+        for (int i = 0; i < 500; i++) {
+            String include = randomGlob(false);
+            String alternative = randomGlob(false);
+            String otherGroup = randomGlob(false);
+            String exclude = randomGlob(false);
+            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(List.of(include, alternative))
+                .intersect(UnmappedFieldsPattern.includes(List.of(otherGroup)))
+                .intersect(UnmappedFieldsPattern.excludes(List.of(exclude)));
+            for (int j = 0; j < 20; j++) {
+                String name = randomName();
+                boolean expected = (Regex.simpleMatch(include, name) || Regex.simpleMatch(alternative, name))
+                    && Regex.simpleMatch(otherGroup, name)
+                    && Regex.simpleMatch(exclude, name) == false;
+                assertEquals(pattern + " against [" + name + "]", expected, pattern.matches(name));
+            }
+        }
+    }
+
+    public void testMatchesAgreesWithARegexOnEscapedGlobs() {
+        for (int i = 0; i < 500; i++) {
+            List<String> tokens = randomList(0, 5, () -> randomFrom("a", "b", ".", "*", "\\*", "\\\\"));
+            StringBuilder regex = new StringBuilder();
+            for (String token : tokens) {
+                regex.append(token.equals("*") ? ".*" : Pattern.quote(token.length() == 2 ? token.substring(1) : token));
+            }
+            Pattern reference = Pattern.compile(regex.toString(), Pattern.DOTALL);
+            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(List.of(String.join("", tokens)));
+            for (int j = 0; j < 20; j++) {
+                String name = randomName();
+                assertEquals(pattern + " against [" + name + "]", reference.matcher(name).matches(), pattern.matches(name));
+            }
+        }
+    }
+
+    public void testObjectSubfieldsCouldMatchWheneverTheKeyOrADescendantMatches() {
+        int matched = 0;
+        for (int i = 0; i < 500; i++) {
+            UnmappedFieldsPattern pattern = randomPattern();
+            for (int j = 0; j < 20; j++) {
+                String name = randomName();
+                if (pattern.matches(name)) {
+                    matched++;
+                    assertTrue(pattern + " must ship [" + name + "]", pattern.objectSubfieldsCouldMatch(name));
+                    for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                        String key = name.substring(0, dot);
+                        assertTrue(pattern + " must ship [" + key + "] for [" + name + "]", pattern.objectSubfieldsCouldMatch(key));
+                    }
+                }
+            }
+        }
+        assertThat(matched, greaterThan(0));
+    }
+
+    public void testUnionKeepsAndShipsWhateverEitherSideDoes() {
+        for (int i = 0; i < 500; i++) {
+            UnmappedFieldsPattern left = randomPattern();
+            UnmappedFieldsPattern right = randomPattern();
+            UnmappedFieldsPattern union = left.union(right);
+            for (int j = 0; j < 20; j++) {
+                String name = randomName();
+                if (left.matches(name) || right.matches(name)) {
+                    assertTrue(union + " must keep [" + name + "]", union.matches(name));
+                }
+                if (left.objectSubfieldsCouldMatch(name) || right.objectSubfieldsCouldMatch(name)) {
+                    assertTrue(union + " must ship [" + name + "]", union.objectSubfieldsCouldMatch(name));
+                }
+            }
+        }
+    }
+
+    public void testDeserializedCopyMatchesTheSameNames() throws IOException {
+        for (int i = 0; i < 50; i++) {
+            UnmappedFieldsPattern pattern = randomPattern();
+            UnmappedFieldsPattern copy = copyInstance(pattern, TransportVersion.current());
+            for (int j = 0; j < 20; j++) {
+                String name = randomName();
+                assertEquals(pattern + " against [" + name + "]", pattern.matches(name), copy.matches(name));
+                assertEquals(
+                    pattern + " against [" + name + "]",
+                    pattern.objectSubfieldsCouldMatch(name),
+                    copy.objectSubfieldsCouldMatch(name)
+                );
+            }
+        }
+    }
+
+    private static UnmappedFieldsPattern randomPattern() {
+        UnmappedFieldsPattern includes = randomBoolean()
+            ? UnmappedFieldsPattern.ALL
+            : UnmappedFieldsPattern.includes(List.of(randomGlob(true), randomGlob(true)))
+                .intersect(UnmappedFieldsPattern.includes(List.of(randomGlob(true))));
+        return includes.intersect(UnmappedFieldsPattern.excludes(List.of(randomGlob(true)))).withAdditionalExcludes(List.of(randomName()));
+    }
+
+    private static String randomGlob(boolean withEscapes) {
+        List<String> tokens = withEscapes ? List.of("a", "b", ".", "*", "\\*", "\\\\") : List.of("a", "b", ".", "*");
+        return String.join("", randomList(0, 5, () -> randomFrom(tokens)));
+    }
+
+    private static String randomName() {
+        return String.join("", randomList(0, 7, () -> randomFrom("a", "b", ".", "*", "\\")));
+    }
+
+    private static UnresolvedNamePattern namePattern(String glob) {
+        return new UnresolvedNamePattern(Source.EMPTY, null, glob, glob, glob);
     }
 }

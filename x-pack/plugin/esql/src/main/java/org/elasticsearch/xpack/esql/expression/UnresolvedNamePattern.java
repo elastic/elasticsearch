@@ -39,12 +39,14 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     // Cannot rely on NamedExpression.name: the UnresolvedNamedExpression superclass throws on name()
     // and stores "<unresolved>" as the internal name field.
     private final String actualName;
+    private final String glob;
 
-    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name) {
+    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name, String glob) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;
         this.actualName = name;
+        this.glob = glob;
     }
 
     @Override
@@ -71,6 +73,14 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return pattern;
     }
 
+    /**
+     * The pattern as a {@code *} glob that matches exactly what {@link #match} does, in which {@code \*} and {@code \\} stand for a literal
+     * {@code *} and {@code \}. Use by unmapped_fields LOAD_ALL functionality.
+     */
+    public String glob() {
+        return glob;
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
@@ -78,7 +88,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedNamePattern> info() {
-        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, actualName);
+        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, actualName, glob);
     }
 
     @Override
@@ -103,13 +113,16 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(true), pattern, actualName);
+        return Objects.hash(super.innerHashCode(true), pattern, actualName, glob);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedNamePattern) o;
-        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern) && Objects.equals(actualName, other.actualName);
+        return super.innerEquals(other, true)
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(actualName, other.actualName)
+            && Objects.equals(glob, other.glob);
     }
 
     /**

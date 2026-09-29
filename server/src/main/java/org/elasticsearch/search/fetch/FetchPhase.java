@@ -321,9 +321,6 @@ public final class FetchPhase {
         // Bytes charged for inner hits (transferred from the nested FetchSearchResult)
         final long[] innerHitsBreakerBytes = new long[1];
         final long[] streamingHeldBytes = new long[1];
-        // Bytes for document fields are buffered here and only charged when the buffer crosses
-        // memAccountingBufferSize(), matching the buffering strategy used for _source.
-        final long[] locallyAccumulatedFieldBytes = new long[1];
 
         // Inner-hits byte checker: transfers the byte total from a nested fetch onto this context.
         // Inner-hit result bytes are coarse-grained (one charge per inner-hit fetch), so no buffering.
@@ -371,6 +368,9 @@ public final class FetchPhase {
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
         final int[] locallyAccumulatedSourceBytes = new int[1];
+        // Bytes for document fields are buffered here and only charged when the buffer crosses
+        // memAccountingBufferSize(), matching the buffering strategy used for _source.
+        final long[] locallyAccumulatedFieldBytes = new long[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {

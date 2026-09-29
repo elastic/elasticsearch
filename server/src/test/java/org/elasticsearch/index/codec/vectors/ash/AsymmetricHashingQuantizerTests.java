@@ -514,8 +514,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     /**
      * Test helper: trains from an in-memory {@code float[][]} and returns just the transposed matrix
-     * W^T. Adapts the array to the production {@code VectorProvider} API (the array-based overload was
-     * removed from {@link AsymmetricHashingQuantizer} as it was only used by tests).
+     * W^T. Adapts the array to the production {@code CheckedIntFunction<float[], IOException>} vector
+     * accessor (the array-based overload was removed from {@link AsymmetricHashingQuantizer} as it was
+     * only used by tests).
      */
     private static float[] trainWT(
         AsymmetricHashingQuantizer quantizer,

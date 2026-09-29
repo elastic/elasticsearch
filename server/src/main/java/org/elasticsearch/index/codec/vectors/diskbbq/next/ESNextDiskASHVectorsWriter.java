@@ -175,7 +175,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             ivfSegmentConfig,
             null,
-            true // isFlush: vectors are on-heap, use cheap-learned training and skip the corpus clone
+            false // flush: vectors are on-heap, train on a reduced sample (cheap-learned)
         );
     }
 
@@ -205,7 +205,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             ivfSegmentConfig,
             inheritedWT,
-            false // isFlush=false: merge streams vectors off-heap by ordinal and uses full training
+            true // merge: streams vectors off-heap by ordinal and trains on the full sample
         );
     }
 
@@ -217,8 +217,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
      */
     private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
-        float[] best = null;
-        int bestSize = -1;
+        List<SizedProjectionMatrix> candidates = new ArrayList<>();
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
             if (reader == null) {
@@ -229,9 +228,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             }
             if (reader instanceof ESNextDiskASHVectorsReader ashReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
                 AshProjectionMatrix matrix = ashReader.getProjectionMatrix(fieldInfo);
-                if (matrix == null || matrix.isLearned() == false || matrix.originalDim() != fieldInfo.getVectorDimension()) {
-                    // Skip missing matrices and random (non-learned) projections from transient flush
-                    // segments — inheriting a random rotation would carry it into the merged segment.
+                if (matrix == null) {
                     continue;
                 }
                 int size = 0;
@@ -244,10 +241,36 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                     // Fall back to using the matrix without a size preference if the count is unavailable.
                     size = 0;
                 }
-                if (size > bestSize) {
-                    bestSize = size;
-                    best = matrix.wT();
-                }
+                candidates.add(new SizedProjectionMatrix(matrix, size));
+            }
+        }
+        return selectInheritedProjectionMatrix(fieldInfo.getVectorDimension(), candidates);
+    }
+
+    /**
+     * A candidate projection matrix for merge inheritance together with the number of vectors in the
+     * segment it came from (used to prefer the best-trained source).
+     */
+    record SizedProjectionMatrix(AshProjectionMatrix matrix, int size) {}
+
+    /**
+     * Selects the projection matrix W^T to inherit at merge from the given candidates, or {@code null}
+     * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
+     * from the best-trained source. Skips random (non-learned) projections from transient flush segments
+     * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
+     * dimensionality does not match {@code expectedDim}.
+     */
+    static float[] selectInheritedProjectionMatrix(int expectedDim, List<SizedProjectionMatrix> candidates) {
+        float[] best = null;
+        int bestSize = -1;
+        for (SizedProjectionMatrix candidate : candidates) {
+            AshProjectionMatrix matrix = candidate.matrix();
+            if (matrix == null || matrix.isLearned() == false || matrix.originalDim() != expectedDim) {
+                continue;
+            }
+            if (candidate.size() > bestSize) {
+                bestSize = candidate.size();
+                best = matrix.wT();
             }
         }
         return best;
@@ -263,7 +286,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig segmentConfig,
         float[] pretrainedWT,
-        boolean isFlush
+        boolean trainOnFullSample
     ) throws IOException {
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
@@ -284,7 +307,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fieldInfo.getVectorSimilarityFunction(),
             skipDocIds,
             pretrainedWT,
-            isFlush
+            trainOnFullSample
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());

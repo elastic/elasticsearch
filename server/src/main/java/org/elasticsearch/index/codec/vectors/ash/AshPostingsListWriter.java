@@ -82,13 +82,11 @@ public class AshPostingsListWriter {
      * @param pretrainedWT an already-learned transposed projection matrix W^T (row-major, shape
      *        {@code (nDims, originalDim)}) to reuse instead of training a new one, or {@code null}
      *        to train W from the supplied vectors. Used at merge time to seed the merged segment's
-     *        projection matrix from an existing input segment. When supplied, its dimensions must
-     *        match the configured {@code originalDim} and {@code nDims}; otherwise it is ignored and
-     *        W is trained normally.
-     * @param isFlush when {@code true} this is the flush path: vectors are already resident on-heap in
-     *        the flat-vector writer's buffer, and W is learned on a reduced training sample
-     *        (cheap-learned). When {@code false} (merge) the vectors are streamed from the off-heap
-     *        temp file by ordinal (no full-corpus clone) and W is learned on the full training sample.
+     *        projection matrix from an existing input segment. When supplied, its length must equal
+     *        {@code originalDim * nDims}; a mismatch is a programming error and throws.
+     * @param trainOnFullSample when {@code true}, W is learned on the full training sample; when
+     *        {@code false}, W is learned on a reduced sample (cheap-learned) to cut training cost and
+     *        heap footprint at the expense of a slightly smaller training set.
      */
     public PostingsOffsetAndLength buildAndWrite(
         FieldInfo fieldInfo,
@@ -102,7 +100,7 @@ public class AshPostingsListWriter {
         VectorSimilarityFunction similarityFunction,
         boolean skipDocIds,
         float[] pretrainedWT,
-        boolean isFlush
+        boolean trainOnFullSample
     ) throws IOException {
         int nVectors = assignments.length;
         int originalDim = fieldInfo.getVectorDimension();
@@ -116,12 +114,12 @@ public class AshPostingsListWriter {
         // the next ordinal, so a provider that returns a shared/reused buffer (the merge case) is
         // safe. This mirrors the OSQ (BBQ) writer, which also encodes directly from the off-heap
         // values at merge without cloning the corpus.
-        final AsymmetricHashingQuantizer.VectorProvider vectors = floatVectorValues::vectorValue;
+        final CheckedIntFunction<float[], IOException> vectors = floatVectorValues::vectorValue;
 
-        // Select the projection-matrix training profile. On flush we learn W on a reduced training
-        // sample (cheap-learned): this keeps the recall-critical PCA subspace while cutting training
-        // cost and heap footprint. Merge always uses the full training factor.
-        final int effectiveTrainingFactor = isFlush && pretrainedWT == null ? ashConfig.flushTrainingFactor() : ashConfig.trainingFactor();
+        // Select the projection-matrix training profile. When training on a reduced sample
+        // (cheap-learned) we keep the recall-critical PCA subspace while cutting training cost and heap
+        // footprint; otherwise we train on the full sample.
+        final int effectiveTrainingFactor = trainOnFullSample ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
             ashConfig.bitsPerDim(),
@@ -141,7 +139,20 @@ public class AshPostingsListWriter {
         final float[] wT;
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
-        if (pretrainedWT != null && pretrainedWT.length == originalDim * nDims) {
+        if (pretrainedWT != null) {
+            if (pretrainedWT.length != originalDim * nDims) {
+                throw new IllegalArgumentException(
+                    "inherited projection matrix has length ["
+                        + pretrainedWT.length
+                        + "] but expected ["
+                        + (originalDim * nDims)
+                        + "] for originalDim ["
+                        + originalDim
+                        + "] and nDims ["
+                        + nDims
+                        + "]"
+                );
+            }
             trained = ashQuantizer.trainWarmStart(
                 vectors,
                 nVectors,
@@ -186,7 +197,7 @@ public class AshPostingsListWriter {
      * Writes ASH-encoded posting lists for all clusters.
      */
     private PostingsOffsetAndLength writePostingLists(
-        AsymmetricHashingQuantizer.VectorProvider vectors,
+        CheckedIntFunction<float[], IOException> vectors,
         AsymmetricHashingQuantizer ashQuantizer,
         float[] wT,
         int originalDim,
@@ -281,7 +292,7 @@ public class AshPostingsListWriter {
                         // Fetch the vector once. Providers may return a shared/live buffer, so it must be
                         // fully consumed within this iteration (encode + the EUCLIDEAN corrections below)
                         // before the next ordinal is requested.
-                        float[] vec = vectors.get(vectorOrd);
+                        float[] vec = vectors.apply(vectorOrd);
                         AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vec, centroid, wT, precomputed);
                         byte[] vectorPacked = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
                         System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);

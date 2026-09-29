@@ -67,6 +67,9 @@ public final class AsymmetricHashingQuantizer {
      * allocations during PCA/SVD — grow with dimension and pressure the heap. This cap bounds that
      * footprint for high-dimensional inputs; the projection subspace is well-estimated from a few
      * thousand samples, so the cap has negligible quality impact.
+     * <p>
+     * Note: at very high dimensionality (source dims >= 3072) the estimated subspace nDims grows large
+     * and 8192 samples may be a thin margin; scaling this cap with nDims is a tracked follow-up (see #160522).
      */
     static final int MAX_TRAINING_SAMPLES = 8192;
 
@@ -114,17 +117,6 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
-     * Random-access provider of the segment's vectors by ordinal. Lets training read vectors directly
-     * from the backing {@code FloatVectorValues} — on-heap at flush, or streamed from the off-heap temp
-     * file at merge — without a full-corpus heap clone. Implementations may return a shared/live buffer,
-     * so callers must consume each returned array before requesting the next ordinal.
-     */
-    @FunctionalInterface
-    interface VectorProvider {
-        float[] get(int ord) throws IOException;
-    }
-
-    /**
      * Result of training a projection matrix: the transposed matrix W^T together with whether it was
      * genuinely learned (PCA + Procrustes) or a random orthonormal fallback. The quantizer is the sole
      * owner of this distinction, so callers must not re-derive it. A random (non-learned) matrix must
@@ -147,8 +139,12 @@ public final class AsymmetricHashingQuantizer {
      * @param centroids cluster centroids, fetched by vector ordinal
      * @return the trained projection (W^T plus whether it was learned or a random fallback)
      */
-    TrainedProjection train(VectorProvider vectors, int count, int originalDim, CheckedIntFunction<float[], IOException> centroids)
-        throws IOException {
+    TrainedProjection train(
+        CheckedIntFunction<float[], IOException> vectors,
+        int count,
+        int originalDim,
+        CheckedIntFunction<float[], IOException> centroids
+    ) throws IOException {
         int nDims = nDims(originalDim);
 
         if (method == Method.RANDOM) {
@@ -189,7 +185,7 @@ public final class AsymmetricHashingQuantizer {
      *         (the caller only warm-starts from learned inputs), so the result is always learned.
      */
     TrainedProjection trainWarmStart(
-        VectorProvider vectors,
+        CheckedIntFunction<float[], IOException> vectors,
         int count,
         int originalDim,
         CheckedIntFunction<float[], IOException> centroids,
@@ -198,6 +194,12 @@ public final class AsymmetricHashingQuantizer {
     ) throws IOException {
         assert inheritedWT != null : "trainWarmStart requires a non-null inherited matrix to fall back to";
         int nDims = nDims(originalDim);
+
+        // WS1b warm-start: refine the inherited basis rather than recomputing it from scratch. We trust the
+        // inherited W (the largest learned input segment's) as a good starting point. Follow-up (#160522):
+        // add a residual-energy gate — compare energy retained by W (mean ||x·W||^2) against the total
+        // (mean ||x||^2); if the inherited basis fits the merged set poorly, cold re-train instead of
+        // warm-starting. This is a principled re-seed trigger to escape a poor local minimum.
 
         if (method != Method.LEARNED
             || inheritedWT == null
@@ -224,7 +226,7 @@ public final class AsymmetricHashingQuantizer {
      * return a shared/live buffer.
      */
     private float[] buildTrainingMatrix(
-        VectorProvider vectors,
+        CheckedIntFunction<float[], IOException> vectors,
         int count,
         CheckedIntFunction<float[], IOException> centroids,
         int originalDim,
@@ -235,7 +237,7 @@ public final class AsymmetricHashingQuantizer {
         for (int i = 0; i < trainingSize; i++) {
             int srcIdx = sampleIndices[i];
             float[] centroid = centroids.apply(srcIdx);
-            float[] vector = vectors.get(srcIdx);
+            float[] vector = vectors.apply(srcIdx);
             int base = i * originalDim;
             for (int d = 0; d < originalDim; d++) {
                 xTraining[base + d] = vector[d] - centroid[d];

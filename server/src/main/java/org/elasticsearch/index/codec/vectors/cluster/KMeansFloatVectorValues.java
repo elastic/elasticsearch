@@ -82,9 +82,30 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
      */
     public static KMeansFloatVectorValues build(IndexInput vectors, @Nullable IndexInput docs, int numVectors, int dims)
         throws IOException {
+        return build(vectors, docs, numVectors, dims, IOContext.DEFAULT);
+    }
+
+    /**
+     * Builds an instance from off-heap data structures, remembering the {@link IOContext} the backing
+     * {@code vectors} input was opened with so that {@link #updateReadAdvice(DataAccessHint)} can swap
+     * only the read-advice hint while preserving the rest of the context (e.g. merge flags).
+     *
+     * @param vectors     Vectors as little-endian floats concatenated together.
+     * @param docs        Document IDs in ordinal order, as little-endian int32. Null if ordinal == docID.
+     * @param numVectors  The number of vectors
+     * @param dims        Vector dimensions
+     * @param baseContext the IOContext the {@code vectors} input was opened with
+     */
+    public static KMeansFloatVectorValues build(
+        IndexInput vectors,
+        @Nullable IndexInput docs,
+        int numVectors,
+        int dims,
+        IOContext baseContext
+    ) throws IOException {
         long vectorLength = (long) dims * Float.BYTES;
         float[] vector = new float[dims];
-        VectorSupplier vectorSupplier = new OffHeapVectorSupplier(vectors, vector, vectorLength);
+        VectorSupplier vectorSupplier = new OffHeapVectorSupplier(vectors, vector, vectorLength, baseContext);
         DocSupplier docSupplier;
         if (docs == null) {
             docSupplier = null;
@@ -170,7 +191,9 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
     }
 
-    private record OffHeapVectorSupplier(IndexInput vectors, float[] vector, long vectorLength) implements VectorSupplier {
+    private record OffHeapVectorSupplier(IndexInput vectors, float[] vector, long vectorLength, IOContext baseContext)
+        implements
+            VectorSupplier {
 
         @Override
         public float[] vector(int ord) throws IOException {
@@ -186,12 +209,12 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
         @Override
         public void updateReadAdvice(DataAccessHint hint) throws IOException {
-            vectors.updateIOContext(IOContext.DEFAULT.withHints(hint));
+            vectors.updateIOContext(baseContext.withHints(hint));
         }
 
         @Override
         public VectorSupplier copy() {
-            return new OffHeapVectorSupplier(vectors.clone(), vector.clone(), vectorLength);
+            return new OffHeapVectorSupplier(vectors.clone(), vector.clone(), vectorLength, baseContext);
         }
     }
 

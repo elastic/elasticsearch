@@ -419,6 +419,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Set<FactoryRef> factorySettingsExemptions() {
         // The deprecated camel-case ngram names are rejected on indices created on or after 8.0, and the
         // contract builds current-version indices; the ngram / edge_ngram declarations cover the same factories.
+        // The two filters also never share; CommonAnalysisPluginTests covers that.
         return Set.of(tokenFilter("nGram"), tokenFilter("edgeNGram"), tokenizer("nGram"), tokenizer("edgeNGram"));
     }
 

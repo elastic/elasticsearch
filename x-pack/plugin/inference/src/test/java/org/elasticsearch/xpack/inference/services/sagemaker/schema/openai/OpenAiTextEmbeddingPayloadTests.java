@@ -64,7 +64,7 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
 
     public void testRequestWithSingleInput() throws Exception {
         SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false));
+        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, null));
         when(model.apiTaskSettings()).thenReturn(new SageMakerOpenAiTaskSettings((String) null));
         var request = new SageMakerInferenceRequest(null, null, null, List.of("hello"), randomBoolean(), randomFrom(InputType.values()));
 
@@ -75,7 +75,7 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
 
     public void testRequestWithArrayInput() throws Exception {
         SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false));
+        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(null, false, null));
         when(model.apiTaskSettings()).thenReturn(new SageMakerOpenAiTaskSettings((String) null));
         var request = new SageMakerInferenceRequest(
             null,
@@ -93,7 +93,7 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
 
     public void testRequestWithDimensionsNotSetByUserIgnoreDimensions() throws Exception {
         SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(123, false));
+        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(123, false, null));
         when(model.apiTaskSettings()).thenReturn(new SageMakerOpenAiTaskSettings((String) null));
         var request = new SageMakerInferenceRequest(
             null,
@@ -111,7 +111,7 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
 
     public void testRequestWithOptionals() throws Exception {
         SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(1234, true));
+        when(model.apiServiceSettings()).thenReturn(new OpenAiTextEmbeddingPayload.ApiServiceSettings(1234, true, null));
         when(model.apiTaskSettings()).thenReturn(new SageMakerOpenAiTaskSettings("user"));
         var request = new SageMakerInferenceRequest("query", null, null, List.of("hello"), randomBoolean(), randomFrom(InputType.values()));
 

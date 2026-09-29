@@ -30,6 +30,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
 
 import java.io.IOException;
@@ -149,7 +151,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_TextEmbedding_DimensionsSetByUser_ReturnsError() {
         // dimensions_set_by_user is internal, so supplying it in a request must be rejected as an unknown setting.
-        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(true));
         var service = new SageMakerService(realModelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
         TestPlainActionFuture<Model> listener = new TestPlainActionFuture<>();
         var serviceSettings = new HashMap<String, Object>(
@@ -185,7 +187,8 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_TextEmbedding_DimensionsSetByUser_DoesNotError() {
         // A persisted config legitimately stores dimensions_set_by_user, so parsing it back must not error.
-        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        // Endpoints persisted before the similarity field was added default to dot_product.
+        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas(), SageMakerSchemasTests.mockInferenceFeatureService(true));
         var service = new SageMakerService(realModelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
         var serviceSettings = new HashMap<String, Object>(
             Map.of("endpoint_name", "endpoint", "api", "openai", "region", "region", "dimensions", 123, DIMENSIONS_SET_BY_USER, false)
@@ -199,6 +202,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         );
 
         assertThat(((SageMakerServiceSettings) model.getServiceSettings()).dimensionsSetByUser(), is(false));
+        assertThat(model.getServiceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
     }
 
     private static Model mockUnsupportedModel() {

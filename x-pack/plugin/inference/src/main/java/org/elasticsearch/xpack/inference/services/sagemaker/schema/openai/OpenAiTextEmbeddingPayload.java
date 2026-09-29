@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -20,12 +21,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
@@ -40,11 +44,19 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
+
+    public static final String SIMILARITY_UNSUPPORTED_MESSAGE = Strings.format(
+        "The [%s] field in [%s] is not supported by all nodes in the cluster; finish upgrading the cluster before setting it",
+        SIMILARITY,
+        SERVICE_SETTINGS
+    );
 
     private static final XContent jsonXContent = JsonXContent.jsonXContent;
     private static final String APPLICATION_JSON = jsonXContent.type().mediaTypeWithoutParameters();
@@ -130,13 +142,26 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
     }
 
-    record ApiServiceSettings(@Nullable Integer dimensions, Boolean dimensionsSetByUser) implements SageMakerStoredServiceSchema {
+    record ApiServiceSettings(@Nullable Integer dimensions, Boolean dimensionsSetByUser, @Nullable SimilarityMeasure similarity)
+        implements
+            SageMakerStoredServiceSchema {
+
         private static final String NAME = "sagemaker_openai_text_embeddings_service_settings";
         private static final String DIMENSIONS_FIELD = "dimensions";
         private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
+        static final TransportVersion INFERENCE_SAGEMAKER_OPENAI_SIMILARITY = TransportVersion.fromName(
+            "inference_sagemaker_openai_similarity"
+        );
 
         ApiServiceSettings(StreamInput in) throws IOException {
-            this(in.readOptionalInt(), in.readBoolean());
+            this(
+                in.readOptionalInt(),
+                in.readBoolean(),
+                // Older nodes always used dot_product; the field was not stored before INFERENCE_SAGEMAKER_OPENAI_SIMILARITY.
+                in.getTransportVersion().supports(INFERENCE_SAGEMAKER_OPENAI_SIMILARITY)
+                    ? in.readOptionalEnum(SimilarityMeasure.class)
+                    : SimilarityMeasure.DOT_PRODUCT
+            );
         }
 
         @Override
@@ -159,6 +184,9 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalInt(dimensions);
             out.writeBoolean(dimensionsSetByUser);
+            if (out.getTransportVersion().supports(INFERENCE_SAGEMAKER_OPENAI_SIMILARITY)) {
+                out.writeOptionalEnum(similarity);
+            }
         }
 
         @Override
@@ -167,6 +195,9 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
             builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+            if (similarity != null) {
+                builder.field(SIMILARITY, similarity);
+            }
             return builder;
         }
 
@@ -178,6 +209,9 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                     if (dimensions != null) {
                         builder.field(DIMENSIONS_FIELD, dimensions);
+                    }
+                    if (similarity != null) {
+                        builder.field(SIMILARITY, similarity);
                     }
                     return builder;
                 }
@@ -210,12 +244,13 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
             }
 
-            return new ApiServiceSettings(dimensions, dimensionsSetByUser);
-        }
+            var similarity = extractSimilarity(serviceSettings, SERVICE_SETTINGS, validationException);
+            if (similarity == null && ConfigurationParseContext.isRequestContext(context) == false) {
+                // Endpoints persisted before similarity was configurable always used dot_product.
+                similarity = SimilarityMeasure.DOT_PRODUCT;
+            }
 
-        @Override
-        public SimilarityMeasure similarity() {
-            return SimilarityMeasure.DOT_PRODUCT;
+            return new ApiServiceSettings(dimensions, dimensionsSetByUser, similarity);
         }
 
         @Override
@@ -225,7 +260,41 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         @Override
         public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
-            return new ApiServiceSettings(dimensions, false);
+            return new ApiServiceSettings(dimensions, false, similarity);
+        }
+
+        /**
+         * Resolves create-request defaults that depend on cluster-wide feature support.
+         *
+         * <p>This hook runs once, when an endpoint is created from a request. The resolved values are persisted
+         * alongside the endpoint configuration, so existing endpoints are never affected. It is invoked only
+         * after strict validation of the request map has passed.
+         *
+         * <p>Behaviour:
+         * <ul>
+         *   <li>If the user did not supply {@code similarity} and the cluster supports the field, it defaults to
+         *       {@link SimilarityMeasure#COSINE} (see <a href="https://github.com/elastic/elasticsearch/issues/153028">#153028</a>).
+         *   <li>If the user did not supply {@code similarity} and the cluster is in a mixed state, it defaults to
+         *       {@link SimilarityMeasure#DOT_PRODUCT} so that older nodes compute the same value for this endpoint.
+         *   <li>If the user supplied {@code similarity} but the cluster is in a mixed state, a 400 is thrown.
+         *   <li>Otherwise the instance is returned unchanged.
+         * </ul>
+         */
+        @Override
+        public SageMakerStoredServiceSchema resolveCreateRequestDefaults(InferenceFeatureService inferenceFeatureService) {
+            if (similarity == null) {
+                // New endpoints default to cosine, see https://github.com/elastic/elasticsearch/issues/153028.
+                // Until every node can store and read similarity, keep the legacy dot_product so that older nodes
+                // compute the same similarity for this endpoint.
+                var resolved = inferenceFeatureService.hasFeature(InferenceFeatures.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY)
+                    ? SimilarityMeasure.COSINE
+                    : SimilarityMeasure.DOT_PRODUCT;
+                return new ApiServiceSettings(dimensions, dimensionsSetByUser, resolved);
+            }
+            if (inferenceFeatureService.hasFeature(InferenceFeatures.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY) == false) {
+                throw new ElasticsearchStatusException(SIMILARITY_UNSUPPORTED_MESSAGE, RestStatus.BAD_REQUEST);
+            }
+            return this;
         }
     }
 }

@@ -12,8 +12,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
 import java.util.Map;
 
@@ -24,9 +26,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class SageMakerModelBuilder {
 
     private final SageMakerSchemas schemas;
+    private final InferenceFeatureService inferenceFeatureService;
 
-    public SageMakerModelBuilder(SageMakerSchemas schemas) {
+    public SageMakerModelBuilder(SageMakerSchemas schemas, InferenceFeatureService inferenceFeatureService) {
         this.schemas = schemas;
+        this.inferenceFeatureService = inferenceFeatureService;
     }
 
     public SageMakerModel fromRequest(String inferenceEntityId, TaskType taskType, String service, Map<String, Object> requestMap) {
@@ -47,6 +51,11 @@ public class SageMakerModelBuilder {
         validationException.throwIfValidationErrorsExist();
         throwIfNotEmptyMap(serviceSettingsMap, service);
         throwIfNotEmptyMap(taskSettingsMap, service);
+
+        serviceSettings = withApiServiceSettings(
+            serviceSettings,
+            serviceSettings.apiServiceSettings().resolveCreateRequestDefaults(inferenceFeatureService)
+        );
 
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
         return new SageMakerModel(
@@ -115,16 +124,7 @@ public class SageMakerModelBuilder {
             return model;
         }
 
-        var updatedServiceSettings = new SageMakerServiceSettings(
-            model.serviceSettings().endpointName(),
-            model.serviceSettings().region(),
-            model.serviceSettings().api(),
-            model.serviceSettings().targetModel(),
-            model.serviceSettings().targetContainerHostname(),
-            model.serviceSettings().inferenceComponentName(),
-            model.serviceSettings().batchSize(),
-            updatedApiServiceSettings
-        );
+        var updatedServiceSettings = withApiServiceSettings(model.serviceSettings(), updatedApiServiceSettings);
 
         var modelConfigurations = new ModelConfigurations(
             model.getInferenceEntityId(),
@@ -139,6 +139,25 @@ public class SageMakerModelBuilder {
             updatedServiceSettings,
             model.taskSettings(),
             model.awsSecretSettings().orElse(null)
+        );
+    }
+
+    private static SageMakerServiceSettings withApiServiceSettings(
+        SageMakerServiceSettings serviceSettings,
+        SageMakerStoredServiceSchema newApiServiceSettings
+    ) {
+        if (newApiServiceSettings == serviceSettings.apiServiceSettings()) {
+            return serviceSettings;
+        }
+        return new SageMakerServiceSettings(
+            serviceSettings.endpointName(),
+            serviceSettings.region(),
+            serviceSettings.api(),
+            serviceSettings.targetModel(),
+            serviceSettings.targetContainerHostname(),
+            serviceSettings.inferenceComponentName(),
+            serviceSettings.batchSize(),
+            newApiServiceSettings
         );
     }
 }

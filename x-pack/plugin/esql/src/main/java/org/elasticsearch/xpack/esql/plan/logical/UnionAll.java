@@ -74,7 +74,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
 
     @Override
     public int hashCode() {
-        return Objects.hash(UnionAll.class, children());
+        return hasUnmappedFieldsAttribute() ? Objects.hash(UnionAll.class, output(), children()) : Objects.hash(UnionAll.class, children());
     }
 
     @Override
@@ -86,8 +86,15 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
             return false;
         }
         UnionAll other = (UnionAll) o;
+        if (Objects.equals(children(), other.children()) == false) {
+            return false;
+        }
+        // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
+        return (hasUnmappedFieldsAttribute() || other.hasUnmappedFieldsAttribute()) == false || Objects.equals(output(), other.output());
+    }
 
-        return Objects.equals(children(), other.children());
+    private boolean hasUnmappedFieldsAttribute() {
+        return output().stream().anyMatch(attr -> attr instanceof UnmappedFieldsAttribute);
     }
 
     @Override

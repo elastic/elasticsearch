@@ -709,7 +709,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         collectMetrics();
 
         return allTestTelemetryPlugins().flatMap(testTelemetryPlugin -> {
-            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
+            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongAsyncGaugeMeasurement(
                 SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE
             );
             final Map<SnapshotsInProgress.ShardState, Long> shardStates = new HashMap<>();
@@ -728,7 +728,9 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         collectMetrics();
 
         return allTestTelemetryPlugins().flatMap(testTelemetryPlugin -> {
-            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(SnapshotMetrics.SNAPSHOTS_BY_STATE);
+            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongAsyncGaugeMeasurement(
+                SnapshotMetrics.SNAPSHOTS_BY_STATE
+            );
             final Map<SnapshotsInProgress.State, Long> shardStates = new HashMap<>();
             // last one in wins
             for (Measurement measurement : longGaugeMeasurement) {
@@ -771,7 +773,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     private static void assertShardsInProgressMetricIs(Matcher<? super List<Long>> matcher) {
         final List<Long> values = allTestTelemetryPlugins().map(testTelemetryPlugin -> {
-            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
+            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongAsyncGaugeMeasurement(
                 SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS
             );
             return longGaugeMeasurement.getLast().getLong();

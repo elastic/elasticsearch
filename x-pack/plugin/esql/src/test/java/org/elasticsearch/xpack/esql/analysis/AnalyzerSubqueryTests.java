@@ -759,18 +759,12 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * Same trigger as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, under {@code LOAD_ALL}. The loop is in the
-     * analyzer, so it has to terminate before the {@code LOAD_ALL} command allow-list in the verifier can reject the subquery union.
+     * Same trigger as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, under {@code LOAD_ALL}.
+     * The subquery union is allowed, so analysis has to terminate and reuse the converted attribute.
      */
     public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoadAll() {
         assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        analyzer().addSampleData().statementError("""
-            SET unmapped_fields="LOAD_ALL";
-            FROM (FROM sample_data), (FROM sample_data)
-            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
-            | EVAL ip = TO_STRING(client_ip)
-            | LIMIT 5
-            """, containsString("[UnionAll] is not supported yet"));
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("LOAD_ALL");
     }
 
     private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {

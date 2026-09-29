@@ -33,6 +33,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -79,7 +80,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpConfiguration alice = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice-secret")).build();
         HttpConfiguration aliceAgain = HttpConfiguration.builder()
             .customHeaders(Map.of("Authorization", "Bearer alice-secret"))
-            .requestTimeout(java.time.Duration.ofSeconds(7))
+            .requestTimeout(Duration.ofSeconds(7))
             .build();
         HttpConfiguration bob = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer bob-secret")).build();
 

@@ -104,15 +104,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     // The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
     // cross-provider retry/resume on top.
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, null, bucket, key, path);
     }
 
     /**
      * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
-     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     * Package-private so callers outside this package cannot build an object that never shares a cache
+     * scope. {@link S3StorageProvider} uses the {@link StorageIdentity}-taking constructors.
      */
-    public S3StorageObject(
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
@@ -159,12 +160,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.path = path;
     }
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
         this(s3Client, bucket, key, path);
         this.cachedLength = length;
     }
 
-    public S3StorageObject(
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
@@ -191,12 +192,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.cachedLength = length;
     }
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length, Instant lastModified) {
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length, Instant lastModified) {
         this(s3Client, bucket, key, path, length);
         this.cachedLastModified = lastModified;
     }
 
-    public S3StorageObject(
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,

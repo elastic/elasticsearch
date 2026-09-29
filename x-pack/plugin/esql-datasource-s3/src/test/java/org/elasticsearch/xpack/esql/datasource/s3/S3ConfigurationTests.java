@@ -749,6 +749,29 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
     }
 
+    public void testStorageIdentityFederatedDiffersByStsRegion() {
+        // With no sts_endpoint override, sts_region selects the regional STS endpoint and its AWS partition.
+        S3Configuration a = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            null,
+            "us-east-1",
+            "http://ep",
+            null
+        );
+        S3Configuration b = S3Configuration.fromFederatedFields(
+            "arn:aws:iam::111:role/R",
+            null,
+            null,
+            null,
+            "cn-north-1",
+            "http://ep",
+            null
+        );
+        assertNotEquals(S3CredentialIdentity.of(a), S3CredentialIdentity.of(b));
+    }
+
     public void testStorageIdentityAnonymousAndManagedIdentityHaveDifferentIdentities() {
         // anonymous has no credentials; managed_identity uses the node's IAM role. They can have
         // different access levels at the same endpoint and must not share footer cache entries.

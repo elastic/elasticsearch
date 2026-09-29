@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -32,9 +34,56 @@ public class GcsCredentialIdentityTests extends ESTestCase {
         assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
     }
 
+    public void testDifferentProjectIdsDoNotShareIdentity() {
+        GcsConfiguration a = GcsConfiguration.fromFields("{\"key\":\"one\"}", "project-a", "http://gcs:1");
+        GcsConfiguration b = GcsConfiguration.fromFields("{\"key\":\"one\"}", "project-b", "http://gcs:1");
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+    }
+
+    public void testDifferentTokenUrisDoNotShareIdentity() {
+        GcsConfiguration a = GcsConfiguration.fromFields("{\"key\":\"one\"}", "project", "http://gcs:1", "https://oauth/a");
+        GcsConfiguration b = GcsConfiguration.fromFields("{\"key\":\"one\"}", "project", "http://gcs:1", "https://oauth/b");
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+    }
+
+    public void testDifferentAccessTokensDoNotShareIdentity() {
+        GcsConfiguration a = GcsConfiguration.fromMap(Map.of("access_token", "token-a", "endpoint", "http://gcs:1"));
+        GcsConfiguration b = GcsConfiguration.fromMap(Map.of("access_token", "token-b", "endpoint", "http://gcs:1"));
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+        assertThat(GcsCredentialIdentity.of(a).toString(), not(containsString("token-a")));
+    }
+
+    public void testDifferentJwtAudiencesDoNotShareIdentity() {
+        GcsConfiguration a = federated("aud-a", "sts", null);
+        GcsConfiguration b = federated("aud-b", "sts", null);
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+    }
+
+    public void testDifferentStsAudiencesDoNotShareIdentity() {
+        GcsConfiguration a = federated(null, "sts-a", null);
+        GcsConfiguration b = federated(null, "sts-b", null);
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+    }
+
+    public void testDifferentImpersonationUrlsDoNotShareIdentity() {
+        GcsConfiguration a = federated(null, "sts", "https://iam/a");
+        GcsConfiguration b = federated(null, "sts", "https://iam/b");
+        assertThat(GcsCredentialIdentity.of(a), not(equalTo(GcsCredentialIdentity.of(b))));
+    }
+
+    public void testAnonymousAndManagedIdentityDoNotShareIdentity() {
+        GcsConfiguration anon = GcsConfiguration.fromMap(Map.of("auth", "anonymous", "endpoint", "http://gcs:1"));
+        GcsConfiguration managed = GcsConfiguration.fromMap(Map.of("auth", "managed_identity", "endpoint", "http://gcs:1"));
+        assertThat(GcsCredentialIdentity.of(anon), not(equalTo(GcsCredentialIdentity.of(managed))));
+    }
+
     public void testSecretIsNotExposed() {
         String secret = "{\"private_key\":\"super-secret-material\"}";
         GcsConfiguration config = GcsConfiguration.fromFields(secret, "project", "http://gcs:1");
         assertThat(GcsCredentialIdentity.of(config).toString(), not(containsString("super-secret-material")));
+    }
+
+    private static GcsConfiguration federated(String jwtAudience, String stsAudience, String impersonationUrl) {
+        return GcsConfiguration.fromFields(null, "project", "http://gcs:1", null, null, jwtAudience, stsAudience, impersonationUrl);
     }
 }

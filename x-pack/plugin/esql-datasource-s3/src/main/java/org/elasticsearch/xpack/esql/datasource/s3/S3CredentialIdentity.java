@@ -17,13 +17,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
  * Fields vary by auth mode; every mode also carries endpoint and region:
  * <ul>
  *   <li>{@code static_credentials}: authMode + accessKey + secretKey + sessionToken</li>
- *   <li>{@code federated_identity}: authMode + roleArn + roleSessionName + jwtAudience + stsEndpoint</li>
+ *   <li>{@code federated_identity}: authMode + roleArn + roleSessionName + jwtAudience + stsEndpoint + stsRegion</li>
  *   <li>{@code anonymous}: authMode</li>
  *   <li>{@code managed_identity}: authMode</li>
  * </ul>
  * Region is part of the identity because, with no endpoint override, it selects the AWS partition
  * ({@code aws}, {@code aws-cn}, {@code aws-us-gov}) and bucket names are only unique within one, so the
  * same {@code s3://bucket/key} can name different objects.
+ * {@code sts_region} is part of the identity for the same reason as {@code sts_endpoint}: with no endpoint
+ * override it selects the regional STS endpoint, including which AWS partition the role is assumed in.
+ * {@code addressing_style} is not. It only changes the request URL shape for the same bucket, key, and principal.
  * The secret key must be part of the identity, not just the access key: an access key ID is not a
  * secret, so a data source pairing a known access key with a wrong secret would otherwise be served
  * footers cached by the legitimate one without S3 ever checking its signature. Secrets are held as
@@ -44,7 +47,8 @@ record S3CredentialIdentity(
     String roleArn,
     String roleSessionName,
     String jwtAudience,
-    String stsEndpoint
+    String stsEndpoint,
+    String stsRegion
 ) implements StorageIdentity {
 
     /** Builds an identity from the given config. */
@@ -59,7 +63,8 @@ record S3CredentialIdentity(
             config.roleArn(),
             config.roleSessionName(),
             config.jwtAudience(),
-            config.stsEndpoint()
+            config.stsEndpoint(),
+            config.stsRegion()
         );
     }
 }

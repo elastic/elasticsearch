@@ -70,9 +70,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -877,11 +877,21 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     * @deprecated Please use {@link #getDataLifecycleForIndex(Index, boolean)}
      */
+    @Deprecated
     @Nullable
     public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        return getDataLifecycleForIndex(index, false);
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getDataLifecycleForIndex(Index index, boolean defaultLifecycleEnabledForTimeSeries) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getDataLifecycle();
+            return getEffectiveDataLifecycle(defaultLifecycleEnabledForTimeSeries);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();
@@ -1337,12 +1347,31 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
+     * @deprecated Please use {@link #getIndicesOlderThan(Function, LongSupplier, TimeValue, DatastreamIndexTypes, boolean)}
      */
+    @Deprecated
     public Set<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
         DatastreamIndexTypes types
+    ) {
+        return getIndicesOlderThan(indexMetadataSupplier, nowSupplier, effectiveRetention, types, false);
+    }
+
+    /**
+     * Iterate over either the backing indices, failure indices or both depending on the types param
+     * and return the ones that are managed by the data stream lifecycle and older than the supplied
+     * {@link TimeValue}.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public Set<Index> getIndicesOlderThan(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        TimeValue effectiveRetention,
+        DatastreamIndexTypes types,
+        boolean defaultLifecycleForTimeSeriesEnabled
     ) {
         if (effectiveRetention == null) {
             return Set.of();
@@ -1361,7 +1390,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
-            nowSupplier
+            nowSupplier,
+            defaultLifecycleForTimeSeriesEnabled
         );
     }
 
@@ -1413,15 +1443,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         Set<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
-        @Nullable Predicate<IndexMetadata> indicesPredicate,
-        LongSupplier nowSupplier
+        @Nullable BiPredicate<IndexMetadata, Boolean> indicesPredicate,
+        LongSupplier nowSupplier,
+        boolean defaultLifecycleForTimeSeriesEnabled
     ) {
         if (indices.isEmpty()) {
             return Set.of();
         }
         Set<Index> olderIndices = new HashSet<>();
         for (Index index : indices) {
-            if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+            if (isIndexOlderThan(
+                index,
+                retentionPeriod.getMillis(),
+                nowSupplier.getAsLong(),
+                indicesPredicate,
+                indexMetadataSupplier,
+                defaultLifecycleForTimeSeriesEnabled
+            )) {
                 olderIndices.add(index);
             }
         }
@@ -1432,8 +1470,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         Index index,
         long retentionPeriod,
         long now,
-        Predicate<IndexMetadata> indicesPredicate,
-        Function<String, IndexMetadata> indexMetadataSupplier
+        @Nullable BiPredicate<IndexMetadata, Boolean> indicesPredicate,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean defaultLifecycleForTimeSeriesEnabled
     ) {
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
         if (indexMetadata == null) {
@@ -1444,7 +1483,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
         return indexLifecycleDate != null
             && now >= indexLifecycleDate.getMillis() + retentionPeriod
-            && (indicesPredicate == null || indicesPredicate.test(indexMetadata));
+            && (indicesPredicate == null || indicesPredicate.test(indexMetadata, defaultLifecycleForTimeSeriesEnabled));
+    }
+
+    /**
+     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
+     * we return false.
+     * @deprecated Please use {@link #isIndexManagedByDataStreamLifecycle(Index, Function, boolean)}
+     */
+    @Deprecated
+    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+        return isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, false);
     }
 
     /**
@@ -1452,7 +1502,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean defaultLifecycleForTimeSeriesEnabled
+    ) {
         if (containsIndex(index.getName()) == false) {
             return false;
         }
@@ -1461,7 +1515,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, defaultLifecycleForTimeSeriesEnabled);
     }
 
     /**
@@ -1471,11 +1525,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean defaultLifecycleEnabledForTimeSeries) {
         if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
             return false;
         }
-        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
+        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex(), defaultLifecycleEnabledForTimeSeries);
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;

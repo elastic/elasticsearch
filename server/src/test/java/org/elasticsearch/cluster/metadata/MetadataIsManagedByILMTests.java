@@ -98,6 +98,76 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
         }
     }
 
+    public void testIsIndexManagedByIlmWithDefaultLifecycleForTimeSeries() {
+        {
+            // Backing index without ILM in a TSDB data stream: always false regardless of flag
+            String dataStreamName = "metrics-tsdb";
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .build();
+            DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(false));
+        }
+
+        {
+            // Backing index with ILM in a TSDB data stream with no lifecycle configured:
+            // flag=false → no DSL lifecycle active → ILM manages it
+            // flag=true → DEFAULT_DATA_LIFECYCLE applies → PREFER_ILM defaults to true → ILM still manages it
+            String dataStreamName = "metrics-tsdb";
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                Settings.builder().put("index.lifecycle.name", "metrics").build()
+            ).build();
+            DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(true));
+        }
+
+        {
+            // Backing index with ILM and PREFER_ILM=false in a TSDB data stream with no lifecycle configured:
+            // flag=false → no DSL lifecycle active → ILM manages it (PREFER_ILM is irrelevant when no DSL)
+            // flag=true → DEFAULT_DATA_LIFECYCLE applies → PREFER_ILM=false → DSL takes precedence → not managed by ILM
+            String dataStreamName = "metrics-tsdb";
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                Settings.builder().put("index.lifecycle.name", "metrics").put(IndexSettings.PREFER_ILM, false).build()
+            ).build();
+            DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(false));
+        }
+
+        {
+            // Backing index with ILM in a TSDB data stream with an explicit lifecycle: flag is irrelevant, DSL is active
+            // PREFER_ILM defaults to true → ILM manages it
+            String dataStreamName = "metrics-tsdb";
+            IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                Settings.builder().put("index.lifecycle.name", "metrics").build()
+            ).build();
+            DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .build();
+            Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
+
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, false), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata, true), is(true));
+        }
+    }
+
     public void testLookupIndexIsNeverManagedByILM() {
         IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
             "lookup-index",

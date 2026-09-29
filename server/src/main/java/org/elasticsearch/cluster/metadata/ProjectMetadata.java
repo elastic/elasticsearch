@@ -1153,8 +1153,19 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
      * data stream that's potentially managed by data stream lifecycle and the value of the
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * @deprecated Please use {@link #isIndexManagedByILM(IndexMetadata, boolean)}
      */
+    @Deprecated
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
+        return isIndexManagedByILM(indexMetadata, false);
+    }
+
+    /**
+     * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
+     * data stream that's potentially managed by data stream lifecycle and the value of the
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     */
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata, boolean defaultLifecycleForTimeSeries) {
         if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false
             || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
             // in case of no ILM policy configured or lookup index, we short circuit this to *not* managed by ILM
@@ -1172,7 +1183,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (parentDataStream == null) {
             return true;
         }
-        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex(), defaultLifecycleForTimeSeries);
         if (lifecycle != null && lifecycle.enabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());

@@ -1771,6 +1771,122 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(failureIndicesCount, is(2L));
     }
 
+    public void testGetIndicesOlderThanWithDefaultLifecycleForTimeSeries() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Non-TSDB data stream without lifecycle: flag has no effect, always empty
+        Metadata.Builder nonTsdbBuilder = Metadata.builder();
+        DataStream nonTsdbDs = createDataStream(
+            nonTsdbBuilder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+        Metadata nonTsdbMetadata = nonTsdbBuilder.build();
+
+        assertThat(
+            nonTsdbDs.getIndicesOlderThan(nonTsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, false).isEmpty(),
+            is(true)
+        );
+        assertThat(
+            nonTsdbDs.getIndicesOlderThan(nonTsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, true).isEmpty(),
+            is(true)
+        );
+
+        // TSDB data stream without lifecycle:
+        // flag=false → indices not managed → empty; flag=true → DEFAULT_DATA_LIFECYCLE applies → aged indices returned
+        Metadata.Builder tsdbBuilder = Metadata.builder();
+        List<Index> tsdbBackingIndices = createDataStreamIndices(
+            tsdbBuilder,
+            dataStreamName + "-tsdb",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbDs = DataStream.builder(dataStreamName + "-tsdb", tsdbBackingIndices).setIndexMode(IndexMode.TIME_SERIES).build();
+        tsdbBuilder.put(tsdbDs);
+        Metadata tsdbMetadata = tsdbBuilder.build();
+
+        assertThat(
+            tsdbDs.getIndicesOlderThan(tsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, false).isEmpty(),
+            is(true)
+        );
+
+        Set<Index> olderThan = tsdbDs.getIndicesOlderThan(
+            tsdbMetadata.getProject()::index,
+            () -> now,
+            TimeValue.ZERO,
+            BACKING_INDICES,
+            true
+        );
+        // All non-write indices (4 out of 5) should be returned
+        assertThat(olderThan.size(), is(4));
+        assertThat(
+            olderThan,
+            equalTo(Set.of(tsdbBackingIndices.get(0), tsdbBackingIndices.get(1), tsdbBackingIndices.get(2), tsdbBackingIndices.get(3)))
+        );
+
+        // With a longer retention only the two oldest qualify
+        Set<Index> someOlderThan = tsdbDs.getIndicesOlderThan(
+            tsdbMetadata.getProject()::index,
+            () -> now,
+            TimeValue.timeValueSeconds(2500),
+            BACKING_INDICES,
+            true
+        );
+        assertThat(someOlderThan.size(), is(2));
+        assertThat(someOlderThan, equalTo(Set.of(tsdbBackingIndices.get(0), tsdbBackingIndices.get(1))));
+
+        // TSDB data stream with an explicit lifecycle: flag is irrelevant, lifecycle always applies
+        Metadata.Builder tsdbWithLifecycleBuilder = Metadata.builder();
+        List<Index> tsdbWithLifecycleBackingIndices = createDataStreamIndices(
+            tsdbWithLifecycleBuilder,
+            dataStreamName + "-tsdb-lc",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbDsWithLifecycle = DataStream.builder(dataStreamName + "-tsdb-lc", tsdbWithLifecycleBackingIndices)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .build();
+        tsdbWithLifecycleBuilder.put(tsdbDsWithLifecycle);
+        Metadata tsdbWithLifecycleMetadata = tsdbWithLifecycleBuilder.build();
+
+        assertThat(
+            tsdbDsWithLifecycle.getIndicesOlderThan(
+                tsdbWithLifecycleMetadata.getProject()::index,
+                () -> now,
+                TimeValue.ZERO,
+                BACKING_INDICES,
+                false
+            ).size(),
+            is(4)
+        );
+        assertThat(
+            tsdbDsWithLifecycle.getIndicesOlderThan(
+                tsdbWithLifecycleMetadata.getProject()::index,
+                () -> now,
+                TimeValue.ZERO,
+                BACKING_INDICES,
+                true
+            ).size(),
+            is(4)
+        );
+    }
+
     private void testIndicesPastRetention(boolean failureStore) {
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
@@ -2223,6 +2339,89 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testIsIndexManagedByDataStreamLifecycleWithDefaultLifecycleForTimeSeries() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Non-TSDB data stream without lifecycle: false regardless of the flag
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        DataStream nonTsdbDs = createDataStream(
+            metadataBuilder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+        Metadata nonTsdbMetadata = metadataBuilder.build();
+
+        for (Index index : nonTsdbDs.getIndices()) {
+            assertThat(nonTsdbDs.isIndexManagedByDataStreamLifecycle(index, nonTsdbMetadata.getProject()::index, false), is(false));
+            assertThat(nonTsdbDs.isIndexManagedByDataStreamLifecycle(index, nonTsdbMetadata.getProject()::index, true), is(false));
+        }
+
+        // TSDB data stream without lifecycle:
+        // flag=false → not managed; flag=true → managed via DEFAULT_DATA_LIFECYCLE
+        metadataBuilder = Metadata.builder();
+        List<Index> backingIndices = createDataStreamIndices(
+            metadataBuilder,
+            dataStreamName + "-tsdb",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdb = DataStream.builder(dataStreamName + "-tsdb", backingIndices).setIndexMode(IndexMode.TIME_SERIES).build();
+        metadataBuilder.put(tsdb);
+        Metadata tsdbMetadata = metadataBuilder.build();
+
+        for (Index index : tsdb.getIndices()) {
+            assertThat(tsdb.isIndexManagedByDataStreamLifecycle(index, tsdbMetadata.getProject()::index, false), is(false));
+            assertThat(tsdb.isIndexManagedByDataStreamLifecycle(index, tsdbMetadata.getProject()::index, true), is(true));
+        }
+
+        // Index not part of the data stream: always false regardless of flag
+        Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(unrelatedIndex, tsdbMetadata.getProject()::index, false), is(false));
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(unrelatedIndex, tsdbMetadata.getProject()::index, true), is(false));
+
+        // Deleted index (metadata supplier returns null): always false regardless of flag
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(tsdb.getIndices().get(0), (index) -> null, false), is(false));
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(tsdb.getIndices().get(0), (index) -> null, true), is(false));
+
+        // TSDB data stream with explicit lifecycle: true regardless of flag
+        metadataBuilder = Metadata.builder();
+        backingIndices = createDataStreamIndices(
+            metadataBuilder,
+            dataStreamName + "-tsdb-lifecycle",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbWithLifecycle = DataStream.builder(dataStreamName + "-tsdb-lifecycle", backingIndices)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .build();
+        metadataBuilder.put(tsdbWithLifecycle);
+        Metadata tsdbWithLifeccycleMetadata = metadataBuilder.build();
+
+        for (Index index : tsdbWithLifecycle.getIndices()) {
+            assertThat(
+                tsdbWithLifecycle.isIndexManagedByDataStreamLifecycle(index, tsdbWithLifeccycleMetadata.getProject()::index, false),
+                is(true)
+            );
+            assertThat(
+                tsdbWithLifecycle.isIndexManagedByDataStreamLifecycle(index, tsdbWithLifeccycleMetadata.getProject()::index, true),
+                is(true)
+            );
+        }
+    }
+
     public void testFailuresLifecycle() {
         DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
         assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());
@@ -2242,6 +2441,67 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
             .build();
         assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
+    public void testGetDataLifecycleForIndex() {
+        Index backingIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index failureIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
+
+        // Non-TSDB data stream with no lifecycle configured
+        DataStream standardDs = DataStream.builder("standard-ds", List.of(backingIndex))
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+            .build();
+
+        // Index not in the data stream returns null regardless of the flag
+        assertThat(standardDs.getDataLifecycleForIndex(unrelatedIndex, false), nullValue());
+        assertThat(standardDs.getDataLifecycleForIndex(unrelatedIndex, true), nullValue());
+
+        // Backing index with no lifecycle and non-TSDB: always null
+        assertThat(standardDs.getDataLifecycleForIndex(backingIndex, false), nullValue());
+        assertThat(standardDs.getDataLifecycleForIndex(backingIndex, true), nullValue());
+
+        // Failure index: returns default failure lifecycle (failure indices are present)
+        assertThat(standardDs.getDataLifecycleForIndex(failureIndex, false), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+        assertThat(standardDs.getDataLifecycleForIndex(failureIndex, true), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+
+        // TSDB data stream with no lifecycle configured
+        DataStream tsdbDs = DataStream.builder("tsdb-ds", List.of(backingIndex))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+            .build();
+
+        // Backing index: null when flag is false, DEFAULT_DATA_LIFECYCLE when flag is true
+        assertThat(tsdbDs.getDataLifecycleForIndex(backingIndex, false), nullValue());
+        assertThat(tsdbDs.getDataLifecycleForIndex(backingIndex, true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+
+        // Failure index is unaffected by the TSDB flag
+        assertThat(tsdbDs.getDataLifecycleForIndex(failureIndex, false), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+        assertThat(tsdbDs.getDataLifecycleForIndex(failureIndex, true), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+
+        // Unrelated index still returns null
+        assertThat(tsdbDs.getDataLifecycleForIndex(unrelatedIndex, false), nullValue());
+        assertThat(tsdbDs.getDataLifecycleForIndex(unrelatedIndex, true), nullValue());
+
+        // TSDB data stream with an explicit lifecycle configured: explicit lifecycle always wins, flag is irrelevant
+        DataStreamLifecycle explicitLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(30))
+            .build();
+        DataStream tsdbDsWithLifecycle = DataStream.builder("tsdb-ds-with-lifecycle", List.of(backingIndex))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(explicitLifecycle)
+            .build();
+
+        assertThat(tsdbDsWithLifecycle.getDataLifecycleForIndex(backingIndex, false), equalTo(explicitLifecycle));
+        assertThat(tsdbDsWithLifecycle.getDataLifecycleForIndex(backingIndex, true), equalTo(explicitLifecycle));
+
+        // Non-TSDB data stream with an explicit lifecycle configured
+        DataStream standardDsWithLifecycle = DataStream.builder("standard-ds-with-lifecycle", List.of(backingIndex))
+            .setLifecycle(explicitLifecycle)
+            .build();
+
+        assertThat(standardDsWithLifecycle.getDataLifecycleForIndex(backingIndex, false), equalTo(explicitLifecycle));
+        assertThat(standardDsWithLifecycle.getDataLifecycleForIndex(backingIndex, true), equalTo(explicitLifecycle));
     }
 
     private DataStream createDataStream(

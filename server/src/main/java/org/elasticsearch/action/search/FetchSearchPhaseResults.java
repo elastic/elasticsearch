@@ -29,7 +29,7 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
 
     private static final long RELEASED = -1L;
 
-    // Suffixed so a trip here does not read like the data node's own fetch charge in the shard failure it produces.
+    // Suffixed so a trip here does not read like the data node's own fetch charge in the failure it produces.
     private static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[coordinator]";
 
     private final CircuitBreaker circuitBreaker;

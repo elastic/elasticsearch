@@ -144,6 +144,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -186,6 +187,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -226,6 +228,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value"),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -254,6 +257,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -288,6 +292,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -328,6 +333,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -369,6 +375,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             true
         );
 
@@ -419,6 +426,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -454,6 +462,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -493,6 +502,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 
@@ -549,6 +559,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
+            e -> {},
             randomBoolean()
         );
 

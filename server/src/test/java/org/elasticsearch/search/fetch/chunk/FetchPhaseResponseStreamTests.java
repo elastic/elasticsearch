@@ -39,10 +39,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link FetchPhaseResponseStream}.
@@ -398,6 +400,23 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 2048);
             expectThrows(CircuitBreakingException.class, () -> writeChunk(stream, chunk));
+        } finally {
+            stream.decRef();
+        }
+    }
+
+    public void testTripIsReportedToTheSearchBeforeItIsThrown() throws IOException {
+        long estimatedBytes = estimatedRetainedBytesForSourceSize(0, 5, 2048);
+
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(estimatedBytes - 1));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
+        AtomicReference<Exception> reported = new AtomicReference<>();
+        stream.setCoordinatorTripListener(reported::set);
+
+        try {
+            FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 2048);
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> writeChunk(stream, chunk));
+            assertThat(reported.get(), sameInstance(thrown));
         } finally {
             stream.decRef();
         }

@@ -872,7 +872,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     private void assertSnapshotWaitingLatency(Matcher<Long> matcher) {
         Measurement latestMeasurement = allTestTelemetryPlugins().flatMap(
-            plugin -> plugin.getLongGaugeMeasurement(SnapshotMetrics.SNAPSHOT_SHARDS_WAITING_LATENCY).stream()
+            plugin -> plugin.getLongAsyncGaugeMeasurement(SnapshotMetrics.SNAPSHOT_SHARDS_WAITING_LATENCY).stream()
         ).toList().getLast();
         assertThat(latestMeasurement.attributes(), anEmptyMap());
         assertThat(latestMeasurement.getLong(), matcher);

@@ -80,11 +80,11 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             }
             try (var response = run(syncEsqlQueryRequest("FROM *"))) {
                 assertOk(response);
-                // system-view & regular-index matched as indices and another regular-view matched as a view
+                // system-index & regular-index matched as indices and only regular-view matched as a view
                 assertResultConcreteIndices(response, "system-index", "regular-index", "regular-index");
             }
             try (var fromSystemView = createView("from-system-view", "FROM .system-view")) {
-                try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
+                try (var response = run(syncEsqlQueryRequest("FROM from-system-view"))) {
                     assertOk(response);
                     assertResultConcreteIndices(response, "system-index"); // concrete name resolved in inner system view
                 }

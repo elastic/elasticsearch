@@ -56,14 +56,14 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.views = in.readStringArray();
-            this.canDeleteSystemViews = in.getTransportVersion().supports(View.VIEW_IS_SYSTEM_VERSION) && in.readBoolean();
+            this.canDeleteSystemViews = in.getTransportVersion().supports(View.VIEW_SYSTEM_VERSION) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(views);
-            if (out.getTransportVersion().supports(View.VIEW_IS_SYSTEM_VERSION)) {
+            if (out.getTransportVersion().supports(View.VIEW_SYSTEM_VERSION)) {
                 out.writeBoolean(canDeleteSystemViews);
             }
         }

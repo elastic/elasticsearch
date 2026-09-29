@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
-    public static final TransportVersion VIEW_IS_SYSTEM_VERSION = TransportVersion.fromName("esql_view_is_system");
+    public static final TransportVersion VIEW_SYSTEM_VERSION = TransportVersion.fromName("esql_view_system");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
@@ -89,7 +89,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         this.name = in.readString();
         this.query = in.readString();
         this.description = in.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION) ? in.readOptionalString() : null;
-        this.isSystem = in.getTransportVersion().supports(VIEW_IS_SYSTEM_VERSION) && in.readBoolean();
+        this.isSystem = in.getTransportVersion().supports(VIEW_SYSTEM_VERSION) && in.readBoolean();
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -103,7 +103,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         if (out.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION)) {
             out.writeOptionalString(description);
         }
-        if (out.getTransportVersion().supports(VIEW_IS_SYSTEM_VERSION)) {
+        if (out.getTransportVersion().supports(VIEW_SYSTEM_VERSION)) {
             out.writeBoolean(isSystem);
         }
     }

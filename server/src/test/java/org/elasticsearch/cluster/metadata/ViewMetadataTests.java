@@ -49,11 +49,6 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
         return new ViewMetadata(views);
     }
 
-    private static View randomView(String name) {
-        String query = "FROM " + randomAlphaOfLength(10);
-        return new View(name, query);
-    }
-
     @Override
     protected Writeable.Reader<ViewMetadata> instanceReader() {
         return ViewMetadata::readFromStream;

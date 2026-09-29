@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -161,10 +162,21 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         assertThat(denied.getExplanation(), containsString("headroom [" + HEADROOM + "]"));
 
         assertEquals(
-            Decision.Type.THROTTLE,
+            Decision.Type.NO,
             decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type()
         );
         assertEquals(Decision.Type.THROTTLE, decide(state, ClusterInfo.EMPTY, sizes(state, 50 * GB)).type());
+    }
+
+    public void testFailedSnapshotSizeFailsRestoreAllocation() {
+        var state = state(1);
+        var sizeInfo = new AtomicReference<>(sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+        var info = new AtomicReference<>(info(70 * GB));
+        var service = service(info, sizeInfo);
+        state = service.reroute(state, "size fetch failed", ActionListener.noop());
+        var primary = state.routingTable().index("index-0").shard(0).primaryShard();
+        assertTrue(primary.unassigned());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_NO, primary.unassignedInfo().lastAllocationStatus());
     }
 
     public void testOnlyUnassignedSnapshotPrimariesOnIndexNodes() {

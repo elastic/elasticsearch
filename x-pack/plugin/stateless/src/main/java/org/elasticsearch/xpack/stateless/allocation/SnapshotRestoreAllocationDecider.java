@@ -36,17 +36,25 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
             return Decision.YES;
         }
-        // Unknown size (null) is deferred by StatelessExistingShardsAllocator. A failed size fetch and missing disk
-        // stats cannot be evaluated per node: NOT_PREFERRED in simulation still allows a tentative desired
-        // assignment; THROTTLE in reconciliation avoids RestoreService failing the API restore on DECIDERS_NO.
-        Decision missingInformationDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
         Long size = allocation.snapshotShardSizeInfo().getShardSize(shard);
-        if (size == null || size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            return allocation.decision(missingInformationDecision, NAME, "snapshot shard size is unavailable");
+        // Normally deferred by StatelessExistingShardsAllocator; wait if explain still hits this path.
+        if (size == null) {
+            return allocation.decision(
+                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
+                NAME,
+                "snapshot shard size is still being fetched"
+            );
         }
+        // NO (not wait) so reconciliation yields DECIDERS_NO and RestoreService fails the restore.
+        if (size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+            return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
+        }
+        // Missing disk stats: NOT_PREFERRED in simulation still allows a tentative desired assignment; THROTTLE in
+        // reconciliation avoids RestoreService failing the API restore on DECIDERS_NO.
+        Decision missingDiskDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
-            return allocation.decision(missingInformationDecision, NAME, "node disk information is unavailable");
+            return allocation.decision(missingDiskDecision, NAME, "node disk information is unavailable");
         }
         // Include recoveries assigned since the last stats refresh; never credit outgoing files before deletion.
         long committed = DiskThresholdDecider.sizeOfUnaccountedShards(

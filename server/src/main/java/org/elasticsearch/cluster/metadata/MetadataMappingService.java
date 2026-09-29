@@ -40,6 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -91,13 +92,57 @@ public class MetadataMappingService {
         clusterService.getClusterSettings().initializeAndWatchIfRegistered(PUT_MAPPING_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
     }
 
-    record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+    /**
+     * Holds the pre-flight merge result for a single index, computed on the MANAGEMENT thread during
+     * {@link #isWholeRequestNoop}. Carrying this into {@link PutMappingExecutor} lets the master thread
+     * skip the redundant {@link MapperService#merge} work it would otherwise repeat.
+     * <p>
+     * Both {@code mappingVersion} and {@code settingsVersion} must still match the index metadata at
+     * execution time for the cache entry to be usable; a stale entry is discarded and the normal path runs.
+     */
+    record PreflightCacheEntry(long mappingVersion, long settingsVersion, CompressedXContent preUpdateSource, MapperService mergedService)
         implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+            Closeable {
+        @Override
+        public void close() throws IOException {
+            mergedService.close();
+        }
+    }
+
+    private sealed interface PreflightResult permits PreflightResult.Noop, PreflightResult.NeedsUpdate {
+        record Noop() implements PreflightResult {}
+
+        final class NeedsUpdate implements PreflightResult {
+            private Map<Index, PreflightCacheEntry> cache;
+
+            private NeedsUpdate(Map<Index, PreflightCacheEntry> cache) {
+                this.cache = cache;
+            }
+
+            /**
+             * Transfers ownership of the pre-flight cache to the caller. Must be called at most once.
+             */
+            Map<Index, PreflightCacheEntry> takeCache() {
+                if (cache == null) {
+                    throw new IllegalStateException("takeCache() called more than once");
+                }
+                var taken = cache;
+                cache = null;
+                return taken;
+            }
+        }
+    }
+
+    record PutMappingClusterStateUpdateTask(
+        PutMappingClusterStateUpdateRequest request,
+        ActionListener<AcknowledgedResponse> listener,
+        Map<Index, PreflightCacheEntry> preflightCache
+    ) implements ClusterStateTaskListener, ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {
+            IOUtils.closeWhileHandlingException(preflightCache.values());
+            preflightCache.clear();
             listener.onFailure(e);
         }
 
@@ -140,27 +185,56 @@ public class MetadataMappingService {
 
         @Override
         public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
+            // indexMapperServices holds the last successfully committed MapperService state per index.
+            // Each task gets its own private taskServices map; on success it is promoted here so that
+            // subsequent tasks in the same batch see the accumulated merged state.
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
                 var currentState = batchExecutionContext.initialState();
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
+                    Map<Index, MapperService> taskServices = new HashMap<>();
+                    // activeEntries tracks which indices were served from the pre-flight cache so that
+                    // applyRequest can skip the merge call for those indices.
+                    Map<Index, PreflightCacheEntry> activeEntries = new HashMap<>();
+                    boolean succeeded = false;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             currentState.projectState(currentState.metadata().projectFor(index).id()).ensureProjectNotUnderDeletion();
                             final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
-                            if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
-                                indexMapperServices.put(index, mapperService);
-                                // add mappings for all types, we need them for cross-type validation
-                                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                            if (indexMetadata == null) {
+                                throw new IllegalStateException("index [" + index.getName() + "] not found in cluster state");
+                            }
+                            if (indexMapperServices.containsKey(index)) {
+                                // Already loaded by a prior task in this batch; reuse from the committed map.
+                                // The task's own cache entry for this index (if any) is unconsumed and will be
+                                // closed by the success-path finally block below.
+                                taskServices.put(index, indexMapperServices.get(index));
+                            } else {
+                                taskServices.put(index, loadService(task, index, indexMetadata, activeEntries));
                             }
                         }
-                        currentState = applyRequest(currentState, request, indexMapperServices);
+                        currentState = applyRequest(currentState, request, taskServices, activeEntries);
                         taskContext.success(task);
+                        succeeded = true;
+                        indexMapperServices.putAll(taskServices);
                     } catch (Exception e) {
+                        // Close task-private services that were not promoted to the committed map.
+                        for (var entry : taskServices.entrySet()) {
+                            if (indexMapperServices.containsKey(entry.getKey()) == false) {
+                                IOUtils.closeWhileHandlingException(entry.getValue());
+                            }
+                        }
+                        // task.onFailure closes and clears the remaining preflightCache entries.
                         taskContext.onFailure(e);
+                    } finally {
+                        if (succeeded) {
+                            // Close unconsumed cache entries: those for indices that were already in
+                            // indexMapperServices and therefore never loaded into taskServices.
+                            IOUtils.closeWhileHandlingException(task.preflightCache.values());
+                            task.preflightCache.clear();
+                        }
                     }
                 }
                 return currentState;
@@ -169,10 +243,47 @@ public class MetadataMappingService {
             }
         }
 
+        /**
+         * Returns a {@link MapperService} ready for use in {@link #applyRequest}: either a validated
+         * pre-flight service (with both MAPPING_RECOVERY and the update merge already applied) when the
+         * cache is fresh, or a newly created service with only MAPPING_RECOVERY applied.
+         * <p>
+         * On a cache hit the entry is moved into {@code activeEntries} so {@link #applyRequest} knows to
+         * skip the merge call. On a stale hit or miss the consumed entry is closed immediately.
+         */
+        private MapperService loadService(
+            PutMappingClusterStateUpdateTask task,
+            Index index,
+            IndexMetadata indexMetadata,
+            Map<Index, PreflightCacheEntry> activeEntries
+        ) throws IOException {
+            // remove() consumes the entry so task.onFailure cannot double-close it.
+            final PreflightCacheEntry cached = task.preflightCache.remove(index);
+            if (cached != null
+                && cached.mappingVersion() == indexMetadata.getMappingVersion()
+                && cached.settingsVersion() == indexMetadata.getSettingsVersion()) {
+                // Cache hit: mapping and settings unchanged since pre-flight.
+                activeEntries.put(index, cached);
+                return cached.mergedService();
+            }
+            // Cache miss or stale (concurrent mapping/settings update); close the stale entry if present.
+            IOUtils.closeWhileHandlingException(cached);
+            MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+            try {
+                // add mappings for all types, we need them for cross-type validation
+                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+            } catch (Exception e) {
+                IOUtils.closeWhileHandlingException(mapperService);
+                throw e;
+            }
+            return mapperService;
+        }
+
         private ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
-            Map<Index, MapperService> indexMapperServices
+            Map<Index, MapperService> taskServices,
+            Map<Index, PreflightCacheEntry> activeEntries
         ) {
             MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -182,12 +293,20 @@ public class MetadataMappingService {
                 // and if we pull it from the indexService we might miss an update etc.
                 final ProjectMetadata projectMetadata = currentState.metadata().projectFor(index);
                 final IndexMetadata indexMetadata = projectMetadata.index(index);
-                final MapperService mapperService = indexMapperServices.get(index);
+                final MapperService mapperService = taskServices.get(index);
 
-                CompressedXContent existingSource = mapperService.documentMapper() != null
-                    ? mapperService.documentMapper().mappingSource()
-                    : null;
-                DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
+                final CompressedXContent existingSource;
+                final DocumentMapper mergedMapper;
+                final PreflightCacheEntry cached = activeEntries.get(index);
+                if (cached != null) {
+                    // Cache hit: the merge was already performed on the MANAGEMENT thread; skip it here.
+                    existingSource = cached.preUpdateSource();
+                    mergedMapper = mapperService.documentMapper();
+                } else {
+                    existingSource = mapperService.documentMapper() != null ? mapperService.documentMapper().mappingSource() : null;
+                    mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
+                }
+
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
                 // If the mapping source is the same after merging, then we have no real update, so we skip modifying this index.
                 if (updatedSource.equals(existingSource)) {
@@ -198,18 +317,15 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                DocumentMapper docMapper = mapperService.documentMapper();
-                if (docMapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(docMapper));
-                    indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
-                }
+                indexMetadataBuilder.putMapping(new MappingMetadata(mergedMapper));
+                indexMetadataBuilder.putInferenceFields(mergedMapper.mappers().inferenceFields());
                 boolean updatedSettings = false;
                 final Settings.Builder additionalIndexSettings = Settings.builder();
                 indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                     .mappingsUpdatedVersion(IndexVersion.current());
                 for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
                     Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
-                    provider.onUpdateMappings(indexMetadata, docMapper, newAdditionalSettingsBuilder);
+                    provider.onUpdateMappings(indexMetadata, mergedMapper, newAdditionalSettingsBuilder);
                     if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
                         Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
                         MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
@@ -260,69 +376,109 @@ public class MetadataMappingService {
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        final PreflightResult preflightResult;
         try {
-            // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only
-            // apply the update to the remaining ones.
-            if (isWholeRequestNoop(request)) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
+            preflightResult = isWholeRequestNoop(request);
         } catch (Exception e) {
             // If an exception occurs while checking for no-op, we can return early and avoid submitting a cluster state update task.
             listener.onFailure(e);
             return;
         }
 
+        if (preflightResult instanceof PreflightResult.Noop) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only
+        // apply the update to the remaining ones.
+        final var needsUpdate = (PreflightResult.NeedsUpdate) preflightResult;
         taskQueue.submitTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            new PutMappingClusterStateUpdateTask(request, listener),
+            new PutMappingClusterStateUpdateTask(request, listener, needsUpdate.takeCache()),
             MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
         );
     }
 
-    private boolean isWholeRequestNoop(final PutMappingClusterStateUpdateRequest request) throws IOException {
+    private PreflightResult isWholeRequestNoop(final PutMappingClusterStateUpdateRequest request) throws IOException {
         // To check if the mapping update is a no-op, we will parse and merge the mapping with every index. This can be expensive with
         // large mappings (or many indices), so we need to do this on the management thread pool.
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         final ClusterState state = clusterService.state();
         final MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
-        for (Index index : request.indices()) {
-            var project = state.metadata().lookupProject(index);
-            if (project.isEmpty()) {
-                // this is a race condition where the project got deleted from under a mapping update task
-                return false;
-            }
-            final IndexMetadata indexMetadata = project.get().index(index);
-            if (indexMetadata == null) {
-                // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
-                // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in
-                // the state yet, but will be visible to the CS update below
-                return false;
-            }
-            final MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata == null) {
-                return false;
-            }
-            // If the mapping sources are already equal, then we already know this index would be a no-op and can skip further checks.
-            if (request.source().equals(mappingMetadata.source())) {
-                continue;
-            }
-            // We check if applying the mapping would result in any changes by merging the mapping update with the existing mapping.
-            // If the resulting mapping source is different, then we have a real update. Otherwise, we can skip the cluster state update.
-            // Just comparing the mapping update source with the existing mapping isn't sufficient, because the mapper service might add or
-            // remove certain default values, which would make the simple comparison fail even though the effective mapping is the same.
-            // TODO: it's unfortunate that we throw away the mapping result here and have to re-merge it again during the actual update.
-            // We could consider caching the result on the request object to avoid doing the same work twice. This would require some
-            // checks to ensure the cached result is only used if the circumstances are the same (e.g., no changes to the index settings).
-            try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
-                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
-                DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
-                CompressedXContent updatedSource = mergedMapper.mappingSource();
-                if (updatedSource.equals(mappingMetadata.source()) == false) {
-                    return false;
+        boolean isNoop = true;
+        final Map<Index, PreflightCacheEntry> cache = new HashMap<>();
+        try {
+            for (Index index : request.indices()) {
+                var project = state.metadata().lookupProject(index);
+                if (project.isEmpty()) {
+                    // this is a race condition where the project got deleted from under a mapping update task
+                    isNoop = false;
+                    continue;
+                }
+                final IndexMetadata indexMetadata = project.get().index(index);
+                if (indexMetadata == null) {
+                    // local store recovery sends a mapping update request during application of a cluster state on the data node which we
+                    // might receive here before the CS update that created the index has been applied on all nodes and thus the index
+                    // isn't found in the state yet, but will be visible to the CS update below
+                    isNoop = false;
+                    continue;
+                }
+                final MappingMetadata mappingMetadata = indexMetadata.mapping();
+                if (mappingMetadata == null) {
+                    isNoop = false;
+                    continue;
+                }
+                // If the mapping sources are already equal, then we already know this index would be a no-op and can skip further checks.
+                if (request.source().equals(mappingMetadata.source())) {
+                    continue;
+                }
+                // We check if applying the mapping would result in any changes by merging the mapping update with the existing mapping.
+                // If the resulting mapping source is different, then we have a real update. Otherwise, we can skip the cluster state
+                // update. Just comparing the mapping update source with the existing mapping isn't sufficient, because the mapper service
+                // might add or remove certain default values, which would make the simple comparison fail even though the effective
+                // mapping is the same.
+                // The pre-update source is captured after MAPPING_RECOVERY (normalized) rather than from mappingMetadata.source()
+                // (stored). Comparing against the post-RECOVERY source is consistent with how applyRequest determines existingSource
+                // and is more correct: a mapping with an unnormalized stored source that normalizes to the same value after RECOVERY
+                // is treated as a real update rather than a silent noop.
+                final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                try {
+                    mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                    final CompressedXContent preUpdateSource = mapperService.documentMapper() != null
+                        ? mapperService.documentMapper().mappingSource()
+                        : null;
+                    final DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
+                    final CompressedXContent updatedSource = mergedMapper.mappingSource();
+                    if (updatedSource.equals(preUpdateSource)) {
+                        // Noop for this index; close the service immediately.
+                        mapperService.close();
+                    } else {
+                        isNoop = false;
+                        cache.put(
+                            index,
+                            new PreflightCacheEntry(
+                                indexMetadata.getMappingVersion(),
+                                indexMetadata.getSettingsVersion(),
+                                preUpdateSource,
+                                mapperService
+                            )
+                        );
+                    }
+                } catch (Exception e) {
+                    IOUtils.closeWhileHandlingException(mapperService);
+                    throw e;
                 }
             }
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(cache.values());
+            throw e;
         }
-        return true;
+
+        if (isNoop) {
+            assert cache.isEmpty();
+            return new PreflightResult.Noop();
+        }
+        return new PreflightResult.NeedsUpdate(cache);
     }
 }

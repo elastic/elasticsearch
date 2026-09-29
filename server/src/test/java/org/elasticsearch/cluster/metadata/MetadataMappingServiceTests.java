@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetadataMappingService.PreflightCacheEntry;
 import org.elasticsearch.cluster.metadata.MetadataMappingService.PutMappingClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -24,12 +25,15 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -40,7 +44,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -288,10 +294,298 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         Mockito.verifyNoInteractions(masterServiceTaskQueue);
     }
 
+    /**
+     * Verifies that a valid pre-flight cache entry is used on the master thread — the mapping update
+     * is applied correctly and the cache map is cleared (no leaked services) after success.
+     */
+    public void testCacheHitAppliesMapping() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+        final String newMapping = """
+            { "properties": { "field": { "type": "keyword" }}}""";
+
+        // Reproduce what isWholeRequestNoop does on the MANAGEMENT thread.
+        final MapperService cachedService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        cachedService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        final CompressedXContent preUpdateSource = cachedService.documentMapper() != null
+            ? cachedService.documentMapper().mappingSource()
+            : null;
+        cachedService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE);
+
+        final Map<Index, PreflightCacheEntry> preflightCache = new HashMap<>();
+        preflightCache.put(
+            index,
+            new PreflightCacheEntry(indexMetadata.getMappingVersion(), indexMetadata.getSettingsVersion(), preUpdateSource, cachedService)
+        );
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            newMapping,
+            false,
+            index
+        );
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            List.of(new PutMappingClusterStateUpdateTask(request, ActionListener.wrap(r -> {}, e -> {}), preflightCache))
+        );
+
+        assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+        // The success-path finally block in execute() closes and clears the cache map.
+        assertTrue(preflightCache.isEmpty());
+    }
+
+    /**
+     * Verifies that a cache entry with a stale mapping version is discarded: the executor falls
+     * back to a fresh MapperService and still applies the mapping correctly.
+     */
+    public void testCacheMissStaleMappingVersionFallsBack() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+        final String newMapping = """
+            { "properties": { "field": { "type": "keyword" }}}""";
+
+        final MapperService staleService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        staleService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        staleService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE);
+
+        final Map<Index, PreflightCacheEntry> preflightCache = new HashMap<>();
+        preflightCache.put(
+            index,
+            // mappingVersion one behind the current cluster state — cache miss
+            new PreflightCacheEntry(indexMetadata.getMappingVersion() - 1, indexMetadata.getSettingsVersion(), null, staleService)
+        );
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            newMapping,
+            false,
+            index
+        );
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            List.of(new PutMappingClusterStateUpdateTask(request, ActionListener.wrap(r -> {}, e -> {}), preflightCache))
+        );
+
+        assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+        // Stale entry was consumed (removed) by loadService(); cache is empty after execution.
+        assertTrue(preflightCache.isEmpty());
+    }
+
+    /**
+     * Verifies that a cache entry with a stale settings version is discarded. Settings such as
+     * {@code total_fields.limit} are baked into MapperService at creation time; checking only
+     * the mapping version would silently reuse a service built against the old constraints.
+     */
+    public void testCacheMissStaleSettingsVersionFallsBack() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+        final String newMapping = """
+            { "properties": { "field": { "type": "keyword" }}}""";
+
+        final MapperService staleService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        staleService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        staleService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE);
+
+        final Map<Index, PreflightCacheEntry> preflightCache = new HashMap<>();
+        preflightCache.put(
+            index,
+            // settingsVersion one behind the current cluster state — cache miss
+            new PreflightCacheEntry(indexMetadata.getMappingVersion(), indexMetadata.getSettingsVersion() - 1, null, staleService)
+        );
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            newMapping,
+            false,
+            index
+        );
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            List.of(new PutMappingClusterStateUpdateTask(request, ActionListener.wrap(r -> {}, e -> {}), preflightCache))
+        );
+
+        assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+        assertTrue(preflightCache.isEmpty());
+    }
+
+    /**
+     * Verifies that calling {@link PutMappingClusterStateUpdateTask#onFailure} on a task that was
+     * never executed closes all pre-flight cache entries and clears the map.
+     */
+    public void testOnFailureClosesAndClearsPreflightCache() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+        final String mapping = """
+            { "properties": { "field": { "type": "keyword" }}}""";
+
+        final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        final Map<Index, PreflightCacheEntry> preflightCache = new HashMap<>();
+        preflightCache.put(
+            index,
+            new PreflightCacheEntry(indexMetadata.getMappingVersion(), indexMetadata.getSettingsVersion(), null, mapperService)
+        );
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            mapping,
+            false,
+            index
+        );
+        final PutMappingClusterStateUpdateTask task = new PutMappingClusterStateUpdateTask(
+            request,
+            ActionListener.wrap(r -> fail("should not succeed"), e -> {}),
+            preflightCache
+        );
+
+        task.onFailure(new RuntimeException("simulated failure"));
+
+        assertTrue("preflightCache should be cleared after onFailure", preflightCache.isEmpty());
+    }
+
+    /**
+     * Verifies that when two tasks in a batch target the same index, the second task's pre-flight
+     * cache entry for that index is closed and cleared on success — not leaked.
+     */
+    public void testBatchingSecondTaskCacheEntryIsClearedOnSuccess() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+        final String mapping1 = """
+            { "properties": { "field1": { "type": "keyword" }}}""";
+        final String mapping2 = """
+            { "properties": { "field2": { "type": "keyword" }}}""";
+
+        // Task 2 carries a pre-flight cache entry for the same index as task 1. After task 1
+        // succeeds, the index is already in indexMapperServices, so task 2's cache entry is
+        // never consumed and must be closed by the success-path finally block.
+        final MapperService cachedService2 = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        cachedService2.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        cachedService2.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+
+        final Map<Index, PreflightCacheEntry> preflightCache2 = new HashMap<>();
+        preflightCache2.put(
+            index,
+            new PreflightCacheEntry(indexMetadata.getMappingVersion(), indexMetadata.getSettingsVersion(), null, cachedService2)
+        );
+
+        final PutMappingClusterStateUpdateRequest request1 = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            mapping1,
+            false,
+            index
+        );
+        final PutMappingClusterStateUpdateRequest request2 = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            mapping2,
+            false,
+            index
+        );
+
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            List.of(
+                new PutMappingClusterStateUpdateTask(request1, ActionListener.wrap(r -> {}, e -> {}), new HashMap<>()),
+                new PutMappingClusterStateUpdateTask(request2, ActionListener.wrap(r -> {}, e -> {}), preflightCache2)
+            )
+        );
+
+        // Task 2's pre-flight cache entry was unconsumed; the success-path finally block must have
+        // closed and cleared it.
+        assertTrue("task2 preflightCache should be cleared on success", preflightCache2.isEmpty());
+    }
+
+    /**
+     * Verifies that when the first task in a batch fails, the second task is still applied from
+     * a clean base state and its mapping update lands in the resulting cluster state.
+     */
+    public void testBatchingFirstTaskFailsSecondSucceeds() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final Index index = indexService.index();
+        final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
+
+        // Task 1 uses an invalid field type; applyRequest will throw MapperParsingException.
+        final PutMappingClusterStateUpdateRequest failingRequest = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                { "properties": { "bad": { "type": "totally_invalid_type" }}}""",
+            false,
+            index
+        );
+        // Task 2 uses a valid mapping.
+        final PutMappingClusterStateUpdateRequest validRequest = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                { "properties": { "good": { "type": "keyword" }}}""",
+            false,
+            index
+        );
+
+        final PutMappingClusterStateUpdateTask task1 = new PutMappingClusterStateUpdateTask(
+            failingRequest,
+            ActionListener.wrap(r -> {}, e -> {}),
+            new HashMap<>()
+        );
+        final PutMappingClusterStateUpdateTask task2 = new PutMappingClusterStateUpdateTask(
+            validRequest,
+            ActionListener.wrap(r -> {}, e -> {}),
+            new HashMap<>()
+        );
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterService.state(),
+            putMappingExecutor,
+            List.of(task1, task2),
+            successTask -> assertSame("only task2 should succeed", task2, successTask),
+            (failedTask, e) -> assertSame("only task1 should fail", task1, failedTask)
+        );
+
+        // task2's mapping should be in the resulting state; mapping version incremented once.
+        assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+    }
+
     private static List<PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
         return Collections.singletonList(new PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
             throw new AssertionError("task should not complete publication");
-        })));
+        }), new HashMap<>()));
     }
 
 }

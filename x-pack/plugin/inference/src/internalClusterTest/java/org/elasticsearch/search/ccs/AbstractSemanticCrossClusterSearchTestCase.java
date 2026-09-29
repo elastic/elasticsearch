@@ -52,7 +52,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -250,12 +249,8 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             assertThat(hits.length, equalTo(expectedSearchResults.size()));
 
             if (expectedHits.ordered()) {
-                Iterator<SearchResult> searchResultIterator = expectedSearchResults.iterator();
-                for (int i = 0; i < hits.length; i++) {
-                    SearchResult expectedSearchResult = searchResultIterator.next();
-                    SearchResult actualSearchResult = new SearchResult(hits[i]);
-                    assertThat(actualSearchResult, equalTo(expectedSearchResult));
-                }
+                List<SearchResult> actualSearchResults = Arrays.stream(hits).map(SearchResult::new).toList();
+                assertThat(actualSearchResults, equalTo(expectedSearchResults));
             } else {
                 Set<SearchResult> actualSearchResults = Arrays.stream(hits).map(SearchResult::new).collect(Collectors.toSet());
                 assertThat(actualSearchResults, equalTo(Set.copyOf(expectedSearchResults)));

@@ -66,6 +66,21 @@ public interface AuditTrail {
         AuthorizationInfo authorizationInfo
     );
 
+    /**
+     * Records a configuration change for a dataset PUT that was fully authorized (both the
+     * {@code manage_dataset} index privilege and the {@code global.data_source} cluster privilege
+     * were granted). Written by the datasource interceptor after the second check passes, because
+     * writing it at {@code accessGranted} time would produce a spurious record when the second
+     * check later refuses the request.
+     */
+    default void datasetConfigChange(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    ) {}
+
     void tamperedRequest(String requestId, HttpPreRequest request);
 
     void tamperedRequest(String requestId, String action, TransportRequest transportRequest);

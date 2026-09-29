@@ -496,10 +496,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> assertThat(response.getHits().getAt(0).field("field1").getValue(), equalTo("value1"))
         );
 
-        // user2 may not see field1
+        // user2 may not see field1 values
         assertResponse(
             client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(docValuesRequest),
-            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1"))
+            response -> assertThat(response.getHits().getAt(0).getDocumentFields().get("field1").getValues(), empty())
         );
 
         SearchRequest aliasFieldsRequest = new SearchRequest("test").source(
@@ -526,10 +526,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> assertThat(response.getHits().getAt(0).field("field1_alias").getValue(), equalTo("value1"))
         );
 
-        // user2 may not see field1 through alias
+        // user2 may not see field1 value through alias
         assertResponse(
             client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(aliasDocValuesRequest),
-            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1_alias"))
+            response -> assertThat(response.getHits().getAt(0).getDocumentFields().get("field1_alias").getValues(), empty())
         );
     }
 

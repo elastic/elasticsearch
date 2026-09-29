@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -153,39 +152,6 @@ public class QueryRewriteContextTests extends ESTestCase {
         assertFalse(ctx.isMappedField("unmapped_parent.sub_key"));
     }
 
-    public void testIsFieldVisible() {
-        TestRuntimeField mappedRuntimeField = new TestRuntimeField("mapped_runtime", "keyword");
-
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("_doc");
-        rootBuilder.addRuntimeFields(Map.of(mappedRuntimeField.name(), mappedRuntimeField));
-
-        Mapping mapping = new Mapping(rootBuilder.build(MapperBuilderContext.root(false, false)), new MetadataFieldMapper[0], Map.of());
-
-        MappingLookup mappingLookup = MappingLookup.fromMappers(
-            mapping,
-            List.of(new MockFieldMapper("visible"), new MockFieldMapper("hidden")),
-            List.of(),
-            IndexMode.STANDARD
-        );
-
-        MappedFieldType requestRuntimeField = new TestRuntimeField.TestRuntimeFieldType("request_runtime", "keyword");
-        var settings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
-        QueryRewriteContext context = newQueryRewriteContext(settings, mappingLookup, Map.of("request_runtime", requestRuntimeField));
-
-        // Fields are visible by default.
-        assertTrue(context.isFieldVisible("hidden"));
-
-        context.setFieldVisibilityPredicate(field -> field.equals("visible"));
-
-        assertTrue(context.isFieldVisible("visible"));
-        assertFalse(context.isFieldVisible("hidden"));
-        assertFalse(context.isFieldVisible("missing"));
-
-        // Runtime field output names are not restricted by the mapping-field predicate.
-        assertTrue(context.isFieldVisible("mapped_runtime"));
-        assertTrue(context.isFieldVisible("request_runtime"));
-    }
-
     public void testGetFieldTypeAppliesVisibilityToConstantFields() {
         var visibleTarget = new TestConstantFieldType("visible_target");
         var hiddenTarget = new TestConstantFieldType("hidden_target");
@@ -212,6 +178,8 @@ public class QueryRewriteContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
 
         QueryRewriteContext context = newQueryRewriteContext(indexSettings, mappingLookup, Map.of());
+        assertTrue(((TestConstantFieldType) context.getFieldType("hidden_target")).visible);
+
         context.setFieldVisibilityPredicate("visible_target"::equals);
 
         assertTrue(((TestConstantFieldType) context.getFieldType("visible_target")).visible);

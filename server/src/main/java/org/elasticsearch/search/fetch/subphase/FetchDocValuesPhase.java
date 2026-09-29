@@ -45,7 +45,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         for (FieldAndFormat fieldAndFormat : dvContext.fields()) {
             SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
             MappedFieldType ft = searchExecutionContext.getFieldType(fieldAndFormat.field);
-            if (ft == null || searchExecutionContext.isFieldVisible(ft.name()) == false) {
+            if (ft == null) {
                 continue;
             }
             ValueFetcher fetcher = new DocValueFetcher(

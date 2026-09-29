@@ -406,7 +406,10 @@ public class QueryRewriteContext {
         }
 
         if (fieldType instanceof ConstantFieldType constantFieldType) {
-            return constantFieldType.applyFieldVisibility(isFieldVisible(fieldType.name()));
+            var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
+                || fieldVisibilityPredicate.test(fieldType.name());
+
+            return constantFieldType.applyFieldVisibility(visible);
         }
         return fieldType;
     }
@@ -698,13 +701,6 @@ public class QueryRewriteContext {
                 && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
         }
         return false;
-    }
-
-    public boolean isFieldVisible(String field) {
-        return runtimeMappings.containsKey(field)
-            || mappingLookup.isRuntimeField(field)
-            || (mapperService != null && mapperService.isMetadataField(field))
-            || fieldVisibilityPredicate.test(field);
     }
 
     public ResolvedIndices getResolvedIndices() {

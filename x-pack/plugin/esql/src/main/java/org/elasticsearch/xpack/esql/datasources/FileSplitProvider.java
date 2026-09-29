@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.CheckedFunction;
@@ -83,6 +84,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -784,10 +786,14 @@ public class FileSplitProvider implements SplitProvider {
         );
     }
 
+    /** Not a partition value. Marks a directory key this file does not include. */
+    private static final Object ABSENT = new Object();
+
     /**
      * Directory-constant keys are interned per parent directory. Hive values are directory-bound; a file whose
-     * tuple disagrees keeps a private map, and later files that match the first tuple still share it. Per-file
-     * keys sit on an overlay. An empty overlay returns the shared tuple itself so siblings stay {@code ==}.
+     * tuple disagrees keeps a private map, and later files that match the first tuple still share it. A later
+     * file compares against that tuple before allocating another map. Per-file keys sit on a sized overlay.
+     * An empty overlay returns the shared tuple itself so siblings stay {@code ==}.
      */
     private static Map<String, Object> composeSurvivorPartitionMap(
         StoragePath filePath,
@@ -800,26 +806,149 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Map<String, Object>> directoryTuples
     ) {
         boolean keepNulls = layout.keepNulls();
-        LinkedHashMap<String, Object> directory = new LinkedHashMap<>();
         int resolved = -1;
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
             resolved = partitionInfo.resolveFileIndex(index, filePath);
         }
+        StoragePath parent = filePath.parentDirectory();
+        String parentKey = parent == null ? null : parent.toString();
+        Map<String, Object> existing = directoryTuples.get(parentKey);
+        Map<String, Object> shared = existing != null
+            && sameDirectoryTuple(existing, filePath, resolved, partitionInfo, layout, hiveColumnIndex, directoryIntern, keepNulls)
+                ? existing
+                : publishDirectoryTuple(
+                    filePath,
+                    resolved,
+                    partitionInfo,
+                    layout,
+                    hiveColumnIndex,
+                    directoryIntern,
+                    keepNulls,
+                    directoryTuples
+                );
+        Map<String, Object> overlay = perFileOverlay(filePath, fileList, index, layout, keepNulls);
+        if (shared.isEmpty() && overlay.isEmpty()) {
+            return Map.of();
+        }
+        if (shared.isEmpty()) {
+            return overlay;
+        }
+        if (overlay.isEmpty()) {
+            return shared;
+        }
+        return new LayeredPartitionMap(shared, overlay);
+    }
+
+    private static boolean sameDirectoryTuple(
+        Map<String, Object> existing,
+        StoragePath filePath,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        @Nullable Map<String, BytesRef> directoryIntern,
+        boolean keepNulls
+    ) {
+        int included = 0;
         for (String key : layout.directoryKeys()) {
-            if (key.equals(FileMetadataColumns.DIRECTORY)) {
-                putDirectory(directory, filePath, keepNulls, directoryIntern);
-            } else if (resolved >= 0) {
-                Integer column = hiveColumnIndex.get(key);
-                if (column != null) {
-                    Object value = partitionInfo.getValueAt(resolved, column);
-                    if (value != null || keepNulls) {
-                        directory.put(key, value);
-                    }
+            Object value = directoryKeyValue(key, filePath, resolved, partitionInfo, hiveColumnIndex, keepNulls, directoryIntern);
+            if (value == ABSENT) {
+                if (existing.containsKey(key)) {
+                    return false;
                 }
+                continue;
+            }
+            included++;
+            if (existing.containsKey(key) == false || Objects.equals(existing.get(key), value) == false) {
+                return false;
             }
         }
-        LinkedHashMap<String, Object> overlay = new LinkedHashMap<>();
-        for (String key : layout.perFileKeys()) {
+        return included == existing.size();
+    }
+
+    private static Map<String, Object> publishDirectoryTuple(
+        StoragePath filePath,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        @Nullable Map<String, BytesRef> directoryIntern,
+        boolean keepNulls,
+        Map<String, Map<String, Object>> directoryTuples
+    ) {
+        List<String> keys = layout.directoryKeys();
+        if (keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> directory = Maps.newLinkedHashMapWithExpectedSize(keys.size());
+        for (String key : keys) {
+            Object value = directoryKeyValue(key, filePath, resolved, partitionInfo, hiveColumnIndex, keepNulls, directoryIntern);
+            if (value != ABSENT) {
+                directory.put(key, value);
+            }
+        }
+        if (directory.isEmpty()) {
+            return Map.of();
+        }
+        return internDirectoryTuple(filePath, directory, directoryTuples);
+    }
+
+    /**
+     * The value {@code key} would take on this file, or {@link #ABSENT} when the key is not stored.
+     * Directory {@link BytesRef}s are interned as a side effect so a later comparison reuses them.
+     */
+    private static Object directoryKeyValue(
+        String key,
+        StoragePath filePath,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        Map<String, Integer> hiveColumnIndex,
+        boolean keepNulls,
+        @Nullable Map<String, BytesRef> directoryIntern
+    ) {
+        if (key.equals(FileMetadataColumns.DIRECTORY)) {
+            StoragePath parent = filePath.parentDirectory();
+            if (parent == null) {
+                return keepNulls ? null : ABSENT;
+            }
+            String parentText = parent.toString();
+            if (directoryIntern == null) {
+                return new BytesRef(parentText);
+            }
+            BytesRef directoryRef = directoryIntern.get(parentText);
+            if (directoryRef == null) {
+                directoryRef = new BytesRef(parentText);
+                directoryIntern.put(parentText, directoryRef);
+            }
+            return directoryRef;
+        }
+        if (resolved < 0) {
+            return ABSENT;
+        }
+        Integer column = hiveColumnIndex.get(key);
+        if (column == null) {
+            return ABSENT;
+        }
+        Object value = partitionInfo.getValueAt(resolved, column);
+        if (value == null && keepNulls == false) {
+            return ABSENT;
+        }
+        return value;
+    }
+
+    private static Map<String, Object> perFileOverlay(
+        StoragePath filePath,
+        FileList fileList,
+        int index,
+        PartitionValueLayout layout,
+        boolean keepNulls
+    ) {
+        List<String> keys = layout.perFileKeys();
+        if (keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> overlay = Maps.newLinkedHashMapWithExpectedSize(keys.size());
+        for (String key : keys) {
             switch (key) {
                 case FileMetadataColumns.PATH -> overlay.put(key, new BytesRef(filePath.toString()));
                 case FileMetadataColumns.NAME -> overlay.put(key, new BytesRef(filePath.objectName()));
@@ -835,17 +964,10 @@ public class FileSplitProvider implements SplitProvider {
                 default -> throw new IllegalStateException("unexpected per-file partition key [" + key + "]");
             }
         }
-        if (directory.isEmpty() && overlay.isEmpty()) {
+        if (overlay.isEmpty()) {
             return Map.of();
         }
-        if (directory.isEmpty()) {
-            return Collections.unmodifiableMap(overlay);
-        }
-        Map<String, Object> shared = internDirectoryTuple(filePath, directory, directoryTuples);
-        if (overlay.isEmpty()) {
-            return shared;
-        }
-        return new LayeredPartitionMap(shared, Collections.unmodifiableMap(overlay));
+        return Collections.unmodifiableMap(overlay);
     }
 
     private static Map<String, Integer> hiveColumnIndex(@Nullable PartitionMetadata partitionInfo) {
@@ -858,33 +980,6 @@ public class FileSplitProvider implements SplitProvider {
             index.put(key, column++);
         }
         return index;
-    }
-
-    private static void putDirectory(
-        LinkedHashMap<String, Object> directory,
-        StoragePath filePath,
-        boolean keepNulls,
-        @Nullable Map<String, BytesRef> directoryIntern
-    ) {
-        StoragePath parent = filePath.parentDirectory();
-        if (parent == null) {
-            if (keepNulls) {
-                directory.put(FileMetadataColumns.DIRECTORY, null);
-            }
-            return;
-        }
-        String parentText = parent.toString();
-        BytesRef directoryRef;
-        if (directoryIntern == null) {
-            directoryRef = new BytesRef(parentText);
-        } else {
-            directoryRef = directoryIntern.get(parentText);
-            if (directoryRef == null) {
-                directoryRef = new BytesRef(parentText);
-                directoryIntern.put(parentText, directoryRef);
-            }
-        }
-        directory.put(FileMetadataColumns.DIRECTORY, directoryRef);
     }
 
     /**

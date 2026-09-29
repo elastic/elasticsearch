@@ -190,10 +190,11 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     /**
      * Phase-2 survivor maps. Not a measured deep size. {@link #SHELL_BYTES} is one split shell per file.
-     * A map of {@code k} keys is {@link #MAP_OVERHEAD_BYTES} {@code +} {@link #ENTRY_BYTES} {@code * k}, so seven
-     * keys stay at the old 1000-byte map ({@code 552 + 64 * 7}). An empty map is free: the real hold is
+     * A map of {@code k} keys is {@link #MAP_OVERHEAD_BYTES} {@code +} {@link #ENTRY_BYTES} {@code * k}
+     * ({@code 552 + 64 * k}). An empty map is free: the real hold is
      * {@link java.util.Map#of()}. {@link #VIEW_BYTES} is the overlay wrapper, billed only when both layers are
-     * non-empty. Counted per file, not per split — a text or compressed file can become many splits, and that
+     * non-empty. The wrapper walks the shared tuple instead of copying its entries, so 64 bytes bounds it.
+     * Counted per file, not per split — a text or compressed file can become many splits, and that
      * count is only known after the discovery this reservation precedes, so those files are under-charged.
      * Directory-constant keys are billed once per shared partition row, or once per file when the listing has
      * no metadata or one row per file.
@@ -349,7 +350,7 @@ public class ComputeService {
         return phase2MapAndShell(files, directories, layout.directoryKeys().size(), layout.perFileKeys().size());
     }
 
-    /** {@code 0} keys is an empty map. Otherwise {@code 552 + 64 * keys}, so seven keys stay at 1000. */
+    /** {@code 0} keys is an empty map. Otherwise {@code 552 + 64 * keys}. */
     static long perMap(int keys) {
         if (keys <= 0) {
             return 0L;

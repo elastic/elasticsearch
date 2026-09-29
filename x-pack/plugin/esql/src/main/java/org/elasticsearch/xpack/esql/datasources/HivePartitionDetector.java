@@ -73,29 +73,23 @@ public final class HivePartitionDetector implements PartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        // One scratch map, cleared per file, decides the key set. The maps are not retained.
+        // One scratch map, cleared per file. Values are recorded on that same pass, indexed by the first
+        // file's keys. Columns that do not survive reconciliation are dropped. The map is not retained.
         LinkedHashMap<String, String> scratch = new LinkedHashMap<>();
-        LinkedHashSet<String> referenceKeys = consistentKeys(files, scratch);
-        if (referenceKeys == null) {
+        ParsedColumns parsed = parseColumns(files, scratch);
+        if (parsed == null) {
             return PartitionMetadata.EMPTY;
         }
 
-        Map<String, String> surfacedNames = surfacedNames(referenceKeys, warningSink);
+        Map<String, String> surfacedNames = surfacedNames(parsed.keys(), warningSink);
         if (surfacedNames == null) {
             return PartitionMetadata.EMPTY;
         }
 
-        // Second scan fills one String[] per raw key, then casts into the columnar arrays.
         int fileCount = files.size();
-        int cols = referenceKeys.size();
-        String[] rawKeys = referenceKeys.toArray(String[]::new);
-        String[][] rawValues = new String[cols][fileCount];
-        for (int i = 0; i < fileCount; i++) {
-            fillPartitions(files.get(i).path(), scratch);
-            for (int c = 0; c < cols; c++) {
-                rawValues[c][i] = scratch.get(rawKeys[c]);
-            }
-        }
+        int cols = parsed.keys().size();
+        String[] rawKeys = parsed.keys().toArray(String[]::new);
+        String[][] rawValues = parsed.values();
 
         LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(cols);
         Object[][] valuesByColumn = new Object[cols][];
@@ -125,7 +119,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
-    private static Map<String, String> surfacedNames(Set<String> referenceKeys, Consumer<String> warningSink) {
+    private static Map<String, String> surfacedNames(List<String> referenceKeys, Consumer<String> warningSink) {
         Map<String, String> surfaced = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         List<String> renamed = new ArrayList<>(0);
         for (String key : referenceKeys) {
@@ -168,23 +162,28 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     /**
-     * Shared partition keys in first-file order, or {@code null} when a file binds nothing or the key sets
-     * cannot be reconciled. A trailing {@code =} binds {@code ""}, so a base64 directory ({@code dXNlcjE=}) is
-     * its own column and the key sets disagree. Those empty keys are dropped when they are missing from some
-     * file; an empty key present on every file stays. A non-empty key missing from some file still voids the
-     * detection. {@code scratch} is cleared per file and is not retained.
+     * Kept partition keys in first-file order, with one value column per key, or {@code null} when a file
+     * binds nothing or the key sets cannot be reconciled. A trailing {@code =} binds {@code ""}, so a base64
+     * directory ({@code dXNlcjE=}) is its own column and the key sets disagree. Those empty keys are dropped
+     * when they are missing from some file; an empty key present on every file stays. A non-empty key missing
+     * from some file still voids the detection. Values are filled on this pass. A column recorded for a key
+     * that is later dropped is discarded. {@code scratch} is cleared per file and is not retained.
      */
     @Nullable
-    private static LinkedHashSet<String> consistentKeys(List<StorageEntry> files, LinkedHashMap<String, String> scratch) {
+    private static ParsedColumns parseColumns(List<StorageEntry> files, LinkedHashMap<String, String> scratch) {
+        int fileCount = files.size();
         fillPartitions(files.get(0).path(), scratch);
         if (scratch.isEmpty()) {
             return null;
         }
+        String[] firstKeys = scratch.keySet().toArray(String[]::new);
+        String[][] recorded = new String[firstKeys.length][fileCount];
+        copyScratch(scratch, firstKeys, recorded, 0);
         LinkedHashSet<String> reference = new LinkedHashSet<>(scratch.keySet());
         HashSet<String> shared = new HashSet<>(scratch.keySet());
         HashSet<String> nonEmpty = new HashSet<>();
         collectNonEmpty(scratch, nonEmpty);
-        for (int i = 1; i < files.size(); i++) {
+        for (int i = 1; i < fileCount; i++) {
             fillPartitions(files.get(i).path(), scratch);
             if (scratch.isEmpty()) {
                 return null;
@@ -195,6 +194,7 @@ public final class HivePartitionDetector implements PartitionDetector {
                 shared.retainAll(scratch.keySet());
             }
             collectNonEmpty(scratch, nonEmpty);
+            copyScratch(scratch, firstKeys, recorded, i);
         }
         if (shared.isEmpty()) {
             return null;
@@ -205,8 +205,34 @@ public final class HivePartitionDetector implements PartitionDetector {
             }
         }
         reference.retainAll(shared);
-        return reference;
+        if (reference.size() == firstKeys.length) {
+            return new ParsedColumns(List.of(firstKeys), recorded);
+        }
+        String[] keptKeys = reference.toArray(String[]::new);
+        String[][] keptValues = new String[keptKeys.length][];
+        for (int k = 0; k < keptKeys.length; k++) {
+            keptValues[k] = recorded[indexOf(firstKeys, keptKeys[k])];
+        }
+        return new ParsedColumns(List.of(keptKeys), keptValues);
     }
+
+    private static void copyScratch(Map<String, String> scratch, String[] keys, String[][] recorded, int file) {
+        for (int c = 0; c < keys.length; c++) {
+            recorded[c][file] = scratch.get(keys[c]);
+        }
+    }
+
+    private static int indexOf(String[] keys, String key) {
+        for (int i = 0; i < keys.length; i++) {
+            if (keys[i].equals(key)) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("kept partition key [" + key + "] missing from the first file");
+    }
+
+    /** Keys that survived reconciliation, in first-file order, and the raw string column for each. */
+    private record ParsedColumns(List<String> keys, String[][] values) {}
 
     /** Records keys whose value is not {@code ""} — those survive empty-token stripping. */
     private static void collectNonEmpty(Map<String, String> scratch, Set<String> nonEmpty) {

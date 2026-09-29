@@ -33,25 +33,36 @@ import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueLayout;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -59,8 +70,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -80,9 +93,12 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -310,6 +326,94 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         long charge = ComputeService.phase2Bytes(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, true)));
         assertEquals(ComputeService.perMap(20) + ComputeService.SHELL_BYTES * files, charge);
         assertTrue(charge < 1160L * files);
+    }
+
+    /**
+     * Detect, compact, and discover with the same retained keys the charge uses. One billed partition row is one
+     * shared directory tuple: a dictionary listing with one file per directory, and a directory-grouped listing
+     * with many files per directory.
+     */
+    public void testPhase2BytesMatchDiscoveredDirectoryTuples() {
+        assertChargeMatchesDiscoveredTuples(manyFilesPerDirectory(), "DirectoryGroupedFileList");
+        assertChargeMatchesDiscoveredTuples(oneFilePerDirectory(), "DictionaryFileList");
+    }
+
+    private static void assertChargeMatchesDiscoveredTuples(List<StorageEntry> entries, String encoding) {
+        String base = "s3://bucket/data/";
+        PartitionMetadata detected = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList compact = GlobExpander.compact(GlobExpander.fileListOf(entries, base + "**/*.parquet", detected), base);
+        assertEquals(encoding, compact.getClass().getSimpleName());
+        PartitionMetadata metadata = compact.partitionMetadata();
+        List<Attribute> output = new ArrayList<>();
+        for (Map.Entry<String, DataType> column : metadata.partitionColumns().entrySet()) {
+            output.add(referenceAttribute(column.getKey(), column.getValue()));
+        }
+        output.add(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD));
+        ExternalSchema schema = ExternalSchema.dataAttributesOf(output);
+        Set<String> metadataNames = ExternalMetadataColumns.metadataNames(output);
+        Set<String> retained = PartitionValueLayout.retainedKeys(schema, metadata, metadataNames);
+        SplitDiscoveryContext context = new SplitDiscoveryContext(
+            null,
+            compact,
+            Map.of(),
+            Map.of(),
+            metadata,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE,
+            metadataNames,
+            retained
+        );
+        List<ExternalSplit> splits = new FileSplitProvider().discoverSplits(context).splits();
+        Set<Object> tuples = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (ExternalSplit split : splits) {
+            tuples.add(((FileSplit) split).directoryTuple());
+        }
+        assertEquals(metadata.rowCount(), tuples.size());
+        int files = compact.fileCount();
+        int directories = metadata.rowCount() < files ? metadata.rowCount() : files;
+        PartitionValueLayout layout = PartitionValueLayout.of(retained, metadata);
+        long expected = ComputeService.perMap(layout.directoryKeys().size()) * directories + ComputeService.perMap(
+            layout.perFileKeys().size()
+        ) * files + ComputeService.SHELL_BYTES * files;
+        if (layout.directoryKeys().isEmpty() == false && layout.perFileKeys().isEmpty() == false) {
+            expected += ComputeService.VIEW_BYTES * files;
+        }
+        assertEquals(expected, ComputeService.phase2Bytes(output, compact));
+    }
+
+    /** Many files in a few hive directories. Compaction keeps the directory-grouped encoding. */
+    private static List<StorageEntry> manyFilesPerDirectory() {
+        String base = "s3://bucket/data/";
+        List<StorageEntry> entries = new ArrayList<>();
+        int fileId = 0;
+        for (int year = 2023; year <= 2024; year++) {
+            for (int month = 1; month <= 12; month++) {
+                for (int part = 0; part < 20; part++) {
+                    entries.add(entry(base + "year=" + year + "/month=" + month + "/part-" + (fileId++) + ".parquet"));
+                }
+            }
+        }
+        return entries;
+    }
+
+    /** One file per hive directory. Compaction keeps the dictionary encoding and one row per file. */
+    private static List<StorageEntry> oneFilePerDirectory() {
+        String base = "s3://bucket/data/";
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                entries.add(entry(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet"));
+            }
+        }
+        return entries;
+    }
+
+    private static StorageEntry entry(String path) {
+        return new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH);
     }
 
     public void testReleaseReturnsSuccessAndFailureToBaseline() {

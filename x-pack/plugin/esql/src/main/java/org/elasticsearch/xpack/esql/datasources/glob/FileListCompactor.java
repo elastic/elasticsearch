@@ -41,8 +41,8 @@ final class FileListCompactor {
      * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — that is
      * the cost heuristic for layouts with repeated directories worth grouping. Building that candidate also
      * rewrites its partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so identical
-     * Hive tuples are stored once per directory; if the dictionary encoding is then kept, the shared copy is
-     * discarded with the candidate and the dictionary list carries the unshared metadata. {@link GlobExpander}
+     * Hive tuples are stored once per directory. Both encodings receive those shared rows when grouping
+     * succeeded; overflow ({@code groupedCandidate == null}) keeps the unshared metadata. {@link GlobExpander}
      * attaches no partition metadata when hive partitioning is off, so such listings take the dictionary
      * encoding directly.
      */

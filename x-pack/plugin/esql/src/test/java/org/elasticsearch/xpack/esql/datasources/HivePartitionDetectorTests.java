@@ -817,8 +817,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
     }
 
     /**
-     * Many files in one directory stay one row per file until {@code shareByGroups}. The columnar structure is
-     * {@code 64 + 24*cols + 8*cols*files}; the detect path must not have built a map per file to get there.
+     * Many files in one directory stay one row per file until {@code shareByGroups}.
+     * {@code planningBytes()} is that columnar layout: {@code 64 + 24*cols + 8*cols*files}.
      */
     public void testDeepLayoutPlanningBytesBeforeSharing() {
         int files = 40;

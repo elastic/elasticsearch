@@ -433,6 +433,17 @@ public class FileSplit implements ExternalSplit {
         return partitionValues;
     }
 
+    /**
+     * Interned directory-constant keys, or {@link #partitionValues()} when per-file keys are not layered over a
+     * shared tuple. Siblings in one directory return the same instance.
+     */
+    public Map<String, Object> directoryTuple() {
+        if (partitionValues instanceof LayeredPartitionMap layered) {
+            return layered.sharedTuple();
+        }
+        return partitionValues;
+    }
+
     @Nullable
     public ColumnMapping columnMapping() {
         return columnMapping;

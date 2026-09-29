@@ -46,12 +46,14 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
+    /**
+     * Registers a stand-in for {@code telemetry.export.interval}: the apm module that owns the real setting is not on
+     * this test's classpath, and its validator would reject the 0s used here to disable the metrics cache delay.
+     */
     public static class TestAPMInternalSettings extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
+            return List.of(Setting.timeSetting("telemetry.export.interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope));
         }
     }
 
@@ -67,7 +69,7 @@ public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            .put("telemetry.export.interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
     }
 
@@ -336,7 +338,7 @@ public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
         telemetry.collect();
         for (Map.Entry<String, Matcher<Long>> e : matchers.entrySet()) {
             String name = e.getKey();
-            List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
+            List<Measurement> measurements = telemetry.getLongAsyncGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }

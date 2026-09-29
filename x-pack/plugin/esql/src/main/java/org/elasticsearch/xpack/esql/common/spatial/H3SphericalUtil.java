@@ -19,17 +19,12 @@ import org.elasticsearch.h3.LatLng;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiPredicate;
 
 /**
  * Utility class for generating H3 spherical objects.
  * TODO: This class is a copy of the same class in org.elasticsearch.xpack.spatial.common, we should find a common location for it.
  */
 public final class H3SphericalUtil {
-
-    private static final BiPredicate<LatLng, LatLng> MIN_COMPARATOR = (e1, e2) -> e1.getLatRad() < e2.getLatRad();
-
-    private static final BiPredicate<LatLng, LatLng> MAX_COMPARATOR = (e1, e2) -> e1.getLatRad() > e2.getLatRad();
 
     /**
      * Computes the bounding box of the provided h3 cell considering edges to be great circles and
@@ -99,23 +94,23 @@ public final class H3SphericalUtil {
             }
         }
         if (minLat < 0) {
-            // we only correct the min latitude if negative
-            minLat = boundary.getLatLon(minLatPos).greatCircleMinLatitude(computeEdge(boundary, minLatPos, MIN_COMPARATOR));
+            // we only correct the min latitude if negative; check both adjacent edges and take the lower result
+            final LatLng vMin = boundary.getLatLon(minLatPos);
+            final LatLng minN1 = boundary.getLatLon((minLatPos + 1) % boundary.numPoints());
+            final LatLng minN2 = boundary.getLatLon(minLatPos == 0 ? boundary.numPoints() - 1 : minLatPos - 1);
+            minLat = Math.min(vMin.greatCircleMinLatitude(minN1), vMin.greatCircleMinLatitude(minN2));
         }
         if (maxLat > 0) {
-            // we only correct the max latitude if positive
-            maxLat = boundary.getLatLon(maxLatPos).greatCircleMaxLatitude(computeEdge(boundary, maxLatPos, MAX_COMPARATOR));
+            // we only correct the max latitude if positive; check both adjacent edges and take the higher result
+            final LatLng vMax = boundary.getLatLon(maxLatPos);
+            final LatLng maxN1 = boundary.getLatLon((maxLatPos + 1) % boundary.numPoints());
+            final LatLng maxN2 = boundary.getLatLon(maxLatPos == 0 ? boundary.numPoints() - 1 : maxLatPos - 1);
+            maxLat = Math.max(vMax.greatCircleMaxLatitude(maxN1), vMax.greatCircleMaxLatitude(maxN2));
         }
         // the min / max longitude is computed the same way as in cartesian, being careful with polygons crossing the dateline
         final boolean crossesDateline = maxLon - minLon > Math.PI;
         boundingBox.topLeft().reset(Math.toDegrees(maxLat), crossesDateline ? Math.toDegrees(minPosLon) : Math.toDegrees(minLon));
         boundingBox.bottomRight().reset(Math.toDegrees(minLat), crossesDateline ? Math.toDegrees(maxNegLon) : Math.toDegrees(maxLon));
-    }
-
-    private static LatLng computeEdge(CellBoundary boundary, int pos, BiPredicate<LatLng, LatLng> comparator) {
-        final LatLng end1 = boundary.getLatLon((pos + 1) % boundary.numPoints());
-        final LatLng end2 = boundary.getLatLon(pos == 0 ? boundary.numPoints() - 1 : pos - 1);
-        return comparator.test(end1, end2) ? end1 : end2;
     }
 
     /** Return the {@link GeoPolygon} representing the provided H3 bin */

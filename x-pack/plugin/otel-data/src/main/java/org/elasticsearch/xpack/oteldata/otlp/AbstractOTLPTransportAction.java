@@ -63,6 +63,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
+
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -79,7 +80,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (finalContext.getIgnoredItems() > 0 || needsPartialSuccess(bulkResponse)) {
+                if (finalContext.getIgnoredItems() > 0
+                    || finalContext.getWarningMessage().isEmpty() == false
+                    || needsPartialSuccess(bulkResponse)) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -133,6 +136,26 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
 
         /**
+         * Returns a warning that should produce a partial-success response without increasing the rejected-item count.
+         */
+        default String getWarningMessage() {
+            return "";
+        }
+
+        /**
+         * Returns whether the bulk item represents a primary document for the exported telemetry signal.
+         * E.g. metrics, logs and traces are primary telemetry, exemplars are not.
+         */
+        default boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+            return true;
+        }
+
+        /**
+         * Records a failed non-primary telemetry document (e.g. exemplars) so signal-specific implementations can report it.
+         */
+        default void recordNonPrimaryTelemetryDocFailure(BulkItemResponse bulkItemResponse) {}
+
+        /**
          * A simple implementation of ProcessingContext that only tracks the total number of items processed
          * and does not track any ignored items or error messages.
          */
@@ -170,11 +193,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         return updatedTotal;
     }
 
-    private void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
-        ProcessingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
+    private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         int failureStoreRedirects = 0;
@@ -184,28 +203,36 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
-            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-            if (failure != null) {
-                // we're counting each document as one item here
-                // which is an approximation since one document can represent multiple OTLP items
-                failures++;
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // If the server receives more requests than the client is allowed or the server is overloaded,
-                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
-                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                    status = RestStatus.TOO_MANY_REQUESTS;
+        int failedBulkItems = 0;
+        BulkItemResponse[] bulkItems = bulkResponse.getItems();
+        for (int i = 0; i < bulkItems.length; i++) {
+            BulkItemResponse.Failure failure = bulkItems[i].getFailure();
+            boolean failureStoreRedirect = isFailureStoreRedirect(bulkItems[i]);
+            if (failure != null || failureStoreRedirect) {
+                failedBulkItems++;
+                if (context.isPrimaryTelemetryDoc(i) == false) {
+                    context.recordNonPrimaryTelemetryDocFailure(bulkItems[i]);
+                } else if (failure != null) {
+                    // we're counting each document as one item here
+                    // which is an approximation since one document can represent multiple OTLP items
+                    failures++;
+                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                        // If the server receives more requests than the client is allowed or the server is overloaded,
+                        // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
+                        // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
+                        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
+                        status = RestStatus.TOO_MANY_REQUESTS;
+                    }
+                    FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                        .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
+                    failureGroup.failureCount().incrementAndGet();
+                } else if (failureStoreRedirect) {
+                    failures++;
+                    failureStoreRedirects++;
                 }
-                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
-                failureGroup.failureCount().incrementAndGet();
-            } else if (isFailureStoreRedirect(bulkItemResponse)) {
-                failures++;
-                failureStoreRedirects++;
             }
         }
-        if (bulkItemResponses.getItems().length == failures) {
+        if (bulkItems.length == failedBulkItems) {
             // all items failed, so we report total items as failures
             failures = context.totalItems();
         }
@@ -230,6 +257,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
         }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
+        failureMessageBuilder.append(context.getWarningMessage());
         String message = failureMessageBuilder.toString();
         if (status == RestStatus.TOO_MANY_REQUESTS) {
             listener.onFailure(new ElasticsearchStatusException(message, RestStatus.TOO_MANY_REQUESTS));

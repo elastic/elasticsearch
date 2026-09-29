@@ -25,7 +25,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         @Nullable DiscoveryNode sourceNode,
         int localRetries
     ) {
-        super(shardRouting, targetNode, sourceNode, new Index(), localRetries);
+        super(shardRouting, targetNode, sourceNode, localRetries);
     }
 
     @Override

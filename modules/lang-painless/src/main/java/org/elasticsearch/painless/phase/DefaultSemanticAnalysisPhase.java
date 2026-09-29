@@ -2492,12 +2492,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 boolean chargeCapture = isInstanceReference == false
                     && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                     && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(type, methodName);
-                if (chargeCapture) {
+                // A @script_aware target takes the script as well. The arity is not known yet, so go by name.
+                boolean scriptCapture = isInstanceReference == false
+                    && scriptScope.getPainlessLookup().hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName);
+                if (chargeCapture || scriptCapture) {
                     semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                }
+                if (scriptCapture) {
+                    // the script comes from `this`, so a lambda around this reference must capture it
+                    semanticScope.setUsesInstanceMethod();
                 }
                 semanticScope.putDecoration(
                     userFunctionRefNode,
-                    EncodingDecoration.of(true, isInstanceReference || chargeCapture, symbol, methodName, 0, chargeCapture)
+                    EncodingDecoration.of(true, isInstanceReference || chargeCapture || scriptCapture, symbol, methodName, 0, chargeCapture)
                 );
             } else {
                 FunctionRef ref = FunctionRef.create(
@@ -2539,6 +2546,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
             semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(List.of(captured)));
 
+            // A bound reference whose name may be @script_aware hands the target `this`, so a lambda around it must capture it.
+            if (scriptScope.getPainlessLookup().hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName)) {
+                semanticScope.setUsesInstanceMethod();
+            }
+
             if (captured.type().isPrimitive()) {
                 semanticScope.setCondition(userFunctionRefNode, CaptureBox.class);
             }
@@ -2546,22 +2558,26 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (targetType == null) {
                 EncodingDecoration encodingDecoration;
                 if (captured.type() == def.class) {
-                    // dynamic implementation. Under tracking, charge a def-receiver bound ref (`def s = obj; s::method`). The
-                    // receiver type is unknown, so there is no pre-filter: over-capture the script (trailing #scriptThis, which
-                    // is why numCaptures is 2 rather than 1) and let the runtime resolve and charge by receiver type.
+                    // dynamic implementation (`def s = obj; s::method`). The receiver type is unknown, so when tracking is on, or
+                    // the name may be @script_aware, capture the script after the receiver (numCaptures 2) and let the runtime
+                    // charge it or hand it to the target by receiver type.
                     boolean chargeCapture = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
-                    encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, chargeCapture ? 2 : 1, chargeCapture);
+                    boolean scriptCapture = chargeCapture
+                        || scriptScope.getPainlessLookup().hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName);
+                    encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, scriptCapture ? 2 : 1, chargeCapture);
                 } else {
-                    // typed implementation. Under tracking, charge a bound ref to an annotated target: capture the script
-                    // (needsInstance) prepended ahead of the receiver; the charge bootstrap drops it.
+                    // typed implementation. Capture the script ahead of the receiver when the target is charged (the charge
+                    // bootstrap drops it) or may be @script_aware (the runtime hands it to the target).
                     boolean chargeCapture = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                         && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(captured.type(), methodName);
-                    if (chargeCapture) {
+                    boolean scriptCapture = scriptScope.getPainlessLookup()
+                        .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName);
+                    if (chargeCapture || scriptCapture) {
                         semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                     }
                     encodingDecoration = EncodingDecoration.of(
                         true,
-                        chargeCapture,
+                        chargeCapture || scriptCapture,
                         captured.getCanonicalTypeName(),
                         methodName,
                         1,

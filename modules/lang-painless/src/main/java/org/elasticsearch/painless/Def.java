@@ -438,6 +438,7 @@ public final class Def {
                         defEncoding.methodName,
                         defEncoding.numCaptures,
                         defEncoding.needsInstance,
+                        false,
                         defEncoding.chargesAllocation
                     );
                 } else {
@@ -461,7 +462,7 @@ public final class Def {
                         0,
                         DefBootstrap.REFERENCE,
                         PainlessLookupUtility.typeToCanonicalTypeName(interfaceType),
-                        defEncoding.chargesAllocation ? 1 : 0
+                        DefBootstrap.referenceFlags(defEncoding.numCaptures == 2, defEncoding.chargesAllocation)
                     );
                     filter = nested.dynamicInvoker();
                 }
@@ -490,6 +491,7 @@ public final class Def {
         String interfaceClass,
         Class<?> receiverClass,
         String name,
+        boolean scriptPushed,
         boolean chargesAllocation
     ) throws Throwable {
 
@@ -509,8 +511,8 @@ public final class Def {
             );
         }
 
-        // Charging def-receiver ref: the script was over-captured (receiver type unknown, so no pre-filter). Charge only if
-        // the resolved target has an estimator; either way lookupReferenceInternal appends the script and drops it.
+        // A def-receiver ref may have the script captured after the receiver (tracking on, or a name that may be @script_aware).
+        // lookupReferenceInternal charges it, hands it to a @script_aware target, or drops it, by what the receiver resolved to.
         return lookupReferenceInternal(
             painlessLookup,
             functions,
@@ -521,6 +523,7 @@ public final class Def {
             implMethod.javaMethod().getName(),
             1,
             false,
+            scriptPushed,
             chargesAllocation
         );
     }
@@ -536,6 +539,7 @@ public final class Def {
         String call,
         int captures,
         boolean needsScriptInstance,
+        boolean scriptAppended,
         boolean chargesAllocation
     ) throws Throwable {
 
@@ -550,16 +554,22 @@ public final class Def {
             constants,
             needsScriptInstance
         );
-        Class<?>[] parameters = ref.factoryMethodParameters(needsScriptInstance ? methodHandlesLookup.lookupClass() : null);
-        // The dropped script capture is at index 0 when needsScriptInstance prepended it. A charging ref that did not prepend
-        // (a def-receiver ref) keeps the receiver at index 0 and appends the script (the generated script class) at the end.
+        Class<?> scriptClass = methodHandlesLookup.lookupClass();
+        // The call site pushed the script ahead of the captures (needsScriptInstance) or after them (scriptAppended, a def
+        // receiver). What it is for decides where it goes: the delegate's own receiver for this::f; a leading slot the charge
+        // bootstrap drops for a charged target; the @script_aware parameter FunctionRef already put first; or a slot dropped
+        // without a charge when the name resolved to a plain method. Charging itself happens only when tracking is on.
+        boolean receiverIsScript = "this".equals(type);
+        boolean prependScript = needsScriptInstance && (receiverIsScript || chargesAllocation || ref.isScriptAware == false);
+        Class<?>[] parameters = ref.factoryMethodParameters(prependScript ? scriptClass : null);
         int scriptCaptureIndex = 0;
-        if (chargesAllocation && needsScriptInstance == false) {
+        if (scriptAppended) {
             scriptCaptureIndex = parameters.length;
             Class<?>[] withScript = Arrays.copyOf(parameters, parameters.length + 1);
-            withScript[parameters.length] = methodHandlesLookup.lookupClass();
+            withScript[parameters.length] = scriptClass;
             parameters = withScript;
         }
+        boolean dropScript = scriptAppended || (prependScript && receiverIsScript == false);
         MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
         final CallSite callSite;
         // A charge-capturing reference (needsScriptInstance forced for an external @allocates target under tracking, see the
@@ -572,8 +582,8 @@ public final class Def {
         // one overload matching the actual arity, and that specific overload may not be the annotated one (e.g. foo/1 is
         // annotated but the reference resolved to foo/2). When that happens the capture is still dropped — it was prepended
         // unconditionally at the call site — but nothing is charged.
-        if (chargesAllocation) {
-            Method estimator = ref.allocationEstimator;
+        if (dropScript) {
+            Method estimator = chargesAllocation ? ref.allocationEstimator : null;
             String estimatorClassName = estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass());
             String estimatorMethodName = estimator == null ? null : estimator.getName();
             String estimatorMethodDescriptor = estimator == null ? null : Type.getMethodDescriptor(estimator);
@@ -609,7 +619,34 @@ public final class Def {
                 ref.delegateInjections
             );
         }
-        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, parameters));
+        MethodHandle handle = callSite.dynamicInvoker().asType(MethodType.methodType(clazz, parameters));
+
+        // A @script_aware target's PainlessScript parameter is fed by the one script the call site pushed.
+        if (ref.isScriptAware) {
+            if (prependScript) {
+                handle = feedScript(handle, 1, 0, scriptClass);
+            } else if (scriptAppended) {
+                handle = feedScript(handle, 0, parameters.length - 1, scriptClass);
+            } else if (needsScriptInstance == false) {
+                throw new IllegalArgumentException(
+                    "reference to script-aware method [" + type + ", " + call + "] needs the script instance"
+                );
+            }
+        }
+        return handle;
+    }
+
+    /** Removes parameter {@code awareIndex} and feeds it from the script at {@code pushedIndex}. */
+    private static MethodHandle feedScript(MethodHandle handle, int awareIndex, int pushedIndex, Class<?> scriptClass) {
+        MethodType type = handle.type().changeParameterType(awareIndex, scriptClass);
+        handle = handle.asType(type);
+        MethodType newType = type.dropParameterTypes(awareIndex, awareIndex + 1);
+        int newPushed = pushedIndex > awareIndex ? pushedIndex - 1 : pushedIndex;
+        int[] reorder = new int[type.parameterCount()];
+        for (int i = 0; i < reorder.length; i++) {
+            reorder[i] = i == awareIndex ? newPushed : (i < awareIndex ? i : i - 1);
+        }
+        return MethodHandles.permuteArguments(handle, newType, reorder);
     }
 
     /**

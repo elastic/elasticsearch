@@ -191,6 +191,25 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         assertEquals(0, result);
     }
 
+    public void testDefReceiverReferenceToScriptAwareMethodCompletesUnderTracking() {
+        assertEquals(true, compile("def s = 'abc'; return Optional.of('b').map(s::contains).get();", "1mb").execute());
+        assertEquals(true, compile("def s = 'abc'; def o = Optional.of('b'); return o.map(s::contains).get();", "1mb").execute());
+        assertEquals(1, compile("def m = ['abc':'b']; m.replaceAll(String::indexOf); return m['abc'];", "1mb").execute());
+    }
+
+    public void testScriptAwareAndChargedReferenceCharged() {
+        // replace is @script_aware and @allocates: the one pushed script serves the charge and the delegate.
+        String setup = "def m = ['b':'X']; ";
+        long base = allocatedBytes(setup + "return 'x';");
+        long typed = allocatedBytes("String s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];");
+        long dynamic = allocatedBytes("def s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.replaceBytes(null, "abc", "b", "X");
+
+        assertEquals(expected, typed - base);
+        assertEquals(expected, dynamic - base);
+        assertEquals("aXc", compile("def s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];", "1mb").execute());
+    }
+
     public void testNestedDefReceiverBoundReferenceInLambdaBodyTrips() {
         // A def-receiver bound reference (s is def, s::concat) built and invoked inside an outer def static lambda body: its
         // trailing #scriptThis capture must resolve against the enclosing lambda's synthetic method (not the top-level

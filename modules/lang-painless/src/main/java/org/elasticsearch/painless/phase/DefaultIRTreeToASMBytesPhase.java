@@ -627,6 +627,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
     }
 
+    /**
+     * Loads a reference capture. {@code #scriptThis} is only a variable when cancellation or tracking defined it; a reference
+     * that captures the script for a {@code @script_aware} target without either loads {@code this} instead.
+     */
+    private static void writeCapture(WriteScope writeScope, MethodWriter methodWriter, String captureName) {
+        Variable captureVariable = writeScope.getVariable(captureName);
+        if (captureVariable == null && "#scriptThis".equals(captureName)) {
+            writeInstanceScriptCapture(writeScope, methodWriter);
+        } else {
+            methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
+        }
+    }
+
+    /** The type of a reference capture, {@code Object} for a {@code #scriptThis} loaded as {@code this}. */
+    private static Class<?> captureType(WriteScope writeScope, String captureName) {
+        Variable captureVariable = writeScope.getVariable(captureName);
+        return captureVariable == null ? Object.class : captureVariable.getType();
+    }
+
     @Override
     public void visitField(FieldNode irFieldNode, WriteScope writeScope) {
         int access = ClassWriter.buildAccess(irFieldNode.getDecorationValue(IRDModifiers.class), true);
@@ -1851,11 +1870,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (captureNames != null) {
             for (String captureName : captureNames) {
-                Variable captureVariable = writeScope.getVariable(captureName);
-                methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
+                writeCapture(writeScope, methodWriter, captureName);
 
-                if (captureBox) {
-                    methodWriter.box(captureVariable.getAsmType());
+                if (captureBox && "#scriptThis".equals(captureName) == false) {
+                    methodWriter.box(writeScope.getVariable(captureName).getAsmType());
                     captureBox = false;
                 }
             }
@@ -1884,13 +1902,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (captureNames != null) {
             for (String captureName : captureNames) {
-                Variable captureVariable = writeScope.getVariable(captureName);
-                methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
+                writeCapture(writeScope, methodWriter, captureName);
 
                 // captureBox boxes the captured receiver of a bound reference. The synthetic #scriptThis capture (prepended
                 // for an allocation charge) is never boxed, so skip it and box the receiver that follows.
                 if (captureBox && "#scriptThis".equals(captureName) == false) {
-                    methodWriter.box(captureVariable.getAsmType());
+                    methodWriter.box(writeScope.getVariable(captureName).getAsmType());
                     captureBox = false;
                 }
             }
@@ -1915,11 +1932,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
+        boolean pushesScript = irTypedCaptureReferenceNode.hasCondition(IRCScriptAware.class);
         boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
 
-        if (chargesAllocation) {
-            // Charging def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference drops
-            // the script capture and charges when the target resolved for the runtime receiver is annotated.
+        if (pushesScript) {
+            // Def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference charges it when
+            // tracking is on and the target is annotated, hands it to a @script_aware target, and otherwise drops it.
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
 
@@ -1928,6 +1946,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             MethodWriter.getType(expressionType),
             captured.getAsmType(),
             expressionCanonicalTypeName,
+            pushesScript,
             chargesAllocation
         );
     }
@@ -2251,8 +2270,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 capturedCount += captureNames.size();
 
                 for (String captureName : captureNames) {
-                    Variable captureVariable = writeScope.getVariable(captureName);
-                    typeParameters.add(captureVariable.getType());
+                    typeParameters.add(captureType(writeScope, captureName));
                 }
             }
         }

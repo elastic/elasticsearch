@@ -456,12 +456,15 @@ public final class MethodWriter extends GeneratorAdapter {
         Type interfaceType,
         Type receiverType,
         String interfaceCanonicalTypeName,
+        boolean pushesScript,
         boolean chargesAllocation
     ) {
-        Type methodType = chargesAllocation
+        Type methodType = pushesScript
             ? Type.getMethodType(interfaceType, receiverType, CLASS_TYPE)
             : Type.getMethodType(interfaceType, receiverType);
-        Object[] params = chargesAllocation ? new Object[] { interfaceCanonicalTypeName, 1 } : new Object[] { interfaceCanonicalTypeName };
+        Object[] params = pushesScript
+            ? new Object[] { interfaceCanonicalTypeName, DefBootstrap.referenceFlags(true, chargesAllocation) }
+            : new Object[] { interfaceCanonicalTypeName };
         invokeDefCall(name, methodType, DefBootstrap.REFERENCE, params);
     }
 

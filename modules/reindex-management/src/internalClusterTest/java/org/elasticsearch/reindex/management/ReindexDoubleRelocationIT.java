@@ -47,14 +47,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/// Integration test that relocates a reindex task twice across three nodes (A -> B -> C), then
-/// exercises all reindex-management endpoints (rethrottle, list, get, cancel) against the
-/// doubly-relocated task using the original task ID.
-/// Node A (`firstCoordinatorNode`)     — starts reindex     → shutdown → relocates to B
-/// Node B (`secondCoordinatorNode`)    — first relocation   → shutdown → relocates to C
-/// Node C (`finalMasterDataNodeName`)  — holds indices, final relocation destination
-/// {@code StatefulReindexRelocationNodePicker} prefers coordinating-only nodes, making the
-/// relocation path deterministic: A → B → C.
+/// Integration test that relocates a reindex task twice across three nodes (A -> B -> C), then exercises all reindex-management endpoints
+/// (rethrottle, list, get, cancel) against the doubly-relocated task using the original task ID. Node A (`firstCoordinatorNode`) — starts
+/// reindex → shutdown → relocates to B Node B (`secondCoordinatorNode`) — first relocation → shutdown → relocates to C Node C
+/// (`finalMasterDataNodeName`) — holds indices, final relocation destination {@code StatefulReindexRelocationNodePicker} prefers
+/// coordinating-only nodes, making the relocation path deterministic: A → B → C.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ReindexDoubleRelocationIT extends ESIntegTestCase {
 

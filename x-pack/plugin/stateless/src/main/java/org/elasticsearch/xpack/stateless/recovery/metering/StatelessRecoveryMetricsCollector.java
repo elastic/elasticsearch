@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 
 import java.util.Map;
 
-/// Collects stateless-specific recovery metrics (object store bytes, relocation phases).
-/// General-purpose recovery metrics are emitted by [org.elasticsearch.indices.recovery.RecoveryMetricsCollector].
+/// Collects stateless-specific recovery metrics (object store bytes, relocation phases). General-purpose recovery metrics are emitted by
+/// [org.elasticsearch.indices.recovery.RecoveryMetricsCollector].
 public class StatelessRecoveryMetricsCollector implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessRecoveryMetricsCollector.class);

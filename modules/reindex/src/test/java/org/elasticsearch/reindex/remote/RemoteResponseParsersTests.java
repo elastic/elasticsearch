@@ -348,8 +348,8 @@ public class RemoteResponseParsersTests extends ESTestCase {
         }
     }
 
-    /// When a remote omits `hits.total` (because the request disabled `track_total_hits`), the parser must default
-    /// the total to `0` rather than throwing; the caller substitutes the cached total separately.
+    /// When a remote omits `hits.total` (because the request disabled `track_total_hits`), the parser must default the total to `0` rather
+    /// than throwing; the caller substitutes the cached total separately.
     public void testResponseParserMissingTotalDefaultsToZero() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject()
             .field("timed_out", false)

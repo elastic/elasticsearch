@@ -42,11 +42,12 @@ public class IndexReshardService {
         return indices;
     }
 
-    /// Determines if a shard snapshot is impacted by an ongoing resharding operation.
-    /// Such shard snapshot may contain data inconsistent with other shards due to metadata changes or data movement
-    /// performed in scope of resharding.
-    /// @param maximumShardIdForIndexInTheSnapshot maximum [ShardId] by [ShardId#id()] of the same index as the provided `indexShard`
-    /// that is present in the snapshot metadata. This value is used to detect previously completed resharding operations.
+    /// Determines if a shard snapshot is impacted by an ongoing resharding operation. Such shard snapshot may contain data inconsistent
+    /// with other shards due to metadata changes or data movement performed in scope of resharding.
+    ///
+    /// @param maximumShardIdForIndexInTheSnapshot maximum [ShardId] by [ShardId#id()] of the same index as the provided `indexShard` that is
+    ///                                            present in the snapshot metadata. This value is used to detect previously completed
+    ///                                            resharding operations.
     public static boolean isShardSnapshotImpactedByResharding(IndexMetadata indexMetadata, int maximumShardIdForIndexInTheSnapshot) {
         // Presence of resharding metadata obviously means that the snapshot is impacted.
         if (indexMetadata.getReshardingMetadata() != null) {
@@ -66,9 +67,9 @@ public class IndexReshardService {
         }
     }
 
-    /// Determines if an operation with the provided summary is impacted by an ongoing resharding split.
-    /// This is currently specifically designed for realtime read operations like term vectors API.
-    /// As such it is intended to be called in scope of the realtime read operation on the _index_ shard.
+    /// Determines if an operation with the provided summary is impacted by an ongoing resharding split. This is currently specifically
+    /// designed for realtime read operations like term vectors API. As such it is intended to be called in scope of the realtime read
+    /// operation on the _index_ shard.
     public static boolean isRealtimeReadPossiblyStale(IndexShard indexShard, SplitShardCountSummary splitShardCountSummary) {
         if (splitShardCountSummary.isUnset()) {
             // If the coordinator didn't provide the summary it won't know how to perform retries either.

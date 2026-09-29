@@ -80,7 +80,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongAsyncGauge recoveryGateBlockedCurrentDurationMetric;
 
     /// @param telemetryProvider telemetry provider
-    /// @param blockedState supplies the current recovery blocked state, or null when unblocked
+    /// @param blockedState         supplies the current recovery blocked state, or null when unblocked
     /// @param relativeTimeInMillis supplies relative time in milliseconds; must use the same clock as [BlockedState#sinceRelativeMillis()]
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,

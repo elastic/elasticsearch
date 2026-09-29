@@ -93,9 +93,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     /// Single broadcast for non-relocatable actions; double broadcast otherwise. The double broadcast closes a relocation race where a
-    /// single fan-out can hit the destination before the relocated task is created and the source after it has finished — yielding a
-    /// 404. The first pass runs with `waitForCompletion=false` so it doesn't block the second pass; the second pass uses the user's
-    /// setting. [#mergeResponses] reconciles the two responses so the caller can't tell whether a relocation happened.
+    /// single fan-out can hit the destination before the relocated task is created and the source after it has finished — yielding a 404.
+    /// The first pass runs with `waitForCompletion=false` so it doesn't block the second pass; the second pass uses the user's setting.
+    /// [#mergeResponses] reconciles the two responses so the caller can't tell whether a relocation happened.
     @Override
     protected void doExecute(Task task, CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
         if (RELOCATABLE_ACTIONS.stream().noneMatch(request::canMatchAction)) {
@@ -152,8 +152,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new ListTasksResponse(List.copyOf(tasksByOriginalId.values()), taskFailures, nodeFailures);
     }
 
-    /// Deduplicate captured tasks across two passes, keyed by `originalTaskId`. Within a pass, [TransportListTasksAction#preferNewer]
-    /// picks the post-relocation task when both physical tasks are visible. Across passes, the second pass wins on collision.
+    /// Deduplicate captured tasks across two passes, keyed by `originalTaskId`. Within a pass, [TransportListTasksAction#preferNewer] picks
+    /// the post-relocation task when both physical tasks are visible. Across passes, the second pass wins on collision.
     static Map<TaskId, TaskInfo> mergeTasksByOriginalTaskId(final List<TaskInfo> firstPass, final List<TaskInfo> secondPass) {
         final Map<TaskId, TaskInfo> result = dedupWithinPass(secondPass);
         // Add only first-pass entries the second pass missed; within-pass dedup separately so intra-first-pass collisions still win by
@@ -170,8 +170,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return deduped;
     }
 
-    /// Deduplicate task failures across two passes; second pass wins. Drop failures whose physical `taskId` matches an `originalTaskId`
-    /// of a captured task — the cancel committed elsewhere for that logical task.
+    /// Deduplicate task failures across two passes; second pass wins. Drop failures whose physical `taskId` matches an `originalTaskId` of
+    /// a captured task — the cancel committed elsewhere for that logical task.
     static List<TaskOperationFailure> mergeTaskFailures(
         final Map<TaskId, TaskInfo> tasksByOriginalId,
         final List<TaskOperationFailure> firstPass,
@@ -205,8 +205,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return List.copyOf(deduped.values());
     }
 
-    /// Drop "task not found" node failures (any failure whose cause chain contains a [ResourceNotFoundException]) when the merge
-    /// captured at least one task for a targeted cancel.
+    /// Drop "task not found" node failures (any failure whose cause chain contains a [ResourceNotFoundException]) when the merge captured
+    /// at least one task for a targeted cancel.
     static List<ElasticsearchException> dropStaleResourceNotFound(
         final List<ElasticsearchException> failures,
         final TaskId targetTaskId,

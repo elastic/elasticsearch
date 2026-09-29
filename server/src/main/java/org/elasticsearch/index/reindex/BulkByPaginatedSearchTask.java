@@ -245,8 +245,8 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     }
 
     /// Claims cancellation on the task's [RelocationProgress]. Throws [ElasticsearchStatusException] with
-    /// [RestStatus#SERVICE_UNAVAILABLE] if the relocation handoff has already committed, since cancelling the
-    /// source at that point would leave the resumed task on the destination unaware.
+    /// [RestStatus#SERVICE_UNAVAILABLE] if the relocation handoff has already committed, since cancelling the source at that point would
+    /// leave the resumed task on the destination unaware.
     @Override
     public void ensureCancellable() {
         if (relocationProgress.tryPrepareCancellation() == false) {

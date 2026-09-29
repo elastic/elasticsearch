@@ -92,11 +92,11 @@ import java.io.IOException;
 
 public class SplitShardCountSummary implements Writeable, Comparable<SplitShardCountSummary> {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
-    /// Specifies that the operation being performed can not be affected by an ongoing split
-    /// and therefore doesn't need any special logic like search filters applied.
+    /// Specifies that the operation being performed can not be affected by an ongoing split and therefore doesn't need any special logic
+    /// like search filters applied.
     ///
-    /// This placeholder value allows us to skip sending the summary from the coordinator
-    /// to the shard. As such it should only be used locally and is not expected to be serialized.
+    /// This placeholder value allows us to skip sending the summary from the coordinator to the shard. As such it should only be used
+    /// locally and is not expected to be serialized.
     ///
     /// Some examples are:
     /// * Operations that don't actually perform any searches but have to use search related APIs.
@@ -247,9 +247,10 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
         return Integer.compare(this.shardCountSummary, o.shardCountSummary);
     }
 
-    /// Checks if the provided summary was produced by a coordinator that
-    /// has an up-to-date view of the routing table in context of resharding.
-    /// @param numberOfShards current number of shards based on metadata obtained by a receiver of the summary
+    /// Checks if the provided summary was produced by a coordinator that has an up-to-date view of the routing table in context of
+    /// resharding.
+    ///
+    /// @param numberOfShards     current number of shards based on metadata obtained by a receiver of the summary
     /// @param reshardingMetadata current resharding metadata based on metadata obtained by a receiver of the summary
     public Decision check(int numberOfShards, IndexReshardingMetadata reshardingMetadata) {
         if (shardCountSummary > numberOfShards) {

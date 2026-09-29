@@ -32,8 +32,8 @@ import java.util.concurrent.Executor;
 
 /// [TransportAction] for the prewarm phase of a stateless primary relocation.
 ///
-/// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The
-/// target-side handler delegates to [StatelessPrimaryRelocationTargetService].
+/// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The target-side handler
+/// delegates to [StatelessPrimaryRelocationTargetService].
 public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportAction<
     TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest,
     ActionResponse.Empty> {
@@ -71,8 +71,8 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
         );
     }
 
-    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding
-    /// it directly preserves the expected task linkage on the target node.
+    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding it directly preserves
+    /// the expected task linkage on the target node.
     @Override
     protected void doExecute(Task task, PrewarmRequest request, ActionListener<ActionResponse.Empty> listener) {
         final var transportRequest = request.request();

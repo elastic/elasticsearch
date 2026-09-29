@@ -152,15 +152,15 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         ensureGreen(indexName);
     }
 
-    /// The gate's safety invariant against live, randomized data: once publications catch up, the master's estimate for a node is
-    /// never below the node's own estimate. A node-local estimate above the master's would let the gate defer recoveries on a node
-    /// the master considers healthy and would never rebalance away.
+    /// The gate's safety invariant against live, randomized data: once publications catch up, the master's estimate for a node is never
+    /// below the node's own estimate. A node-local estimate above the master's would let the gate defer recoveries on a node the master
+    /// considers healthy and would never rebalance away.
     public void testNodeLocalEstimateEventuallyAtMostMasterEstimate() throws Exception {
         runNodeLocalEstimateAtMostMasterEstimate(false);
     }
 
-    /// Same invariant with the adaptive per-shard estimate (segments, fields, postings...), which is what serverless configures
-    /// instead of the fixed 6MB default.
+    /// Same invariant with the adaptive per-shard estimate (segments, fields, postings...), which is what serverless configures instead of
+    /// the fixed 6MB default.
     public void testNodeLocalEstimateEventuallyAtMostMasterEstimateWithAdaptiveOverhead() throws Exception {
         runNodeLocalEstimateAtMostMasterEstimate(true);
     }
@@ -231,9 +231,9 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         return internalCluster().getInstance(EstimatedHeapUsageRecoveryGate.class, nodeName).currentEstimateBytes();
     }
 
-    /// Starts a master and one index node whose local heap estimate is pushed permanently over the high watermark: the overridden
-    /// workload overhead alone exceeds any test JVM heap. The master's own instance gets a small override so its estimates stay
-    /// below the watermark and the allocation decider keeps assigning shards to the node — isolating the gate.
+    /// Starts a master and one index node whose local heap estimate is pushed permanently over the high watermark: the overridden workload
+    /// overhead alone exceeds any test JVM heap. The master's own instance gets a small override so its estimates stay below the watermark
+    /// and the allocation decider keeps assigning shards to the node — isolating the gate.
     private String startGateBlockedIndexNode() {
         final String masterNodeName = startMasterOnlyNode();
         final String indexNodeName = startIndexNode();
@@ -277,8 +277,8 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         return indexName;
     }
 
-    /// A latch released once the node's combined gate decision next evaluates to the given outcome; the monitor re-evaluates
-    /// periodically while the callback waits, so no external trigger is needed.
+    /// A latch released once the node's combined gate decision next evaluates to the given outcome; the monitor re-evaluates periodically
+    /// while the callback waits, so no external trigger is needed.
     private CountDownLatch awaitGateOutcome(String nodeName, RecoveryGate.Outcome outcome) {
         final CountDownLatch latch = new CountDownLatch(1);
         internalCluster().getInstance(RecoveryGateMonitor.class, nodeName).addCallback(outcome, latch::countDown);
@@ -297,8 +297,8 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         return null;
     }
 
-    /// Evaluates the node's [RecoveryGateMonitor] — the combined node-wide decision the recovery scheduler consults, covering the
-    /// gate registration wiring as well as the gate itself.
+    /// Evaluates the node's [RecoveryGateMonitor] — the combined node-wide decision the recovery scheduler consults, covering the gate
+    /// registration wiring as well as the gate itself.
     private RecoveryGate.Decision gateDecision(String nodeName) {
         return internalCluster().getInstance(RecoveryGateMonitor.class, nodeName).evaluate();
     }

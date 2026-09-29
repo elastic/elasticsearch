@@ -134,8 +134,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertRuns(gate);
     }
 
-    /// Once the cached estimate expires, the decision follows the live estimate in both directions, so the RecoveryGateMonitor's
-    /// periodic re-evaluation observes changes.
+    /// Once the cached estimate expires, the decision follows the live estimate in both directions, so the RecoveryGateMonitor's periodic
+    /// re-evaluation observes changes.
     public void testDecisionTracksLiveEstimateAcrossBothEdges() {
         final long maxHeap = randomMaxHeapBytes();
         final int watermarkPercent = between(2, 100);
@@ -153,8 +153,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertRuns(gate);
     }
 
-    /// Evaluations within the validity window reuse the last estimate (one shard walk per window however hot the dispatch path is);
-    /// once the window expires the next evaluation recomputes and the decision follows the live value.
+    /// Evaluations within the validity window reuse the last estimate (one shard walk per window however hot the dispatch path is); once
+    /// the window expires the next evaluation recomputes and the decision follows the live value.
     public void testReusesEstimateWithinValidityWindow() {
         final long maxHeap = randomMaxHeapBytes();
         final int watermarkPercent = between(2, 100);
@@ -186,8 +186,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertThat(computations.get(), equalTo(2));
     }
 
-    /// A failed computation is not cached: with the clock frozen inside the validity window, the next evaluation still retries
-    /// (a cached failure would otherwise pin the fail-open RUN for the whole window).
+    /// A failed computation is not cached: with the clock frozen inside the validity window, the next evaluation still retries (a cached
+    /// failure would otherwise pin the fail-open RUN for the whole window).
     public void testFailedComputationIsNotCached() {
         final long maxHeap = randomMaxHeapBytes();
         final int watermarkPercent = between(1, 100);
@@ -213,8 +213,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertBlocks(gate); // recomputed despite the frozen clock: the failure left nothing in the cache
     }
 
-    /// The gate fails open: [org.elasticsearch.indices.recovery.RecoveryGate]s must not throw, and a broken estimate (e.g. a shard
-    /// closed mid-computation) must not hold recoveries back.
+    /// The gate fails open: [org.elasticsearch.indices.recovery.RecoveryGate]s must not throw, and a broken estimate (e.g. a shard closed
+    /// mid-computation) must not hold recoveries back.
     public void testFailsOpenWhenEstimateComputationThrows() {
         final long maxHeap = randomMaxHeapBytes();
         final var gate = newGate(settings(true, randomWatermark(), randomEnabledMinHeap(maxHeap)), maxHeap, state -> {

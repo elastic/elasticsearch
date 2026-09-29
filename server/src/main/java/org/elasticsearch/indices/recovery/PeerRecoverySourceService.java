@@ -60,8 +60,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
-    /// Maximum number of outgoing peer recoveries a node may run concurrently as a source.
-    /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
+    /// Maximum number of outgoing peer recoveries a node may run concurrently as a source. Requests that arrive when all slots are occupied
+    /// are queued in FIFO order and started as slots free up.
     ///
     /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
@@ -257,8 +257,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return pendingRecoveries.size();
         }
 
-        /// Always enqueues first to preserve FIFO ordering across all recoveries.
-        /// Attempts recoveries for pending items (if slots are available) after enqueuing.
+        /// Always enqueues first to preserve FIFO ordering across all recoveries. Attempts recoveries for pending items (if slots are
+        /// available) after enqueuing.
         void enqueueRecovery(StartRecoveryRequest request, Task task, IndexShard shard, ActionListener<RecoveryResponse> listener) {
             synchronized (this) {
                 assert lifecycle.started();
@@ -341,8 +341,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        /// Called when an active recovery completes (successfully or not).
-        /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
+        /// Called when an active recovery completes (successfully or not). Frees the throttling slot and starts any queued recoveries that
+        /// now fit within the limit.
         void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
             synchronized (this) {
                 remove(shard, handler);
@@ -366,8 +366,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        /// Dequeues and starts pending recoveries up to the max concurrency limit.
-        /// Acquires the lock once per dequeued recovery and triggers recovery in same loop, outside the lock.
+        /// Dequeues and starts pending recoveries up to the max concurrency limit. Acquires the lock once per dequeued recovery and
+        /// triggers recovery in same loop, outside the lock.
         void startRecoveriesUpToLimit() {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             while (true) {

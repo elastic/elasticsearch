@@ -854,16 +854,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    /// Configure a reindex request such that it sends regular small requests, but takes a long time
-    /// to complete. This ensures the task will be responsive to relocation requests, but will not
-    /// complete before timeouts expire.
+    /// Configure a reindex request such that it sends regular small requests, but takes a long time to complete. This ensures the task will
+    /// be responsive to relocation requests, but will not complete before timeouts expire.
     ///
-    /// [ReindexRequest#setRequestsPerSecond(float)] actually refers to sub-requests, i.e., documents;
-    /// it's effectively how many documents we'll reindex per second.
+    /// [ReindexRequest#setRequestsPerSecond(float)] actually refers to sub-requests, i.e., documents; it's effectively how many documents
+    /// we'll reindex per second.
     ///
-    /// So if we configure a `numDocs / 60f` requests per second, we'll index all the documents in one minute
-    /// if we additionally configure the batch size to be `numDocs / 120`, we'll index all the documents in
-    /// one minute, sending a request every 500ms
+    /// So if we configure a `numDocs / 60f` requests per second, we'll index all the documents in one minute if we additionally configure
+    /// the batch size to be `numDocs / 120`, we'll index all the documents in one minute, sending a request every 500ms
     private static ReindexRequest configureIndexingBatchSizeAndRate(ReindexRequest request, int numDocuments) {
         assert numDocuments >= 120
             : "We want to send a request every 500ms and we want the whole thing to take 60s, so we need at least 120 docs";

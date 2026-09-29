@@ -41,8 +41,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         /// A primary shard which is unassigned because it is newly created.
         ///
-        /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the
-        /// new index (including allowing bulk operations which auto-create an index to complete).
+        /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the new
+        /// index (including allowing bulk operations which auto-create an index to complete).
         UNASSIGNED_NEW_PRIMARY(false, true),
 
         /// A shard which is unassigned because of an unexpected condition, i.e. some kind of failure.

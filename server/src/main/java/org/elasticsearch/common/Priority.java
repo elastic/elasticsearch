@@ -18,8 +18,7 @@ import java.io.IOException;
 public enum Priority {
 
     /// The absolute highest priority level. Almost never used in practice. Only appropriate for tasks that may be needed to fix a situation
-    /// in which the master is overwhelmed by other tasks with more sensible priorities, e.g. removing a node or performing a manual
-    /// reroute.
+    /// in which the master is overwhelmed by other tasks with more sensible priorities, e.g. removing a node or performing a manual reroute.
     IMMEDIATE((byte) 0),
 
     /// The highest priority level in common use. Only appropriate for tasks that have an impact on service availability, such as adding
@@ -41,8 +40,8 @@ public enum Priority {
     /// A sentinel priority level below [#LOW]. Never used for any actual tasks, only for `GET _cluster/health?wait_for_tasks=languid` to
     /// express a desire to wait for all tasks to complete.
     ///
-    /// "Languid" is a real (although obscure) English word indicating a complete absence of urgency. You are not the first person who
-    /// has wondered what this has to do with some combination of LANGuage + Unique ID.
+    /// "Languid" is a real (although obscure) English word indicating a complete absence of urgency. You are not the first person who has
+    /// wondered what this has to do with some combination of LANGuage + Unique ID.
     LANGUID((byte) 5);
 
     public static Priority readFrom(StreamInput input) throws IOException {

@@ -27,8 +27,8 @@ public class BulkIndexByPaginatedSearchResponseMatcher extends TypeSafeMatcher<B
     private Matcher<Long> updatedMatcher = equalTo(0L);
     private Matcher<Long> deletedMatcher = equalTo(0L);
 
-    /// Matches for the `total` field on the response (number of matching source documents the reindex/UBQ/DBQ task
-    /// planned to process). Optional, because most existing tests only care about the running counters.
+    /// Matches for the `total` field on the response (number of matching source documents the reindex/UBQ/DBQ task planned to process).
+    /// Optional, because most existing tests only care about the running counters.
     private Matcher<Long> totalMatcher;
 
     /**

@@ -221,9 +221,8 @@ public abstract class Plugin implements Closeable {
         /** A service to determine whether Cross-Project Search applies to a request */
         CrossProjectModeDecider crossProjectModeDecider();
 
-        /// Manages the lifecycle of persistent tasks controlled by a [Setting].
-        /// Plugins can register cluster-scoped or project-scoped tasks here so that the master node automatically
-        /// reconciles the task's presence in the cluster state on every cluster state update.
+        /// Manages the lifecycle of persistent tasks controlled by a [Setting]. Plugins can register cluster-scoped or project-scoped tasks
+        /// here so that the master node automatically reconciles the task's presence in the cluster state on every cluster state update.
         PersistentTaskLifecycleManager taskLifecycleManager();
 
         /** A utility for recording lifecycle errors for data stream lifecycles */

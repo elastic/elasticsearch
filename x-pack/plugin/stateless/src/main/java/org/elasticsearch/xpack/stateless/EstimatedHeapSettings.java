@@ -16,9 +16,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 
-/// The estimated-heap intervention settings, shared by [EstimatedHeapUsageAllocationDecider] (master) and the data-node
-/// recovery gate (`EstimatedHeapUsageRecoveryGate`) so applicability, enablement, and watermark semantics cannot drift between
-/// the two. [StatelessPlugin] creates a single instance and injects it into consumers.
+/// The estimated-heap intervention settings, shared by [EstimatedHeapUsageAllocationDecider] (master) and the data-node recovery gate
+/// (`EstimatedHeapUsageRecoveryGate`) so applicability, enablement, and watermark semantics cannot drift between the two.
+/// [StatelessPlugin] creates a single instance and injects it into consumers.
 public final class EstimatedHeapSettings {
 
     private volatile boolean enabled;
@@ -55,16 +55,15 @@ public final class EstimatedHeapSettings {
         return node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 
-    /// Variant of [#appliesToNode(DiscoveryNode)] for wiring-time checks (e.g. creating the recovery gate), which run before
-    /// the local [DiscoveryNode] exists.
+    /// Variant of [#appliesToNode(DiscoveryNode)] for wiring-time checks (e.g. creating the recovery gate), which run before the local
+    /// [DiscoveryNode] exists.
     public static boolean appliesToNode(Settings settings) {
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
     }
 
-    /// Whether heap estimates should be collected for the given node.
-    /// Unlike [#appliesToNode(DiscoveryNode)], which gates heap-based intervention (recovery gate, legacy allocation decider),
-    /// this predicate includes search nodes so their hosted-shards heap usage is available in [ClusterInfo] for the
-    /// partition-aware heap decider.
+    /// Whether heap estimates should be collected for the given node. Unlike [#appliesToNode(DiscoveryNode)], which gates heap-based
+    /// intervention (recovery gate, legacy allocation decider), this predicate includes search nodes so their hosted-shards heap usage is
+    /// available in [ClusterInfo] for the partition-aware heap decider.
     public static boolean collectsEstimatesForNode(DiscoveryNode node) {
         return node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) || node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
     }

@@ -30,15 +30,14 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
-/// A node-wide [RecoveryGate] for stateless index nodes: defers starting new recoveries while this node's estimated heap usage
-/// is above the high watermark — the threshold above which [EstimatedHeapUsageAllocationDecider]'s `canRemain` moves started
-/// shards away. The master's view ([org.elasticsearch.cluster.ClusterInfo]) refreshes only every few tens of seconds while data
-/// nodes start recoveries at their own pace — this gate is the fresher, local safety valve.
+/// A node-wide [RecoveryGate] for stateless index nodes: defers starting new recoveries while this node's estimated heap usage is above the
+/// high watermark — the threshold above which [EstimatedHeapUsageAllocationDecider]'s `canRemain` moves started shards away. The master's
+/// view ([org.elasticsearch.cluster.ClusterInfo]) refreshes only every few tens of seconds while data nodes start recoveries at their own
+/// pace — this gate is the fresher, local safety valve.
 ///
-/// The estimate covers only the shards already residing on this node, computed from the exact values the node publishes
-/// to the master ([ShardsMappingSizeCollector#collectShardMappingSizes]) — the same values that, once published, feed the estimates
-/// [EstimatedHeapUsageAllocationDecider] uses — through the master's own summation
-/// ([StatelessMemoryMetricsService#estimateNodeHeapUsage]).
+/// The estimate covers only the shards already residing on this node, computed from the exact values the node publishes to the master
+/// ([ShardsMappingSizeCollector#collectShardMappingSizes]) — the same values that, once published, feed the estimates
+/// [EstimatedHeapUsageAllocationDecider] uses — through the master's own summation ([StatelessMemoryMetricsService#estimateNodeHeapUsage]).
 public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable {
 
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageRecoveryGate.class);
@@ -49,8 +48,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
         "es.recovery.gate.estimated_heap.usage_delta_percentage.current";
     public static final String ESTIMATED_HEAP_COMPUTATION_TIME_METRIC = "es.recovery.gate.estimated_heap.computation.time";
 
-    /// How long a computed estimate is cached. The heap estimate needs to loop through every shard on the node, so the result is
-    /// cached.
+    /// How long a computed estimate is cached. The heap estimate needs to loop through every shard on the node, so the result is cached.
     private static final TimeValue ESTIMATE_VALIDITY = TimeValue.timeValueSeconds(1);
 
     private final long maxHeapBytes;
@@ -61,8 +59,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     private final DoubleAsyncGauge estimatedHeapUsageDeltaPercentageMetric;
     private final LongHistogram estimatedHeapComputationTimeMetric;
 
-    /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
-    /// collector publishes to the master, fed through the master's own summation.
+    /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the collector
+    /// publishes to the master, fed through the master's own summation.
     public static EstimatedHeapUsageRecoveryGate create(
         ClusterService clusterService,
         StatelessMemoryMetricsService memoryMetricsService,
@@ -133,8 +131,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
         };
     }
 
-    /// The estimate this gate decides on: the last computed value while it is still within [#ESTIMATE_VALIDITY], else recomputed
-    /// inline.
+    /// The estimate this gate decides on: the last computed value while it is still within [#ESTIMATE_VALIDITY], else recomputed inline.
     long currentEstimateBytes() {
         return estimateCache.getOrRefresh();
     }

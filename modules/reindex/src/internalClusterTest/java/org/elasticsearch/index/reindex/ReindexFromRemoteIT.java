@@ -27,8 +27,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 
 /// Integration tests for reindex-from-remote that route through the cluster's own HTTP endpoint as the "remote" source.
 ///
-/// For tests of remote reindex behaviour that *do* require an actual older Elasticsearch fixture (BWC traffic against
-/// 7.x remotes), see `ReindexFromRemote7xIT` in the `javaRestTest` sources.
+/// For tests of remote reindex behaviour that *do* require an actual older Elasticsearch fixture (BWC traffic against 7.x remotes), see
+/// `ReindexFromRemote7xIT` in the `javaRestTest` sources.
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ReindexFromRemoteIT extends ESIntegTestCase {
 

@@ -12,15 +12,15 @@ package org.elasticsearch.indices.recovery;
 import java.util.Objects;
 
 /// Decides whether this data node may start new recoveries right now, on top of the concurrency bound enforced by
-/// [ThrottlingRecoveryService]. The decision is node-wide (see [Decision]): a gate lets all new recoveries start or holds them all back.
-/// The node's gates are combined most-restrictive-wins by [RecoveryGateMonitor].
+/// [ThrottlingRecoveryService]. The decision is node-wide (see [Decision]): a gate lets all new recoveries start or holds them all back. The
+/// node's gates are combined most-restrictive-wins by [RecoveryGateMonitor].
 ///
 /// [#evaluate] is on the recovery dispatch path: it must be fast, non-blocking, and must not call back into recovery scheduling.
 @FunctionalInterface
 public interface RecoveryGate {
 
-    /// Evaluates whether new recoveries may start now on this node. Must not throw: a throwing gate is ignored by the
-    /// [RecoveryGateMonitor].
+    /// Evaluates whether new recoveries may start now on this node. Must not throw: a throwing gate is ignored by
+    /// the [RecoveryGateMonitor].
     Decision evaluate();
 
     enum Outcome {

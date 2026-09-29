@@ -82,8 +82,8 @@ public class SplitTargetService {
         Setting.Property.NodeScope
     );
 
-    /// Timeout for internal retries when sending start split request to the source shard.
-    /// This setting is only configured in tests and is not registered.
+    /// Timeout for internal retries when sending start split request to the source shard. This setting is only configured in tests and is
+    /// not registered.
     public static final Setting<TimeValue> START_SPLIT_RETRY_TIMEOUT = Setting.positiveTimeSetting(
         "reshard.split.target_shard_start_split_retry_timeout",
         TimeValue.timeValueSeconds(60),
@@ -298,10 +298,8 @@ public class SplitTargetService {
                     initiateSplitWithSourceShard(clone);
                 }
                 case State.WaitingForHandoff ignored -> {
-                    /// This is a special state since we are not doing any action
-                    /// but waiting for the source shard to initiate handoff.
-                    /// It is useful to have this state for validation purposes.
-                    /// See also [StateMachine#changeStateToHandoff].
+                    /// This is a special state since we are not doing any action but waiting for the source shard to initiate handoff. It
+                    /// is useful to have this state for validation purposes. See also [StateMachine#changeStateToHandoff].
                 }
                 case State.HandoffReceived handoffReceived -> {
                     changeStateToHandoff(handoffReceived);
@@ -340,12 +338,11 @@ public class SplitTargetService {
                     waitForShardStarted(new StateAdvancingListener<>(new State.Handoff()));
                 }
                 case State.RecoveringInSplit ignored -> {
-                    /// We need to confirm that coordinators are aware of SPLIT state before proceeding further.
-                    /// If they are not we can return stale search results from the source shard
-                    /// after a successful write to the target shard and refresh.
-                    /// Note that we'll automatically apply a refresh block since the current state is SPLIT,
-                    /// see [ReshardIndexService#maybeAwaitSplit].
-                    /// As such it's okay to have the shard start here before awaiting SPLIT application.
+                    /// We need to confirm that coordinators are aware of SPLIT state before proceeding further. If they are not we can
+                    /// return stale search results from the source shard after a successful write to the target shard and refresh. Note that
+                    /// we'll automatically apply a refresh block since the current state is SPLIT, see
+                    /// [ReshardIndexService#maybeAwaitSplit]. As such it's okay to have the shard start here before awaiting
+                    /// SPLIT application.
                     SubscribableListener.newForked(this::waitForShardStarted)
                         .andThen(this::awaitSplitApplied)
                         .addListener(new StateAdvancingListener<>(new State.SplitApplied()));
@@ -363,14 +360,12 @@ public class SplitTargetService {
 
                     if (failed.destinationState instanceof State.Split) {
                         reshardIndexService.notifySplitFailure(shard, failed.exception);
-                        /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
-                        /// due to the `notifySplitFailure` call above.
-                        /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.
-                        /// Note that this is technically impossible in the existing implementation since we retry all failures
-                        /// until the shard is closed in [ChangeState#shouldRetry].
-                        /// That logic may change though and then this becomes relevant.
-                        /// For example if we discover that the primary term of the shard advanced when we tried to update state,
-                        /// there is no reason to retry since we will never succeed.
+                        /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests due to
+                        /// the `notifySplitFailure` call above. There is nothing we can really do at this point to recover so we hope we can
+                        /// figure this out on recovery. Note that this is technically impossible in the existing implementation since we
+                        /// retry all failures until the shard is closed in [ChangeState#shouldRetry]. That logic may change though and then
+                        /// this becomes relevant. For example if we discover that the primary term of the shard advanced when we tried to
+                        /// update state, there is no reason to retry since we will never succeed.
                         shard.failShard("Failed to transition split target shard to SPLIT state", failed.exception);
                     }
 
@@ -444,9 +439,8 @@ public class SplitTargetService {
             }
         };
 
-        /// All the possible states that a target shard state machine can be in.
-        /// State transitions are always performed in the order of definition except for the failure states.
-        /// E.g. we always transition SearchShardsOnline -> Split.
+        /// All the possible states that a target shard state machine can be in. State transitions are always performed in the order of
+        /// definition except for the failure states. E.g. we always transition SearchShardsOnline -> Split.
         sealed interface State permits State.Clone, State.WaitingForHandoff, State.HandoffReceived, State.StartSplitRpcComplete,
             State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted, State.Done,
             State.RecoveringInHandoff, State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
@@ -867,16 +861,14 @@ public class SplitTargetService {
                 return false;
             }
 
-            /// We apply internal retries if the source shard is not present/started.
-            /// This is because allocation only performs a limited number of retries (at the time of writing)
-            /// when a shard fails in recovery (which is what happens if start split RPC fails).
-            /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating.
-            /// Recovering from this state requires manual intervention which is of course undesireable.
+            /// We apply internal retries if the source shard is not present/started. This is because allocation only performs a limited
+            /// number of retries (at the time of writing) when a shard fails in recovery (which is what happens if start split RPC fails).
+            /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating. Recovering from this
+            /// state requires manual intervention which is of course undesireable.
             ///
-            /// Note that it is possible that we observe one of the *NotFound exceptions if the source shard
-            /// was moved from this node.
-            /// This is fine, eventually we'll stop retrying when we reach the retry timeout and retry the entire recovery sequence.
-            /// See corresponding source shard code in
+            /// Note that it is possible that we observe one of the *NotFound exceptions if the source shard was moved from this node. This
+            /// is fine, eventually we'll stop retrying when we reach the retry timeout and retry the entire recovery sequence. See
+            /// corresponding source shard code in
             /// [SplitSourceService#setupTargetShard(CancellableTask, ShardId, long, long, ActionListener)].
             Throwable cause = ExceptionsHelper.unwrapCause(e);
 

@@ -54,9 +54,9 @@ public final class RestResponse implements Releasable {
     /// `?error_trace` query parameter. If the user turned off suppression for a request then we wouldn't log the exception here, since we
     /// weren't suppressing anything in that case.
     ///
-    /// Over the years we discovered that really we want to record all 5xx errors in the logs, even if the user had requested
-    /// `?error_trace`, so as of #101066 (v8.12.0) we changed things to always log errors returned in REST responses using this logger
-    /// regardless of whether the stack trace is included or suppressed in the REST response or not.
+    /// Over the years we discovered that really we want to record all 5xx errors in the logs, even if the user had requested `?error_trace`,
+    /// so as of #101066 (v8.12.0) we changed things to always log errors returned in REST responses using this logger regardless of whether
+    /// the stack trace is included or suppressed in the REST response or not.
     ///
     /// But now we rely on this logger all over the place, so changing its name would be too painful.
     ///

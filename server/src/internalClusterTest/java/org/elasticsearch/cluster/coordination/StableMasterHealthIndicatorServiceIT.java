@@ -123,10 +123,10 @@ public class StableMasterHealthIndicatorServiceIT extends ESIntegTestCase {
     /// Tests that the `master_is_stable` indicator returns yellow when the number of master identity changes exceeds
     /// {@link CoordinationDiagnosticsService#IDENTITY_CHANGES_THRESHOLD_SETTING}.
     ///
-    /// Note that I have to emulate this via a network partition, isolating the elected master and then healing the partition so
-    /// it can rejoin. If I were to simply kill the master node, it would no longer belong in the cluster, and so its ID
-    /// would be filtered from the master history log. The health of the cluster would stay green, as master nodes dropping from the
-    /// cluster does not count as instability
+    /// Note that I have to emulate this via a network partition, isolating the elected master and then healing the partition so it can
+    /// rejoin. If I were to simply kill the master node, it would no longer belong in the cluster, and so its ID would be filtered from the
+    /// master history log. The health of the cluster would stay green, as master nodes dropping from the cluster does not count
+    /// as instability
     public void testYellowWhenExceedsIdentityChangesThreshold() throws Exception {
         Settings settings = Settings.builder()
             .put(CoordinationDiagnosticsService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
@@ -172,8 +172,8 @@ public class StableMasterHealthIndicatorServiceIT extends ESIntegTestCase {
     /// Tests that the `master_is_stable` indicator returns yellow when the number of master transitions exceeds
     /// {@link CoordinationDiagnosticsService#NO_MASTER_TRANSITIONS_THRESHOLD_SETTING}.
     ///
-    /// Isolates the elected master. The majority elects a replacement (master → null → new master). The cluster is
-    /// then healed. With no_master_transitions_threshold=1 that is enough for yellow via null-flapping.
+    /// Isolates the elected master. The majority elects a replacement (master → null → new master). The cluster is then healed. With
+    /// no_master_transitions_threshold=1 that is enough for yellow via null-flapping.
     public void testYellowWhenExceedsNoMasterTransitionsThreshold() throws Exception {
         Settings settings = Settings.builder()
             .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)

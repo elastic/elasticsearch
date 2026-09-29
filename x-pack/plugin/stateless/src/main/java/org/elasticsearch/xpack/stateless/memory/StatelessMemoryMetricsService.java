@@ -1025,7 +1025,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /// Compute the aggregated shard metrics for the whole tier
     ///
-    /// @param postingsInEstimate Whether to include postings in the shard heap estimates
+    /// @param postingsInEstimate        Whether to include postings in the shard heap estimates
     /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
     public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
         PostingsInEstimate postingsInEstimate,
@@ -1036,9 +1036,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /// Compute the aggregated shard metrics for the whole tier
     ///
-    /// @param postingsInEstimate Whether to include postings in the shard heap estimates
+    /// @param postingsInEstimate        Whether to include postings in the shard heap estimates
     /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
-    /// @param metricVisitor A callback that is called for each shard with its shard memory metrics
+    /// @param metricVisitor             A callback that is called for each shard with its shard memory metrics
     public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
         PostingsInEstimate postingsInEstimate,
         SelfReportedShardOverhead selfReportedShardOverhead,
@@ -1051,8 +1051,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         );
     }
 
-    /// Create a [ShardHeapEstimator] with the default self-reported-shard overhead behaviour
-    /// and the specified postings behaviour
+    /// Create a [ShardHeapEstimator] with the default self-reported-shard overhead behaviour and the specified postings behaviour
     public ShardHeapEstimator createShardHeapEstimator() {
         return createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT);
     }

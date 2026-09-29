@@ -34,8 +34,8 @@ import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationActio
 
 /// [TransportAction] for starting a stateless primary relocation.
 ///
-/// Invoked by the target node via the [PeerRecoveryTargetService], and the request goes to the source node. The
-/// source-side handler delegates to [StatelessPrimaryRelocationSourceService].
+/// Invoked by the target node via the [PeerRecoveryTargetService], and the request goes to the source node. The source-side handler
+/// delegates to [StatelessPrimaryRelocationSourceService].
 public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     StatelessPrimaryRelocationAction.Request,
     ActionResponse.Empty> {

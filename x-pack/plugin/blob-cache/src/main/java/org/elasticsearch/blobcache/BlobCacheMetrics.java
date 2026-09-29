@@ -190,15 +190,15 @@ public class BlobCacheMetrics {
     public enum EvictionScanOutcome {
         /// Scan evicted a chunk and returned its IO slot.
         Evicted,
-        /// Scan was interrupted by a free region appearing in the free-region queue mid-scan.
-        /// Currently, can't happen under [EvictionScanMode#LowestFrequency].
+        /// Scan was interrupted by a free region appearing in the free-region queue mid-scan. Currently, can't happen under
+        /// [EvictionScanMode#LowestFrequency].
         Free,
         /// Scan exhausted its frequency buckets without freeing a region.
         None
     }
 
-    /// The call site at which the SharedBlobCacheService monitor was acquired. Lets us attribute lock-wait time to the
-    /// operation requesting the lock so contention can be tracked per code path as eviction work grows.
+    /// The call site at which the SharedBlobCacheService monitor was acquired. Lets us attribute lock-wait time to the operation requesting
+    /// the lock so contention can be tracked per code path as eviction work grows.
     public enum LockAcquireSite {
         /// Cache-miss path: scanning the LFU for an eviction victim (maybeEvictAndTake via initChunk).
         CacheMissEviction,
@@ -513,11 +513,12 @@ public class BlobCacheMetrics {
     }
 
     /// Record both eviction-scan histograms time taken and entries scanned for a single LFU eviction scan invocation.
-    /// @param elapsedNanos elapsed time of the scan in nanoseconds. Recorded as fractional microseconds, which based on APM value buckets,
-    /// gives a possible metric range of ~3.9ns to ~131ms
+    ///
+    /// @param elapsedNanos   elapsed time of the scan in nanoseconds. Recorded as fractional microseconds, which based on APM value buckets,
+    ///                       gives a possible metric range of ~3.9ns to ~131ms
     /// @param scannedEntries number of LFU list iterations performed across all frequency buckets touched
-    /// @param mode the scope of the scan (see [EvictionScanMode])
-    /// @param outcome whether the scan evicted, got a free region, or exhausted its buckets (see [EvictionScanOutcome])
+    /// @param mode           the scope of the scan (see [EvictionScanMode])
+    /// @param outcome        whether the scan evicted, got a free region, or exhausted its buckets (see [EvictionScanOutcome])
     public void recordEvictionScan(long elapsedNanos, long scannedEntries, EvictionScanMode mode, EvictionScanOutcome outcome) {
         Map<String, Object> attrs = Map.of(
             EVICTION_SCAN_MODE_ATTRIBUTE_KEY,
@@ -529,10 +530,11 @@ public class BlobCacheMetrics {
         evictionScannedEntries.record(scannedEntries, attrs);
     }
 
-    /// Record the time spent waiting to acquire the SharedBlobCacheService monitor, attributed by call site.
-    /// Contrast with recordEvictionScan, which times work performed while the lock is already held.
+    /// Record the time spent waiting to acquire the SharedBlobCacheService monitor, attributed by call site. Contrast with
+    /// recordEvictionScan, which times work performed while the lock is already held.
+    ///
     /// @param elapsedNanos wait time between requesting and acquiring the monitor, in nanoseconds (recorded as fractional microseconds)
-    /// @param site the operation that acquired the lock (see [LockAcquireSite])
+    /// @param site         the operation that acquired the lock (see [LockAcquireSite])
     public void recordLockAcquire(long elapsedNanos, LockAcquireSite site) {
         lockAcquireTime.record((double) elapsedNanos / 1000, Map.of(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY, site.name()));
     }

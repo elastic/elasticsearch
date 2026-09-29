@@ -40,21 +40,18 @@ import java.util.function.Supplier;
 
 /// Manages the lifecycle of persistent tasks that are controlled by a [BooleanSupplier] enabled flag.
 ///
-/// On every cluster state update, the master node reconciles the desired state (enabled / disabled) with the
-/// actual state (task exists / does not exist) and sends the appropriate start or remove request through
-/// the [PersistentTasksService].
+/// On every cluster state update, the master node reconciles the desired state (enabled / disabled) with the actual state (task exists /
+/// does not exist) and sends the appropriate start or remove request through the [PersistentTasksService].
 ///
-/// Both cluster-scoped and project-scoped tasks are supported. Cluster tasks can be registered via
-/// [#registerClusterTask], and project tasks via [#registerProjectTask].
-/// Each registration method accepts a [Setting] whose value is watched for dynamic updates.
-/// Reconciliation runs independently for every project in the cluster state.
+/// Both cluster-scoped and project-scoped tasks are supported. Cluster tasks can be registered via [#registerClusterTask], and project tasks
+/// via [#registerProjectTask]. Each registration method accepts a [Setting] whose value is watched for dynamic updates. Reconciliation runs
+/// independently for every project in the cluster state.
 ///
-/// At most one request is in flight at a time per task (per project for project-scoped tasks). If the
-/// enabled state changes while a request is in flight, the opposite request is sent immediately upon
-/// completion without waiting for the next cluster state update.
+/// At most one request is in flight at a time per task (per project for project-scoped tasks). If the enabled state changes while a request
+/// is in flight, the opposite request is sent immediately upon completion without waiting for the next cluster state update.
 ///
-/// Tasks controlled by more complex logic (e.g. requiring per-project conditions or custom stop behavior)
-/// should have separate classes managing their own lifecycle.
+/// Tasks controlled by more complex logic (e.g. requiring per-project conditions or custom stop behavior) should have separate classes
+/// managing their own lifecycle.
 ///
 public final class PersistentTaskLifecycleManager extends AbstractLifecycleComponent implements ClusterStateListener {
 
@@ -85,8 +82,8 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
     @Override
     protected void doClose() {}
 
-    /// Registers a cluster-scoped task whose enabled state is driven by a [Setting].
-    /// The manager watches the setting for dynamic changes and reconciles accordingly.
+    /// Registers a cluster-scoped task whose enabled state is driven by a [Setting]. The manager watches the setting for dynamic changes
+    /// and reconciles accordingly.
     ///
     /// @param taskName       the task name, also used as the task ID in cluster state
     /// @param enabledSetting setting that controls whether the task should be running
@@ -101,8 +98,8 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled::get, paramsSupplier));
     }
 
-    /// Registers a project-scoped task whose enabled state is driven by a [Setting].
-    /// The manager watches the setting for dynamic changes and reconciles accordingly.
+    /// Registers a project-scoped task whose enabled state is driven by a [Setting]. The manager watches the setting for dynamic changes
+    /// and reconciles accordingly.
     ///
     /// @param taskName       the task name, used to identify the executor
     /// @param taskIdFn       maps a [ProjectId] to the task ID stored in that project's task metadata
@@ -117,8 +114,8 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         registerProjectTask(taskName, taskIdFn, enabledSetting, paramsSupplier, p -> {});
     }
 
-    /// Registers a project-scoped task whose enabled state is driven by a [Setting].
-    /// The manager watches the setting for dynamic changes and reconciles accordingly.
+    /// Registers a project-scoped task whose enabled state is driven by a [Setting]. The manager watches the setting for dynamic changes
+    /// and reconciles accordingly.
     ///
     /// @param taskName       the task name, used to identify the executor
     /// @param taskIdFn       maps a [ProjectId] to the task ID stored in that project's task metadata

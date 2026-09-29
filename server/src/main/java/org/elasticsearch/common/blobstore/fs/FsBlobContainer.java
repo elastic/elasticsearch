@@ -427,9 +427,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    /// Use a hard link to atomically fail if the target already exists. A plain Files.move with ATOMIC_MOVE uses rename(2) on
-    /// POSIX which silently replaces an existing target, so a separate Files.exists check beforehand is racy under concurrent
-    /// writers. Files.createLink uses link(2) which atomically fails with FileAlreadyExistsException when the target exists.
+    /// Use a hard link to atomically fail if the target already exists. A plain Files.move with ATOMIC_MOVE uses rename(2) on POSIX which
+    /// silently replaces an existing target, so a separate Files.exists check beforehand is racy under concurrent writers. Files.createLink
+    /// uses link(2) which atomically fails with FileAlreadyExistsException when the target exists.
     private static void moveAtomicallyUsingHardLink(
         Path targetBlobPath,
         Path sourceBlobPath,
@@ -459,8 +459,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    /// Fall back for filesystems that do not support hard links (e.g., some network mounts).
-    /// This operation is not concurrency safe.
+    /// Fall back for filesystems that do not support hard links (e.g., some network mounts). This operation is not concurrency safe.
     private static void fallbackMoveFileWithNoHardLinkSupported(Path targetBlobPath, Path sourceBlobPath) throws IOException {
         if (Files.exists(targetBlobPath)) {
             throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");

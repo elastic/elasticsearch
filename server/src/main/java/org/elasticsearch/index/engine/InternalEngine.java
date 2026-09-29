@@ -2264,9 +2264,9 @@ public class InternalEngine extends Engine {
 
     /// Writes a new version of a document to Lucene using [soft-update semantics][IndexWriter#softUpdateDocument].
     ///
-    /// The previous version of the document (matched by `_id`) is atomically marked as soft-deleted
-    /// (by setting the [Lucene#SOFT_DELETES_FIELD] doc-values field to `1`) and the new version is written into the current
-    /// segment. The old document can then be selectively retained during merges (used for peer-recovery and CCR replay).
+    /// The previous version of the document (matched by `_id`) is atomically marked as soft-deleted (by setting the
+    /// [Lucene#SOFT_DELETES_FIELD] doc-values field to `1`) and the new version is written into the current segment. The old document can
+    /// then be selectively retained during merges (used for peer-recovery and CCR replay).
     private void updateDocs(final BytesRef uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         final Term uidTerm = new Term(IdFieldMapper.NAME, uid);
         if (docs.size() > 1) {
@@ -2487,14 +2487,12 @@ public class InternalEngine extends Engine {
 
     /// Executes a delete operation in Lucene by writing a tombstone document.
     ///
-    /// Rather than hard-deleting the document, a tombstone is written using
-    /// [soft-update semantics][IndexWriter#softUpdateDocument]: the tombstone carries the
-    /// [Lucene#SOFT_DELETES_FIELD] marker so that Lucene's [org.apache.lucene.index.SoftDeletesRetentionMergePolicy]
-    /// can retain it during merges (used for peer-recovery and CCR).
+    /// Rather than hard-deleting the document, a tombstone is written using [soft-update semantics][IndexWriter#softUpdateDocument]: the
+    /// tombstone carries the [Lucene#SOFT_DELETES_FIELD] marker so that Lucene's
+    /// [org.apache.lucene.index.SoftDeletesRetentionMergePolicy] can retain it during merges (used for peer-recovery and CCR).
     ///
-    /// When the document is already deleted or this is a stale replay, the tombstone is written with
-    /// [IndexWriter#addDocument] (new document). Otherwise [IndexWriter#softUpdateDocument] is used
-    /// (new generation of the same document).
+    /// When the document is already deleted or this is a stale replay, the tombstone is written with [IndexWriter#addDocument] (new
+    /// document). Otherwise [IndexWriter#softUpdateDocument] is used (new generation of the same document).
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {

@@ -66,34 +66,30 @@ import static org.elasticsearch.core.Strings.format;
 public class SplitSourceService {
     private static final Logger logger = LogManager.getLogger(SplitSourceService.class);
 
-    /// This is a grace period to drain queued requests before deleting unowned data and completing the split.
-    /// It is needed for both search and indexing.
+    /// This is a grace period to drain queued requests before deleting unowned data and completing the split. It is needed for both search
+    /// and indexing.
     ///
-    /// In search logic we rely on refresh blocks to ensure consistency of search results. Since a refresh can not
-    /// be performed while target search shards are being set up, it is correct to return pre-split results
-    /// using only the source shard. In other words we don't "resplit" searches. So any stale requests
-    /// that f.e. got queued on the coordinators or in the network buffers somewhere will be served
-    /// by the source shard only, and it's not a problem from correctness perspective.
-    /// This means however that we can't delete unowned data on the source shard as soon as possible because in that case
-    /// stale requests described above will see a big chunk of the documents being missing - the now-unowned documents.
-    /// We can allow search results for such requests to be stale, but we can't allow such a major discrepancy.
-    /// Once we know that unowned documents are about to be deleted after the grace period we will reject such stale search requests.
+    /// In search logic we rely on refresh blocks to ensure consistency of search results. Since a refresh can not be performed while target
+    /// search shards are being set up, it is correct to return pre-split results using only the source shard. In other words we don't
+    /// "resplit" searches. So any stale requests that f.e. got queued on the coordinators or in the network buffers somewhere will be served
+    /// by the source shard only, and it's not a problem from correctness perspective. This means however that we can't delete unowned data
+    /// on the source shard as soon as possible because in that case stale requests described above will see a big chunk of the documents
+    /// being missing - the now-unowned documents. We can allow search results for such requests to be stale, but we can't allow such a major
+    /// discrepancy. Once we know that unowned documents are about to be deleted after the grace period we will reject such stale search
+    /// requests.
     ///
-    /// In indexing logic we currently read resharding metadata in order to figure out the corresponding target shard
-    /// for the source shard when we forward broadcast requests like flush.
-    /// We would lose that ability if we were to immediately delete unowned data and complete the split
-    /// (thus removing resharding metadata).
-    /// Note that using the resharding metadata is not strictly necessary to do that (you can work it out using shard count summary)
-    /// so this may change.
+    /// In indexing logic we currently read resharding metadata in order to figure out the corresponding target shard for the source shard
+    /// when we forward broadcast requests like flush. We would lose that ability if we were to immediately delete unowned data and complete
+    /// the split (thus removing resharding metadata). Note that using the resharding metadata is not strictly necessary to do that (you can
+    /// work it out using shard count summary) so this may change.
     public static final Setting<TimeValue> RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD = Setting.positiveTimeSetting(
         "reshard.split.delete_unowned_grace_period",
         TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 
-    /// We want to prevent the state machine from spinning in a hot loop.
-    /// This setting defines how long to wait between the retries.
-    /// This is not an actual registered setting and is only used in tests.
+    /// We want to prevent the state machine from spinning in a hot loop. This setting defines how long to wait between the retries. This is
+    /// not an actual registered setting and is only used in tests.
     public static final Setting<TimeValue> STATE_MACHINE_RETRY_DELAY = Setting.positiveTimeSetting(
         "reshard.split.source_shard_state_machine_retry_delay",
         TimeValue.timeValueSeconds(10),
@@ -451,10 +447,9 @@ public class SplitSourceService {
             return;
         }
 
-        /// It is possible that the shard is already STARTED at this point,
-        /// see [org.elasticsearch.indices.cluster.IndicesClusterStateService#updateShard].
-        /// As such it is possible that we are already accepting requests to start split from targets.
-        /// If any of them already set up cleanup infrastructure we don't need to do anything here.
+        /// It is possible that the shard is already STARTED at this point, see
+        /// [org.elasticsearch.indices.cluster.IndicesClusterStateService#updateShard]. As such it is possible that we are already accepting
+        /// requests to start split from targets. If any of them already set up cleanup infrastructure we don't need to do anything here.
         setupSourceShardStateMachine(indexShard);
     }
 
@@ -462,15 +457,13 @@ public class SplitSourceService {
         activeSourceShards.compute(sourceShard, (shard, stateMachine) -> {
             if (stateMachine == null) {
                 /// `stateMachine` is `null` in two cases:
-                /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split.
-                ///    This is the first time a target shard contacts the source shard.
-                /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed
-                ///    the entry already.
-                /// We should specifically handle the latter case to not create a state machine for an already closed shard.
-                /// To do that we perform the state check below.
-                /// If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have been called.
-                /// So we are handling the case when it already executed.
-                /// If we don't observe `CLOSED`, we can rely on `cancelSplits` to be executed.
+                /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split. This is the first time a target shard
+                ///    contacts the source shard.
+                /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed the entry already. We
+                ///    should specifically handle the latter case to not create a state machine for an already closed shard. To do that we
+                ///    perform the state check below. If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have
+                ///    been called. So we are handling the case when it already executed. If we don't observe `CLOSED`, we can rely on
+                ///    `cancelSplits` to be executed.
                 if (shard.state() == IndexShardState.CLOSED) {
                     return null;
                 }
@@ -736,10 +729,10 @@ public class SplitSourceService {
         }
     }
 
-    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
-    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
-    /// We rely on this fact in [#setupSourceShardStateMachine(IndexShard)] to handle the possible race
-    /// of this function and adding a new state machine to the `activeSourceShards` map.
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler so
+    /// that it runs _after_ the shard state is set to `CLOSED` and not before. We rely on this fact in
+    /// [#setupSourceShardStateMachine(IndexShard)] to handle the possible race of this function and adding a new state machine to the
+    /// `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
         activeTargetRequests.remove(indexShard);
         shardsPreparingForHandoff.remove(indexShard.shardId());
@@ -890,9 +883,8 @@ public class SplitSourceService {
                     monitorTargetShardsState();
                 }
                 case State.TargetShardsDone ignored -> {
-                    /// This code already runs on generic thread pool.
-                    /// We use `scheduleUnlessShuttingDown` just to implement a delay.
-                    /// See [RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD] for the explanation of this delay.
+                    /// This code already runs on generic thread pool. We use `scheduleUnlessShuttingDown` just to implement a delay. See
+                    /// [RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD] for the explanation of this delay.
                     clusterService.threadPool()
                         .scheduleUnlessShuttingDown(
                             deleteUnownedDelay,
@@ -1061,10 +1053,10 @@ public class SplitSourceService {
             );
         }
 
-        /// Signals to the search shards that they should start rejecting search requests that do not have current shard count summary.
-        /// We are going to delete unowned data in the next step and if search shards still served requests with stale summaries
-        /// such requests would now return incorrect results.
-        /// That is because unowned data is deleted _and_ target shards are not included in the search since the request is stale.
+        /// Signals to the search shards that they should start rejecting search requests that do not have current shard count summary. We
+        /// are going to delete unowned data in the next step and if search shards still served requests with stale summaries such requests
+        /// would now return incorrect results. That is because unowned data is deleted _and_ target shards are not included in the search
+        /// since the request is stale.
         private void changeStateToReadyForCleanup() {
             SubscribableListener.newForked(
                 l -> client.execute(

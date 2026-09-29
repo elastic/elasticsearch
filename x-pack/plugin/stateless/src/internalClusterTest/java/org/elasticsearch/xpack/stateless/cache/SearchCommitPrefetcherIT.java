@@ -1044,8 +1044,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         return prefetchedGenerations;
     }
 
-    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
-    /// range and merging overlaps.
+    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)` range and
+    /// merging overlaps.
     private static final class UniqueRangesTracker {
         private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
 

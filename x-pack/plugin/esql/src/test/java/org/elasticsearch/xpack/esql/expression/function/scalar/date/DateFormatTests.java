@@ -41,7 +41,6 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        ///
         /// UTC and en_en cases
         ///
         // Formatter supplied cases
@@ -102,14 +101,12 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
-        ///
         /// Custom locales
         ///
         suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00Z", "Z", "es-es", "ene"));
         suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "Z", "es-es", "Z"));
         suppliers.addAll(casesForDefaultFormat("2020-01-01T00:00:00.00Z", "Z", "es-es", "2020-01-01T00:00:00.000Z"));
 
-        ///
         /// Custom timezones
         ///
         suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "Europe/Paris", "en-us", "Europe/Paris"));

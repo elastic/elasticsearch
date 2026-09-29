@@ -843,9 +843,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(sentRequests, hasSize(0));
     }
 
-    /// Randomized test that simulates bounded-cache evictions, failed requests, new requests, and cancelIfStarted/term
-    /// bumps, interleaved in random order. Verifies that after every round the service has sent all and only the
-    /// expected requests.
+    /// Randomized test that simulates bounded-cache evictions, failed requests, new requests, and cancelIfStarted/term bumps, interleaved
+    /// in random order. Verifies that after every round the service has sent all and only the expected requests.
     public void testCacheInvalidationAndCancellationsInterleaving() {
         final int numShards = randomIntBetween(2, 10);
         final int numRounds = randomIntBetween(5, 10);

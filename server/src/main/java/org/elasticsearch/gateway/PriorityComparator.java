@@ -27,21 +27,21 @@ public final class PriorityComparator {
     /// 1. First, system indices are ordered before non-system indices.
     /// 2. Then indices are ordered by their priority (`index.priority`), in descending order.
     /// 3. Then newer indices are ordered before older indices, based on their creation date (`index.creation_date`). This benefits
-    /// time-series indices, where newer indices are considered more urgent
+    ///    time-series indices, where newer indices are considered more urgent
     /// 4. Lastly the index names are compared, which is useful when a date is baked into the index name, e.g. `logstash-2015.05.03`.
     public static Comparator<IndexMetadata> getIndexMetadataComparator() {
         return PriorityComparator::compareIndexMetadata;
     }
 
-    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as [#getIndexMetadataComparator()],
-    /// using the given [RoutingAllocation] to provide the [IndexMetadata].
+    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as
+    /// [#getIndexMetadataComparator()], using the given [RoutingAllocation] to provide the [IndexMetadata].
     public static Comparator<ShardRouting> getAllocationComparator(RoutingAllocation allocation) {
         return getShardRoutingComparator(index -> allocation.metadata().indexMetadata(index));
     }
 
     // visible for testing
-    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as [#getIndexMetadataComparator()],
-    /// using the given [Function] to provide the [IndexMetadata].
+    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as
+    /// [#getIndexMetadataComparator()], using the given [Function] to provide the [IndexMetadata].
     static Comparator<ShardRouting> getShardRoutingComparator(Function<Index, IndexMetadata> metadataMapper) {
         return (shard1, shard2) -> compareShardRoutings(metadataMapper, shard1, shard2);
     }

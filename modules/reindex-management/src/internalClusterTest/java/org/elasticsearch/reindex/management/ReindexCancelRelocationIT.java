@@ -87,8 +87,8 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         return false;
     }
 
-    /// Pins the relocation handoff in `HANDOFF_INITIATED` so a cancel-reindex issued during that window reliably hits the CAS gate
-    /// and is rejected with `503 SERVICE_UNAVAILABLE`, with the cause's status preserved through the cancel-reindex wrapper.
+    /// Pins the relocation handoff in `HANDOFF_INITIATED` so a cancel-reindex issued during that window reliably hits the CAS gate and is
+    /// rejected with `503 SERVICE_UNAVAILABLE`, with the cause's status preserved through the cancel-reindex wrapper.
     public void testCancelReindexBailsWhenHandoffInitiated() throws Exception {
         final String indexHostNode = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))

@@ -1235,8 +1235,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener);
     }
 
-    /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same
-    /// allocation ID, until pruned by [ThrottlingRecoveryService#clusterChanged].
+    /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same allocation ID, until
+    /// pruned by [ThrottlingRecoveryService#clusterChanged].
     public void testRecordedCancellationPersistsForSubsequentEnqueueAttempts() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(10));
@@ -1459,9 +1459,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
     }
 
-    /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
-    /// alternating bursty submits and completion periods, and randomly changing the max concurrent limits
-    /// (both the overall limit and the relocation-specific limit).
+    /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times, alternating bursty submits and
+    /// completion periods, and randomly changing the max concurrent limits (both the overall limit and the relocation-specific limit).
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
     public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() {
         final var taskQueue = new DeterministicTaskQueue();
@@ -1579,12 +1578,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
-    /// Stress one [ThrottlingRecoveryService] from many producer threads using real threads: alternating
-    /// bursty submits (high contention on the throttle) and idle periods. Verify that all tasks finish and
-    /// that concurrent recovery executions count never exceeded the peak value of `maxConcurrentRecoveries`.
+    /// Stress one [ThrottlingRecoveryService] from many producer threads using real threads: alternating bursty submits (high contention on
+    /// the throttle) and idle periods. Verify that all tasks finish and that concurrent recovery executions count never exceeded the peak
+    /// value of `maxConcurrentRecoveries`.
     ///
-    /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to
-    /// catch missing happens-before relationships that a deterministic scheduler cannot expose.
+    /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to catch missing happens-before
+    /// relationships that a deterministic scheduler cannot expose.
     public void testStressConcurrentEnqueueWithRealThreads() throws Exception {
         final int initialMaxConcurrentRecoveries = between(1, 20);
         final var clusterService = newClusterService(initialMaxConcurrentRecoveries);
@@ -1954,8 +1953,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
     }
 
-    /// The gating escape hatch: dynamically disabling the recovery gates must release recoveries held by a gate that never
-    /// unblocks by itself, via the next periodic recheck.
+    /// The gating escape hatch: dynamically disabling the recovery gates must release recoveries held by a gate that never unblocks by
+    /// itself, via the next periodic recheck.
     public void testDisablingGatesReleasesBlockedRecoveries() {
         final var taskQueue = new DeterministicTaskQueue();
 
@@ -2016,9 +2015,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
     }
 
-    /// Hammers the service from multiple real threads while the gate flaps, to catch races between dispatch, the monitor's
-    /// evaluations, and the resume callback: a missed wake-up leaves recoveries queued (the latch below never opens) and a deadlock
-    /// hangs the test. Unlike the deterministic tests above, this uses a real thread pool.
+    /// Hammers the service from multiple real threads while the gate flaps, to catch races between dispatch, the monitor's evaluations, and
+    /// the resume callback: a missed wake-up leaves recoveries queued (the latch below never opens) and a deadlock hangs the test. Unlike
+    /// the deterministic tests above, this uses a real thread pool.
     public void testConcurrentEnqueuesWithFlappingGateEventuallyDispatchEverything() throws Exception {
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
         final RecoveryGate gate = gateDecision::get;

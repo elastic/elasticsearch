@@ -22,8 +22,8 @@ import java.util.function.IntSupplier;
 
 import static org.elasticsearch.common.Strings.format;
 
-/// Schedules periodic hot-thread dumps during slow relocation operations.
-/// Shared by [StatelessPrimaryRelocationSourceService] and [StatelessPrimaryRelocationTargetService].
+/// Schedules periodic hot-thread dumps during slow relocation operations. Shared by
+/// [StatelessPrimaryRelocationSourceService] and [StatelessPrimaryRelocationTargetService].
 class SlowRelocationLogger {
 
     private static final Logger logger = LogManager.getLogger(SlowRelocationLogger.class);
@@ -32,8 +32,8 @@ class SlowRelocationLogger {
 
     static final int MAX_SLOW_OPERATION_THREAD_DUMPS = 5;
 
-    /// Returns a listener whose completion (via `onResponse` or `onFailure`) cancels any pending thread dumps. Dumps are
-    /// logged at INFO level on an exponential back-off starting at `timeout`, up to [MAX_SLOW_OPERATION_THREAD_DUMPS] samples.
+    /// Returns a listener whose completion (via `onResponse` or `onFailure`) cancels any pending thread dumps. Dumps are logged at INFO
+    /// level on an exponential back-off starting at `timeout`, up to [MAX_SLOW_OPERATION_THREAD_DUMPS] samples.
     ///
     /// @param activeOperationsCount if non-null, the current count is appended to each dump message
     static ActionListener<Void> slowShardOperationListener(

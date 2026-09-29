@@ -117,8 +117,8 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
     }
 
-    /// Sliced variant of [#testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits]. Each slice caches its
-    /// first-batch total independently; the aggregated leader total must still equal the true doc count.
+    /// Sliced variant of [#testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits]. Each slice caches its first-batch total
+    /// independently; the aggregated leader total must still equal the true doc count.
     public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHitsSliced() {
         int slices = randomIntBetween(2, 5);
         int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);

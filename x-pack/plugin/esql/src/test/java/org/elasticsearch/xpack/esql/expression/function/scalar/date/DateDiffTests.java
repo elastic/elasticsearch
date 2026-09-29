@@ -49,7 +49,6 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
         String zdtEnd = "2024-12-04T10:15:01Z";
 
         List.of(
-            ///
             /// Timezone independent
             ///
             makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", null, "nanoseconds", 1000000000),
@@ -97,7 +96,6 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
             makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "Z", "year", 0)
         ).forEach(suppliers::addAll);
 
-        ///
         /// DST timezones: Cases where the result doesn't change
         ///
         List.of("Z", "Europe/Paris", "America/Goose_Bay")
@@ -116,7 +114,6 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                 ).forEach(suppliers::addAll)
             );
 
-        ///
         /// DST timezones: Cases where the result changes
         ///
         List.of(

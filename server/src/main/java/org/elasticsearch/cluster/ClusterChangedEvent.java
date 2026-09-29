@@ -133,8 +133,7 @@ public class ClusterChangedEvent {
             || state.term() != previousState.term();
     }
 
-    /// Returns `true` if the cluster just finished recovering (the [GatewayService.STATE_NOT_RECOVERED_BLOCK]
-    /// was just removed).
+    /// Returns `true` if the cluster just finished recovering (the [GatewayService.STATE_NOT_RECOVERED_BLOCK] was just removed).
     public boolean clusterJustRecovered() {
         return state.clusterRecovered() && previousState.clusterRecovered() == false;
     }

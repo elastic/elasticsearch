@@ -37,8 +37,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/// Remote-path counterpart of [ReindexRelocationOnShutdownIT]: end-to-end test that a reindex task with `RemoteInfo`
-/// relocates from a coordinating-only node to a data node when the coordinator shuts down.
+/// Remote-path counterpart of [ReindexRelocationOnShutdownIT]: end-to-end test that a reindex task with `RemoteInfo` relocates from a
+/// coordinating-only node to a data node when the coordinator shuts down.
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
@@ -164,9 +164,9 @@ public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
         return capturedId.get();
     }
 
-    /// Removes the throttle so the task wakes up and reaches its next batch-boundary relocation check.
-    /// `setFollowRelocations(true)` lets the rethrottle target the original id even after the task has relocated.
-    /// Wrapped in `assertBusy` to retry on any transient failure (e.g. the task hasn't initialized to leader/worker yet).
+    /// Removes the throttle so the task wakes up and reaches its next batch-boundary relocation check. `setFollowRelocations(true)` lets
+    /// the rethrottle target the original id even after the task has relocated. Wrapped in `assertBusy` to retry on any transient failure
+    /// (e.g. the task hasn't initialized to leader/worker yet).
     private void unthrottleReindex(TaskId reindexTaskId) throws Exception {
         assertBusy(() -> {
             try {

@@ -26,9 +26,9 @@ import java.util.function.Supplier;
 
 /// Monitors the data node's [RecoveryGate]s, combining them most-restrictive-wins into one node-wide decision.
 ///
-/// [#evaluate] returns the current decision. [#addCallback] registers a one-shot callback fired once the decision evaluates to
-/// the awaited outcome; while any callback waits, the gates are re-evaluated periodically so the awaited outcome is noticed without an
-/// external trigger. Thread-safe.
+/// [#evaluate] returns the current decision. [#addCallback] registers a one-shot callback fired once the decision evaluates to the awaited
+/// outcome; while any callback waits, the gates are re-evaluated periodically so the awaited outcome is noticed without an external
+/// trigger. Thread-safe.
 public final class RecoveryGateMonitor {
 
     private static final Logger logger = LogManager.getLogger(RecoveryGateMonitor.class);
@@ -69,9 +69,9 @@ public final class RecoveryGateMonitor {
         clusterSettings.initializeAndWatchIfRegistered(RECHECK_INTERVAL_SETTING, interval -> this.recheckInterval = interval);
     }
 
-    /// The current node-wide decision, most-restrictive-wins: the first blocking gate's decision, else [RecoveryGate.Decision#RUN].
-    /// A gate that throws is ignored (failing open, i.e. towards pre-gating behaviour) with a warning, so a buggy gate degrades to no
-    /// gating rather than stalling recoveries indefinitely.
+    /// The current node-wide decision, most-restrictive-wins: the first blocking gate's decision, else [RecoveryGate.Decision#RUN]. A gate
+    /// that throws is ignored (failing open, i.e. towards pre-gating behaviour) with a warning, so a buggy gate degrades to no gating rather
+    /// than stalling recoveries indefinitely.
     public RecoveryGate.Decision evaluate() {
         if (gatesEnabled == false) {
             return RecoveryGate.Decision.RUN;
@@ -92,9 +92,9 @@ public final class RecoveryGateMonitor {
         return RecoveryGate.Decision.RUN;
     }
 
-    /// Registers a one-shot callback fired once the decision evaluates to `awaitedOutcome`. The gates are re-evaluated so a decision
-    /// that already matches cannot be missed, and then periodically while any callback waits. If node is shutting down, the callback
-    /// may not be run.
+    /// Registers a one-shot callback fired once the decision evaluates to `awaitedOutcome`. The gates are re-evaluated so a decision that
+    /// already matches cannot be missed, and then periodically while any callback waits. If node is shutting down, the callback may not
+    /// be run.
     public void addCallback(RecoveryGate.Outcome awaitedOutcome, Runnable callback) {
         synchronized (this) {
             outcomeCallbacks.computeIfAbsent(awaitedOutcome, outcome -> new ArrayList<>()).add(callback);

@@ -29,12 +29,12 @@ public abstract class PitPaginatedHitSource extends PaginatedHitSource {
 
     private final AtomicReference<Object[]> searchAfterValues = new AtomicReference<>();
 
-    /// Total hit count from the first batch, or `null` until the first batch has been observed. Subsequent
-    /// batches disable `track_total_hits` and reuse this cached value to keep
+    /// Total hit count from the first batch, or `null` until the first batch has been observed. Subsequent batches disable
+    /// `track_total_hits` and reuse this cached value to keep
     /// [org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.Status#getTotal()] accurate.
     ///
-    /// Precondition: the first batch must run with accurate `track_total_hits` for this cache to be
-    /// meaningful. Reindex's `prepareSearchRequest` enforces this for PIT searches.
+    /// Precondition: the first batch must run with accurate `track_total_hits` for this cache to be meaningful. Reindex's
+    /// `prepareSearchRequest` enforces this for PIT searches.
     private final AtomicReference<Long> cachedTotalHits = new AtomicReference<>();
 
     public PitPaginatedHitSource(

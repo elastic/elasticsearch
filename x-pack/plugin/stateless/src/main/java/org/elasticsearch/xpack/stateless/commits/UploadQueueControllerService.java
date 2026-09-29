@@ -297,11 +297,10 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         private ThrottleState renewThrottle(ShardId shardId, ThrottleState shardState) {
             /// We are currently throttling, and we still see the queue.
             ///
-            /// Indexing throttling reduces the amount of threads available for indexing to one.
-            /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].
-            /// So if we see that we should throttle we'll keep it applied as long as needed
-            /// since it is not a "full stop" scenario for the customer.
-            /// We do want to understand how often this happens though.
+            /// Indexing throttling reduces the amount of threads available for indexing to one. See
+            /// [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE]. So if we see that we should throttle we'll
+            /// keep it applied as long as needed since it is not a "full stop" scenario for the customer. We do want to understand how often
+            /// this happens though.
             if (shardState.consecutiveApplications() >= MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD) {
                 logger.info(
                     "Indexing  throttling for shard {} has been applied {} consecutive times",

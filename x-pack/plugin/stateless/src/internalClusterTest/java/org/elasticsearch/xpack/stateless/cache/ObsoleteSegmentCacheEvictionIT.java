@@ -174,10 +174,9 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         );
     }
 
-    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] escape hatch
-    /// is a live no-op when flipped off. With the setting enabled (the default from [nodeSettings()]) a force-merge
-    /// evicts the obsolete pre-merge regions; once the setting is disabled dynamically, a subsequent force-merge leaves the
-    /// now-obsolete regions cached.
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] escape hatch is a live no-op
+    /// when flipped off. With the setting enabled (the default from [nodeSettings()]) a force-merge evicts the obsolete pre-merge regions;
+    /// once the setting is disabled dynamically, a subsequent force-merge leaves the now-obsolete regions cached.
     public void testObsoleteSegmentRegionEvictionCanBeDisabledDynamically() throws Exception {
         startMasterAndIndexNode();
         startSearchNode();

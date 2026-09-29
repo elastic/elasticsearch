@@ -42,11 +42,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/// Integration tests covering bugs that previously surfaced on a data node when it misses one or
-/// more intermediate cluster states for a primary shard transition.
+/// Integration tests covering bugs that previously surfaced on a data node when it misses one or more intermediate cluster states for a
+/// primary shard transition.
 ///
-/// Each test in this class drops a different window of COMMIT messages on the data node to
-/// reproduce a different bug from this family.
+/// Each test in this class drops a different window of COMMIT messages on the data node to reproduce a different bug from this family.
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SkippedClusterStateIT extends ESIntegTestCase {
 
@@ -60,13 +59,12 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
 
     /// Regression test for the `failedShardsCache` eviction bug in [IndicesClusterStateService].
     ///
-    /// Verifies that a shard is re-created with only one shardFailed round after the master
-    /// re-allocates it with a bumped primary term but the same allocation id.
+    /// Verifies that a shard is re-created with only one shardFailed round after the master re-allocates it with a bumped primary term but
+    /// the same allocation id.
     ///
-    /// The test creates a primary-only index, fails the started primary via [IndexShard#failShard],
-    /// and simulates the data node missing the intermediate UNASSIGNED cluster state (transient
-    /// network partition). If `updateFailedShardsCache` fails to evict the stale cache entry, it
-    /// will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
+    /// The test creates a primary-only index, fails the started primary via [IndexShard#failShard], and simulates the data node missing the
+    /// intermediate UNASSIGNED cluster state (transient network partition). If `updateFailedShardsCache` fails to evict the stale cache
+    /// entry, it will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
     public void testFailedShardCacheEvictedAfterPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();
         final var primaryNodeName = internalCluster().startDataOnlyNode();
@@ -131,9 +129,9 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    /// Regression test for the "term is only increased as part of primary promotion" assertion
-    /// failure at [org.elasticsearch.index.shard.IndexShard#updateShardState] when a node batches
-    /// intermediate `STARTED` and `UNASSIGNED` states for one of its primary shards.
+    /// Regression test for the "term is only increased as part of primary promotion" assertion failure at
+    /// [org.elasticsearch.index.shard.IndexShard#updateShardState] when a node batches intermediate `STARTED` and `UNASSIGNED` states for
+    /// one of its primary shards.
     public void testInitializingPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();
         final var primaryNodeName = internalCluster().startDataOnlyNode();
@@ -188,9 +186,8 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    /// Installs a `COMMIT_STATE` interceptor on the given data node. For each commit, if
-    /// `dropDecider` returns true the commit is silently dropped (we respond with an empty success
-    /// response so the master's lag detector does not eject the data node). Otherwise, the commit
+    /// Installs a `COMMIT_STATE` interceptor on the given data node. For each commit, if `dropDecider` returns true the commit is silently
+    /// dropped (we respond with an empty success response so the master's lag detector does not eject the data node). Otherwise, the commit
     /// is passed to the regular handler.
     ///
     /// Returns the [MockTransportService] so the caller can `clearAllRules()` in a `finally` block.

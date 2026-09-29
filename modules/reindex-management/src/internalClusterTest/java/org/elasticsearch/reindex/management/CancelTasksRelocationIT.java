@@ -222,10 +222,9 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
     /// Forces the relocation handoff to sit mid-flight so a cancel issued during that window reliably hits the CAS gate and is rejected
     /// with `503 SERVICE_UNAVAILABLE`, signalling to the caller that the cancel can be retried against the relocated successor.
     ///
-    /// The destination node's transport is configured to hold any `ResumeReindexAction` message until we release
-    /// it. After `prepareForShutdown` triggers the handoff and the source has CAS'd its `RelocationProgress`
-    /// into `HANDOFF_INITIATED`, we observe the held message, fire the cancel, and only then release the hold so
-    /// relocation completes and the cluster can be torn down cleanly.
+    /// The destination node's transport is configured to hold any `ResumeReindexAction` message until we release it. After
+    /// `prepareForShutdown` triggers the handoff and the source has CAS'd its `RelocationProgress` into `HANDOFF_INITIATED`, we observe the
+    /// held message, fire the cancel, and only then release the hold so relocation completes and the cluster can be torn down cleanly.
     public void testCancelBailsWhenHandoffInitiated() throws Exception {
         final String indexHostNode = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))

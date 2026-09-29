@@ -52,10 +52,9 @@ public class LeaderBulkByPaginatedSearchTaskState {
      */
     private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
 
-    /// The source-of-truth requests-per-second for this sliced task.
-    /// Updated by rethrottle, read during relocation to patch per-slice RPS in ResumeInfo.
-    /// Used to prevent race condition to ensure the customer doesn't get success on rethrottling, and then we relocate with old RPS.
-    /// Guarded by {@code synchronized(this)} for rethrottle and relocation operations.
+    /// The source-of-truth requests-per-second for this sliced task. Updated by rethrottle, read during relocation to patch per-slice RPS
+    /// in ResumeInfo. Used to prevent race condition to ensure the customer doesn't get success on rethrottling, and then we relocate with
+    /// old RPS. Guarded by {@code synchronized(this)} for rethrottle and relocation operations.
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
@@ -153,9 +152,9 @@ public class LeaderBulkByPaginatedSearchTaskState {
         return supplier.get();
     }
 
-    /// Updates the source-of-truth total RPS for this leader task. Called by rethrottle before fanning out to children.
-    /// Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
-    /// caller should retry after the relocation completes. If we apply RPS then relocated task would resume with old RPS value.
+    /// Updates the source-of-truth total RPS for this leader task. Called by rethrottle before fanning out to children. Throws 503 if the
+    /// RPS has already been captured for relocation, meaning the task is mid-relocation and the caller should retry after the relocation
+    /// completes. If we apply RPS then relocated task would resume with old RPS value.
     public synchronized void setRequestsPerSecondWithRelocationGuard(float rps) {
         if (rps <= 0) {
             throw new IllegalArgumentException("requests per second must be more than 0 but was [" + rps + "]");
@@ -166,8 +165,8 @@ public class LeaderBulkByPaginatedSearchTaskState {
         relocationRequestsPerSecond = rps;
     }
 
-    /// Atomically reads the source-of-truth total RPS and sets a flag preventing further rethrottle. Called during relocation
-    /// so that the captured value is consistent with what the destination will inherit.
+    /// Atomically reads the source-of-truth total RPS and sets a flag preventing further rethrottle. Called during relocation so that the
+    /// captured value is consistent with what the destination will inherit.
     public synchronized float captureRequestsPerSecondForRelocation() {
         capturedRpsForRelocation = true;
         return relocationRequestsPerSecond;

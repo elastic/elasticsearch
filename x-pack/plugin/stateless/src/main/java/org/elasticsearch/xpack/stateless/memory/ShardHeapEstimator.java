@@ -19,8 +19,8 @@ import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINE
 
 /// Encapsulates the logic for computing shard-level heap usage for individual shards or in aggregate.
 ///
-/// Instances are constructed with the set of parameters that influence the heap-usage computation so
-/// it can be used in a variety of contexts and reused for multiple calls.
+/// Instances are constructed with the set of parameters that influence the heap-usage computation so it can be used in a variety of contexts
+/// and reused for multiple calls.
 public class ShardHeapEstimator {
 
     // The memory overhead of each IndexShard instance used in the adaptive estimate
@@ -55,8 +55,8 @@ public class ShardHeapEstimator {
     /// If [#selfReportedShardMemoryOverheadEnabled] and the shard has a self-reported overhead, it'll be returned in
     /// [ShardAndIndexHeapUsage#shardHeapUsageBytes()] and [ShardAndIndexHeapUsage#postingsHeapUsageBytes()] will be zero.
     ///
-    /// If [#selfReportedShardMemoryOverheadEnabled] is disabled, or the shard has no self-reported overhead,
-    /// then [ShardAndIndexHeapUsage#shardHeapUsageBytes()] will be set to the adaptive shard estimate and
+    /// If [#selfReportedShardMemoryOverheadEnabled] is disabled, or the shard has no self-reported overhead, then
+    /// [ShardAndIndexHeapUsage#shardHeapUsageBytes()] will be set to the adaptive shard estimate and
     /// [ShardAndIndexHeapUsage#postingsHeapUsageBytes()] will be set to shard's reported postings size.
     public ShardAndIndexHeapUsage computeShardHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         return new ShardAndIndexHeapUsage(
@@ -66,8 +66,8 @@ public class ShardHeapEstimator {
         );
     }
 
-    /// Computes the shard-level heap usage: the self-reported overhead if [#selfReportedShardMemoryOverheadEnabled] is true and
-    /// there is one available, otherwise returns the adaptive estimate including the postings.
+    /// Computes the shard-level heap usage: the self-reported overhead if [#selfReportedShardMemoryOverheadEnabled] is true and there is
+    /// one available, otherwise returns the adaptive estimate including the postings.
     ///
     /// Ignores index-level heap usage, [#computeIndexHeapUsage] should be called for that.
     private long computeShardHeapUsageIncludingPostings(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
@@ -77,9 +77,9 @@ public class ShardHeapEstimator {
         return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
     }
 
-    /// When self-reported overheads are enabled and the shard declares a self-reported overhead. We will use that
-    /// self-reported overhead instead of calculating the adaptive estimate. When the adaptive estimate is not in use, the postings
-    /// are considered to be zero, because they represent part of that estimate and that estimate which has been specifically overridden.
+    /// When self-reported overheads are enabled and the shard declares a self-reported overhead. We will use that self-reported overhead
+    /// instead of calculating the adaptive estimate. When the adaptive estimate is not in use, the postings are considered to be zero,
+    /// because they represent part of that estimate and that estimate which has been specifically overridden.
     ///
     /// @return the shard's declared postings when the self-reported overhead is not in use, or zero when it is.
     private long getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
@@ -97,8 +97,8 @@ public class ShardHeapEstimator {
         MetricQuality metricQuality
     ) {}
 
-    /// Computes the index-level heap usage for a shard. [StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD] is not included because
-    /// all nodes include an overhead for all indices regardless of shard assignments: see
+    /// Computes the index-level heap usage for a shard. [StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD] is not included because all
+    /// nodes include an overhead for all indices regardless of shard assignments: see
     /// [StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes()].
     private long computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         return shardMemoryMetrics.getMappingSizeInBytes();

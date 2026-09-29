@@ -2027,12 +2027,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
     }
 
-    ///
-    /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] adds shard and where applicable heap overheads
-    /// to nodes in our memory model to reflect shard movements that have occurred since the [ClusterInfo] was generated.
-    /// Previously we used [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards.
-    /// Relocating shards are effectively started and should be treated as such for the purpose of this simulation.
-    /// This test ensures that relocating shards are included in the simulation.
+    /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] adds shard and where applicable heap overheads to nodes in our memory
+    /// model to reflect shard movements that have occurred since the [ClusterInfo] was generated. Previously we used
+    /// [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards. Relocating shards are effectively
+    /// started and should be treated as such for the purpose of this simulation. This test ensures that relocating shards are included in
+    /// the simulation.
     ///
     public void testMaybeSimulateAlreadyStartedShardsIncludesRelocating() {
         final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);

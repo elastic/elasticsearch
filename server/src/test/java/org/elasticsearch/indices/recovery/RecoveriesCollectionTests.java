@@ -88,9 +88,9 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
-    /// RecoveriesCollection#failRecovery} / {@link RecoveriesCollection#markRecoveryAsDone} / {@link RecoveriesCollection#cancelRecovery}
-    /// that this test reproduce.
+    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and
+    /// {@link RecoveriesCollection#failRecovery} / {@link RecoveriesCollection#markRecoveryAsDone} /
+    /// {@link RecoveriesCollection#cancelRecovery} that this test reproduce.
     public void testRaceFailRecoveryWithCancelRecoveriesForShard() throws Exception {
         ContenderTuple cancelRecoveriesForShard = new ContenderTuple(
             (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(shardId, "cancel for shard"),
@@ -120,8 +120,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         raceAndAssertExactlyOneLogMessage(raceContender, cancelRecoveriesForShard);
     }
 
-    /// Race the two contenders against each other and assert that the log contains exactly one message
-    /// that contains any of the two expected messages.
+    /// Race the two contenders against each other and assert that the log contains exactly one message that contains any of the two
+    /// expected messages.
     private void raceAndAssertExactlyOneLogMessage(ContenderTuple firstContender, ContenderTuple secondContender) throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger);

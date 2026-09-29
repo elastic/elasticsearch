@@ -542,7 +542,7 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
         assertHits(INDEX, query, 4095);
     }
 
-    ////////////////////////////////// Legacy Tests Below //////////////////////////////////
+    ////////////////////////////////// Legacy Tests Below
 
     /**
      * This is a legacy reproduction test. The above queries should cover all cases, but these

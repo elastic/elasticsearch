@@ -167,8 +167,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     /// Finds reindex tasks that appeared in the first pass but are missing from the second pass, perhaps because the operation relocated
     /// between the two passes. Looks missing non-child tasks up in the `.tasks` index for final status, to ensure that all the slices have
-    /// been populated (which only happens when the child completes). Collects child tasks from the first pass response (because they do
-    /// not get persisted in the `.tasks` index). Merges everything into a single response.
+    /// been populated (which only happens when the child completes). Collects child tasks from the first pass response (because they do not
+    /// get persisted in the `.tasks` index). Merges everything into a single response.
     private void reconcileMissedRelocations(
         final Task thisTask,
         final ListTasksResponse firstPass,
@@ -284,9 +284,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         }
     }
 
-    /// Deduplicates and merges two list-tasks responses. Second pass takes precedence uniformly.
-    /// Within each list, the newer physical task wins (lower `runningTimeNanos`) when multiple physical tasks share an `originalTaskId`.
-    /// Task failures whose physical `taskId` matches an `originalTaskId` of a captured task are excluded.
+    /// Deduplicates and merges two list-tasks responses. Second pass takes precedence uniformly. Within each list, the newer physical task
+    /// wins (lower `runningTimeNanos`) when multiple physical tasks share an `originalTaskId`. Task failures whose physical `taskId` matches
+    /// an `originalTaskId` of a captured task are excluded.
     static ListTasksResponse deduplicateAndMerge(final ListTasksResponse firstPass, final ListTasksResponse secondPass) {
         final Map<TaskId, TaskInfo> tasksByOriginalId = deduplicateTasksOnOriginalTaskId(firstPass.getTasks(), secondPass.getTasks());
         return new ListTasksResponse(
@@ -316,8 +316,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     /// Deduplicates task failures. Second pass wins. Excludes failures whose physical `taskId` is an `originalTaskId` of a captured task.
-    /// N.B. If we captured the non-relocated task (`taskId==originalTaskId`), and the failure is for the relocated physical task,
-    /// we can't connect them because `TaskOperationFailure` doesn't carry the `originalTaskId`.
+    /// N.B. If we captured the non-relocated task (`taskId==originalTaskId`), and the failure is for the relocated physical task, we can't
+    /// connect them because `TaskOperationFailure` doesn't carry the `originalTaskId`.
     static List<TaskOperationFailure> deduplicateTaskFailures(
         final Map<TaskId, TaskInfo> tasksByOriginalId,
         final List<TaskOperationFailure> firstPass,

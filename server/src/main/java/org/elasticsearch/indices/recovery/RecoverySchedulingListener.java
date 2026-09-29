@@ -15,13 +15,11 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 ///
 /// Implementations must be thread-safe, not block, and not throw exceptions.
 ///
-/// Default methods cover every lifecycle transition and are no-ops by default, so implementers only override the events
-/// they care about.
+/// Default methods cover every lifecycle transition and are no-ops by default, so implementers only override the events they care about.
 public interface RecoverySchedulingListener {
 
     /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we can throttle relocations more tightly
-    /// than recoveries from unassigned shards. Applies only to incoming recoveries, recorded on the target, not to outgoing peer
-    /// recoveries.
+    /// than recoveries from unassigned shards. Applies only to incoming recoveries, recorded on the target, not to outgoing peer recoveries.
     enum PriorityGroup {
         UNASSIGNED,
         RELOCATION,
@@ -56,10 +54,10 @@ public interface RecoverySchedulingListener {
 
     /// Called when started incoming recovery is directly cancelled on the target by the master node.
     ///
-    /// @param type The type of recovery source
-    /// @param stage The stage the recovery had reached before it was cancelled
-    /// @param elapsedTimeMillis The time (in milliseconds) elapsed between when the recovery started (i.e. when it entered stage `INIT`)
-    /// and when it was cancelled
+    /// @param type              The type of recovery source
+    /// @param stage             The stage the recovery had reached before it was cancelled
+    /// @param elapsedTimeMillis The time (in milliseconds) elapsed between when the recovery started (i.e. when it entered stage `INIT`) and
+    ///                          when it was cancelled
     default void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, RecoveryState.Stage stage, long elapsedTimeMillis) {}
 
     /// Called when a running incoming recovery finishes (success, failure or aborted) on the target.
@@ -72,7 +70,7 @@ public interface RecoverySchedulingListener {
     /// [#onRecoveriesUnblocked].
     default void onRecoveriesBlocked(String gateName) {}
 
-    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate
-    /// that started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
+    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate that
+    /// started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
     default void onRecoveriesUnblocked(long blockedTimeMillis) {}
 }

@@ -32,8 +32,8 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
      */
     private Float requestsPerSecond;
 
-    /// Transient (not serialized) — chain-following runs entirely on the coordinator in
-    /// {@link TransportRethrottleAction#doExecute}. Fan-out sub-requests and UBQ/DBQ never set this.
+    /// Transient (not serialized) — chain-following runs entirely on the coordinator in {@link TransportRethrottleAction#doExecute}.
+    /// Fan-out sub-requests and UBQ/DBQ never set this.
     private boolean followRelocations = false;
 
     public RethrottleRequest() {}

@@ -107,8 +107,8 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
         };
     }
 
-    /// A recovery is active if it has not yet completed, including recoveries that are queued ([RecoveryState.Stage#CREATED])
-    /// and those that have started. Only completed recoveries ([RecoveryState.Stage#DONE]) are excluded when `active_only` is set.
+    /// A recovery is active if it has not yet completed, including recoveries that are queued ([RecoveryState.Stage#CREATED]) and those
+    /// that have started. Only completed recoveries ([RecoveryState.Stage#DONE]) are excluded when `active_only` is set.
     private static boolean isActive(RecoveryState recoveryState) {
         return recoveryState.getStage() != RecoveryState.Stage.DONE;
     }

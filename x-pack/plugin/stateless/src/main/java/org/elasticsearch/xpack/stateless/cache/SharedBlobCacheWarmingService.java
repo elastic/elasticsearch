@@ -118,11 +118,10 @@ public class SharedBlobCacheWarmingService {
 
         final boolean skipsWarmingForRegion0Locations;
 
-        /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority
-        /// (see [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]).
-        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW
-        /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
-        /// because it is in the hot path for relocations.
+        /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority (see
+        /// [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]). All types have NORMAL priority except
+        /// [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW priority respectively. Region-0 warming
+        /// (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types because it is in the hot path for relocations.
         enum Priority {
             LOW(0),
             NORMAL(1),
@@ -134,8 +133,8 @@ public class SharedBlobCacheWarmingService {
                 this.value = value;
             }
 
-            /// returns true if task with priority `this` is to be warmed before a task of priority `that`
-            /// e.g., `HIGH.isHigherThan(LOW)` returns true and `NORMAL.isHigherThan(NORMAL)` returns false
+            /// returns true if task with priority `this` is to be warmed before a task of priority `that` e.g., `HIGH.isHigherThan(LOW)`
+            /// returns true and `NORMAL.isHigherThan(NORMAL)` returns false
             boolean isHigherThan(Priority that) {
                 return value > that.value;
             }

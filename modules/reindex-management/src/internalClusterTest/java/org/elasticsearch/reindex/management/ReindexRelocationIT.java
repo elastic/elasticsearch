@@ -1074,9 +1074,9 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(10), index);
     }
 
-    /// Removes the reindex throttle after relocation. Rethrottles by {@code originalTaskId} so the relocation chain is
-    /// followed, retrying until the transport returns a successful response, then verifies that the relocated
-    /// task reports unlimited {@code requests_per_second}.
+    /// Removes the reindex throttle after relocation. Rethrottles by {@code originalTaskId} so the relocation chain is followed, retrying
+    /// until the transport returns a successful response, then verifies that the relocated task reports unlimited
+    /// {@code requests_per_second}.
     private void unthrottleReindex(
         final TaskId originalTaskId,
         final TaskId relocatedTaskId,
@@ -1143,8 +1143,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /// Asserts that the task is reporting unlimited {@code requests_per_second}, regardless of whether its status is the live typed
-    /// {@link BulkByPaginatedSearchTask.Status} (still running) or a {@link RawTaskStatus} parsed back from {@code .tasks} (completed,
-    /// where {@link Float#POSITIVE_INFINITY} serializes as {@code -1.0}).
+    /// {@link BulkByPaginatedSearchTask.Status} (still running) or a {@link RawTaskStatus} parsed back from {@code .tasks} (completed, where
+    /// {@link Float#POSITIVE_INFINITY} serializes as {@code -1.0}).
     private static void assertUnthrottled(final String reason, final TaskInfo info) {
         final Object status = info.status();
         if (status instanceof BulkByPaginatedSearchTask.Status typed) {

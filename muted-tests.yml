@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.common.util.BigArraysTests
   method: testByteArrayBulkGet
   issue: https://github.com/elastic/elasticsearch/issues/154778
-- class: org.elasticsearch.packaging.test.KeystoreManagementTests
-  method: test50CreateKeystoreManually
-  issue: https://github.com/elastic/elasticsearch/issues/155335
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685

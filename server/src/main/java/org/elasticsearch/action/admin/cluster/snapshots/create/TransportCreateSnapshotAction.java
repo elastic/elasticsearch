@@ -27,7 +27,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-
 /**
  * Transport action for create snapshot operation
  */

@@ -42,8 +42,8 @@ public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerPro
         public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, UnaryOperator<EncryptedData> rewrapper) {
             INVOCATIONS.incrementAndGet();
             if (current == null) {
-                var encryptedData =
-                    EncryptionServiceRegistry.getEncryptionService().encrypt("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                var encryptedData = EncryptionServiceRegistry.getEncryptionService()
+                    .encrypt("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 return new TestEncryptedBlob(encryptedData);
             }
             EncryptedData rewrapped = rewrapper.apply(current.blob());

@@ -268,6 +268,18 @@ public abstract class DataSourceConfiguration {
      * Call this from a subclass static {@code secretFieldNames()} method to derive the set from the authoritative
      * field definitions rather than hardcoding it, so any new {@code secret(...)} field is included automatically.
      */
+    /**
+     * Every setting name this configuration recognises, secret and not.
+     * <p>
+     * Exposed so a test can be written against the field set a provider actually declares rather than against a
+     * list of names typed beside it: a per-field test cannot fail when a provider GAINS a field, because nothing
+     * enumerates the fields it was supposed to cover. A census derived from here fails until the new field is
+     * either folded into the identity or excluded with a reason.
+     */
+    public Set<String> fieldNames() {
+        return Set.copyOf(fieldDefs.keySet());
+    }
+
     protected static Set<String> secretFieldNamesFrom(Map<String, DataSourceConfigDefinition> fieldDefs) {
         return fieldDefs.values()
             .stream()

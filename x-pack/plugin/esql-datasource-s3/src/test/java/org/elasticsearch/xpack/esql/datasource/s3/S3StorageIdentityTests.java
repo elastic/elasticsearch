@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentityCoverage;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -148,4 +149,24 @@ public class S3StorageIdentityTests extends ESTestCase {
             .forEach(e -> reordered.put(e.getKey(), e.getValue()));
         assertEquals(identityOf(EXPLICIT), identityOf(reordered));
     }
+
+    /**
+     * The census, derived rather than listed. Every per-field test above names its field, so none of them can fail
+     * when this provider GAINS a setting that never reaches the identity — and two data sources differing only in
+     * that setting would then share cached bytes. This asks the configuration which settings it declares.
+     */
+    public void testEverySettingReachesTheIdentity() {
+        S3Configuration config = S3Configuration.fromFields("AKIA", "secret", "http://s3:1", "us-east-1");
+        StorageIdentityCoverage.assertEverySettingReachesTheIdentity(
+            config,
+            S3CredentialIdentity.of(config),
+            Map.of("auth", "authMode"),
+            Map.of(
+                "addressing_style",
+                "it only changes the request URL shape for the same bucket, key and principal, so it cannot change "
+                    + "which bytes are reachable"
+            )
+        );
+    }
+
 }

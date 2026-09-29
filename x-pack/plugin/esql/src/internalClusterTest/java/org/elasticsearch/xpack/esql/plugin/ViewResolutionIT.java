@@ -62,6 +62,26 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWildcardsMatchViewsIsAppliedToAllNestedViews() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
+
+        try (
+            var outer = createView("outer", "FROM middle");
+            var middle = createView("middle", "FROM inner*");
+            var inner = createView("inner", "ROW source=\"inner\"");
+        ) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM outer"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "inner");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM outer"))) {
+                assertOk(response);
+                assertEmpty(response);
+            }
+        }
+    }
+
     public void testDotPrefixedViews() {
         assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
         indexRandom(true, false, prepareIndex("regular-index-1").setSource(Map.of("id", randomIdentifier(), "source", "regular-index-1")));

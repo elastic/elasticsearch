@@ -1,0 +1,3 @@
+FROM k8s, (TS k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
+| EVAL x = MV_MAX(network.total_bytes_in)
+| STATS m = MAX(x)

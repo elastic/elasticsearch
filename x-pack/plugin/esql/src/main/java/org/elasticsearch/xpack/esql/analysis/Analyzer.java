@@ -5267,16 +5267,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Update the attributes referencing the updated UnionAll output.
          * <p>
-         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a union-output attribute),
-         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a union-output attribute), this also
+         * cascades the type change through {@link Alias} nodes whose child either is a direct attribute reference
+         * (e.g. {@code RENAME x AS y}) or is an expression/function referencing one (e.g. {@code m = MAX(x)} or
+         * {@code b = BUCKET(x, 1 hour)}).
          * <p>
-         * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
-         * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
-         * {@code x AS y, y AS z} are picked up in order. We register the alias output whenever it is resolved (i.e. without comparing the
-         * alias' current child type against the map entry), because the alias may have been re-resolved with the updated child type
-         * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
-         * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
-         * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
+         * Before the expression walk, scan the plan for such {@link Alias} nodes and add a {@code {alias.id → alias.withNewType}} entry to
+         * the map, see {@link #collectAliasesNeedingTypeUpdate}. Because the traversal is bottom-up, chained aliases such as
+         * {@code x AS y, y AS z} or {@code m = MAX(x) | RENAME m AS z} are picked up in order. We register the alias output whenever it is
+         * resolved (i.e. without comparing the alias' current child type against the map entry), because the alias may have been
+         * re-resolved with the updated child type (e.g. inside a {@code ResolvingProject}) while other places in the plan
+         * (e.g. an outer {@code OrderBy}) still hold a cached attribute reference, produced by {@link Alias#toAttribute()}, with the stale
+         * (pre-update) type. The subsequent {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -5285,7 +5287,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
             updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
 
-            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            // Cascade: collect Alias nodes above the UnionAll whose child is, or is an expression referencing, a changed attribute.
+            collectAliasesNeedingTypeUpdate(plan, idToUpdatedAttr);
+
+            return plan.transformExpressionsUp(Attribute.class, expr -> {
+                Attribute updated = idToUpdatedAttr.get(expr.id());
+                return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;
+            });
+        }
+
+        /**
+         * Adds to {@code idToUpdatedAttr} the output attribute, with its new data type, of every {@link Alias} in the plan whose type
+         * changes because its child references an attribute already in the map.
+         * <p>
+         * If the child is a direct attribute reference, the alias output takes the updated attribute's type. If the child is an
+         * expression, such as {@code MAX(x)}, {@code BUCKET(x, 1 hour)} or {@code DATE_TRUNC(1 hour, x)}, the updated attributes are
+         * substituted into it and the alias output takes the rewritten expression's type, but only when that type changed and
+         * matches the substituted attribute's type. Expressions whose type does not follow their input, like {@code COUNT(x)},
+         * keep their alias output type.
+         */
+        private static void collectAliasesNeedingTypeUpdate(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             plan.forEachExpressionUp(Alias.class, alias -> {
                 if (alias.child() instanceof Attribute childAttr) {
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
@@ -5297,12 +5318,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
                         }
                     }
+                    return;
                 }
-            });
-
-            return plan.transformExpressionsUp(Attribute.class, expr -> {
-                Attribute updated = idToUpdatedAttr.get(expr.id());
-                return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;
+                // The alias child is an expression/function (e.g. MAX(x), BUCKET(x, 1 hour)): substitute the updated attributes into it,
+                // and if the rewritten expression's type changed accordingly, update the alias output attribute to the new data type.
+                if (alias.resolved() == false) {
+                    return;
+                }
+                Attribute aliasOutput = alias.toAttribute();
+                if (aliasOutput.resolved() == false) {
+                    return;
+                }
+                Holder<Attribute> substituted = new Holder<>();
+                Expression rewritten = alias.child().transformUp(Attribute.class, attr -> {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null && attr.resolved() && attr.dataType() != updated.dataType()) {
+                        substituted.set(updated);
+                        return updated;
+                    }
+                    return attr;
+                });
+                if (substituted.get() != null
+                    && rewritten.resolved()
+                    && rewritten.dataType() != aliasOutput.dataType()
+                    && rewritten.dataType() == substituted.get().dataType()) {
+                    idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(rewritten.dataType()));
+                }
             });
         }
     }

@@ -511,6 +511,132 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // alias for functions referencing implicitly cast fields
+    public void testStatsMaxKeepOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS m = MAX(@timestamp)
+            | KEEP m
+            """, STAGES);
+    }
+
+    public void testStatsBucketOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1 hour)
+            """, STAGES);
+    }
+
+    public void testEvalDateTruncKeepOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL x = DATE_TRUNC(1 hour, @timestamp)
+            | KEEP x
+            """, STAGES);
+    }
+
+    public void testStatsMaxRenameOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS m = MAX(@timestamp)
+            | RENAME m AS x
+            """, STAGES);
+    }
+
+    public void testEvalChainedFunctionsOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL x = DATE_TRUNC(1 hour, @timestamp), y = x + 1 hour
+            | KEEP y
+            | SORT y
+            """, STAGES);
+    }
+
+    public void testStatsBucketThenEvalOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)
+            | EVAL b2 = b + 1 hour
+            | KEEP c, b2
+            | SORT b2
+            """, STAGES);
+    }
+
+    public void testStatsMaxSortOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS m = MAX(@timestamp)
+            | SORT m
+            """, STAGES);
+    }
+
+    public void testEvalDateTruncWhereOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL x = DATE_TRUNC(1 hour, @timestamp)
+            | WHERE x > "2023-10-23T12:30:00Z"
+            | STATS c = COUNT(*)
+            """, STAGES);
+    }
+
+    // functions whose output type does not follow their input keep their alias type;
+    // TO_STRING is an explicit conversion and is pushed down into the branches, DATE_EXTRACT stays above the UnionAll
+    public void testEvalFixedTypeFunctionsOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL s = TO_STRING(@timestamp), h = DATE_EXTRACT("hour_of_day", @timestamp)
+            | KEEP s, h
+            | SORT s
+            """, STAGES);
+    }
+
+    public void testStatsCountDistinctOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | STATS n = COUNT_DISTINCT(@timestamp)
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryStatsMaxKeepOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data_ts_nanos, (FROM sample_data))
+            | STATS m = MAX(@timestamp)
+            | KEEP m
+            """, STAGES);
+    }
+
+    // RENAME is resolved by a ResolvingProject under unmapped_fields, and the EVAL above it references the renamed attribute
+    public void testNullifyRenameThenDateTruncOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | RENAME @timestamp AS t
+            | EVAL x = DATE_TRUNC(1 hour, t)
+            | STATS c = COUNT(*) BY x
+            | SORT x
+            """, STAGES);
+    }
+
+    public void testInlineStatsMaxOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | INLINE STATS m = MAX(@timestamp)
+            | KEEP @timestamp, m
+            | SORT @timestamp
+            """, STAGES);
+    }
+
+    // the explicit conversion is pushed down into the branches, so the function alias stays datetime
+    public void testEvalDateTruncExplicitConversionOverImplicitDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | EVAL x = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
+            | STATS c = COUNT(*) BY x
+            | SORT x
+            """, STAGES);
+    }
+
     // helpers
 
     private void runNestedHeavyGoldenTest(String query) {

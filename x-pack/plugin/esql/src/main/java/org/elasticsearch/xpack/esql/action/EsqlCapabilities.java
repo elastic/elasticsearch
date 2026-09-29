@@ -1532,6 +1532,13 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
 
         /**
+         * Fix for aliases of functions that reference a {@code UnionAll} output attribute whose type was changed by implicit casting
+         * (e.g. {@code datetime} to {@code date_nanos}). The alias output type must be cascaded to the attributes referencing it above
+         * (e.g. in {@code KEEP} or {@code RENAME}), otherwise they keep the stale pre-cast type.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_FUNCTION_ALIAS,
+
+        /**
          * Support nested non-correlated subqueries in the FROM command.
          */
         NESTED_SUBQUERY_IN_FROM_COMMAND,

@@ -1995,3 +1995,229 @@ FROM (FROM employees), (FROM employees)
 c:long
 2
 ;
+
+subqueryInFromImplicitDateNanosCastMax
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastMaxKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+| KEEP m
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastMaxRename
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+| RENAME m AS x
+;
+
+x:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastMaxSort
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS m = MAX(@timestamp)
+| SORT m
+;
+
+m:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastBucket
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastBucketKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY m = BUCKET(@timestamp, 1h)
+| KEEP c, m
+| SORT m
+;
+
+c:long | m:date_nanos
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastBucketThenEval
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)
+| EVAL b2 = b + 1 hour
+| KEEP c, b2
+| SORT b2
+;
+
+c:long | b2:date_nanos
+4      | 2023-10-23T13:00:00.000Z
+10     | 2023-10-23T14:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastDateTruncKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| EVAL x = DATE_TRUNC(1 hour, @timestamp)
+| KEEP x
+| SORT x
+;
+
+x:date_nanos
+2023-10-23T12:00:00.000Z
+2023-10-23T12:00:00.000Z
+2023-10-23T12:00:00.000Z
+2023-10-23T12:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastChainedEvalFunctions
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| EVAL x = DATE_TRUNC(1 hour, @timestamp), y = x + 1 hour
+| KEEP y
+| SORT y
+;
+
+y:date_nanos
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T13:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+2023-10-23T14:00:00.000Z
+;
+
+subqueryInFromImplicitDateNanosCastDateTruncWhere
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| EVAL x = DATE_TRUNC(1 hour, @timestamp)
+| WHERE x > "2023-10-23T12:30:00Z"
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+subqueryInFromImplicitDateNanosCastFixedTypeFunctions
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| EVAL s = TO_STRING(@timestamp), h = DATE_EXTRACT("hour_of_day", @timestamp)
+| KEEP s, h
+| SORT s
+| LIMIT 4
+;
+
+s:keyword                      | h:long
+2023-10-23T12:15:03.360123456Z | 12
+2023-10-23T12:15:03.360Z       | 12
+2023-10-23T12:27:28.948123456Z | 12
+2023-10-23T12:27:28.948Z       | 12
+;
+
+subqueryInFromImplicitDateNanosCastCountDistinct
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS n = COUNT_DISTINCT(@timestamp)
+;
+
+n:long
+14
+;
+
+subqueryInFromImplicitDateNanosCastInlineStatsMax
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| INLINE STATS m = MAX(@timestamp)
+| KEEP @timestamp, m
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:date_nanos          | m:date_nanos
+2023-10-23T12:15:03.360000000Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T12:15:03.360123456Z | 2023-10-23T13:55:01.543123456Z
+;
+
+subqueryInFromImplicitDateNanosCastExplicitConversionInFunction
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_function_alias
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| EVAL x = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
+| STATS c = COUNT(*) BY x
+| SORT x
+;
+
+c:long | x:datetime
+4      | 2023-10-23T12:00:00.000Z
+10     | 2023-10-23T13:00:00.000Z
+;

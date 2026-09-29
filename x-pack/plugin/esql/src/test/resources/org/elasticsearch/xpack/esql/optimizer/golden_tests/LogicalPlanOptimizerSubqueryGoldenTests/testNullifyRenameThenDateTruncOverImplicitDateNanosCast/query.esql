@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify";
+FROM sample_data, (FROM sample_data_ts_nanos)
+| RENAME @timestamp AS t
+| EVAL x = DATE_TRUNC(1 hour, t)
+| STATS c = COUNT(*) BY x
+| SORT x

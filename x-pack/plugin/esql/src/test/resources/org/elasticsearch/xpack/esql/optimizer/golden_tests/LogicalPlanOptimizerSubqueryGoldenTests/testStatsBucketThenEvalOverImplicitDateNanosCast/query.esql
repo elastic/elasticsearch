@@ -1,0 +1,5 @@
+FROM sample_data, (FROM sample_data_ts_nanos)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)
+| EVAL b2 = b + 1 hour
+| KEEP c, b2
+| SORT b2

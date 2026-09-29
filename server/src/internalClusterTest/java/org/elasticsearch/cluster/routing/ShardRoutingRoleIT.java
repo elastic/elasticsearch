@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationComm
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -184,7 +185,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // once a primary is cancelled it _stays_ cancelled
                     if (shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
-                        return Decision.NO;
+                        return TestAllocationDecider.NO_DECISION;
                     }
                     return super.canForceAllocatePrimary(shardRouting, node, allocation);
                 }
@@ -201,7 +202,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         if (nodesWithUnpromotableOnly.contains(node.node().getName())) {
                             if (shardRouting.isPromotableToPrimary()) {
                                 return allocation.decision(
-                                    Decision.NO,
+                                    TestAllocationDecider.NO_DECISION,
                                     "test",
                                     "shard is promotable to primary so may not be assigned to [" + node.node().getName() + "]"
                                 );
@@ -209,7 +210,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         } else {
                             if (shardRouting.isPromotableToPrimary() == false) {
                                 return allocation.decision(
-                                    Decision.NO,
+                                    TestAllocationDecider.NO_DECISION,
                                     "test",
                                     "shard is not promotable to primary so may not be assigned to [" + node.node().getName() + "]"
                                 );

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -69,7 +70,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -973,7 +973,9 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     RoutingAllocation allocation
                 ) {
                     final String allocId = allocationIds.get(node.nodeId());
-                    return cancelIfStartedThisRound.contains(allocId) ? Decision.NO : randomFrom(Decision.NOT_PREFERRED, Decision.YES);
+                    return cancelIfStartedThisRound.contains(allocId)
+                        ? TestAllocationDecider.NO_DECISION
+                        : randomFrom(TestAllocationDecider.NOT_PREFERRED_DECISION, Decision.YES);
                 }
             };
 
@@ -1832,7 +1834,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 RoutingAllocation allocation
             ) {
                 return shardRouting.shardId().equals(shardId) && shardRouting.primary() == primary && node.nodeId().equals(forbiddenNodeId)
-                    ? Decision.NO
+                    ? TestAllocationDecider.NO_DECISION
                     : Decision.YES;
             }
         };

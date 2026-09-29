@@ -19,6 +19,9 @@ import java.util.function.Supplier;
 
 public final class TestAllocationDecider extends AllocationDecider {
 
+    public static Decision NO_DECISION = new Decision.Single(Decision.Type.NO, "test_decider", null);
+    public static Decision NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", null);
+
     private final Supplier<Decision> decision;
 
     public TestAllocationDecider(Supplier<Decision> decision) {

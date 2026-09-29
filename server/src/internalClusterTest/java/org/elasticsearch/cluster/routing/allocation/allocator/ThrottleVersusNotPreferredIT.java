@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -158,7 +159,9 @@ public class ThrottleVersusNotPreferredIT extends ESIntegTestCase {
             return List.of(new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    return NOT_PREFERRED_AND_THROTTLED_NODES.contains(node.nodeId()) ? Decision.NOT_PREFERRED : Decision.YES;
+                    return NOT_PREFERRED_AND_THROTTLED_NODES.contains(node.nodeId())
+                        ? TestAllocationDecider.NOT_PREFERRED_DECISION
+                        : Decision.YES;
                 }
             }, new AllocationDecider() {
                 @Override

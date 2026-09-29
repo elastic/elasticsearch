@@ -163,21 +163,24 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
 
     public static class TestAllocationDecider extends AllocationDecider {
 
+        public static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, "test_decider", null);
+        public static final Decision NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", null);
+
         /**
          * These tests aren't about rebalancing, disable it so it doesn't interfere with the results
          */
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return Decision.NO;
+            return NO_DECISION;
         }
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_ALLOCATE_NO_IDS.contains(node.nodeId())) {
-                return Decision.NO;
+                return NO_DECISION;
             }
             if (CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
             if (CAN_ALLOCATE_THROTTLE_NODE_IDS.contains(node.nodeId()) && allocation.isSimulating() == false) {
                 return Decision.THROTTLE;
@@ -188,9 +191,9 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
-                return Decision.NO;
+                return NO_DECISION;
             } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return Decision.NOT_PREFERRED;
+                return NOT_PREFERRED_DECISION;
             }
             return Decision.YES;
         }

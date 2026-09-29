@@ -312,7 +312,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be disabled", decision.canRebalanceCluster(), equalTo(false));
-        assertThat(decision.getCanRemainDecision().type(), equalTo(Decision.NOT_PREFERRED.type()));
+        assertThat(decision.getCanRemainDecision().type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertNull(decision.getTargetNode());
         assertThat(decision.getAllocationDecision(), equalTo(AllocationDecision.NOT_PREFERRED));
 

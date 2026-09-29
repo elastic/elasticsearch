@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
@@ -45,6 +47,8 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.X509ExtendedKeyManager;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This class tests {@link CommandLineHttpClient} For extensive tests related to
@@ -133,10 +137,20 @@ public class CommandLineHttpClientTests extends ESTestCase {
                 SslUtil.calculateFingerprint(pinnedCa, "SHA-256")
             );
             final URL url = new URL("https://localhost:" + testServer.getPort() + "/test");
-            expectThrows(
-                SSLException.class,
+            // SunJSSE reports the handshake failure as an SSLException. The FIPS JSSE provider throws
+            // org.bouncycastle.tls.TlsFatalAlert, which is only present on the FIPS runtime classpath.
+            final Exception thrown = expectThrows(
+                Exception.class,
                 () -> client.execute("GET", url, "u1", new SecureString(new char[] { 'p' }), () -> null, this::responseBuilder)
             );
+            if (inFipsJvm()) {
+                assertThat(thrown.getClass().getName(), equalTo("org.bouncycastle.tls.TlsFatalAlert"));
+                Throwable cause = ExceptionsHelper.unwrap(thrown, CertificateException.class);
+                assertThat(cause, instanceOf(CertificateException.class));
+                assertThat(cause.getMessage(), containsString("Unable to construct a valid chain"));
+            } else {
+                assertThat(thrown, instanceOf(SSLException.class));
+            }
         }
     }
 

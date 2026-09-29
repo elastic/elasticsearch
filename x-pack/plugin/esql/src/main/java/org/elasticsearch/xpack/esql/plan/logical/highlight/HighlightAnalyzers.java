@@ -215,7 +215,8 @@ public final class HighlightAnalyzers {
                     + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."
             );
         }
-        return standard(analysisRegistry);
+NamedAnalyzer fallback = standard(analysisRegistry);
+        return fallback.getPositionIncrementGap(fieldName) == gap ? fallback : new NamedAnalyzer(fallback, gap);
     }
 
     private static NamedAnalyzer standard(@Nullable AnalysisRegistry analysisRegistry) {

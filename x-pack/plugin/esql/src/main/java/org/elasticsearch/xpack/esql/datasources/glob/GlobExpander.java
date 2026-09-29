@@ -252,18 +252,24 @@ public final class GlobExpander {
      * nothing but litter or another format matches nothing while the dataset is full of files. Both report empty
      * for a dataset that has data, which is silent zero rows rather than a slow query.
      *
-     * <p>So emptiness is decided on the un-narrowed glob: drop the rewrite and the bound and list once more.
-     * The {@code _file.*} filters are kept — they are exact and can hide nothing. If that is empty too the pattern
-     * genuinely matches nothing and the caller's "matched no files" error stands. A full re-list can exceed
-     * {@code max_discovered_files} and throw, exactly as the unfiltered query would; that is deliberate, because
-     * telling a narrowing miss from a genuinely empty dataset needs the whole listing. A multi-value hint does not
-     * rewrite the glob, so this method does not retry it. The flat listing lists once more, without the value
-     * filter, when that filter keeps nothing. Hints stay on the query, so the row filter still yields zero rows
-     * from that anchor.
+     * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
+     * the rewrite skipped, while the partition hints stay. {@link PartitionValueMatcher} keeps a spelling the splice
+     * missed ({@code month=06} for {@code month == 6}) and drops folders the typed comparison excludes. The
+     * {@code _file.*} filters stay too — they are exact and can hide nothing. If that listing is empty too the
+     * pattern genuinely matches nothing and the caller's "matched no files" error stands.
+     *
+     * <p>A spelling miss with survivors is not an unfiltered re-list. Two paths still list without the value
+     * filter, and a large tree on either still throws {@code max_discovered_files}: the flat listing's second pass
+     * when the value filter keeps nothing ({@code year == 2099} against only other years), and a walk that returns
+     * no files, which re-lists with the value filter suppressed. A matching partition that itself exceeds the cap
+     * still throws with the typed filter applied. A multi-value hint does not rewrite the glob, so this method does
+     * not retry it. Hints stay on the query, so the row filter still yields zero rows from an anchor the listing
+     * kept.
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
-     * to disambiguate and this expands once, with no retry.
+     * to disambiguate and this expands once, with no retry. A non-empty splice is not retried, so a folder spelled
+     * exactly as {@link String#valueOf} hides every other spelling of the same value.
      */
     private static FileList expandGlobWithRewriteFallback(
         String pattern,
@@ -326,22 +332,23 @@ public final class GlobExpander {
 
         final IOException narrowedFailure = failure;
         logger.debug(
-            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the narrowing that produced it",
+            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing the original glob with the partition filter",
             narrowedFailure
         );
         try {
+            // Skip the splice. Passing the original hints through doExpandGlob's rewrite would list month=6 again.
             return doExpandGlob(
                 pattern,
                 provider,
-                // The rewrite is dropped; the exact _file.* filters are kept.
-                rewritten ? fileMetadataHints(hints) : hints,
+                hints,
                 partitionConfig,
                 maxDiscoveredFiles,
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                false
             );
         } catch (IOException retryFailure) {
             if (failure != null) {
@@ -481,10 +488,43 @@ public final class GlobExpander {
         FileOrderConfig fileOrder,
         int listingBound
     ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            listingBound,
+            true
+        );
+    }
+
+    /**
+     * Lists {@code pattern}, splicing hint values into it only when {@code allowRewrite} is true. The empty-rewrite
+     * retry passes false so a second pass cannot splice {@code month=6} again. Hints still feed the walk, the value
+     * filter, and {@code _file.*} either way. The flag is not a query input, so it stays off {@link ListingIdentity}.
+     */
+    private static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        int listingBound,
+        boolean allowRewrite
+    ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String effectivePattern = effectivePattern(pattern, hints, partitionConfig);
+        String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 

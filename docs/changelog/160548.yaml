@@ -1,0 +1,5 @@
+area: "ES|QL, ES|QL"
+issues: []
+pr: 160548
+summary: Allow full-text functions on TS sources
+type: bug

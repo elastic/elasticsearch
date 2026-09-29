@@ -2563,6 +2563,42 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testRerankInferSendsRequestAsChildOfParentTask() throws InterruptedException {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new InferModelAction.Response(List.of(), "foo", true));
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var service = createService(client);
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithoutChunkingConfiguration(randomAlphaOfLength(8)),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        var parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        var latch = new CountDownLatch(1);
+        var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
+        service.rerankInfer(
+            model,
+            new RerankRequest(List.of(InferenceString.ofText("doc")), InferenceString.ofText("query"), null, null, Map.of()),
+            null,
+            parentTaskId,
+            latchedListener
+        );
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+
+        ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
+        verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        assertEquals(parentTaskId, requestCaptor.getValue().getParentTask());
+    }
+
     public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
         var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
 

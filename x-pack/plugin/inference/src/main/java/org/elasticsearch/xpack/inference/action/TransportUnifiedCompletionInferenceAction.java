@@ -87,7 +87,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             listener.onFailure(createUnsupportedNonStreamingChatCompletionException(service.name()));
             return;
         }
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), taskId, listener);
     }
 
     @Override

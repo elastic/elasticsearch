@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.action.trainedmodel;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -88,6 +90,10 @@ public class TransportCoordinatedInferenceActionTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     sentRequests.add(request);
+                    if (request instanceof InferModelAction.Request) {
+                        // the model is not deployed, so the action checks whether it is an inference endpoint
+                        listener.onFailure(new ResourceNotFoundException("model not found"));
+                    }
                 }
             };
             var action = new TransportCoordinatedInferenceAction(
@@ -111,7 +117,7 @@ public class TransportCoordinatedInferenceActionTests extends ESTestCase {
                 CoordinatedInferenceAction.Request.forTextInput("model", List.of("text"), null, false, null),
                 ActionListener.noop()
             );
-            // document input always goes to the in-cluster model
+            // document input always goes to the in-cluster model, then to the inference endpoint lookup
             action.doExecute(
                 task,
                 CoordinatedInferenceAction.Request.forMapInput(
@@ -125,9 +131,10 @@ public class TransportCoordinatedInferenceActionTests extends ESTestCase {
                 ActionListener.noop()
             );
 
-            assertThat(sentRequests, hasSize(2));
+            assertThat(sentRequests, hasSize(3));
             assertThat(sentRequests.get(0), instanceOf(InferenceAction.Request.class));
             assertThat(sentRequests.get(1), instanceOf(InferModelAction.Request.class));
+            assertThat(sentRequests.get(2), instanceOf(GetInferenceModelAction.Request.class));
             TaskId expectedParent = new TaskId(clusterService.localNode().getId(), task.getId());
             for (ActionRequest request : sentRequests) {
                 assertThat(request.getParentTask(), equalTo(expectedParent));

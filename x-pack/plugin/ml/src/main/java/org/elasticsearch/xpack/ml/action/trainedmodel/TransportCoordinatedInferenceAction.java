@@ -86,7 +86,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             // Inference service models do not accept a document map
             // If this fails check if the model is an inference service
             // model and error accordingly
-            doInClusterModel(parentClient, request, wrapCheckForServiceModelOnMissing(request.getModelId(), listener));
+            doInClusterModel(parentClient, request, wrapCheckForServiceModelOnMissing(parentClient, request.getModelId(), listener));
         } else {
             forNlp(parentClient, request, listener);
         }
@@ -190,13 +190,14 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     }
 
     private ActionListener<InferModelAction.Response> wrapCheckForServiceModelOnMissing(
+        Client parentClient,
         String modelId,
         ActionListener<InferModelAction.Response> listener
     ) {
         return ActionListener.wrap(listener::onResponse, originalError -> {
             if (ExceptionsHelper.unwrapCause(originalError) instanceof ResourceNotFoundException) {
                 executeAsyncWithOrigin(
-                    client,
+                    parentClient,
                     INFERENCE_ORIGIN,
                     GetInferenceModelAction.INSTANCE,
                     new GetInferenceModelAction.Request(modelId, TaskType.ANY),

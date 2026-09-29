@@ -442,17 +442,17 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             return null;
         }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any(), any());
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
+            listenerAction.accept(ans.getArgument(4));
             return null;
-        }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
+        }).when(service).unifiedCompletionInfer(any(), any(), any(), any(), any());
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
+            listenerAction.accept(ans.getArgument(4));
             return null;
-        }).when(service).embeddingInfer(any(), any(), any(), any());
+        }).when(service).embeddingInfer(any(), any(), any(), any(), any());
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
+            listenerAction.accept(ans.getArgument(4));
             return null;
-        }).when(service).rerankInfer(any(), any(), any(), any());
+        }).when(service).rerankInfer(any(), any(), any(), any(), any());
         mockInferenceEndpointRegistry(taskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }

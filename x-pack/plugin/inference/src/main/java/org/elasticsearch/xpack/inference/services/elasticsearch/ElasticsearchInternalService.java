@@ -657,6 +657,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        rerankInfer(model, request, timeout, TaskId.EMPTY_TASK_ID, listener);
+    }
+
+    @Override
+    public void rerankInfer(
+        Model model,
+        RerankRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         if (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText)) {
             listener.onFailure(createUnsupportedMultimodalRerankException(name()));
             return;
@@ -675,6 +686,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             InputType.UNSPECIFIED,
             timeout,
             request.taskSettings(),
+            parentTaskId,
             listener
         );
     }
@@ -777,6 +789,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         InputType inputType,
         TimeValue timeout,
         Map<String, Object> requestTaskSettings,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         ActionListener<InferenceServiceResults> resultsListener = listener.delegateFailure((l, results) -> {
@@ -810,6 +823,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         }
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
+        request.setParentTask(parentTaskId);
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 

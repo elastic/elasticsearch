@@ -78,6 +78,6 @@ public class TransportRerankAction extends BaseTransportInferenceAction<RerankAc
         TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.rerankInfer(model, request.getRerankRequest(), request.getTimeout(), listener);
+        service.rerankInfer(model, request.getRerankRequest(), request.getTimeout(), taskId, listener);
     }
 }

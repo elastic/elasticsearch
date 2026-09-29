@@ -78,6 +78,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), listener);
+        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), taskId, listener);
     }
 }

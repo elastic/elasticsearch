@@ -1995,6 +1995,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // column's serialization; they get a column of their own. BINARY_COLUMNAR_SINGLE_VALUE writes raw
         // bytes, which are the same bytes as the terms column, so it shares emitSharedColumn below.
         final boolean columnarPayload = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+        final boolean columnarSingleValue = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE;
         // SORTED_SET doc values share the fieldType column with terms (the frozen fieldType carries both features).
         final boolean sortedSetDvs = emitDvs && fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
         final boolean multiValue = docValuesParameters().multiValue();
@@ -2110,7 +2111,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
                     }
                     if (emitDvs && columnarPayload == false && sortedSetDvs == false) {
-                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                        ctx.addColumn(
+                            LuceneBinaryColumn.of(
+                                data,
+                                fieldType().name(),
+                                columnarSingleValue ? SingleValuedColumnarBinaryDocValuesField.TYPE : BinaryDocValuesField.TYPE
+                            )
+                        );
                     }
                 }
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper

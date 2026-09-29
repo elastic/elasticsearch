@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -371,6 +372,38 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             .put(IndexSettings.MODE.getKey(), mode)
             .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
             .build();
+    }
+
+    /**
+     * The row (document-based) indexing path sets {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE} via
+     * {@code SingleValuedColumnarBinaryDocValuesField.TYPE}, which Lucene propagates to {@code FieldInfo} during
+     * the flush. Without the attribute the ColumNAR consumer would decode raw bytes as a payload and read garbage.
+     */
+    public void testSingleValuedColumnarKeywordRowPathSetsFieldInfoAttribute() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
+        prepareIndex(INDEX).setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"kw\":\"hello\"}", XContentType.JSON).get();
+        indicesAdmin().prepareRefresh(INDEX).get();
+
+        assertKeywordFieldUsesColumnarFormat(INDEX);
+
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                final FieldInfo info = leaf.reader().getFieldInfos().fieldInfo("kw");
+                if (info != null && info.getDocValuesType() != DocValuesType.NONE) {
+                    assertEquals(
+                        "row path must set SINGLE_VALUED_ATTRIBUTE on a multi_value=false columnar keyword field",
+                        "true",
+                        info.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+                    );
+                }
+            }
+        }
     }
 
     private void assertKeywordFieldUsesColumnarFormat(String index) throws IOException {

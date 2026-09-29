@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -697,6 +699,54 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             List<BytesReference> sources = List.of(new BytesArray("{\"loc\":\"51.5,-0.1\"}"));
             try (SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
                 assertNull("a string-form geo_point must fall back from the columnar path", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * A {@code multi_value: false} keyword field in strict-columnar mode uses
+     * {@code BINARY_COLUMNAR_SINGLE_VALUE}, which the ColumNAR consumer reads as raw bytes — no
+     * payload prefix. The batch path must emit the field with
+     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE} on its {@code FieldType} so the
+     * consumer sets {@code singleValued=true} at flush time.
+     */
+    public void testSingleValuedColumnarKeywordBatchSetsFieldTypeAttribute() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "keyword", "doc_values": { "multi_value": false } }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
+                final EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setVersion(0, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                final List<IndexableField> fields = cursor.fields();
+
+                final IndexableField kwField = fields.stream().filter(fld -> "f".equals(fld.name())).findFirst().orElse(null);
+                assertNotNull("keyword field f should be present in batch output", kwField);
+                final var attrs = ((FieldType) kwField.fieldType()).getAttributes();
+                assertEquals(
+                    "batch path must set SINGLE_VALUED_ATTRIBUTE on a multi_value=false columnar keyword field",
+                    "true",
+                    attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+                );
             }
         } finally {
             closeShards(shard);

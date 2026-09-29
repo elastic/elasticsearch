@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkShardBatch;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -63,6 +65,7 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.test.ESTestCase;
@@ -194,6 +197,73 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(
             Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false), null))
         );
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * When batch indexing is active the coordinator encodes item sources into a columnar ESCF batch and replaces each
+     * item's inline source bytes with an empty placeholder; the real data lives in the batch row. Without
+     * materialising the sources before reading them, the filter reads {@code {}} for every item and sees no
+     * inference fields to enrich, so the chain receives a document that was never enriched by inference.
+     * This test verifies that the filter reads the correct source from the batch and enriches the document.
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testBatchAttachedSourceMaterializedBeforeInference() throws Exception {
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        final String fieldName = "field1";
+        final String fieldValue = randomAlphaOfLengthBetween(5, 20);
+        model.putResult(fieldValue, randomChunkedInferenceEmbedding(model, List.of(fieldValue)));
+
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
+            useLegacyFormat,
+            inferenceStats
+        );
+
+        // Build the real document source and encode it as an ESCF batch row,
+        // simulating what the coordinator does when batch indexing is enabled.
+        BytesReference sourceBytes = BytesReference.bytes(IndexSource.getXContentBuilder(XContentType.JSON, fieldName, fieldValue));
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            encoder.addDocument(sourceBytes, XContentType.JSON, 0);
+            batch = encoder.buildPartition(0);
+        }
+
+        // Attach the batch to the item, replicating what BulkShardRequest(StreamInput) does on the shard node:
+        // the inline source bytes are replaced with an empty placeholder and the row index is recorded.
+        IndexRequest indexRequest = new IndexRequest("index").source(sourceBytes, XContentType.JSON);
+        indexRequest.indexSource().setSourceRow(batch, 0);
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest) };
+
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
+        request.setInferenceFieldMap(
+            Map.of(fieldName, new InferenceFieldMetadata(fieldName, model.getInferenceEntityId(), new String[] { fieldName }, null))
+        );
+        request.setBulkShardBatch(new BulkShardBatch(batch));
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, req, listener) -> {
+            try {
+                BulkShardRequest shardReq = (BulkShardRequest) req;
+                assertNull(shardReq.items()[0].getPrimaryResponse());
+                IndexRequest enriched = getIndexRequestOrNull(shardReq.items()[0].request());
+                // Inference ran against the real field value, not an empty source
+                assertInferenceResults(useLegacyFormat, enriched, fieldName, fieldValue, 1);
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }

@@ -308,7 +308,9 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         Thread[] reporters = new Thread[failureCount];
 
         for (int i = 0; i < failureCount; i++) {
-            RuntimeException failure = new RuntimeException("failure-" + i);
+            // CircuitBreakingException is an ElasticsearchException; classify() returns it as-is,
+            // so identity assertions below remain valid after the classify-once change in onFailure.
+            RuntimeException failure = new CircuitBreakingException("failure-" + i, CircuitBreaker.Durability.TRANSIENT);
             reported.add(failure);
             reporters[i] = new Thread(() -> {
                 try {

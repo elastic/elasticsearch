@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
@@ -253,6 +254,11 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override

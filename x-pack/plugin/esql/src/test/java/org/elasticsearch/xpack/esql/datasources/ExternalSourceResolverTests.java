@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -7263,7 +7264,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long length;
         @Nullable

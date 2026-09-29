@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -92,6 +93,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class OrcFormatReaderTests extends ESTestCase {
+
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
 
     private BlockFactory blockFactory;
 
@@ -3170,6 +3173,11 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

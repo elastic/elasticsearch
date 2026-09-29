@@ -4221,6 +4221,39 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/160364">#160364</a>.
+     * <p>
+     * The {@code bucket} argument of {@code COUNT(histogram, bucket)} is evaluated <em>after</em> the aggregation (the surrogate
+     * turns it into {@code HISTOGRAM_FRACTION(HISTOGRAM_MERGE(histogram), bucket)} in an {@code EVAL} on top of the {@code STATS}),
+     * so it must either be a constant or reference a grouping key; a {@code BUCKET(...)} passed inline is rejected, even if the
+     * same {@code BUCKET(...)} is also a grouping key. Without this check the query used to slip through analysis and the
+     * optimizer failed with {@code IllegalStateException: ... optimized incorrectly due to missing references [responseTime]}.
+     */
+    public void testHistogramBucketInCountMustBeGroupingKey() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:65: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20)) BY BUCKET(responseTime, 20)",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        // referencing the grouping key is the supported way
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .query("TS exp_histo_sample | STATS occurrences = COUNT(responseTime, b) BY b = BUCKET(responseTime, 20)");
+    }
+
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
             "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",

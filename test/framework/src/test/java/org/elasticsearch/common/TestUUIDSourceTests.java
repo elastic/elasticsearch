@@ -9,71 +9,107 @@
 
 package org.elasticsearch.common;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.OptionalInt;
+import java.util.concurrent.Executors;
 
 public class TestUUIDSourceTests extends ESTestCase {
 
-    public void testWithUUIDSourceOverridesWithinScope() {
-        final var stub = randomStub();
-        TestUUIDSource.withUUIDSource(stub, () -> assertStubActive(stub));
-        assertDefaultActive();
-    }
-
-    public void testWithUUIDSourceRestoresDefaultWhenBodyThrows() {
-        final var stub = randomStub();
-        final var exception = new IOException(randomAlphaOfLength(10));
-        final var thrown = expectThrows(IOException.class, () -> TestUUIDSource.withUUIDSource(stub, () -> {
-            assertStubActive(stub);
-            throw exception;
-        }));
-        assertSame("withUUIDSource should propagate the exception thrown by the body", exception, thrown);
-        assertDefaultActive();
-    }
-
-    private static StubUUIDSource randomStub() {
-        return new StubUUIDSource("uuid-" + randomAlphaOfLength(5), "k-ordered-" + randomAlphaOfLength(5));
-    }
-
-    private static void assertStubActive(StubUUIDSource stub) {
-        final var hash = randomBoolean() ? OptionalInt.empty() : OptionalInt.of(randomInt());
-        assertEquals("base64UUID should come from " + stub + " within the scope", stub.base64UUID(), UUIDs.base64UUID());
-        assertEquals(
-            "k-ordered UUID with " + hash + " should come from " + stub + " within the scope",
-            stub.base64TimeBasedKOrderedUUIDWithHash(hash),
-            UUIDs.base64TimeBasedKOrderedUUIDWithHash(hash)
-        );
-    }
-
-    private static void assertDefaultActive() {
-        assertEquals(
-            "base64UUID should come from the time-based default after the scope",
-            UUIDs.TIME_BASED_UUID_STRING_LENGTH,
-            UUIDs.base64UUID().length()
-        );
-        final var hash = randomInt();
-        final var decoded = Base64.getUrlDecoder().decode(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(hash)));
-        assertEquals(
-            "k-ordered UUID should embed the routing hash after the scope",
-            hash,
-            ByteUtils.readIntLE(decoded, decoded.length - 9)
-        );
-    }
-
-    private record StubUUIDSource(String uuid, String kOrderedPrefix) implements UUIDSource {
-
-        @Override
-        public String base64UUID() {
-            return uuid;
+    public void testSeededSourceResetsBetweenInvocationsOnReusedWorker() throws Exception {
+        final long seed = randomLong();
+        final var worker = Executors.newSingleThreadExecutor();
+        try {
+            final CheckedSupplier<List<String>, Exception> generateOnWorker = () -> worker.submit(TestUUIDSourceTests::generateIds).get();
+            final var expected = runRule(seed, uuidSource, generateOnWorker);
+            assertNotEquals(expected, runRule(seed ^ 1L, uuidSource, generateOnWorker));
+            assertEquals(expected, runRule(seed, uuidSource, generateOnWorker));
+        } finally {
+            assertTrue(terminate(worker));
         }
+    }
 
-        @Override
-        public String base64TimeBasedKOrderedUUIDWithHash(OptionalInt hash) {
-            return kOrderedPrefix + hash;
+    public void testNestedRulesRestoreSuiteSequence() throws Exception {
+        assertSuiteSequenceRestored(false);
+    }
+
+    public void testNestedRulesRestoreSuiteSequenceOnFailure() throws Exception {
+        assertSuiteSequenceRestored(true);
+    }
+
+    private void assertSuiteSequenceRestored(boolean failMethod) throws Exception {
+        final long seed = randomLong();
+        final var expected = runRule(seed, SUITE_UUID_SOURCE, () -> {
+            final var ids = generateIds();
+            ids.addAll(generateIds());
+            return ids;
+        });
+        final var actual = runRule(seed, SUITE_UUID_SOURCE, () -> {
+            final var ids = generateIds();
+            if (failMethod) {
+                final var failure = new IOException("test failure");
+                assertSame(failure, expectThrows(IOException.class, () -> runRule(seed ^ 1L, uuidSource, () -> {
+                    generateIds();
+                    throw failure;
+                })));
+            } else {
+                runRule(seed ^ 1L, uuidSource, TestUUIDSourceTests::generateIds);
+            }
+            ids.addAll(generateIds());
+            return ids;
+        });
+        assertEquals(expected, actual);
+    }
+
+    public void testUUIDFormatAndRoutingHash() {
+        final var decoder = Base64.getUrlDecoder();
+        assertEquals(15, decoder.decode(UUIDs.base64UUID()).length);
+        assertEquals(15, decoder.decode(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.empty())).length);
+        final int hash = randomInt();
+        final String id = UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(hash));
+        assertEquals(26, id.length());
+        final var decoded = decoder.decode(id);
+        assertEquals(19, decoded.length);
+        assertEquals(hash, ByteUtils.readIntLE(decoded, decoded.length - 9));
+    }
+
+    private static List<String> runRule(long seed, TestRule rule, CheckedSupplier<List<String>, Exception> body) throws Exception {
+        return RandomizedContext.current().runWithPrivateRandomness(seed, () -> {
+            final var ids = new ArrayList<String>();
+            final var statement = rule.apply(new Statement() {
+                @Override
+                public void evaluate() throws Exception {
+                    ids.addAll(body.get());
+                }
+            }, Description.EMPTY);
+            try {
+                statement.evaluate();
+            } catch (Exception e) {
+                throw e;
+            } catch (Throwable t) {
+                throw new AssertionError("UUID lifecycle rule failed", t);
+            }
+            return ids;
+        });
+    }
+
+    private static List<String> generateIds() {
+        final var ids = new ArrayList<String>();
+        for (int i = 0; i < 10; i++) {
+            ids.add(UUIDs.base64UUID());
+            ids.add(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.empty()));
+            ids.add(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(i)));
         }
+        return ids;
     }
 }

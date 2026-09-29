@@ -9,13 +9,13 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 
 import java.util.OptionalInt;
+import java.util.Random;
 
 /**
- * Placeholder for a seeded {@link UUIDSource} in tests. Currently delegates to the time-based generators and proves that
- * {@link UUIDs} resolves a source supplied by the test framework.
+ * {@link UUIDSource} for tests, seeded per suite and per test method by {@link TestUUIDSourceRule}.
  */
 public class TestUUIDSource implements UUIDSource {
 
@@ -25,18 +25,15 @@ public class TestUUIDSource implements UUIDSource {
         UUIDs.DEFAULT_MAC_ADDRESS_SUPPLIER
     );
 
-    /**
-     * For self-testing only. Thread-unsafe, trappy, static override.
-     * It exists to test SPI class loading.
-     */
-    static <E extends Exception> void withUUIDSource(UUIDSource source, CheckedRunnable<E> body) throws E {
+    static Releasable withSeed(long seed) {
+        final var random = new Random(seed);
+        final long timestamp = random.nextLong(1L << 48);
+        final byte[] macAddress = new byte[6];
+        random.nextBytes(macAddress);
+        final var source = new TimeBasedUUIDSource(() -> timestamp, random::nextInt, () -> macAddress);
         final var previous = delegate;
         delegate = source;
-        try {
-            body.run();
-        } finally {
-            delegate = previous;
-        }
+        return () -> delegate = previous;
     }
 
     @Override

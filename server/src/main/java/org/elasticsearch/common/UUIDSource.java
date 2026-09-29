@@ -12,11 +12,18 @@ package org.elasticsearch.common;
 import java.util.OptionalInt;
 
 /**
- * Generates base64 UUIDs.
+ * Generates the time-based IDs returned by {@link UUIDs}. Loaded through SPI so the test framework can supply a seeded implementation.
  */
 public interface UUIDSource {
 
+    /**
+     * Returns a unique, URL-safe base64 ID without padding, {@link UUIDs#TIME_BASED_UUID_STRING_LENGTH} characters long.
+     */
     String base64UUID();
 
+    /**
+     * Returns a unique, URL-safe base64 ID without padding that decodes to 15 bytes, or 19 bytes when {@code hash} is present.
+     * The hash is stored little-endian at decoded offset 10, where routing reads it back to locate the shard.
+     */
     String base64TimeBasedKOrderedUUIDWithHash(OptionalInt hash);
 }

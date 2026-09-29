@@ -144,7 +144,12 @@ public class EsqlDataExtractor implements DataExtractor {
     public DataSummary getSummary() {
         QueryBuilder timeFilter = buildTimeFilter();
         SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        if (sourceSummary.totalHits() == 0 || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
+        // hasData() (not totalHits() == 0) is the guard: COUNT(*) can be > 0 while MIN/MAX(??timeField) are
+        // null, e.g. when every matching doc is missing a value for the source time field. Mirrors
+        // DataExtractor.DataSummary.hasData() and the DSL equivalent (DataExtractorUtils.getDataSummary()),
+        // where totalHits and null earliest/latest can likewise diverge and callers key off hasData().
+        // estimateAggregatingOutputRows() unboxes earliest/latest, so it must never see this case.
+        if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
             return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
         }
         long estimatedOutputRows = estimateAggregatingOutputRows(sourceSummary);
@@ -225,7 +230,11 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    private record SourceRangeSummary(Long earliestTime, Long latestTime, long totalHits) {}
+    private record SourceRangeSummary(Long earliestTime, Long latestTime, long totalHits) {
+        boolean hasData() {
+            return earliestTime != null;
+        }
+    }
 
     private QueryBuilder buildTimeFilter() {
         return new RangeQueryBuilder(context.sourceTimeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);

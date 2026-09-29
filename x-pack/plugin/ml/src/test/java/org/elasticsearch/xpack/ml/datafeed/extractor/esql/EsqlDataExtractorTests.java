@@ -809,6 +809,47 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedQueries.size(), equalTo(1));
     }
 
+    // Regression test for elastic-workspace-g2sz.1 follow-up: COUNT(*) can be > 0 while MIN/MAX(??timeField)
+    // are null when every matching doc is missing a value for the source time field (e.g. multi-valued
+    // field emitting no value, or a runtime field that errors to null). Before the fix, getSummary()'s
+    // guard only checked totalHits() == 0, so this case fell into estimateAggregatingOutputRows() and threw
+    // an NPE unboxing the null Long earliestTime/latestTime -- which escaped
+    // ChunkedDataExtractor.setUpChunkedSearch() uncaught.
+    public void testGetSummaryForAggregatingQueryWithNullMinMaxButNonZeroTotalHitsReturnsNoData() {
+        String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);
+
+        extractor.enqueueRows(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            List.of(Arrays.asList(null, null, 900_000L))
+        );
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.hasData(), is(false));
+        assertThat(summary.totalHits(), equalTo(900_000L));
+        // No point probing an aggregating query's output-row density when the source-level probe could not
+        // resolve time bounds.
+        assertThat(extractor.capturedQueries.size(), equalTo(1));
+    }
+
+    // Same scenario as above but for a pass-through (non-aggregating) query, which never called
+    // estimateAggregatingOutputRows() and so never hit the NPE directly -- but must still report
+    // hasData() == false consistently, mirroring DataExtractorUtils.getDataSummary()'s DSL precedent where
+    // totalHits() and null earliest/latest can likewise diverge.
+    public void testGetSummaryForPassThroughQueryWithNullMinMaxButNonZeroTotalHitsReturnsNoData() {
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(
+            List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+            List.of(Arrays.asList(null, null, 5L))
+        );
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.hasData(), is(false));
+        assertThat(summary.totalHits(), equalTo(5L));
+    }
+
     private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField) {
         return createExtractor(start, end, esqlQuery, timeField, null);
     }

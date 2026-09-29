@@ -254,11 +254,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
 
         @Override
-        public SimilarityMeasure similarity() {
-            return similarity;
-        }
-
-        @Override
         public DenseVectorFieldMapper.ElementType elementType() {
             return DenseVectorFieldMapper.ElementType.FLOAT;
         }

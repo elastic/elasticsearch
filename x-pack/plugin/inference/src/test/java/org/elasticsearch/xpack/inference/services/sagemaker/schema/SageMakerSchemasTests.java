@@ -61,6 +61,10 @@ public class SageMakerSchemasTests extends ESTestCase {
     /**
      * Creates an {@link InferenceFeatureService} whose cluster state reports the
      * {@code inference.sagemaker.openai_similarity} feature as present or absent.
+     *
+     * <p>{@link ClusterService} is mocked here because a real instance requires a live {@link org.elasticsearch.threadpool.ThreadPool}
+     * and a full lifecycle (start/stop). The helper only needs {@code state()} to return a fixed {@link ClusterState},
+     * which the mock provides directly without the overhead.
      */
     public static InferenceFeatureService mockInferenceFeatureService(boolean similarityFeatureSupported) {
         var features = similarityFeatureSupported ? Set.of(INFERENCE_SAGEMAKER_OPENAI_SIMILARITY.id()) : Set.<String>of();

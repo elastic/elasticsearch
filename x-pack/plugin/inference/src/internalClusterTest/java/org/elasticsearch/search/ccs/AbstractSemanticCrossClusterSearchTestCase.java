@@ -47,9 +47,9 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,11 +168,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return response.getPointInTimeId();
     }
 
-    protected void assertSearchResponse(QueryBuilder queryBuilder, List<String> indices, List<SearchResult> expectedSearchResults)
-        throws Exception {
-        assertSearchResponse(queryBuilder, indices, expectedSearchResults, null, null);
-    }
-
+    /**
+     * Like {@link #assertSearchResponse(QueryBuilder, List, ExpectedHits, ClusterFailure, Consumer, Consumer)}, with hits expected in
+     * {@code expectedSearchResults} order and no response consumer.
+     */
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
         @Nullable List<String> indices,
@@ -180,6 +179,36 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         @Nullable ClusterFailure expectedRemoteFailure,
         @Nullable Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
+        assertSearchResponse(
+            queryBuilder,
+            indices,
+            ExpectedHits.inOrder(expectedSearchResults),
+            expectedRemoteFailure,
+            searchRequestModifier,
+            null
+        );
+    }
+
+    /**
+     * Runs {@code queryBuilder}, boosting hits from {@link #LOCAL_INDEX_NAME} by 10, and asserts the hits and each cluster's status.
+     *
+     * @param indices the indices to search, or {@code null} for all
+     * @param expectedHits the expected hits; their count also sets the request size
+     * @param expectedRemoteFailure the expected status and failures for {@link #REMOTE_CLUSTER}, or {@code null} to expect all clusters
+     *                              to succeed
+     * @param searchRequestModifier applied to the request before it is sent, or {@code null}
+     * @param responseConsumer runs before the assertions below, so a caller capturing state from the response (a scroll ID, say) still
+     *                         gets it when one of them fails. The response is released once this method returns, so do not retain it.
+     */
+    protected void assertSearchResponse(
+        QueryBuilder queryBuilder,
+        @Nullable List<String> indices,
+        ExpectedHits expectedHits,
+        @Nullable ClusterFailure expectedRemoteFailure,
+        @Nullable Consumer<SearchRequest> searchRequestModifier,
+        @Nullable Consumer<SearchResponse> responseConsumer
+    ) throws Exception {
+        List<SearchResult> expectedSearchResults = expectedHits.results();
         QueryBuilder boostedQueryBuilder = boostLocalIndex(queryBuilder);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(boostedQueryBuilder).size(expectedSearchResults.size());
         SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
@@ -191,17 +220,19 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         }
 
         assertResponse(client().search(searchRequest), response -> {
+            if (responseConsumer != null) {
+                responseConsumer.accept(response);
+            }
+
             SearchHit[] hits = response.getHits().getHits();
             assertThat(hits.length, equalTo(expectedSearchResults.size()));
 
-            Iterator<SearchResult> searchResultIterator = expectedSearchResults.iterator();
-            for (int i = 0; i < hits.length; i++) {
-                SearchResult expectedSearchResult = searchResultIterator.next();
-                SearchHit actualSearchResult = hits[i];
-
-                assertThat(actualSearchResult.getClusterAlias(), equalTo(expectedSearchResult.clusterAlias()));
-                assertThat(actualSearchResult.getIndex(), equalTo(expectedSearchResult.index()));
-                assertThat(actualSearchResult.getId(), equalTo(expectedSearchResult.id()));
+            if (expectedHits.ordered()) {
+                List<SearchResult> actualSearchResults = Arrays.stream(hits).map(SearchResult::new).toList();
+                assertThat(actualSearchResults, equalTo(expectedSearchResults));
+            } else {
+                Set<SearchResult> actualSearchResults = Arrays.stream(hits).map(SearchResult::new).collect(Collectors.toSet());
+                assertThat(actualSearchResults, equalTo(Set.copyOf(expectedSearchResults)));
             }
 
             SearchResponse.Clusters clusters = response.getClusters();
@@ -338,7 +369,22 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         }
     }
 
-    protected record SearchResult(@Nullable String clusterAlias, String index, String id) {}
+    protected record SearchResult(@Nullable String clusterAlias, String index, String id) {
+        protected SearchResult(SearchHit hit) {
+            this(hit.getClusterAlias(), hit.getIndex(), hit.getId());
+        }
+    }
+
+    /** Expected search hits, and whether their order must match the response. */
+    protected record ExpectedHits(List<SearchResult> results, boolean ordered) {
+        protected static ExpectedHits inOrder(List<SearchResult> results) {
+            return new ExpectedHits(results, true);
+        }
+
+        protected static ExpectedHits anyOrder(List<SearchResult> results) {
+            return new ExpectedHits(results, false);
+        }
+    }
 
     protected record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 

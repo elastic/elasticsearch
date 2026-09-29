@@ -36,7 +36,7 @@ public final class ExternalPlanningReservation implements Releasable {
 
     /** Listing plus schema-map bytes. Held until {@link #close()}. A trip leaves {@link #queryHeld()} unchanged. */
     public void chargeQuery(long bytes) {
-        admit(queryHeld, bytes);
+        admit(queryHeld, bytes, closed, "query");
     }
 
     public long queryHeld() {
@@ -45,6 +45,7 @@ public final class ExternalPlanningReservation implements Releasable {
 
     /** A phase-2 reservation for one compute execution. */
     public Run openRun() {
+        refuseAfterRelease(closed, "query");
         Run run = new Run();
         runs.add(run);
         return run;
@@ -61,12 +62,28 @@ public final class ExternalPlanningReservation implements Releasable {
         refund(queryHeld);
     }
 
-    private void admit(AtomicLong held, long bytes) {
+    private void admit(AtomicLong held, long bytes, AtomicBoolean releasedAlready, String scope) {
         if (bytes <= 0) {
             return;
         }
+        refuseAfterRelease(releasedAlready, scope);
         breaker.addEstimateBytesAndMaybeBreak(bytes, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
         held.addAndGet(bytes);
+    }
+
+    /**
+     * Refuses to reserve against a reservation that has already refunded.
+     * <p>
+     * {@link #close()} sets the held total back to zero and hands the bytes to the breaker; anything added after
+     * that is never released, because nothing closes twice. So a late charge does not merely mis-report - it leaks
+     * for the lifetime of the node. Charging after the refund is a programming error rather than a condition to
+     * tolerate, and this is reachable the moment a charge runs on a thread the query can outrun: split discovery
+     * hops to {@code esql_external_io}, and a failure elsewhere closes the reservation underneath it.
+     */
+    private static void refuseAfterRelease(AtomicBoolean releasedAlready, String scope) {
+        if (releasedAlready.get()) {
+            throw new IllegalStateException("external planning memory cannot be reserved against a closed " + scope + " reservation");
+        }
     }
 
     private void refund(AtomicLong held) {
@@ -89,7 +106,7 @@ public final class ExternalPlanningReservation implements Releasable {
          * throws before the add.
          */
         public void charge(long bytes) {
-            admit(held, bytes);
+            admit(held, bytes, released, "run");
         }
 
         public long held() {

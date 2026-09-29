@@ -152,9 +152,6 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         }
     }
 
-    /**
-     * No shard on the node has a load, so {@link PrioritiseByShardLoadComparator#compare} takes the missing-load shortcut.
-     */
     public void testCompareReturnsZeroWhenEveryLoadIsMissing() {
         final RoutingNode node = startedShardsOnSingleNode(2);
         final var shards = shardsOn(node);
@@ -163,10 +160,6 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         assertComparesEqual(comparator, shards.get(0), shards.get(1));
     }
 
-    /**
-     * Two shards have no load while another shard on the node does, so the missing pair compares equal
-     * without taking the empty-map shortcut.
-     */
     public void testCompareReturnsZeroWhenBothShardsHaveNoLoad() {
         final RoutingNode node = startedShardsOnSingleNode(3);
         final var shards = shardsOn(node);

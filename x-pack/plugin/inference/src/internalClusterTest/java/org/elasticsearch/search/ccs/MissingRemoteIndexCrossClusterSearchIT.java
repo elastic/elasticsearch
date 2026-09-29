@@ -139,6 +139,8 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
             fullyQualifiedIndexName(REMOTE_CLUSTER, MISSING_INDEX_NAME)
         );
 
+        // Sparse embeddings score high enough that boosting the local index does not reliably order it first. Use order-insensitive
+        // matching to account for this.
         for (QueryCase queryCase : queryCases()) {
             for (RequestMode mode : requestModes()) {
                 assertSearch(

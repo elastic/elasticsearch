@@ -576,7 +576,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * cluster-prefixed exclusion would let it merge into a sibling and lose its scope.
      */
     private static boolean containsExclusion(UnresolvedRelation ur) {
-        for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+        return containsExclusion(ur.indexPattern().indexPattern());
+    }
+
+    /** {@link #containsExclusion(UnresolvedRelation)} on a comma-separated index pattern. */
+    public static boolean containsExclusion(String indexPattern) {
+        for (String pattern : indexPattern.split(",")) {
             if (pattern.startsWith("-")) {
                 return true;
             }

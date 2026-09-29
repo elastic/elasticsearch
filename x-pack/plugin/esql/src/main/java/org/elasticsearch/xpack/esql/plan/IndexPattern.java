@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -21,17 +20,6 @@ public class IndexPattern implements NodeStringRenderable {
 
     private final Source source;
     private final String indexPattern;
-
-    /**
-     * Whether an expression excludes an index, including cluster-prefixed exclusions such as {@code cluster:-name}.
-     */
-    public static boolean isExclusion(String expression) {
-        if (expression.startsWith("-")) {
-            return true;
-        }
-        var split = RemoteClusterAware.splitIndexName(expression);
-        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
-    }
 
     public IndexPattern(Source source, String indexPattern) {
         this.source = source;

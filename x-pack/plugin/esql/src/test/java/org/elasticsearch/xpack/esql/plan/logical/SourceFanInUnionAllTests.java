@@ -186,7 +186,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         LogicalPlan promoted = promote(new ViewUnionAll(from, named, named.keySet(), List.of()));
 
         assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
-        assertThat(SourceFanInUnionAll.producerCount(promoted), equalTo(10));
+        assertThat(SourceFanInUnionAll.producerCount((SourceFanInUnionAll) promoted), equalTo(10));
         assertThat(
             verifyAnalysis(promoted),
             containsString("[FROM va, vb] resolved to 10 sources, exceeding the current limit of 8 per FROM")

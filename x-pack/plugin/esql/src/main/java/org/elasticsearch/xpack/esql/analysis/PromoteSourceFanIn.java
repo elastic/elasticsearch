@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
@@ -15,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,10 +25,10 @@ import java.util.Set;
 /**
  * Turns a {@link ViewUnionAll} that is only a resolved {@code FROM} into a {@link SourceFanInUnionAll}.
  * <p>
- * A view whose body is datasets, indices, or a mix, including a {@code WHERE} (or another unary
- * pipeline) on that expansion beside a matched namesake, is the same source list the dataset
- * rewriter builds. An index-only view union stays a {@link ViewUnionAll}. A {@code FORK}, a join,
- * a subquery, or a union the user wrote is not a source list and is left alone.
+ * A view whose body is datasets, indices, or a mix, including any pipeline on that expansion
+ * beside a matched namesake, is the same source list the dataset rewriter builds. An index-only
+ * view union stays a {@link ViewUnionAll}. A branch holding a {@code FORK}, a union, or a subquery
+ * the user wrote is not a source list and is left alone (see {@link SourceFanInUnionAll#isBranching}).
  * <p>
  * This runs for every query, not only under {@code FORK}: every fan-in in the plan also has its
  * sibling index reads merged (see {@link SourceFanInUnionAll#withIndexReadsCollapsed}).
@@ -60,10 +61,22 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
     }
 
     private static LogicalPlan promoteOne(ViewUnionAll view, boolean preserveViewBoundaries) {
-        if (SourceFanInUnionAll.isSourceExpansion(view) == false || (preserveViewBoundaries && viewOutputMatchesSources(view) == false)) {
-            return liftFanInBranches(view);
+        if (canPromote(view, preserveViewBoundaries)) {
+            return new SourceFanInUnionAll(view.source(), view.children(), view.output());
         }
-        return new SourceFanInUnionAll(view.source(), new ArrayList<>(view.children()), view.output());
+        return liftFanInBranches(view);
+    }
+
+    /**
+     * True when {@code view} is one {@code FROM}'s sources and promoting it keeps request-filter results the same.
+     * Promotion drops the view boundaries, so with a filter applied at view outputs every view branch must be
+     * sources under {@code WHERE}s only.
+     */
+    private static boolean canPromote(ViewUnionAll view, boolean preserveViewBoundaries) {
+        if (SourceFanInUnionAll.isSourceExpansion(view) == false) {
+            return false;
+        }
+        return preserveViewBoundaries == false || viewOutputMatchesSources(view);
     }
 
     /**
@@ -80,7 +93,7 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
             while (current instanceof Filter filter) {
                 current = filter.child();
             }
-            if (SourceFanInUnionAll.isProducer(current) == false) {
+            if ((current instanceof SourceFanInUnionAll || current instanceof ExternalRelation || current instanceof EsRelation) == false) {
                 return false;
             }
         }

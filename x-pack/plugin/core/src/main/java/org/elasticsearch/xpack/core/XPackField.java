@@ -103,6 +103,7 @@ public final class XPackField {
     public static final String LOGSDB_COLUMNAR = "logsdb_columnar";
     public static final String LOGGING = "logging";
     public static final String VECTORDB_DOCUMENT = "vectordb_document";
+    public static final String COLUMNAR = "columnar";
 
     private XPackField() {}
 

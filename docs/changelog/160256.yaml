@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160256
+summary: Fix dataset filters on file size, name, and modification time returning too few rows
+type: bug

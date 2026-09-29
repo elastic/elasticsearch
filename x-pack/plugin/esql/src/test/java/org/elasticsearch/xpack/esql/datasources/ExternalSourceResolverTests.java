@@ -3536,7 +3536,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     public void testEnrichSchemaWithPartitionColumnsEmitsNullabilityTrueForHiveDefaultSentinel() {
         // When at least one file lives under __HIVE_DEFAULT_PARTITION__ (decoded to null in
-        // PartitionMetadata#filePartitionValues by HivePartitionDetector), the resolver must keep
+        // PartitionMetadata value rows by HivePartitionDetector), the resolver must keep
         // Nullability.TRUE for that column. Sibling partition columns that are still all-non-null
         // remain Nullability.FALSE.
         List<Attribute> originalSchema = List.of(attr("value", DataType.DOUBLE));

@@ -3461,7 +3461,7 @@ public class ExternalSourceResolver {
 
         // Per-query nullability: a partition column is non-nullable when no file in the matched
         // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
-        // to null in PartitionMetadata#filePartitionValues, so this is precise rather than
+        // to null in PartitionMetadata value rows, so this is precise rather than
         // pessimistic. The same dataset may yield different nullability across globs depending on
         // which files match.
         Set<String> nullableColumns = partitionMetadata.nullablePartitionColumns();

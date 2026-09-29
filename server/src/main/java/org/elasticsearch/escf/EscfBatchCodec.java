@@ -357,16 +357,19 @@ final class EscfBatchCodec {
         // BINARY as an array child is var-width but decodeArrayChild treats every non-STRING child as
         // fixed-width; a round-trip would corrupt the column. Fail loudly until the codec gap is closed.
         assert child.kind() != EscfColumnKind.BINARY : "BINARY array child does not round-trip through the codec; see decodeArrayChild";
-        List<BytesReference> parts = new ArrayList<>(4);
-        parts.add(new BytesArray(new byte[] { child.kind() }));
-        if (child.validity() != null) {
-            parts.add(bitsetToRef(child.validity(), child.docCount()));
+        boolean hasValidity = child.validity() != null;
+        boolean hasOffsets = child.kind() == EscfColumnKind.STRING;
+        BytesReference[] parts = new BytesReference[2 + (hasValidity ? 1 : 0) + (hasOffsets ? 1 : 0)];
+        int i = 0;
+        parts[i++] = new BytesArray(new byte[] { child.kind() });
+        if (hasValidity) {
+            parts[i++] = bitsetToRef(child.validity(), child.docCount());
         }
-        if (child.kind() == EscfColumnKind.STRING) {
-            parts.add(intArrayToRef(child.offsets()));
+        if (hasOffsets) {
+            parts[i++] = intArrayToRef(child.offsets());
         }
-        parts.add(child.data());
-        return CompositeBytesReference.of(parts.toArray(new BytesReference[0]));
+        parts[i] = child.data();
+        return CompositeBytesReference.of(parts);
     }
 
     /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */

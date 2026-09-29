@@ -201,6 +201,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/146955
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   issue: https://github.com/elastic/elasticsearch/issues/160421
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/160523
 
 # Examples:
 #

@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -51,6 +53,11 @@ import java.util.function.Predicate;
  * the left hand side filters to the left child.
  *
  * Also combines adjacent filters using a logical {@code AND}.
+ * <p>
+ * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
+ * {@link FullTextFunction#containsRuntimeScorer}). So {@code _score} predicates are split out of such a filter into one
+ * above it, where they see the search's score, and are never pushed back below it. As with a search on an indexed
+ * field, which scores at the source, this holds whichever order adjacent filters were written in.
  */
 public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
 
@@ -60,6 +67,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
     @Override
     protected LogicalPlan rule(Filter filter, LogicalOptimizerContext ctx) {
+        Filter scoreSplit = splitScorePredicatesFromRuntimeScorer(filter);
+        if (scoreSplit != null) {
+            return scoreSplit;
+        }
         LogicalPlan plan = filter;
         LogicalPlan child = filter.child();
         Expression condition = filter.condition();
@@ -69,8 +80,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            // combine nodes into a single Filter with updated ANDed condition
-            plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
+            // A _score predicate over a runtime scorer is already where it belongs; combining would only split it back out.
+            if (isScorePredicateOverRuntimeScorer(f.condition(), condition) == false) {
+                // combine nodes into a single Filter with updated ANDed condition
+                plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
+            }
         } else if (child instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
             // Account for simple aliases in the Eval, though - these shouldn't stop us.
@@ -123,6 +137,38 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
+    }
+
+    /**
+     * Splits {@code filter} into a filter of its {@code _score} predicates over a filter of the rest, when it also holds a
+     * runtime scorer; {@code null} if there is nothing to split. A conjunct that both references {@code _score} and holds
+     * a runtime scorer cannot be split and stays below.
+     */
+    private static Filter splitScorePredicatesFromRuntimeScorer(Filter filter) {
+        if (FullTextFunction.containsRuntimeScorer(filter.condition()) == false) {
+            return null;
+        }
+        List<Expression> scorePredicates = new ArrayList<>();
+        List<Expression> rest = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+            if (referencesScore(conjunct) && FullTextFunction.containsRuntimeScorer(conjunct) == false) {
+                scorePredicates.add(conjunct);
+            } else {
+                rest.add(conjunct);
+            }
+        }
+        if (scorePredicates.isEmpty()) {
+            return null;
+        }
+        return filter.with(filter.with(filter.child(), Predicates.combineAnd(rest)), Predicates.combineAnd(scorePredicates));
+    }
+
+    private static boolean isScorePredicateOverRuntimeScorer(Expression lower, Expression upper) {
+        return FullTextFunction.containsRuntimeScorer(lower) && referencesScore(upper);
+    }
+
+    private static boolean referencesScore(Expression expression) {
+        return expression.anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     private record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}

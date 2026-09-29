@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The one-file-at-a-time fold must match {@link ExternalSourceResolver#aggregateFileStatistics} on the same
+ * The one-file-at-a-time fold must match {@link ExternalSourceResolver#batchAggregateFileStatistics} on the same
  * harvests, including when completions arrive out of listing order. The batch fold is the oracle.
  */
 public class RunningFileStatsFoldTests extends ESTestCase {
@@ -106,6 +107,54 @@ public class RunningFileStatsFoldTests extends ESTestCase {
         );
         assertReconciliationMatches(List.of(a, b), false, Map.of(pathA, Set.of("val")), false);
         assertReconciliationMatches(List.of(a, b), false, Map.of(pathA, Set.of("val")), true);
+    }
+
+    public void testPinOnColumnAbsentFromAnotherFileStaysDropped() {
+        StoragePath pathA = StoragePath.of("file:///a.csv");
+        StoragePath pathB = StoragePath.of("file:///b.csv");
+        StoragePath pathC = StoragePath.of("file:///c.csv");
+        SourceMetadata a = file(
+            pathA.toString(),
+            List.of(attr("val", DataType.LONG), attr("id", DataType.LONG)),
+            stats(3L, Map.of("val", col(1L, 20L, 3L, 0L), "id", col(1L, 3L, 3L, 0L)))
+        );
+        SourceMetadata b = file(
+            pathB.toString(),
+            List.of(attr("val", DataType.LONG), attr("id", DataType.LONG)),
+            stats(2L, Map.of("val", col(-5L, 100L, 2L, 0L), "id", col(4L, 5L, 2L, 0L)))
+        );
+        SourceMetadata c = file(pathC.toString(), List.of(attr("id", DataType.LONG)), stats(2L, Map.of("id", col(6L, 7L, 2L, 0L))));
+        assertReconciliationMatches(List.of(a, b, c), false, Map.of(pathA, Set.of("val")), false);
+    }
+
+    public void testRandomListingsMatchBatchOracle() {
+        DataType[] types = { DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };
+        String[] names = { "a", "b", "c" };
+        for (int trial = 0; trial < 25; trial++) {
+            int n = randomIntBetween(3, 6);
+            boolean implicitNulls = randomBoolean();
+            DataType[] colTypes = new DataType[names.length];
+            for (int c = 0; c < names.length; c++) {
+                colTypes[c] = randomFrom(types);
+            }
+            List<SourceMetadata> files = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                long rows = randomBoolean() ? 0L : randomLongBetween(1, 20);
+                List<Attribute> schema = new ArrayList<>();
+                Map<String, Object> harvest = new HashMap<>();
+                harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rows);
+                for (int c = 0; c < names.length; c++) {
+                    if (randomBoolean()) {
+                        continue;
+                    }
+                    schema.add(attr(names[c], colTypes[c]));
+                    putExtremum(harvest, names[c], colTypes[c], rows);
+                }
+                files.add(file("file:///" + i + ".parquet", schema, harvest));
+            }
+            assertReconciliationMatches(files, implicitNulls, Map.of(), false);
+            assertFirstFileWinsMatches(files, implicitNulls, Set.of());
+        }
     }
 
     public void testReadConfigIdentityMatchesBatchFold() {
@@ -209,19 +258,19 @@ public class RunningFileStatsFoldTests extends ESTestCase {
                 pins,
                 dropPinnedRowCount
             );
-            assertEquals("completion order " + java.util.Arrays.toString(order), expected, actual);
+            assertEquals("completion order " + Arrays.toString(order), expected, actual);
         }
     }
 
     private void assertFirstFileWinsMatches(List<SourceMetadata> files, boolean implicitNulls, Set<String> declared) {
-        Map<String, Object> expected = ExternalSourceResolver.aggregateFileStatistics(files, implicitNulls, declared);
+        Map<String, Object> expected = ExternalSourceResolver.batchAggregateFileStatistics(files, implicitNulls, declared);
         Map<String, DataType> anchorTypes = ExternalSourceResolver.attributesToTypeMap(files.get(0).schema());
         for (int[] order : orders(files.size())) {
             RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(anchorTypes, implicitNulls, declared);
             for (int index : order) {
                 fold.accept(index, files.get(index));
             }
-            assertEquals("completion order " + java.util.Arrays.toString(order), expected, fold.finish());
+            assertEquals("completion order " + Arrays.toString(order), expected, fold.finish());
         }
     }
 
@@ -255,7 +304,7 @@ public class RunningFileStatsFoldTests extends ESTestCase {
                 reconciled.put(entry.getKey(), prior == null ? entry.getValue() : TypeWidening.join(prior, entry.getValue()));
             }
         }
-        return ExternalSourceResolver.aggregateFileStatistics(
+        return ExternalSourceResolver.batchAggregateFileStatistics(
             listingOf(paths),
             byPath,
             perFileTypes,
@@ -362,6 +411,27 @@ public class RunningFileStatsFoldTests extends ESTestCase {
     /** min, max, value count, null count. */
     private static long[] col(long min, long max, long valueCount, long nullCount) {
         return new long[] { min, max, valueCount, nullCount };
+    }
+
+    private void putExtremum(Map<String, Object> harvest, String column, DataType type, long rows) {
+        Object min;
+        Object max;
+        if (type == DataType.DOUBLE) {
+            min = randomDoubleBetween(0d, 10d, true);
+            max = randomDoubleBetween(10d, 20d, true);
+        } else if (type == DataType.KEYWORD) {
+            min = "a" + randomIntBetween(0, 5);
+            max = "z" + randomIntBetween(0, 5);
+        } else {
+            long lo = randomLongBetween(0, 100);
+            long hi = randomLongBetween(lo, lo + 100);
+            min = lo;
+            max = hi;
+        }
+        harvest.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey(column), rows);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
     }
 
     private static Attribute attr(String name, DataType type) {

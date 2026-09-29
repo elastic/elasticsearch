@@ -188,6 +188,12 @@ public class ExternalSourceResolver {
      * Null when the session has no request breaker; those sessions skip the charge.
      */
     private volatile ExternalPlanningReservation planningReservation;
+    /**
+     * Test hook. Invoked after each reconcile-gather private-list charge, while that run is still open.
+     * Production leaves this null.
+     */
+    @Nullable
+    Consumer<ExternalPlanningReservation.Run> schemaGatherRunProbe;
     private final Settings settings;
     /**
      * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
@@ -721,14 +727,38 @@ public class ExternalSourceResolver {
         // string keys in the untyped config map. Renames are consumed on the data node by the centralized last-mile
         // physicalization (PhysicalNames) and the pushdown planner rules (readers stay rename-agnostic).
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
+        // One interner per path. Allowance stays 0 until the multi-file listing is charged. A single-file
+        // overlay sets it to Long.MAX_VALUE so sharing does not bill. Declared-strict never canonicalizes
+        // through it. First-file-wins already shares one schema and does not use it.
+        SchemaInterner schemaInterner = new SchemaInterner(planningReservation, 0L);
 
-        resolveSource(path, config, hints, declaredMapping, demand, ActionListener.wrap(resolvedSource -> {
+        resolveSource(path, config, hints, declaredMapping, demand, schemaInterner, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
-            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
-                ? applyNonStrictOverlay(resolvedSource, declaredMapping)
-                : resolvedSource;
-            resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
+            ExternalSourceResolution.ResolvedSource finalSource;
+            DeclaredReadSpec effectiveReadSpec;
+            if (declaredMapping != null && isDeclaredSchema(declaredMapping) == false) {
+                finalSource = applyNonStrictOverlay(resolvedSource, declaredMapping, schemaInterner);
+                // When the overlay appended sampled-out columns for a headerless CSV/TSV source (which uses
+                // positional binding under INFERRED provenance), upgrade to DECLARED so that a col<N> name
+                // resolves to physical field N via headerlessFieldIndex rather than to schema-position N.
+                // NDJSON binds by JSON key natively and needs no upgrade.
+                if (finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size()
+                    && isHeaderlessCsvOrTsv(resolvedSource.metadata().sourceType(), resolvedSource.metadata().config())) {
+                    effectiveReadSpec = DeclaredReadSpec.of(
+                        declaredReadSpec.renames(),
+                        declaredReadSpec.dateFormats(),
+                        declaredReadSpec.declaredTypeColumns(),
+                        SchemaProvenance.DECLARED
+                    );
+                } else {
+                    effectiveReadSpec = declaredReadSpec;
+                }
+            } else {
+                finalSource = resolvedSource;
+                effectiveReadSpec = declaredReadSpec;
+            }
+            resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             resolveNextPath(
                 paths,
@@ -914,12 +944,13 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
             bufferConfigWarnings(path, config);
-            resolveSourceInner(path, config, hints, declaredMapping, demand, listener);
+            resolveSourceInner(path, config, hints, declaredMapping, demand, schemaInterner, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -931,6 +962,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         // A query cancelled before resolution starts must do no storage I/O at all: bail before glob
@@ -938,7 +970,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, declaredMapping, demand, listener);
+            resolveMultiFileSource(path, config, hints, declaredMapping, demand, schemaInterner, listener);
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -1052,6 +1084,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
@@ -1073,6 +1106,8 @@ public class ExternalSourceResolver {
             }
             FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
             chargeListingPlanning(listing);
+            // The 760-per-file credit is already on the reservation. Further schema bytes charge only the overflow.
+            schemaInterner.setAllowance(listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1080,7 +1115,15 @@ public class ExternalSourceResolver {
                 FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
+                resolveMultiFileWithReconciliation(
+                    listing,
+                    fileConfig,
+                    schemaResolution,
+                    cacheable,
+                    datasetFormat,
+                    schemaInterner,
+                    listener
+                );
                 return;
             }
 
@@ -1361,10 +1404,10 @@ public class ExternalSourceResolver {
             Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
-                // individual file. Multi-file listings keep the file-level counts captured when that
-                // file was folded. A one-file listing keeps the anchor harvest, which split discovery
-                // uses to skip a second footer open when the harvest has column stats and
-                // readableUnitCount is 1.
+                // individual file. An eager multi-file gather keeps the slim file-level counts captured
+                // when that file was folded. A deferred multi-file gather never folds, so it keeps the
+                // cache harvest (the single-unit footer skip needs those column stats). A one-file
+                // listing keeps the anchor harvest.
                 StoragePath path = listing.path(i);
                 SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), config);
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
@@ -1394,9 +1437,9 @@ public class ExternalSourceResolver {
 
     /**
      * Per-file harvest for the FIRST_FILE_WINS schema map. A one-file listing keeps the anchor harvest
-     * (the cache entry, or the anchor metadata). A multi-file listing keeps only the file-level counts
-     * captured when that file's column stats were folded; the schema cache's full harvest stays in the
-     * cache and is not copied onto the query.
+     * (the cache entry, or the anchor metadata). An eager multi-file listing keeps the slim file-level
+     * counts captured at fold time. A deferred multi-file listing never folded, so it uses the cache
+     * harvest when one is already present; a cache miss stays null and split discovery opens the footer.
      */
     @Nullable
     private static SourceStatistics fileStatisticsForFirstFileWins(
@@ -1406,7 +1449,9 @@ public class ExternalSourceResolver {
         @Nullable SourceStatistics captured
     ) {
         if (listing.fileCount() > 1) {
-            return captured;
+            // Eager gather stored slim file-level counts. The defer branch never folds, so captured is null
+            // and the warm cache harvest is what the single-unit footer skip needs.
+            return captured != null ? captured : fileStatisticsFromCache(cached);
         }
         SourceStatistics fromCache = fileStatisticsFromCache(cached);
         if (fromCache != null) {
@@ -2030,6 +2075,7 @@ public class ExternalSourceResolver {
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
         @Nullable String datasetFormat,
+        SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
@@ -2043,100 +2089,135 @@ public class ExternalSourceResolver {
         boolean implicitNulls = foldsAbsentColumnAsImplicitNull(formatForStats);
         RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNulls);
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
-        readAllFileMetadata(fileList, config, cacheable, fold, ActionListener.wrap(allMetadata -> {
-            try {
-                long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-                LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+        // Each file's private toAttributes() list stays reachable until gatherPerFile's completion drops
+        // its list. That is after this listener returns, so overlay and the next path's listing still run
+        // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query
+        // close. Stats gathers, first-file-wins, and declared strict do not open a run.
+        ExternalPlanningReservation.Run privateLists = planningReservation == null ? null : planningReservation.openRun();
+        readAllFileMetadata(fileList, config, cacheable, fold, schemaInterner, privateLists, new ActionListener<>() {
+            @Override
+            public void onResponse(Map<StoragePath, SourceMetadata> allMetadata) {
+                ExternalSourceResolution.ResolvedSource resolved = null;
+                Exception failure = null;
+                try {
+                    long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+                    LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
-                StoragePath firstFile = fileList.path(0);
-                SchemaReconciliation.Result result;
-                if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
-                    result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
+                    StoragePath firstFile = fileList.path(0);
+                    SchemaReconciliation.Result result;
+                    if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
+                        result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
+                    } else {
+                        result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
+                    }
+
+                    // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
+                    // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
+                    // output must drop the physical column. The file (physical) schema is preserved so positional
+                    // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
+                    // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
+                    // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
+                    // queryDataSchema at the data-node SchemaAdaptingIterator guard.
+                    //
+                    // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
+                    // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
+                    // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
+                    PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+                    Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
+                    result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add, schemaInterner);
+
+                    List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
+                    SourceMetadata firstMeta = allMetadata.get(firstFile);
+                    // Pins are known only once every schema is in. The running fold already dropped each file's
+                    // column map. Poison is sticky, and a SKIP_ROW pin drops the file's row count.
+                    Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
+                    for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
+                        Set<String> pinnedColumns = pinnedColumnsOf(e.getValue());
+                        if (pinnedColumns.isEmpty() == false) {
+                            perFilePinnedColumns.put(e.getKey(), pinnedColumns);
+                        }
+                    }
+                    // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
+                    // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
+                    // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
+                    boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
+                    Map<String, Object> aggregatedStats = RunningFileStatsFold.applyPinnedColumns(
+                        fold.finish(),
+                        perFilePinnedColumns,
+                        dropPinnedRowCount
+                    );
+                    Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
+                    for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
+                        Map<String, Object> meta = e.getValue().sourceMetadata();
+                        Object shape = meta == null ? null : meta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+                        if (shape instanceof String str) {
+                            pathToReadConfig.put(e.getKey().toString(), str);
+                        }
+                    }
+                    aggregatedStats = applyDatasetAggregate(
+                        pathToReadConfig,
+                        datasetPrefetch,
+                        aggregatedStats,
+                        fileList,
+                        firstMeta,
+                        config
+                    );
+                    ExternalSourceMetadata extMetadata = withSourceType(
+                        buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
+                        datasetFormat
+                    );
+
+                    // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
+                    // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+                    extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
+                    if (aggregatedStats == null && fileList.fileCount() > 1) {
+                        extMetadata = markStatsAsPartial(extMetadata);
+                    }
+
+                    if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                        // ReservedPartitionNames.surface renames a layout key that collides with the
+                        // dedicated metadata namespace, so a partition column can never carry a bindable
+                        // metadata name into the schema the analyzer later binds against.
+                        assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
+                            : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
+                        // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
+                        // column that collides with a partition key (and emitted the one shadow warning), so the
+                        // post-shadow schema must be collision-free before enrich runs its own shadow detection.
+                        final ExternalSourceMetadata metaForAssert = extMetadata;
+                        assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
+                            : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
+                                + "column still collides with a partition key, which would warn twice";
+                        extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+                    }
+
+                    // _file.* columns are request-driven now; no auto-attach to the schema. See
+                    // ResolveExternalRelations / the EXTERNAL shim.
+
+                    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+                    resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
+                } catch (Exception e) {
+                    failure = e;
+                }
+                // The private lists are still on the gather frame that called us. That frame closes the run
+                // after we return, once overlay and the next path's listing have finished.
+                if (failure != null) {
+                    listener.onFailure(failure);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add);
+                    listener.onResponse(resolved);
                 }
+            }
 
-                // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
-                // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
-                // output must drop the physical column. The file (physical) schema is preserved so positional
-                // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
-                // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
-                // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
-                // queryDataSchema at the data-node SchemaAdaptingIterator guard.
-                //
-                // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
-                // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
-                // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
-                PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-                Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add);
-
-                List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
-                SourceMetadata firstMeta = allMetadata.get(firstFile);
-                // Pins are known only once every schema is in. Poison is sticky, and a SKIP_ROW pin drops the
-                // file's row count, which nulls the whole aggregate. Apply that to the accumulator here.
-                Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
-                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
-                    Set<String> pinnedColumns = pinnedColumnsOf(e.getValue());
-                    if (pinnedColumns.isEmpty() == false) {
-                        perFilePinnedColumns.put(e.getKey(), pinnedColumns);
-                    }
-                }
-                // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
-                // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
-                // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
-                boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
-                Map<String, Object> aggregatedStats = RunningFileStatsFold.applyPinnedColumns(
-                    fold.finish(),
-                    perFilePinnedColumns,
-                    dropPinnedRowCount
-                );
-                Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
-                for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
-                    Map<String, Object> meta = e.getValue().sourceMetadata();
-                    Object shape = meta == null ? null : meta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                    if (shape instanceof String str) {
-                        pathToReadConfig.put(e.getKey().toString(), str);
-                    }
-                }
-                aggregatedStats = applyDatasetAggregate(pathToReadConfig, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
-                ExternalSourceMetadata extMetadata = withSourceType(
-                    buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
-                    datasetFormat
-                );
-
-                // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
-                // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
-                extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
-                if (aggregatedStats == null && fileList.fileCount() > 1) {
-                    extMetadata = markStatsAsPartial(extMetadata);
-                }
-
-                if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-                    // ReservedPartitionNames.surface renames a layout key that collides with the
-                    // dedicated metadata namespace, so a partition column can never carry a bindable
-                    // metadata name into the schema the analyzer later binds against.
-                    assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
-                        : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
-                    // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
-                    // column that collides with a partition key (and emitted the one shadow warning), so the
-                    // post-shadow schema must be collision-free before enrich runs its own shadow detection.
-                    final ExternalSourceMetadata metaForAssert = extMetadata;
-                    assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
-                        : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
-                            + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
-                }
-
-                // _file.* columns are request-driven now; no auto-attach to the schema. See
-                // ResolveExternalRelations / the EXTERNAL shim.
-
-                Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
-                listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap));
-            } catch (Exception e) {
+            @Override
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }, listener::onFailure));
+        });
+    }
+
+    private static void closePrivateSchemaLists(@Nullable ExternalPlanningReservation.Run privateLists) {
+        if (privateLists != null) {
+            privateLists.close();
+        }
     }
 
     /**
@@ -2152,7 +2233,8 @@ public class ExternalSourceResolver {
     private static SchemaReconciliation.Result shadowPartitionCollisions(
         SchemaReconciliation.Result result,
         Set<String> partitionColumnNames,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        SchemaInterner schemaInterner
     ) {
         if (partitionColumnNames.isEmpty()) {
             return result;
@@ -2179,7 +2261,9 @@ public class ExternalSourceResolver {
             // Recompute the mapping against the data-only unified schema; the file (physical) schema is
             // unchanged so the reader still parses every column, including the shadowed one. Carry the pin's
             // inferredTypes forward so a Hive-partitioned glob keeps the pinned-column stats boundary.
-            ColumnMapping mapping = SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes());
+            ColumnMapping mapping = schemaInterner.intern(
+                SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes())
+            );
             perFileInfo.put(
                 entry.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics(), info.inferredTypes())
@@ -2199,10 +2283,12 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean cacheable,
         RunningFileStatsFold fold,
+        SchemaInterner schemaInterner,
+        @Nullable ExternalPlanningReservation.Run privateLists,
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, config, cacheable, fold, ActionListener.wrap(perFile -> {
+        gatherPerFile(fileList, config, cacheable, fold, schemaInterner, privateLists, ActionListener.wrap(perFile -> {
             Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
             for (int i = 0; i < fileCount; i++) {
                 result.put(fileList.path(i), perFile.get(i));
@@ -2228,6 +2314,18 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         ActionListener<List<SourceMetadata>> listener
     ) {
+        gatherPerFile(fileList, config, cacheable, fold, null, null, listener);
+    }
+
+    private void gatherPerFile(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        @Nullable RunningFileStatsFold fold,
+        @Nullable SchemaInterner schemaInterner,
+        @Nullable ExternalPlanningReservation.Run privateLists,
+        ActionListener<List<SourceMetadata>> listener
+    ) {
         int fileCount = fileList.fileCount();
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -2243,14 +2341,28 @@ public class ExternalSourceResolver {
                 return;
             }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
-                SourceMetadata stored = meta;
+                // Reconcile path only. Stats gathers pass a null interner and a null run: those lists are
+                // transient and must not be charged. Charge the raw list before wrapping. Canonicalize so
+                // schema() is the shared list; the wrapper still references the original metadata until the
+                // gather completion drops the file list.
+                if (privateLists != null) {
+                    List<Attribute> rawSchema = meta.schema();
+                    privateLists.charge(SchemaInterner.privateListBytes(rawSchema.size()));
+                    if (schemaGatherRunProbe != null) {
+                        schemaGatherRunProbe.accept(privateLists);
+                    }
+                }
                 if (fold != null) {
                     synchronized (fold) {
                         fold.accept(i, meta);
-                        if (fileCount > 1) {
-                            stored = RunningFileStatsFold.slim(meta);
-                        }
                     }
+                }
+                // slim does not touch fold state, so it stays outside the lock. Fold and slim the
+                // original metadata so its private schema list stays reachable for the planning
+                // charge. The canonical wrapper is applied after and forwards the rest.
+                SourceMetadata stored = fold != null && fileCount > 1 ? RunningFileStatsFold.slim(meta) : meta;
+                if (schemaInterner != null) {
+                    stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema()));
                 }
                 results.set(i, stored);
             }, e -> failure.compareAndSet(null, e)), releasable::close);
@@ -2275,21 +2387,81 @@ public class ExternalSourceResolver {
                 itemListener.onFailure(e);
             }
         }, metadataReadConcurrency, () -> {
-            Exception e = failure.get();
-            if (e != null) {
-                listener.onFailure(e);
-                return;
+            // This frame owns the file list. Closing earlier, in the reconcile listener, releases the run
+            // while this frame and readAllFileMetadata's map still hold every private list — and while
+            // overlay and the next path's listing are still running on this stack.
+            List<SourceMetadata> out = null;
+            try {
+                Exception e = failure.get();
+                if (e != null) {
+                    listener.onFailure(e);
+                    return;
+                }
+                out = new ArrayList<>(fileCount);
+                for (int i = 0; i < fileCount; i++) {
+                    out.add(results.get(i));
+                }
+                listener.onResponse(out);
+            } finally {
+                out = null;
+                for (int i = 0; i < fileCount; i++) {
+                    results.set(i, null);
+                }
+                closePrivateSchemaLists(privateLists);
             }
-            List<SourceMetadata> out = new ArrayList<>(fileCount);
-            for (int i = 0; i < fileCount; i++) {
-                out.add(results.get(i));
-            }
-            listener.onResponse(out);
         }, executor, e -> {
             // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the
             // failure rather than returning a partially-populated result.
             failure.compareAndSet(null, e);
         });
+    }
+
+    /**
+     * Replaces {@code metadata.schema()} with the canonical list and forwards the rest. The wrapper still
+     * references {@code metadata}, so that file's private attribute list stays reachable until the wrapper is dropped.
+     */
+    private static ExternalSourceMetadata withCanonicalSchema(SourceMetadata metadata, List<Attribute> schema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return metadata.statistics();
+            }
+
+            @Override
+            public List<String> warnings() {
+                return metadata.warnings();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return metadata.partitionColumns();
+            }
+        };
     }
 
     /**
@@ -2349,7 +2521,8 @@ public class ExternalSourceResolver {
      * decision happens on the first miss, before any put, so a refused listing never occupies a slot.
      * Later files follow the same decision: one listing shares a schema, and the first harvest is the
      * size estimate. A narrower first file can still admit a wider listing, and those puts can evict
-     * other datasets. Single-file resolves do not use this gate.
+     * other datasets. An estimate just under the whole schema budget is still admitted and can flush
+     * other datasets on its own. Single-file resolves do not use this gate.
      */
     private final class SchemaFanOutAdmission {
         private final int fileCount;
@@ -2378,26 +2551,43 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
-     * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
-     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; a file type
-     * that {@code TypeWidening.join}s to DOUBLE; numeric vs the KEYWORD non-widenable fallback) is folded in
-     * ONE type and served result-identical to a full scan, or safe-misses when a value cannot be normalized.
-     * {@code perFileTypes} maps each file's path to its footer or inferred column types (not a pinned or
-     * unified type); {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
-     * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
-     * <p>
-     * {@code perFilePinnedColumns} names, per file, the columns a text-format UNION_BY_NAME pin retyped above their
-     * inferred type (see {@link SchemaReconciliation#reconcileUnionByName}). Their cached per-file stats were harvested
-     * at the narrower read type, but the schema cache identity is read-schema-blind, so a stat harvested by a solo
-     * narrow read is shared with this widened read. That stat is not merely a wrong unit but a wrong value (the narrow
-     * read null-filled or row-dropped the out-of-sample cell that the wide read keeps), which normalization cannot
-     * rescue. So each pinned column is safe-missed via {@link SourceStatisticsSerializer#overlayPinnedColumnsOnStats}:
-     * its extrema are poisoned and its value/null counts dropped, and when {@code dropPinnedRowCount} (SKIP_ROW, where
-     * a narrow-read parse failure dropped the whole row) the file's row count is dropped too, forcing a full re-scan.
+     * Production reconciliation fold. Column types come from each file's schema; {@code perFileTypes} and
+     * {@code reconciledTypes} are the caller's view and are not re-applied. Pins are overlaid on the folded
+     * aggregate. The listing-order oracle is {@link #batchAggregateFileStatistics}.
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
+        FileList listing,
+        Map<StoragePath, SourceMetadata> allMetadata,
+        Map<StoragePath, Map<String, DataType>> perFileTypes,
+        Map<String, DataType> reconciledTypes,
+        Map<StoragePath, Set<String>> perFilePinnedColumns,
+        boolean dropPinnedRowCount,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNullsForAbsentColumn);
+        for (int i = 0; i < listing.fileCount(); i++) {
+            StoragePath path = listing.path(i);
+            SourceMetadata meta = allMetadata.get(path);
+            if (meta == null) {
+                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", path);
+                return null;
+            }
+            fold.accept(i, meta);
+        }
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("folded [{}] type maps against [{}] reconciled columns", perFileTypes.size(), reconciledTypes.size());
+        }
+        return RunningFileStatsFold.applyPinnedColumns(fold.finish(), perFilePinnedColumns, dropPinnedRowCount);
+    }
+
+    /**
+     * Listing-order reconciliation oracle. Normalizes each file's per-column min/max to the reconciled type
+     * before the cross-file fold, then overlays pins. Differential tests compare this to {@link RunningFileStatsFold}.
+     * Production calls {@link #aggregateFileStatistics}.
+     */
+    @Nullable
+    static Map<String, Object> batchAggregateFileStatistics(
         FileList listing,
         Map<StoragePath, SourceMetadata> allMetadata,
         Map<StoragePath, Map<String, DataType>> perFileTypes,
@@ -2435,21 +2625,41 @@ public class ExternalSourceResolver {
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
     }
 
-    /**
-     * FIRST_FILE_WINS fold. Footer files rewrite an unrepresentable column to the all-null contract;
-     * text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
-     * extrema so MIN/MAX scan. Counts that would describe a different read stay unknown rather than
-     * becoming implicit zeros. Split stamps are raw harvests; {@link #alignHarvestWithAnchorTypes}
-     * and {@link SourceStatisticsSerializer#alignHarvestWithFold} reapply this file's rewrite and
-     * the fold's unservability. {@code allMetadata.get(0)} is the anchor.
-     */
+    /** Production FIRST_FILE_WINS fold of {@code allMetadata}. */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
     }
 
+    /** Production FIRST_FILE_WINS fold. The listing-order oracle is {@link #batchAggregateFileStatistics}. */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
+        List<SourceMetadata> allMetadata,
+        boolean implicitNullsForAbsentColumn,
+        Set<String> declaredTypeColumns
+    ) {
+        if (allMetadata.isEmpty()) {
+            return null;
+        }
+        RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
+            attributesToTypeMap(allMetadata.get(0).schema()),
+            implicitNullsForAbsentColumn,
+            declaredTypeColumns
+        );
+        for (int i = 0; i < allMetadata.size(); i++) {
+            fold.accept(i, allMetadata.get(i));
+        }
+        return fold.finish();
+    }
+
+    /**
+     * Listing-order FIRST_FILE_WINS oracle. Footer files rewrite an unrepresentable column to the all-null
+     * contract; text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
+     * extrema. {@code allMetadata.get(0)} is the anchor. Differential tests compare this to
+     * {@link RunningFileStatsFold}.
+     */
+    @Nullable
+    static Map<String, Object> batchAggregateFileStatistics(
         List<SourceMetadata> allMetadata,
         boolean implicitNullsForAbsentColumn,
         Set<String> declaredTypeColumns
@@ -3410,7 +3620,7 @@ public class ExternalSourceResolver {
 
         // Per-query nullability: a partition column is non-nullable when no file in the matched
         // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
-        // to null in PartitionMetadata#filePartitionValues, so this is precise rather than
+        // to null in PartitionMetadata value rows, so this is precise rather than
         // pessimistic. The same dataset may yield different nullability across globs depending on
         // which files match.
         Set<String> nullableColumns = partitionMetadata.nullablePartitionColumns();
@@ -3962,6 +4172,47 @@ public class ExternalSourceResolver {
     static final Set<String> COERCING_FILE_TYPED_FORMATS = Set.of("parquet", "orc");
 
     /**
+     * Whether the schema this read produced is a <em>complete</em> column list — every column in the source is named —
+     * or a <em>sample-derived</em> one that may omit sparse or late-appearing columns.
+     * <p>
+     * File-typed formats (Parquet, ORC) derive their schema from the file footer, which is authoritative: every column
+     * the file contains is listed. CSV and TSV with a header row are complete for the same reason — the header names
+     * every column regardless of whether any sampled row carries a value. NDJSON and headerless CSV/TSV build their
+     * column set from a bounded prefix of records; a column whose first non-null value sits past the sample window is
+     * absent from the inferred schema even though the data has it.
+     * <p>
+     * A declared column absent from a complete schema is a typo the user wants reported. A declared column absent from
+     * a sample-derived schema may simply be sparse — it must not be rejected.
+     * <p>
+     * {@code header_row} defaults to {@code true} for CSV/TSV, so an absent key means complete.
+     */
+    private static boolean isSchemaComplete(String sourceType, Map<String, Object> config) {
+        if (FILE_TYPED_FORMATS.contains(sourceType)) {
+            return true;
+        }
+        if ("csv".equals(sourceType) || "tsv".equals(sourceType)) {
+            Object v = config != null ? config.get("header_row") : null;
+            return v == null || Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        }
+        if ("ndjson".equals(sourceType)) {
+            // Derives column list from a bounded sample prefix; a sparse field absent from the sample
+            // may still exist in later records.
+            return false;
+        }
+        // Unknown future format types default to complete: a missing declared column is an actionable
+        // error rather than silently accepted as a sparse-field surprise.
+        return true;
+    }
+
+    /**
+     * True for CSV and TSV files that have no header row — i.e., where {@link #isSchemaComplete} is
+     * {@code false} and the reader uses <em>positional</em> binding (column index == schema position).
+     */
+    private static boolean isHeaderlessCsvOrTsv(String sourceType, Map<String, Object> config) {
+        return ("csv".equals(sourceType) || "tsv".equals(sourceType)) && isSchemaComplete(sourceType, config) == false;
+    }
+
+    /**
      * The declaration-vs-source violations detectable without reading file content: a declared column colliding with a
      * hive partition key. Every declaration resolution path (strict single/multi and the non-strict overlay) funnels
      * through this one guard so enforcement stays uniform and a future path cannot silently skip a check. The
@@ -4112,15 +4363,26 @@ public class ExternalSourceResolver {
 
     /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
+     * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
+     * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
+     * <p>
+     * For sample-derived schemas ({@link #isSchemaComplete} is {@code false}), a declared column absent from the
+     * unified inferred schema is <em>appended</em> (returned in {@link DeclaredSchemaResolver.Overlaid#sampledOut()})
+     * rather than rejected — it may simply be a sparse field the sample window did not reach. The caller
+     * ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to {@link SchemaProvenance#DECLARED}
+     * for headerless CSV/TSV so that a {@code col<N>} name binds to physical field N rather than schema position N.
+     * </p>
      */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        SchemaInterner schemaInterner
     ) {
         final ExternalSourceMetadata inferred = resolved.metadata();
+        // Multi-file already set the listing credit. A single file never took that credit. Crediting one
+        // file's 760 still bills a normal declared overlay once the shape passes about five columns.
+        // No credit means overflow stays 0.
+        schemaInterner.ensureAllowance(Long.MAX_VALUE);
         PartitionMetadata partitionMetadata = resolved.fileList() != null ? resolved.fileList().partitionMetadata() : null;
         // Partition collision: the same guard the strict paths run. The inferred schema already carries the partition
         // columns, so a declared column colliding with a partition key would overlay/retype it and misbind at read time.
@@ -4132,8 +4394,25 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
-        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        boolean schemaIsComplete = isSchemaComplete(inferred.sourceType(), inferred.config());
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(
+            inferred.schema(),
+            declaredMapping,
+            false,
+            schemaIsComplete
+        );
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
+        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath): when sampledOut columns
+        // exist for a headerless CSV/TSV format the fingerprint must hash DECLARED provenance so it matches what
+        // the data-node's read will produce.
+        if (unified.sampledOut().isEmpty() == false && isHeaderlessCsvOrTsv(inferred.sourceType(), inferred.config())) {
+            declaredReadSpec = DeclaredReadSpec.of(
+                declaredReadSpec.renames(),
+                declaredReadSpec.dateFormats(),
+                declaredReadSpec.declaredTypeColumns(),
+                SchemaProvenance.DECLARED
+            );
+        }
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
@@ -4155,8 +4434,8 @@ public class ExternalSourceResolver {
                 }
                 DataType declaredType = overlaidTypes.get(logical);
                 DataType inferredType = inferredTypes.get(physical);
-                // inferredType == null is unreachable (overlayNonStrict(lenient=false) above rejects a declared column
-                // absent from the unified schema), but poison defensively rather than trust an unkeyed stat.
+                // inferredType == null: declared column was absent from the sample (sparse field in a sample-derived
+                // schema). No inferred stat exists, so poison to prevent stale pushdowns from a missing-column entry.
                 if (me.getValue().format() != null || inferredType == null || inferredType != declaredType) {
                     poisonColumns.add(logical);
                 }
@@ -4203,15 +4482,40 @@ public class ExternalSourceResolver {
                 declaredMapping,
                 true
             );
-            String perFileReadConfig = ReadConfigFingerprint.of(perFile.fileSchema(), declaredReadSpec);
+            // Sampled-out declared columns (absent from the unified inferred schema because the sample did not reach
+            // them) are appended to every per-file schema. For NDJSON the reader always resolves field values by
+            // JSON key; for headerless CSV/TSV resolveNextPath upgrades provenance to DECLARED so the reader uses
+            // headerlessFieldIndex (col<N> → position N) rather than schema-position N — giving the same by-name
+            // semantics. In both cases, rows that do not carry the field null-fill the slot.
+            // Under union-by-name, sampledOut() is empty whenever the column appeared in at least one file's
+            // inferred schema — the lenient per-file overlay correctly skips truly absent columns in the other
+            // files, leaving their column-mapping slots as null-fill, which is the intended behavior.
+            List<Attribute> perFileSchema;
+            if (unified.sampledOut().isEmpty()) {
+                perFileSchema = perFile.fileSchema();
+            } else {
+                ArrayList<Attribute> extended = new ArrayList<>(perFile.fileSchema());
+                extended.addAll(unified.sampledOut());
+                perFileSchema = List.copyOf(extended);
+            }
+            String perFileReadConfig = ReadConfigFingerprint.of(perFileSchema, declaredReadSpec);
             if (expectedReadConfig == null) {
                 expectedReadConfig = perFileReadConfig;
             } else if (expectedReadConfig.equals(perFileReadConfig) == false) {
                 perFileReadConfigsDisagree = true;
             }
-            ColumnMapping mapping = hasDeclaredColumns
-                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
-                : info.mapping();
+            // Rebuild would mint a fresh ExternalSchema and ColumnMapping per file and drop the sharing reconcile
+            // just established. Fold the overlaid shape, including any appended sampled-out columns, and the
+            // mapping back into the path interner.
+            List<Attribute> canonical = schemaInterner.canonicalize(perFileSchema);
+            ColumnMapping mapping;
+            if (hasDeclaredColumns) {
+                mapping = schemaInterner.intern(SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, canonical));
+            } else if (info.mapping() != null) {
+                mapping = schemaInterner.intern(info.mapping());
+            } else {
+                mapping = null;
+            }
             // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
             // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
             // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
@@ -4231,7 +4535,7 @@ public class ExternalSourceResolver {
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(perFile.fileSchema()),
+                    schemaInterner.intern(canonical),
                     mapping,
                     info.statistics(),
                     preRetypeInferredTypes

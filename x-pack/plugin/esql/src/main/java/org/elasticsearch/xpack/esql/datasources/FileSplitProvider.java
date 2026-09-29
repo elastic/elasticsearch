@@ -700,11 +700,8 @@ public class FileSplitProvider implements SplitProvider {
             } else {
                 Map<String, Object> values = new LinkedHashMap<>();
                 if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                    if (filePartitions != null) {
-                        // Copy references only. Do not mutate the listing map.
-                        values.putAll(filePartitions);
-                    }
+                    // Copy references only. Do not mutate the listing arrays.
+                    partitionInfo.putValues(i, filePath, values);
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
@@ -809,12 +806,17 @@ public class FileSplitProvider implements SplitProvider {
     ) {
         LinkedHashMap<String, Object> kept = null;
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-            Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-            if (filePartitions != null) {
-                for (Map.Entry<String, Object> entry : filePartitions.entrySet()) {
-                    if (entry.getValue() != null && retained.contains(entry.getKey())) {
-                        kept = putRetained(kept, entry.getKey(), entry.getValue());
+            int resolved = partitionInfo.resolveFileIndex(index, filePath);
+            if (resolved >= 0) {
+                int column = 0;
+                for (String key : partitionInfo.partitionColumns().keySet()) {
+                    if (retained.contains(key)) {
+                        Object value = partitionInfo.getValueAt(resolved, column);
+                        if (value != null) {
+                            kept = putRetained(kept, key, value);
+                        }
                     }
+                    column++;
                 }
             }
         }
@@ -2283,14 +2285,6 @@ public class FileSplitProvider implements SplitProvider {
      * The format reader reads file metadata (e.g. Parquet footer) to discover independently
      * readable byte ranges. Returns true if range-aware splits were created.
      */
-    private static boolean singleUnitHarvest(@Nullable SourceStatistics fileStatistics) {
-        if (fileStatistics == null || fileStatistics.readableUnitCount().orElse(-1) != 1) {
-            return false;
-        }
-        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = fileStatistics.columnStatistics();
-        return columns.isPresent() && columns.get().isEmpty() == false;
-    }
-
     private boolean tryRangeAwareSplits(
         StoragePath filePath,
         long fileLength,
@@ -2387,6 +2381,15 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         }
+    }
+
+    /** A one-unit harvest can skip a second footer open only when it still carries column stats. */
+    private static boolean singleUnitHarvest(@Nullable SourceStatistics fileStatistics) {
+        if (fileStatistics == null || fileStatistics.readableUnitCount().orElse(-1) != 1) {
+            return false;
+        }
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = fileStatistics.columnStatistics();
+        return columns.isPresent() && columns.get().isEmpty() == false;
     }
 
     private void tryRangeAwareSplitsAsync(

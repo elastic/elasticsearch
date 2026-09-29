@@ -25,9 +25,10 @@ import java.util.Set;
 
 /**
  * Folds one file's harvest into a single relation-level {@code _stats} map and then drops that file's
- * column statistics. The result matches {@link ExternalSourceResolver#aggregateFileStatistics} for the
- * same files, including when completions arrive out of listing order: a widened running type is rescaled
- * with {@link SourceStatisticsSerializer#normalizeStatsToReconciled} before the next file joins, and the
+ * column statistics. Production reconciliation and FIRST_FILE_WINS gathers use this fold.
+ * {@link ExternalSourceResolver#batchAggregateFileStatistics} is the listing-order oracle the differential
+ * tests compare against. A widened running type is rescaled with
+ * {@link SourceStatisticsSerializer#normalizeStatsToReconciled} before the next file joins, and the
  * cross-file arithmetic is {@link SplitStats#fold}.
  * <p>
  * Not thread-safe. The gather calls {@link #accept} under one lock.
@@ -101,7 +102,7 @@ final class RunningFileStatsFold {
         }
         Map<String, Object> flat = ExternalSourceResolver.flatStatsOf(meta);
         if (flat == null) {
-            fail(meta.location());
+            fail(meta.location(), "has no statistics");
             return;
         }
         noteIdentity(flat);
@@ -111,7 +112,7 @@ final class RunningFileStatsFold {
         }
         SplitStats stats = SplitStats.of(flat);
         if (stats == null) {
-            fail(meta.location());
+            fail(meta.location(), "has no row count");
             return;
         }
         if (accumulator == null) {
@@ -122,7 +123,7 @@ final class RunningFileStatsFold {
         accumulator = SplitStats.fold(List.of(accumulator, stats), implicitNullsForAbsentColumn);
         single = null;
         if (accumulator == null) {
-            fail(meta.location());
+            fail(meta.location(), "fold returned no aggregate");
         }
     }
 
@@ -145,8 +146,9 @@ final class RunningFileStatsFold {
 
     /**
      * Reconciliation pins, applied to the finished accumulator. A {@code SKIP_ROW} pin drops that file's row
-     * count and therefore the whole aggregate. Otherwise the union of pinned columns is poisoned on the
-     * accumulator: poison is sticky, so this matches overlaying each file before {@code mergeStatistics}.
+     * count and therefore the whole aggregate. Otherwise pinned columns that are still present are poisoned
+     * on the accumulator. A pin whose column the fold already dropped (text, implicit nulls off, column
+     * absent from a non-empty file) is not put back: overlay-then-merge drops it too.
      */
     @Nullable
     static Map<String, Object> applyPinnedColumns(
@@ -162,7 +164,11 @@ final class RunningFileStatsFold {
         for (Set<String> pinned : perFilePinnedColumns.values()) {
             if (pinned != null && pinned.isEmpty() == false) {
                 anyPin = true;
-                union.addAll(pinned);
+                for (String column : pinned) {
+                    if (columnPresent(aggregated, column)) {
+                        union.add(column);
+                    }
+                }
             }
         }
         if (anyPin == false) {
@@ -171,7 +177,21 @@ final class RunningFileStatsFold {
         if (dropPinnedRowCount) {
             return null;
         }
+        if (union.isEmpty()) {
+            return aggregated;
+        }
         return SourceStatisticsSerializer.overlayPinnedColumnsOnStats(aggregated, union, false);
+    }
+
+    /** Exact stat-key match. A prefix check would treat a pin on {@code a} as present because of {@code a.b}. */
+    private static boolean columnPresent(Map<String, Object> stats, String column) {
+        return stats.containsKey(SourceStatisticsSerializer.columnMinKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnMaxKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnValueCountKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnNullCountKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnSizeBytesKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnMinUnservableKey(column))
+            || stats.containsKey(SourceStatisticsSerializer.columnMaxUnservableKey(column));
     }
 
     /**
@@ -236,7 +256,7 @@ final class RunningFileStatsFold {
             );
             accumulator = SplitStats.of(rescaled);
             if (accumulator == null) {
-                fail(meta.location());
+                fail(meta.location(), "rescale dropped the row count");
                 return flat;
             }
         }
@@ -271,11 +291,11 @@ final class RunningFileStatsFold {
         allLicensed &= Boolean.TRUE.equals(flat.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
     }
 
-    private void fail(String location) {
+    private void fail(String location, String reason) {
         failed = true;
         accumulator = null;
         single = null;
-        logger.debug("multi-file stats aggregate incomplete: [{}] has no statistics", location);
+        logger.debug("multi-file stats aggregate incomplete: [{}] {}", location, reason);
     }
 
     private static void copyFileLevel(Map<String, Object> from, Map<String, Object> to, String key) {

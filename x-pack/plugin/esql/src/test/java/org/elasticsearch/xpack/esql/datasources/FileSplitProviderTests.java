@@ -1994,10 +1994,65 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(3000000000L, left.get("id"));
         assertSame(left.get(FileMetadataColumns.DIRECTORY), right.get(FileMetadataColumns.DIRECTORY));
         assertNotSame(left.get(FileMetadataColumns.PATH), right.get(FileMetadataColumns.PATH));
-        Map<String, Object> listed = meta.filePartitionValues().get(first.path());
-        assertSame(listed.get("year"), left.get("year"));
-        assertFalse(listed.containsKey(FileMetadataColumns.PATH));
+        assertSame(meta.getValue(0, "year"), left.get("year"));
         assertNull(left.get(FileMetadataColumns.MODIFIED));
+    }
+
+    /**
+     * A directory-grouped listing stores one partition row per directory and maps files to it by position.
+     * Every split must still carry its own directory's values on the filter path, the unfiltered path and
+     * the known-projection path, which each read the shared rows differently.
+     * <p>
+     * The shared rows are built directly so the check does not depend on which encoding the compactor picks
+     * by size; the compacted listing is then checked the same way, whichever encoding it ended up with.
+     */
+    public void testSharedRowsResolvePerFileValues() {
+        String base = "s3://bucket/data/";
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/a.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/b.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/c.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=2/d.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=2/e.parquet"), 100, Instant.EPOCH)
+        );
+        PartitionMetadata detected = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        FileList raw = GlobExpander.fileListOf(entries, base + "**/*.parquet", detected);
+
+        PartitionMetadata shared = detected.shareByGroups(new short[] { 0, 0, 0, 1, 1 }, 2);
+        assertEquals(5, shared.fileCount());
+        assertEquals("one row per directory", 2, shared.rowCount());
+        assertPerFileMonthValues(raw, shared, base);
+
+        FileList compacted = GlobExpander.compact(raw, base);
+        assertEquals(5, compacted.partitionMetadata().fileCount());
+        assertPerFileMonthValues(compacted, compacted.partitionMetadata(), base);
+    }
+
+    private void assertPerFileMonthValues(FileList listing, PartitionMetadata metadata, String base) {
+        List<ExternalSplit> all = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, List.of())).splits();
+        assertEquals(5, all.size());
+        for (ExternalSplit s : all) {
+            FileSplit split = (FileSplit) s;
+            int expectedMonth = split.path().toString().contains("/month=1/") ? 1 : 2;
+            assertEquals(split.path().toString(), expectedMonth, split.partitionValues().get("month"));
+            assertEquals(2024, split.partitionValues().get("year"));
+        }
+
+        List<Expression> filters = List.of(new Equals(SRC, fieldAttr("month"), intLiteral(2)));
+        List<ExternalSplit> filtered = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, filters))
+            .splits();
+        assertEquals(
+            List.of(StoragePath.of(base + "year=2024/month=2/d.parquet"), StoragePath.of(base + "year=2024/month=2/e.parquet")),
+            filtered.stream().map(s -> ((FileSplit) s).path()).toList()
+        );
+
+        List<ExternalSplit> projected = provider.discoverSplits(retainedContext(listing, metadata, Set.of("month"), List.of())).splits();
+        assertEquals(5, projected.size());
+        for (ExternalSplit s : projected) {
+            FileSplit split = (FileSplit) s;
+            int expectedMonth = split.path().toString().contains("/month=1/") ? 1 : 2;
+            assertEquals(split.path().toString(), Map.of("month", expectedMonth), split.partitionValues());
+        }
     }
 
     private static int probeConcurrencyFor(Settings settings) {

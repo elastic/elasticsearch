@@ -539,9 +539,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159460
-- class: org.elasticsearch.index.shard.IndexShardIT
-  method: testNodeWriteLoadsArePresent
-  issue: https://github.com/elastic/elasticsearch/issues/159553
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
@@ -687,3 +684,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
   issue: https://github.com/elastic/elasticsearch/issues/160440
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreContainerTests
+  method: testConcurrentWriteBlobAtomicAborted
+  issue: https://github.com/elastic/elasticsearch/issues/160508

@@ -147,7 +147,7 @@ public class PartitionDetectionSettingTests extends ESTestCase {
         );
         PartitionMetadata md = listing.partitionMetadata();
         assertNotNull("template detection must produce partition metadata", md);
-        Object year = md.filePartitionValues().values().iterator().next().get("year");
+        Object year = md.getValue(0, "year");
         assertEquals("the literal segment [junk] must anchor, so year binds the 2024 directory", 2024, year);
     }
 

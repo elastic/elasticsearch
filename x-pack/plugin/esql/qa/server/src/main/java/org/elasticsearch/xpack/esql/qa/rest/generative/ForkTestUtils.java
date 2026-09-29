@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
@@ -53,6 +54,7 @@ public class ForkTestUtils {
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_FORK.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.capabilityName())
+                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.capabilityName())
         );
         assumeFalse(
             "Tests using PROMQL are not supported for now",

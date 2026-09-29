@@ -638,10 +638,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO. Each file builds one temporary map
-     * (hive values copied by reference, {@code _file.*} written in place) so filter hints see every
-     * listing key. The map frozen onto the survivor is that temporary map when the projection is
-     * unknown, otherwise only the retained keys with a non-null value. No {@link FileTask}.
+     * Phase 1: sequential in-memory filter. No object-store IO. The filter loop reuses one scratch map
+     * (hive values copied by reference, {@code _file.*} written in place) so hints see every listing key.
+     * The map stored on the survivor is never that scratch: files in one directory share one unmodifiable
+     * tuple of directory-constant keys, and per-file keys sit on a {@link LayeredPartitionMap}. No {@link FileTask}.
      */
     private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
@@ -659,6 +659,7 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionValueLayout layout = PartitionValueLayout.of(retainedPartitionKeys, partitionInfo);
 
         int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
@@ -669,8 +670,11 @@ public class FileSplitProvider implements SplitProvider {
         // retain it, including an empty retain set, must not hold every parent BytesRef until this method
         // returns. Full path URIs are never interned. Filters that read directory still see a per-file value.
         boolean knownProjectionWithoutFilter = retainedPartitionKeys != null && filterHints.isEmpty();
-        boolean keepDirectory = retainedPartitionKeys == null || retainedPartitionKeys.contains(FileMetadataColumns.DIRECTORY);
+        boolean keepDirectory = layout.directoryKeys().contains(FileMetadataColumns.DIRECTORY);
         Map<String, BytesRef> directoryIntern = keepDirectory ? new HashMap<>() : null;
+        Map<String, Integer> hiveColumnIndex = hiveColumnIndex(partitionInfo);
+        Map<String, Map<String, Object>> directoryTuples = new HashMap<>();
+        LinkedHashMap<String, Object> scratch = new LinkedHashMap<>();
         int survivors = 0;
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
@@ -694,20 +698,29 @@ public class FileSplitProvider implements SplitProvider {
             Map<String, Object> frozen;
             if (knownProjectionWithoutFilter) {
                 // No hint reads the listing map, so only the retained keys are built. An empty set is Map.of().
-                frozen = retainedPartitionKeys.isEmpty()
+                frozen = layout.isEmpty()
                     ? Map.of()
-                    : retainedListingValues(filePath, fileList, i, partitionInfo, retainedPartitionKeys, directoryIntern);
+                    : composeSurvivorPartitionMap(
+                        filePath,
+                        fileList,
+                        i,
+                        partitionInfo,
+                        layout,
+                        hiveColumnIndex,
+                        directoryIntern,
+                        directoryTuples
+                    );
             } else {
-                Map<String, Object> values = new LinkedHashMap<>();
+                scratch.clear();
                 if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                     // Copy references only. Do not mutate the listing arrays.
-                    partitionInfo.putValues(i, filePath, values);
+                    partitionInfo.putValues(i, filePath, scratch);
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
-                FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
-                // Filter against the full listing map. The frozen survivor map may drop keys the hint still needs.
-                Map<String, Object> listingValues = Collections.unmodifiableMap(values);
+                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, directoryIntern);
+                // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
+                Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
                 if (filterHints.isEmpty() == false) {
@@ -732,7 +745,18 @@ public class FileSplitProvider implements SplitProvider {
                         }
                     }
                 }
-                frozen = freezeRetainedPartitionValues(listingValues, retainedPartitionKeys);
+                frozen = layout.isEmpty()
+                    ? Map.of()
+                    : composeSurvivorPartitionMap(
+                        filePath,
+                        fileList,
+                        i,
+                        partitionInfo,
+                        layout,
+                        hiveColumnIndex,
+                        directoryIntern,
+                        directoryTuples
+                    );
             }
 
             long fileLength = fileList.size(i);
@@ -761,104 +785,128 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * {@code retainedKeys == null} keeps {@code listingValues} unchanged (unknown projection).
-     * Otherwise only retained keys with a non-null value are copied. A missing key and an explicit
-     * null both read back as {@code null}, so dropping them lets an empty projection be {@link Map#of()}.
+     * Directory-constant keys are interned per parent directory. Hive values are directory-bound; a file whose
+     * tuple disagrees keeps a private map, and later files that match the first tuple still share it. Per-file
+     * keys sit on an overlay. An empty overlay returns the shared tuple itself so siblings stay {@code ==}.
      */
-    private static Map<String, Object> freezeRetainedPartitionValues(
-        Map<String, Object> listingValues,
-        @Nullable Set<String> retainedKeys
-    ) {
-        if (retainedKeys == null) {
-            return listingValues;
-        }
-        if (retainedKeys.isEmpty()) {
-            return Map.of();
-        }
-        LinkedHashMap<String, Object> kept = null;
-        for (String key : retainedKeys) {
-            Object value = listingValues.get(key);
-            if (value != null) {
-                if (kept == null) {
-                    kept = new LinkedHashMap<>();
-                }
-                kept.put(key, value);
-            }
-        }
-        if (kept == null) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(kept);
-    }
-
-    /**
-     * Partition map for a known projection and no filter hint. Hive values are copied by reference.
-     * File-metadata keys are written only when retained, and {@code _file.directory} is the only key
-     * that consults {@code directoryIntern}.
-     */
-    private static Map<String, Object> retainedListingValues(
+    private static Map<String, Object> composeSurvivorPartitionMap(
         StoragePath filePath,
         FileList fileList,
         int index,
         @Nullable PartitionMetadata partitionInfo,
-        Set<String> retained,
-        @Nullable Map<String, BytesRef> directoryIntern
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        @Nullable Map<String, BytesRef> directoryIntern,
+        Map<String, Map<String, Object>> directoryTuples
     ) {
-        LinkedHashMap<String, Object> kept = null;
+        boolean keepNulls = layout.keepNulls();
+        LinkedHashMap<String, Object> directory = new LinkedHashMap<>();
+        int resolved = -1;
         if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-            int resolved = partitionInfo.resolveFileIndex(index, filePath);
-            if (resolved >= 0) {
-                int column = 0;
-                for (String key : partitionInfo.partitionColumns().keySet()) {
-                    if (retained.contains(key)) {
-                        Object value = partitionInfo.getValueAt(resolved, column);
-                        if (value != null) {
-                            kept = putRetained(kept, key, value);
-                        }
+            resolved = partitionInfo.resolveFileIndex(index, filePath);
+        }
+        for (String key : layout.directoryKeys()) {
+            if (key.equals(FileMetadataColumns.DIRECTORY)) {
+                putDirectory(directory, filePath, keepNulls, directoryIntern);
+            } else if (resolved >= 0) {
+                Integer column = hiveColumnIndex.get(key);
+                if (column != null) {
+                    Object value = partitionInfo.getValueAt(resolved, column);
+                    if (value != null || keepNulls) {
+                        directory.put(key, value);
                     }
-                    column++;
                 }
             }
         }
-        if (retained.contains(FileMetadataColumns.PATH)) {
-            kept = putRetained(kept, FileMetadataColumns.PATH, new BytesRef(filePath.toString()));
-        }
-        if (retained.contains(FileMetadataColumns.NAME)) {
-            kept = putRetained(kept, FileMetadataColumns.NAME, new BytesRef(filePath.objectName()));
-        }
-        if (retained.contains(FileMetadataColumns.DIRECTORY)) {
-            StoragePath parent = filePath.parentDirectory();
-            if (parent != null) {
-                String parentText = parent.toString();
-                BytesRef directory = directoryIntern.get(parentText);
-                if (directory == null) {
-                    directory = new BytesRef(parentText);
-                    directoryIntern.put(parentText, directory);
+        LinkedHashMap<String, Object> overlay = new LinkedHashMap<>();
+        for (String key : layout.perFileKeys()) {
+            switch (key) {
+                case FileMetadataColumns.PATH -> overlay.put(key, new BytesRef(filePath.toString()));
+                case FileMetadataColumns.NAME -> overlay.put(key, new BytesRef(filePath.objectName()));
+                case FileMetadataColumns.SIZE -> overlay.put(key, fileList.size(index));
+                case FileMetadataColumns.MODIFIED -> {
+                    long modifiedMillis = fileList.lastModifiedMillis(index);
+                    if (modifiedMillis != 0L) {
+                        overlay.put(key, modifiedMillis);
+                    } else if (keepNulls) {
+                        overlay.put(key, null);
+                    }
                 }
-                kept = putRetained(kept, FileMetadataColumns.DIRECTORY, directory);
+                default -> throw new IllegalStateException("unexpected per-file partition key [" + key + "]");
             }
         }
-        if (retained.contains(FileMetadataColumns.SIZE)) {
-            kept = putRetained(kept, FileMetadataColumns.SIZE, fileList.size(index));
-        }
-        if (retained.contains(FileMetadataColumns.MODIFIED)) {
-            long modifiedMillis = fileList.lastModifiedMillis(index);
-            if (modifiedMillis != 0L) {
-                kept = putRetained(kept, FileMetadataColumns.MODIFIED, modifiedMillis);
-            }
-        }
-        if (kept == null) {
+        if (directory.isEmpty() && overlay.isEmpty()) {
             return Map.of();
         }
-        return Collections.unmodifiableMap(kept);
+        if (directory.isEmpty()) {
+            return Collections.unmodifiableMap(overlay);
+        }
+        Map<String, Object> shared = internDirectoryTuple(filePath, directory, directoryTuples);
+        if (overlay.isEmpty()) {
+            return shared;
+        }
+        return new LayeredPartitionMap(shared, Collections.unmodifiableMap(overlay));
     }
 
-    private static LinkedHashMap<String, Object> putRetained(LinkedHashMap<String, Object> kept, String key, Object value) {
-        if (kept == null) {
-            kept = new LinkedHashMap<>();
+    private static Map<String, Integer> hiveColumnIndex(@Nullable PartitionMetadata partitionInfo) {
+        if (partitionInfo == null || partitionInfo.isEmpty()) {
+            return Map.of();
         }
-        kept.put(key, value);
-        return kept;
+        Map<String, Integer> index = new HashMap<>();
+        int column = 0;
+        for (String key : partitionInfo.partitionColumns().keySet()) {
+            index.put(key, column++);
+        }
+        return index;
+    }
+
+    private static void putDirectory(
+        LinkedHashMap<String, Object> directory,
+        StoragePath filePath,
+        boolean keepNulls,
+        @Nullable Map<String, BytesRef> directoryIntern
+    ) {
+        StoragePath parent = filePath.parentDirectory();
+        if (parent == null) {
+            if (keepNulls) {
+                directory.put(FileMetadataColumns.DIRECTORY, null);
+            }
+            return;
+        }
+        String parentText = parent.toString();
+        BytesRef directoryRef;
+        if (directoryIntern == null) {
+            directoryRef = new BytesRef(parentText);
+        } else {
+            directoryRef = directoryIntern.get(parentText);
+            if (directoryRef == null) {
+                directoryRef = new BytesRef(parentText);
+                directoryIntern.put(parentText, directoryRef);
+            }
+        }
+        directory.put(FileMetadataColumns.DIRECTORY, directoryRef);
+    }
+
+    /**
+     * One unmodifiable tuple per parent directory. The first file publishes it. A later file with the same
+     * values reuses it; a disagreement keeps a private map for that file only.
+     */
+    private static Map<String, Object> internDirectoryTuple(
+        StoragePath filePath,
+        LinkedHashMap<String, Object> directory,
+        Map<String, Map<String, Object>> directoryTuples
+    ) {
+        StoragePath parent = filePath.parentDirectory();
+        String parentKey = parent == null ? null : parent.toString();
+        Map<String, Object> existing = directoryTuples.get(parentKey);
+        if (existing != null && existing.equals(directory)) {
+            return existing;
+        }
+        Map<String, Object> frozen = Collections.unmodifiableMap(directory);
+        if (existing == null && directoryTuples.containsKey(parentKey) == false) {
+            directoryTuples.put(parentKey, frozen);
+        }
+        return frozen;
     }
 
     @Nullable

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -79,9 +80,11 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -107,8 +110,6 @@ import static org.mockito.Mockito.when;
  */
 public class ExternalPlanningBreakerTests extends ESTestCase {
 
-    private static final long PHASE2_BYTES_PER_FILE = 1160L;
-
     public void testLocalPhase2ChargesResolvedFilesBeforeDiscovery() throws Exception {
         AtomicInteger discoveries = new AtomicInteger();
         CircuitBreaker breaker = requestBreaker("1gb");
@@ -123,9 +124,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
+        long phase2 = ComputeService.phase2Bytes(exec.output(), exec.fileList());
+        assertEquals(2 * ComputeService.SHELL_BYTES, phase2);
         assertEquals(1, discoveries.get());
-        assertEquals(baseline + 2 * PHASE2_BYTES_PER_FILE, breaker.getUsed());
-        assertEquals(2 * PHASE2_BYTES_PER_FILE, run.held());
+        assertEquals(baseline + phase2, breaker.getUsed());
+        assertEquals(phase2, run.held());
     }
 
     public void testLocalPhase2TripsBeforeDiscoveryAndLeavesLedgerAtZero() {
@@ -153,7 +156,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         long baseline = breaker.getUsed();
         ComputeService service = service(breaker, discoveries);
         EsqlExecutionInfo info = executionInfo();
-        FragmentExec fragment = new FragmentExec(relation(resolvedFiles(3), Map.of()));
+        ExternalRelation external = relation(resolvedFiles(3), Map.of());
+        FragmentExec fragment = new FragmentExec(external);
         assertFalse(ComputeService.canSkipSplitDiscovery(fragment, service.formatReaderRegistry()));
         ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
@@ -161,9 +165,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(fragment, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
+        long phase2 = ComputeService.phase2Bytes(external.output(), external.fileList());
+        assertEquals(3 * ComputeService.SHELL_BYTES, phase2);
         assertEquals(1, discoveries.get());
-        assertEquals(baseline + 3 * PHASE2_BYTES_PER_FILE, breaker.getUsed());
-        assertEquals(3 * PHASE2_BYTES_PER_FILE, run.held());
+        assertEquals(baseline + phase2, breaker.getUsed());
+        assertEquals(phase2, run.held());
     }
 
     public void testFragmentWorkTripsBeforeDiscoveryAndLeavesLedgerAtZero() {
@@ -249,7 +255,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(exec, configuration(), info, () -> false, first, phase2);
         phase2.actionGet(30, TimeUnit.SECONDS);
 
-        long seam2 = listing.fileCount() * PHASE2_BYTES_PER_FILE;
+        long seam2 = ComputeService.phase2Bytes(exec.output(), listing);
+        assertEquals(listing.fileCount() * ComputeService.SHELL_BYTES, seam2);
         assertEquals(1, discoveries.get());
         assertEquals(seam2, first.held());
         assertEquals(seam1, reservation.queryHeld());
@@ -271,6 +278,38 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(0L, reservation.queryHeld());
         assertEquals(0L, second.held());
         assertEquals(baseline, breaker.getUsed());
+    }
+
+    /** No hive columns and no {@code _file.*} metadata: the survivor map is {@code Map.of()}, so only shells are billed. */
+    public void testNoRetainedKeysBillsShellsOnly() {
+        FileList files = resolvedFiles(4);
+        ExternalRelation external = relation(files, Map.of());
+        long charge = ComputeService.phase2Bytes(external.output(), files);
+        assertEquals(4 * ComputeService.SHELL_BYTES, charge);
+        assertNotEquals(4 * 1160L, charge);
+    }
+
+    /** Two files, one shared row, one projected hive column: one map, plus a shell per file. */
+    public void testSharedHiveColumnBillsOneMap() {
+        PartitionMetadata shared = hiveColumns(1, 2, true);
+        FileList files = resolvedFiles(2, shared);
+        List<Attribute> output = List.of(referenceAttribute("k0", DataType.INTEGER));
+        assertEquals(ComputeService.SHELL_BYTES * 2 + ComputeService.perMap(1), ComputeService.phase2Bytes(output, files));
+    }
+
+    /** Twenty unshared hive columns exceed the old flat 1160 bytes per file. */
+    public void testDeepUnsharedLayoutExceedsFlatAllowance() {
+        int files = 4;
+        long charge = ComputeService.phase2Bytes(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, false)));
+        assertThat(charge, greaterThan(1160L * files));
+    }
+
+    /** Twenty hive columns shared as one row bill that one map plus shells, under the old per-file allowance. */
+    public void testDeepSharedLayoutBillsOneMapPlusShells() {
+        int files = 30;
+        long charge = ComputeService.phase2Bytes(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, true)));
+        assertEquals(ComputeService.perMap(20) + ComputeService.SHELL_BYTES * files, charge);
+        assertTrue(charge < 1160L * files);
     }
 
     public void testReleaseReturnsSuccessAndFailureToBaseline() {
@@ -419,6 +458,10 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     private static FileList resolvedFiles(int count) {
+        return resolvedFiles(count, null);
+    }
+
+    private static FileList resolvedFiles(int count, PartitionMetadata metadata) {
         return new FileList() {
             @Override
             public int fileCount() {
@@ -446,8 +489,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             }
 
             @Override
-            public org.elasticsearch.xpack.esql.datasources.PartitionMetadata partitionMetadata() {
-                return null;
+            public PartitionMetadata partitionMetadata() {
+                return metadata;
             }
 
             @Override
@@ -465,6 +508,31 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
                 return 0L;
             }
         };
+    }
+
+    private static PartitionMetadata hiveColumns(int columns, int files, boolean shareOneRow) {
+        LinkedHashMap<String, DataType> types = new LinkedHashMap<>();
+        Object[][] values = new Object[columns][];
+        for (int c = 0; c < columns; c++) {
+            types.put("k" + c, DataType.INTEGER);
+            Object[] column = new Object[files];
+            Arrays.fill(column, c);
+            values[c] = column;
+        }
+        PartitionMetadata raw = PartitionMetadata.columnar(types, values, files);
+        if (shareOneRow == false) {
+            return raw;
+        }
+        short[] groups = new short[files];
+        return raw.shareByGroups(groups, 1);
+    }
+
+    private static List<Attribute> hiveOutput(int columns) {
+        List<Attribute> output = new java.util.ArrayList<>(columns);
+        for (int c = 0; c < columns; c++) {
+            output.add(referenceAttribute("k" + c, DataType.INTEGER));
+        }
+        return output;
     }
 
     private static Configuration configuration() {

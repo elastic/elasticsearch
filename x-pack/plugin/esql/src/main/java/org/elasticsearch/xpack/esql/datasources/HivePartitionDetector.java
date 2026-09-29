@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,46 +73,44 @@ public final class HivePartitionDetector implements PartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        List<Map<String, String>> allRawPartitions = consistentPartitions(files);
-        if (allRawPartitions == null) {
+        // One scratch map, cleared per file, decides the key set. The maps are not retained.
+        LinkedHashMap<String, String> scratch = new LinkedHashMap<>();
+        LinkedHashSet<String> referenceKeys = consistentKeys(files, scratch);
+        if (referenceKeys == null) {
             return PartitionMetadata.EMPTY;
         }
-        Set<String> referenceKeys = allRawPartitions.get(0).keySet();
 
         Map<String, String> surfacedNames = surfacedNames(referenceKeys, warningSink);
         if (surfacedNames == null) {
             return PartitionMetadata.EMPTY;
         }
 
-        LinkedHashMap<String, List<String>> columnValues = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
-        for (String key : referenceKeys) {
-            columnValues.put(surfacedNames.get(key), new ArrayList<>());
-        }
-        for (Map<String, String> raw : allRawPartitions) {
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                columnValues.get(surfacedNames.get(e.getKey())).add(e.getValue());
+        // Second scan fills one String[] per raw key, then casts into the columnar arrays.
+        int fileCount = files.size();
+        int cols = referenceKeys.size();
+        String[] rawKeys = referenceKeys.toArray(String[]::new);
+        String[][] rawValues = new String[cols][fileCount];
+        for (int i = 0; i < fileCount; i++) {
+            fillPartitions(files.get(i).path(), scratch);
+            for (int c = 0; c < cols; c++) {
+                rawValues[c][i] = scratch.get(rawKeys[c]);
             }
         }
 
-        LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
-        for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
-            partitionColumns.put(e.getKey(), inferType(e.getValue()));
-        }
-
-        // Keep the columnar layout: one Object[] per surfaced column, aligned to the listing ordinal.
+        LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(cols);
+        Object[][] valuesByColumn = new Object[cols][];
         // One interner for this detect pass so sibling files share Integer/Long/keyword instances.
         CastInterner interner = new CastInterner();
-        int fileCount = files.size();
-        Object[][] valuesByColumn = new Object[partitionColumns.size()][];
-        int col = 0;
-        for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
-            DataType type = partitionColumns.get(e.getKey());
-            List<String> raws = e.getValue();
+        for (int c = 0; c < cols; c++) {
+            String surface = surfacedNames.get(rawKeys[c]);
+            DataType type = inferType(Arrays.asList(rawValues[c]));
+            partitionColumns.put(surface, type);
             Object[] column = new Object[fileCount];
+            String[] rawColumn = rawValues[c];
             for (int i = 0; i < fileCount; i++) {
-                column[i] = castValue(raws.get(i), type, interner);
+                column[i] = castValue(rawColumn[i], type, interner);
             }
-            valuesByColumn[col++] = column;
+            valuesByColumn[c] = column;
         }
         return PartitionMetadata.columnar(partitionColumns, valuesByColumn, fileCount);
     }
@@ -121,7 +121,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * map to the prefixed form, with one notice on {@code warningSink} per rename. Returns
      * {@code null} — caller bails to {@link PartitionMetadata#EMPTY}, the detector's established
      * shape for unusable layouts — if a rename target collides with another detected key. That
-     * branch is defensive: {@link #extractPartitions} rejects a dotted key, so no parsed key
+     * branch is defensive: {@link #segmentKey} rejects a dotted key, so no parsed key
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
@@ -168,79 +168,67 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     /**
-     * One map per file when every file binds the same keys, or {@code null} when a file binds nothing or the
-     * key sets differ. A trailing {@code =} binds {@code ""}, so a base64 directory ({@code dXNlcjE=}) is its own
-     * column and the key sets disagree. Those empty keys are dropped when they are missing from some file; an
-     * empty key present on every file stays. A non-empty key missing from some file still voids the detection.
+     * Shared partition keys in first-file order, or {@code null} when a file binds nothing or the key sets
+     * cannot be reconciled. A trailing {@code =} binds {@code ""}, so a base64 directory ({@code dXNlcjE=}) is
+     * its own column and the key sets disagree. Those empty keys are dropped when they are missing from some
+     * file; an empty key present on every file stays. A non-empty key missing from some file still voids the
+     * detection. {@code scratch} is cleared per file and is not retained.
      */
     @Nullable
-    private static List<Map<String, String>> consistentPartitions(List<StorageEntry> files) {
-        List<Map<String, String>> raw = new ArrayList<>(files.size());
-        for (StorageEntry entry : files) {
-            raw.add(extractPartitions(entry.path()));
+    private static LinkedHashSet<String> consistentKeys(List<StorageEntry> files, LinkedHashMap<String, String> scratch) {
+        fillPartitions(files.get(0).path(), scratch);
+        if (scratch.isEmpty()) {
+            return null;
         }
-        if (sameKeys(raw)) {
-            return raw;
-        }
-        Set<String> shared = sharedKeys(raw);
-        List<Map<String, String>> stripped = new ArrayList<>(raw.size());
-        for (Map<String, String> partitions : raw) {
-            Map<String, String> kept = new LinkedHashMap<>();
-            for (Map.Entry<String, String> e : partitions.entrySet()) {
-                if ("".equals(e.getValue()) && shared.contains(e.getKey()) == false) {
-                    continue;
-                }
-                kept.put(e.getKey(), e.getValue());
+        LinkedHashSet<String> reference = new LinkedHashSet<>(scratch.keySet());
+        HashSet<String> shared = new HashSet<>(scratch.keySet());
+        HashSet<String> nonEmpty = new HashSet<>();
+        collectNonEmpty(scratch, nonEmpty);
+        for (int i = 1; i < files.size(); i++) {
+            fillPartitions(files.get(i).path(), scratch);
+            if (scratch.isEmpty()) {
+                return null;
             }
-            stripped.add(kept);
+            // Compared to the first file's keys, not the shrinking intersection: a later file that still
+            // carries every original key cannot remove anything the intersection still holds.
+            if (reference.equals(scratch.keySet()) == false) {
+                shared.retainAll(scratch.keySet());
+            }
+            collectNonEmpty(scratch, nonEmpty);
         }
-        return sameKeys(stripped) ? stripped : null;
+        if (shared.isEmpty()) {
+            return null;
+        }
+        for (String key : nonEmpty) {
+            if (shared.contains(key) == false) {
+                return null;
+            }
+        }
+        reference.retainAll(shared);
+        return reference;
     }
 
-    /** Every map non-empty and carrying the same key set. */
-    private static boolean sameKeys(List<Map<String, String>> partitions) {
-        Set<String> reference = null;
-        for (Map<String, String> map : partitions) {
-            if (map.isEmpty()) {
-                return false;
-            }
-            if (reference == null) {
-                reference = map.keySet();
-            } else if (reference.equals(map.keySet()) == false) {
-                return false;
+    /** Records keys whose value is not {@code ""} — those survive empty-token stripping. */
+    private static void collectNonEmpty(Map<String, String> scratch, Set<String> nonEmpty) {
+        for (Map.Entry<String, String> e : scratch.entrySet()) {
+            // Null (the Hive default-partition sentinel) is not an empty token, so it is not dropped.
+            if ("".equals(e.getValue()) == false) {
+                nonEmpty.add(e.getKey());
             }
         }
-        return reference != null;
     }
 
-    private static Set<String> sharedKeys(List<Map<String, String>> partitions) {
-        Set<String> shared = null;
-        for (Map<String, String> map : partitions) {
-            if (shared == null) {
-                shared = new LinkedHashSet<>(map.keySet());
-            } else {
-                shared.retainAll(map.keySet());
-            }
-        }
-        return shared == null ? Set.of() : shared;
-    }
-
-    private static Map<String, String> extractPartitions(StoragePath storagePath) {
+    /** Clears {@code into} and fills it with the first {@code key=value} binding of each directory segment. */
+    private static void fillPartitions(StoragePath storagePath, LinkedHashMap<String, String> into) {
+        into.clear();
         List<String> segments = directorySegments(storagePath.path());
-        if (segments.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, String> partitions = new LinkedHashMap<>();
         for (String segment : segments) {
             String key = segmentKey(segment);
-            if (key == null || partitions.containsKey(key)) {
+            if (key == null || into.containsKey(key)) {
                 continue;
             }
-            partitions.put(key, segmentValue(segment));
+            into.put(key, segmentValue(segment));
         }
-
-        return partitions;
     }
 
     /**

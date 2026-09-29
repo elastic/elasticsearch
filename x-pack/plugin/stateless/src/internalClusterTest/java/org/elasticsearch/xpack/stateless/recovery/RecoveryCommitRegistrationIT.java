@@ -84,8 +84,8 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
 
     public void testSearchShardRecoveryRegistersCommit() {
         startMasterOnlyNode();
-        startIndexNode();
-        var searchNode = startSearchNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -98,18 +98,19 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
             indexDocs(indexName, randomIntBetween(10, 50));
             flush(indexName);
         }
-        AtomicInteger registerCommitRequestsSent = new AtomicInteger();
-        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                registerCommitRequestsSent.incrementAndGet();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        AtomicInteger successfulRegistrations = new AtomicInteger();
+        // Count successful responses because failed registration attempts may be retried during cluster state updates.
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, r) -> {
+                    successfulRegistrations.incrementAndGet();
+                    l.onResponse(r);
+                })), task);
+            });
         // Start a search shard
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
-        // Registration may retry while nodes apply cluster state updates.
-        assertThat(registerCommitRequestsSent.get(), greaterThan(0));
+        assertThat(successfulRegistrations.get(), equalTo(1));
     }
 
     public void testSearchShardRecoveryRegistrationRetry() {

@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
@@ -42,16 +43,22 @@ import java.util.Set;
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
+ *
+ * <p>Leaves matching {@code mappedNestedSubfield} - paths this shard's mapping declares under a {@code nested} parent -
+ * are pruned like value-less parts: mapped nested subfields stay null everywhere (see
+ * {@code EsqlCapabilities.Cap#FIX_NESTED_SUBFIELD_EXTRACTION}), and only the shard knows its mapping.
  * <p>TODO: share a cached {@code _source} parse with other field-extraction operators.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     private final UnmappedFieldsPattern pattern;
     private final double sourceReservationFactor;
+    private final Predicate<String> mappedNestedSubfield;
 
-    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, double sourceReservationFactor) {
+    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, double sourceReservationFactor, Predicate<String> mappedNestedSubfield) {
         this.pattern = pattern;
         this.sourceReservationFactor = sourceReservationFactor;
+        this.mappedNestedSubfield = mappedNestedSubfield;
     }
 
     @Override
@@ -66,7 +73,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new UnmappedFields(breaker, pattern, sourceReservationFactor);
+        return new UnmappedFields(breaker, pattern, sourceReservationFactor, mappedNestedSubfield);
     }
 
     @Override
@@ -93,12 +100,19 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         private final CircuitBreaker breaker;
         private final UnmappedFieldsPattern pattern;
         private final double sourceReservationFactor;
+        private final Predicate<String> mappedNestedSubfield;
 
-        UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern, double sourceReservationFactor) {
+        UnmappedFields(
+            CircuitBreaker breaker,
+            UnmappedFieldsPattern pattern,
+            double sourceReservationFactor,
+            Predicate<String> mappedNestedSubfield
+        ) {
             super(breaker);
             this.breaker = breaker;
             this.pattern = pattern;
             this.sourceReservationFactor = sourceReservationFactor;
+            this.mappedNestedSubfield = mappedNestedSubfield;
         }
 
         @Override
@@ -124,7 +138,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                             ? pattern.objectSubfieldsCouldMatch(entry.getKey())
                             : pattern.matches(entry.getKey());
                         // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
-                        if (matched && prune(value)) {
+                        if (matched && prune(entry.getKey(), value)) {
                             anyMatch = true;
                             json.field(entry.getKey(), value);
                         }
@@ -146,19 +160,21 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
          * Strips nully values out of a {@code _source} value, consistently with how mapped fields do not track nulls in arrays, empty
          * objects and the like - {@code null}, {@code []}, {@code {}}, {@code [null]}, {@code [{"foo":null},{"bar":[]}]},
          * {@code {"baz":[null],"inga":{}}}.
+         * <p>{@code path} is the dotted name the value flattens to; leaves matching {@link #mappedNestedSubfield} are
+         * stripped the same way. Arrays do not extend the path, matching how the coordinator derives column names.
          */
-        private static boolean prune(Object value) {
+        private boolean prune(String path, Object value) {
             if (value instanceof List<?> values) {
-                values.removeIf(element -> prune(element) == false);
+                values.removeIf(element -> prune(path, element) == false);
                 return values.isEmpty() == false;
             }
             // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
             // it must neither keep that field's column alive nor show up in what the field renders as.
             if (value instanceof Map<?, ?> map) {
-                map.values().removeIf(element -> prune(element) == false);
+                map.entrySet().removeIf(entry -> prune(path + "." + entry.getKey(), entry.getValue()) == false);
                 return map.isEmpty() == false;
             }
-            return value != null;
+            return value != null && mappedNestedSubfield.test(path) == false;
         }
 
         @Override

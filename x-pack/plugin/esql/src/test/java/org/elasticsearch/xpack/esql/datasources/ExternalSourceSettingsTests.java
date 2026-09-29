@@ -300,11 +300,24 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         });
     }
 
+    public void testMaxDecompressionRatioUpperBound() {
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.get(settings);
+        });
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.get(settings);
+        });
+    }
+
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(15, ExternalSourceSettings.settings().size());
+        assertEquals(17, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
     }

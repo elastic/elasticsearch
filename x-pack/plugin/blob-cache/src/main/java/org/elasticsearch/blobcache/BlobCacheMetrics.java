@@ -115,7 +115,17 @@ public class BlobCacheMetrics {
             return 0L;
         }
     };
-    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER);
+
+    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER) {
+        @Override
+        public void recordRead(long regionTimestampMillis) {}
+
+        @Override
+        public void recordMiss(long regionTimestampMillis) {}
+
+        @Override
+        public void recordBypassRead() {}
+    };
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;

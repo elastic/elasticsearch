@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalQueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -547,6 +548,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ExternalSourceSettings.ADMISSION_QUEUE_TIMEOUT,
             datasetQueryAdmission::setQueueTimeout
         );
+        FormatReaderRegistry formatReaderRegistry = dataSourceModule.formatReaderRegistry();
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO,
+            formatReaderRegistry::setMaxDecompressionRatio
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
+            formatReaderRegistry::setMaxDecompressionRatioZstd
+        );
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -718,6 +728,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT,
+                EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
@@ -797,12 +809,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        // The _test connectivity probe is additionally gated by its own FeatureFlag (snapshot-on, release-off).
         if (Federation.isAvailable(restHandlersServices.settings())) {
             handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
-            handlers.add(new RestPutDatasetAction());
+            if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
+            }
+            handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }

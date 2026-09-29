@@ -377,7 +377,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 new NdJsonRecordSplitter(8)
             )
         );
-        assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [8]"));
+        assertThat(ex.getMessage(), Matchers.containsString("record exceeds [8b]"));
     }
 
     /**
@@ -482,7 +482,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+            assertThat(ex.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
         }
     }
 
@@ -782,9 +782,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
-        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("memory://warn.ndjson"));
-        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
+        assertEquals("Some rows in [memory://warn.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).endsWith(": malformed JSON"));
     }
 
     /**
@@ -820,9 +819,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
-        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Detail should mention the over-limit row, got: " + warnings.get(1), warnings.get(1).contains("Over-limit NDJSON"));
-        assertTrue("Detail should carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
+        assertEquals("Some rows in [memory://constraint.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertTrue(
+            "Detail should mention the over-limit row, got: " + warnings.get(1),
+            warnings.get(1).endsWith(": JSON over a parser limit")
+        );
+        assertFalse("Detail must not carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
     }
 
     /**
@@ -881,7 +883,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1 summary + up to 20 details + 1 overflow notice (= 22). NDJSON message variants may differ
         // slightly per line, so we check the bounds rather than an exact equality.
         assertTrue("expected at least summary + 20 details + overflow, got: " + warnings.size(), warnings.size() >= 22);
-        assertTrue("First warning should be the summary, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue(
+            "First warning should be the summary, got: " + warnings.get(0),
+            warnings.get(0).endsWith("cannot be read; skipping them")
+        );
         assertTrue(
             "Last warning should mention overflow, got: " + warnings.get(warnings.size() - 1),
             warnings.get(warnings.size() - 1).contains("further warnings suppressed")
@@ -916,7 +921,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -944,7 +949,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -971,7 +976,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -1139,7 +1144,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -1162,14 +1167,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    public void testDeclaredNumericCoercesStringTokensLikeCastEngine() throws IOException {
-        // A JSON string in a declared numeric column is coerced through the :: cast engine and rounds
-        // (matching CSV and the columnar readers), where it was formerly a policy-blind silent null.
-        String ndjson = """
-            {"n": "42", "m": "1.9"}
-            {"n": "7", "m": "2.5"}
+    public void testDeclaredNumericStringTokensRequireExactWholeNumber() throws IOException {
+        // A JSON string in a declared numeric column must name a whole number exactly. Whole tokens
+        // ("42", "2.0") succeed; a non-whole fraction fails under STRICT (matching CSV / columnar).
+        String ok = """
+            {"n": "42", "m": "2.0"}
+            {"n": "7", "m": "1e3"}
             """;
-        var object = new BytesStorageObject("file:///nums.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("file:///nums.ndjson", ok.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG),
@@ -1192,9 +1197,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             LongBlock m = page.getBlock(1);
             assertEquals(42L, n.getLong(0));
             assertEquals(7L, n.getLong(1));
-            assertEquals(2L, m.getLong(0)); // "1.9" -> 2 (round, == ::long)
-            assertEquals(3L, m.getLong(1)); // "2.5" -> 3 (round)
+            assertEquals(2L, m.getLong(0));
+            assertEquals(1000L, m.getLong(1));
         }
+        String fraction = "{\"m\": \"1.9\"}\n";
+        var bad = new BytesStorageObject("file:///frac.ndjson", fraction.getBytes(StandardCharsets.UTF_8));
+        List<Attribute> mOnly = List.of(new ReferenceAttribute(Source.EMPTY, null, "m", DataType.LONG));
+        expectThrows(Exception.class, () -> {
+            try (
+                var iterator = reader.read(
+                    bad,
+                    FormatReadContext.builder()
+                        .projectedColumns(List.of("m"))
+                        .batchSize(100)
+                        .errorPolicy(ErrorPolicy.STRICT)
+                        .readSchema(mOnly)
+                        .build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
     }
 
     public void testDeclaredNumericBadStringFailsUnderStrict() throws IOException {
@@ -1220,19 +1245,15 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [long]; set [error_mode] to [null_field] to return null instead"));
             // The recovery hint must name the dataset setting, not a query clause: FROM <dataset> has no
             // WITH options clause, so a user who followed a "in WITH options" hint would get a parse error.
-            assertThat(
-                e.getMessage(),
-                Matchers.containsString("set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing")
-            );
             assertThat(e.getMessage(), Matchers.not(Matchers.containsString("WITH options")));
         }
     }
 
     /**
-     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code error_mode=null_field} as the recovery.
+     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code [error_mode]} {@code [null_field]} as the recovery.
      * Honour that advice: the offending cell nulls, its neighbours decode, and the failure surfaces as a warning
      * rather than vanishing silently.
      */
@@ -1340,7 +1361,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced"));
+            assertThat(e.getMessage(), Matchers.containsString("cannot read ["));
         }
     }
 
@@ -1369,7 +1390,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [long]"));
         }
     }
 
@@ -1563,7 +1584,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [integer]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [integer]"));
         }
 
         // skip_row: the offending record is dropped whole; the good record survives
@@ -1667,7 +1688,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [ip]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [ip]"));
         }
     }
 
@@ -2253,7 +2274,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -2427,7 +2448,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
             ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -3315,11 +3336,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * Regression for the byte-array max-record-size cap fix and its follow-up: on
      * the byte-array fast path the cap is now enforced per-record inside {@link NdJsonPageDecoder} (on the
      * pass Jackson already makes — no separate buffer sweep), instead of by a pre-read cap stream. Under
-     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code external_max_record_size [N]} error
+     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code record exceeds [N]} error
      * rather than parse silently. Because enforcement moved to decode time, the failure now surfaces through
      * the iterator's standard error path (a client-class {@code RuntimeException}) rather than as a raw
      * {@link IOException} thrown from {@code readAllBytes()} during construction; the user-facing
-     * {@code external_max_record_size [N]} wording is preserved on the root cause.
+     * {@code record exceeds [N]} wording is preserved on the root cause.
      */
     public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
         int maxRecordBytes = 16;
@@ -3346,7 +3367,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -3427,7 +3448,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * Issue 965 feedback (streaming cap gap): the fallback/streaming branch used to wrap only a
      * {@code CountingInputStream}, so oversized records parsed with no cap when the object streamed (length
      * unknown, &gt;16 MiB, or a single-threaded read). Strict policy must now surface a
-     * {@code external_max_record_size [N]} error on that path too. Forces the streaming branch with an object whose
+     * {@code record exceeds [N]} error on that path too. Forces the streaming branch with an object whose
      * {@code length()} throws (as decompressing wrappers do).
      */
     public void testStreamingFallbackStrictModeEnforcesMaxRecordBytes() {
@@ -3454,7 +3475,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -3485,18 +3506,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         List<String> warnings = drainWarnings();
         assertThat("a partial-results warning must be surfaced", warnings, Matchers.not(Matchers.empty()));
-        // r1 "{\"id\":1}\n" = 9 bytes; the oversized r2's brace is at byte 9, so the truncation anchor (offset
-        // just past the brace) is 10. Pin it so the warning carries the true file position, not a stale one.
-        long expectedTruncationByte = "{\"id\":1}\n".length() + 1;
-        assertTrue(
-            "a warning must mention the truncation at the oversized record's byte offset, got: " + warnings,
-            warnings.stream()
-                .anyMatch(
-                    w -> w.contains("truncated")
-                        && w.contains("external_max_record_size [" + maxRecordBytes + "]")
-                        && w.contains("byte [" + expectedTruncationByte + "]")
-                )
-        );
+        // The warning names the limit, not the byte offset; NdJsonPageDecoderMaxRecordSizeTests pins the offset
+        // through NdJsonPageDecoder.truncatedAtByte().
+        assertThat(warnings, Matchers.hasItem("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"));
     }
 
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */

@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -88,6 +92,17 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         assertThat("a slot the query cannot hold goes straight back", secondCloses.get(), equalTo(1));
         info.releaseDatasetQuerySlot();
         assertThat(firstCloses.get(), equalTo(1));
+    }
+
+    public void testPlanningBytesAreNotSerialized() throws IOException {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        info.externalPlanning(new ExternalPlanningReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST)));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            info.writeTo(out);
+            EsqlExecutionInfo copy = new EsqlExecutionInfo(out.bytes().streamInput());
+            assertNull(copy.externalPlanning());
+        }
+        assertNotNull(info.externalPlanning());
     }
 
     public static EsqlExecutionInfo createEsqlExecutionInfo(boolean includeCCSMetadata) {

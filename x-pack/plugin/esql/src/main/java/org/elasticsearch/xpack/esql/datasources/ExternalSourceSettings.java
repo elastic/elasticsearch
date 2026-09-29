@@ -390,6 +390,25 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Default maximum decompression ratio for stream-only compressed text objects (CSV, TSV, NDJSON with gzip
+     * or zstd). A read fails with {@code 400} once the decompressed bytes exceed this multiple of the
+     * object's compressed size (checked from 1 MiB on). {@code 0} disables the check. The actual limit is the
+     * per-codec setting ({@link #MAX_DECOMPRESSION_RATIO_ZSTD} for zstd), falling back to this value.
+     * <p>
+     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while typical
+     * highly compressible repeated input reaches 515:1 or more. Upper bound 100,000 keeps a hostile
+     * near-{@link Integer#MAX_VALUE} ratio from overflowing the limit multiplication.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO = Setting.intSetting(
+        "esql.external.max_decompression_ratio",
+        200,
+        0,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * How many dataset queries may wait for a slot when {@link #ADMISSION_MAX_CONCURRENT_QUERIES} are already running.
      * A waiting query holds no thread and has not touched storage. Once the queue is full, further queries are refused
      * with 429. Default: four times the concurrency limit, so one dashboard's panels render in waves rather than fail.
@@ -412,6 +431,21 @@ public final class ExternalSourceSettings {
         "esql.external.admission.queue_timeout",
         TimeValue.timeValueSeconds(30),
         TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
+     * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
+     * while highly compressible repeated input reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
+     * Same upper bound as {@link #MAX_DECOMPRESSION_RATIO}.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO_ZSTD = Setting.intSetting(
+        "esql.external.max_decompression_ratio.zstd",
+        2000,
+        0,
+        100_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -609,6 +643,8 @@ public final class ExternalSourceSettings {
             ADMISSION_MAX_CONCURRENT_QUERIES,
             ADMISSION_MAX_QUEUED_QUERIES,
             ADMISSION_QUEUE_TIMEOUT,
+            MAX_DECOMPRESSION_RATIO,
+            MAX_DECOMPRESSION_RATIO_ZSTD,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

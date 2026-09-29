@@ -93,6 +93,19 @@ public final class SimdJsonTestDocuments {
                 {"n":1.5e-5}""", """
                 {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
                 {"a":[1.5,12.5,2e5]}""",
+                // Valid shapes near the strict-number checks: signed exponents, zero fractions,
+                // and whitespace after a fraction/exponent, as field values and array elements.
+                """
+                {"n":1e+5}""", """
+                {"n":1E-5}""", """
+                {"n":-1.5e+3}""", """
+                {"n":-0.0}""", """
+                {"n":1.0e0}""", """
+                {"n":1.5 ,"m":2 }""", """
+                {"n":1e5\t,"m":2\n}""", """
+                {"a":[1e+5,1E-5,-0.0]}""", """
+                {"a":[1.5 ,2e5\t,3\n]}""", """
+                {"a":[[1],[2.5],[3e0]]}""",
                 // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
                 // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
                 // (both sign boundaries), and 20+ digits (always BigInteger), and the same

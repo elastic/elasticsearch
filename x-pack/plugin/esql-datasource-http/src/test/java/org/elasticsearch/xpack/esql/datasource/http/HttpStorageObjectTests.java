@@ -33,6 +33,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -71,6 +72,26 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
 
         assertEquals(path, object.path());
+    }
+
+    public void testStorageIdentityScopedByCustomHeaders() {
+        HttpClient mockClient = mock(HttpClient.class);
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpConfiguration alice = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice-secret")).build();
+        HttpConfiguration aliceAgain = HttpConfiguration.builder()
+            .customHeaders(Map.of("Authorization", "Bearer alice-secret"))
+            .requestTimeout(Duration.ofSeconds(7))
+            .build();
+        HttpConfiguration bob = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer bob-secret")).build();
+
+        HttpStorageObject aliceObject = new HttpStorageObject(mockClient, path, alice);
+        assertEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, aliceAgain).storageIdentity());
+        assertNotEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, bob).storageIdentity());
+        assertNotEquals(
+            aliceObject.storageIdentity(),
+            new HttpStorageObject(mockClient, path, HttpConfiguration.defaults()).storageIdentity()
+        );
+        assertThat(aliceObject.storageIdentity().toString(), not(containsString("alice-secret")));
     }
 
     public void testPathWithPreKnownLength() {

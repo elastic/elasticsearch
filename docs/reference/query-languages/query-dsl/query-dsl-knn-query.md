@@ -124,11 +124,11 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 
 
 `k`
-:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
+:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
 
 
 `num_candidates`
-:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
+:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
 
 
 `visit_percentage` {applies_to}`stack: ga 9.2`
@@ -168,7 +168,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
        * \>= 1f to indicate the oversample factor
        * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
 
-    For more information, refer to [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring).
+    For more information, refer to [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring).
 
     ::::{note}
     Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
@@ -246,7 +246,7 @@ POST my-image-index/_search
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
 
-The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
+The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn/nested-knn-search.md):
 
 * kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter

@@ -542,7 +542,7 @@ final class PlainValues {
         StringColumnReader.SlotBlocks codes() {
             if (constantLength >= 0) {
                 final long[] constant = new long[valuesPerBlock];
-                Arrays.fill(constant, code(constantLength));
+                Arrays.fill(constant, PlainValues.code(constantLength));
                 return new StringColumnReader.SlotBlocks() {
                     @Override
                     public int blockSize() {

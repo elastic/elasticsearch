@@ -7399,7 +7399,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "s3",
             "bucket",
             "prefix/",
-            "8:endpoint27:http://endpoint-a.example.com",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
             configA,
             ""
         );
@@ -7407,7 +7407,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "s3",
             "bucket",
             "prefix/",
-            "8:endpoint27:http://endpoint-b.example.com",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
             configB,
             ""
         );
@@ -7474,12 +7474,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // provider reports nothing.
         FileMetadataCacheKey rawA = FileMetadataCacheKey.build(
             "s3://bucket/file.csv",
-            "8:endpoint27:http://endpoint-a.example.com",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
             configA
         );
         FileMetadataCacheKey rawB = FileMetadataCacheKey.build(
             "s3://bucket/file.csv",
-            "8:endpoint27:http://endpoint-b.example.com",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
             configB
         );
         assertNotEquals("distinct storage identities must address distinct file-metadata entries", rawA, rawB);

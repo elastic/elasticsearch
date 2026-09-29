@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -151,7 +153,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "s3",
                 "bucket",
                 "/data/*.parquet",
-                "8:endpoint23:us-east-1.amazonaws.com",
+                Configured.identityOf(Map.of("endpoint", "us-east-1.amazonaws.com"), Set.of("endpoint")),
                 Map.of(),
                 ""
             );
@@ -159,7 +161,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "s3",
                 "bucket",
                 "/data/*.parquet",
-                "8:endpoint23:eu-west-1.amazonaws.com",
+                Configured.identityOf(Map.of("endpoint", "eu-west-1.amazonaws.com"), Set.of("endpoint")),
                 Map.of(),
                 ""
             );
@@ -441,12 +443,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             // config here: the provider reports what identifies what it reads, and this key carries that.
             FileMetadataCacheKey key1 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
-                "8:endpoint23:us-east-1.amazonaws.com",
+                Configured.identityOf(Map.of("endpoint", "us-east-1.amazonaws.com"), Set.of("endpoint")),
                 Map.of()
             );
             FileMetadataCacheKey key2 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
-                "8:endpoint23:eu-west-1.amazonaws.com",
+                Configured.identityOf(Map.of("endpoint", "eu-west-1.amazonaws.com"), Set.of("endpoint")),
                 Map.of()
             );
             assertNotEquals(key1, key2);
@@ -464,11 +466,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testFileMetadataCredentialIndependentKey() {
-        // Still shared across users: a storage identity omits every field its configuration declares secret, so
-        // two principals reaching one object report the same identity and share the entry. What separates them
-        // when they must be separated is the definition version, not this key guessing at credential names.
-        FileMetadataCacheKey withCredA = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "1:e", Map.of());
-        FileMetadataCacheKey withCredB = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", "1:e", Map.of());
+        // Still shared across users, and derived rather than asserted: a storage identity names only the fields
+        // its configuration declares non-secret, so two principals differing in a credential report the SAME
+        // identity and share the entry. Handing both sides one literal would assert nothing.
+        String identityA = Configured.identityOf(Map.of("access_key", "userA", "endpoint", "e"), Set.of("endpoint"));
+        String identityB = Configured.identityOf(Map.of("access_key", "userB", "endpoint", "e"), Set.of("endpoint"));
+        assertEquals("a credential must not reach a storage identity", identityA, identityB);
+
+        FileMetadataCacheKey withCredA = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", identityA, Map.of());
+        FileMetadataCacheKey withCredB = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", identityB, Map.of());
         assertEquals(withCredA, withCredB);
     }
 

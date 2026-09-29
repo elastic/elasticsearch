@@ -74,18 +74,12 @@ tests:
 - class: org.elasticsearch.common.util.BigArraysTests
   method: testByteArrayBulkGet
   issue: https://github.com/elastic/elasticsearch/issues/154778
-- class: org.elasticsearch.packaging.test.KeystoreManagementTests
-  method: test50CreateKeystoreManually
-  issue: https://github.com/elastic/elasticsearch/issues/155335
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
-- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
-  method: testOverflowInGroupingProducesNullAndWarning
-  issue: https://github.com/elastic/elasticsearch/issues/156070
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156079
@@ -191,6 +185,21 @@ tests:
 - class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
   method: testAutoFollowing {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
   issue: https://github.com/elastic/elasticsearch/issues/160284
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/160407
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testStopLookback_forceTrue_closeJobFalse
+  issue: https://github.com/elastic/elasticsearch/issues/146955
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  issue: https://github.com/elastic/elasticsearch/issues/160421
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/160523
 
 # Examples:
 #

@@ -65,14 +65,14 @@ magnitude:double
 3.742
 ;
 
- magnitudeWithStats
- required_capability: magnitude_scalar_vector_function
- required_capability: dense_vector_field_type_released
- 
- from colors
- | eval magnitude = round(v_magnitude(rgb_vector), 3) 
- | stats avg = round(avg(magnitude), 3), min = min(magnitude), max = max(magnitude)
- ;
+magnitudeWithStats
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from colors
+| eval magnitude = round(v_magnitude(rgb_vector), 3)
+| stats avg = round(avg(magnitude), 3), min = min(magnitude), max = max(magnitude)
+;
 
 avg:double | min:double | max:double
 313.692    | 0.0        | 441.673
@@ -91,6 +91,47 @@ warning:Line 2:20: Expression [v_magnitude(null)] always evaluates to NULL.
 
 magnitude:double
 null
+;
+
+magnitudeWithCoalesceNull
+required_capability: fn_v_magnitude_fix_null
+
+row a = 1 | eval magnitude = v_magnitude(coalesce(null))
+;
+
+a:integer | magnitude:double
+1         | null
+;
+
+magnitudeWithCaseSometimesNull
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from employees
+| eval magnitude = v_magnitude(case(emp_no == 10001, TO_DENSE_VECTOR([3,4])))
+| keep emp_no, magnitude
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer | magnitude:double
+10001          | 5.0
+10002          | null
+;
+
+magnitudeWithCaseAlwaysNull
+required_capability: fn_v_magnitude_fix_null
+
+from employees
+| eval magnitude = v_magnitude(case(emp_no == 99999, TO_DENSE_VECTOR([3,4])))
+| keep emp_no, magnitude
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer | magnitude:double
+10001          | null
+10002          | null
 ;
 
 magnitudeWithRow

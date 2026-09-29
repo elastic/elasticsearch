@@ -26,10 +26,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -1537,11 +1542,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
                     String pathStr = e.getKey().toString();
-                    assertEquals(
-                        "[" + strategy + "] " + pathStr + ": fileSchema must equal the file's own schema",
-                        expectedFileSchemas.get(pathStr),
-                        e.getValue().fileSchema().attributes()
-                    );
+                    List<Attribute> expectedSchema = expectedFileSchemas.get(pathStr);
+                    List<Attribute> actualSchema = e.getValue().fileSchema().attributes();
+                    assertEquals("[" + strategy + "] " + pathStr + ": fileSchema width", expectedSchema.size(), actualSchema.size());
+                    for (int c = 0; c < expectedSchema.size(); c++) {
+                        assertTrue(
+                            "[" + strategy + "] " + pathStr + ": fileSchema column " + c,
+                            expectedSchema.get(c).equals(actualSchema.get(c), true)
+                        );
+                    }
                     ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[" + strategy + "] " + pathStr + ": ColumnMapping must be set", mapping);
                     int[] expected = expectedLocalIndices.get(pathStr);
@@ -1557,6 +1566,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         // No type drift in this fixture → no casts under UBN.
                         assertNull("[" + strategy + "] " + pathStr + ": no casts at position " + i, mapping.cast(i));
                     }
+                }
+                if (strategy == FormatReader.SchemaResolution.UNION_BY_NAME) {
+                    Attribute col0a = schemaMap.get(StoragePath.of("s3://bucket/data/a.parquet")).fileSchema().attributes().get(0);
+                    Attribute col0c = schemaMap.get(StoragePath.of("s3://bucket/data/c.parquet")).fileSchema().attributes().get(0);
+                    assertSame("UNION_BY_NAME shares col0 across files a and c", col0a, col0c);
                 }
             }
         }
@@ -3522,7 +3536,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     public void testEnrichSchemaWithPartitionColumnsEmitsNullabilityTrueForHiveDefaultSentinel() {
         // When at least one file lives under __HIVE_DEFAULT_PARTITION__ (decoded to null in
-        // PartitionMetadata#filePartitionValues by HivePartitionDetector), the resolver must keep
+        // PartitionMetadata value rows by HivePartitionDetector), the resolver must keep
         // Nullability.TRUE for that column. Sibling partition columns that are still all-non-null
         // remain Nullability.FALSE.
         List<Attribute> originalSchema = List.of(attr("value", DataType.DOUBLE));
@@ -5592,6 +5606,348 @@ public class ExternalSourceResolverTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(paths, Map.of(), future);
         return future.actionGet();
+    }
+
+    /**
+     * After listing, planning reserves {@code planningBytes + fileCount * 760} on the request breaker and the
+     * query ledger. A limit under that charge trips before any file metadata read (reconciliation).
+     */
+    public void testListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        String file1 = "s3://bucket/data/year=2024/f1.parquet";
+        String file2 = "s3://bucket/data/year=2025/f2.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(
+            file1,
+            List.of(attr("id", DataType.INTEGER)),
+            file2,
+            List.of(attr("id", DataType.INTEGER))
+        );
+        Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, listings, wide, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
+        long baseline = wide.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        ExternalSourceResolution resolution = future.actionGet();
+        FileList listing = resolution.resolvedSource(glob).fileList();
+        assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
+        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        assertThat(expected, greaterThan(0L));
+        assertEquals(baseline + expected, wide.getUsed());
+        assertEquals(expected, reservation.queryHeld());
+        assertThat(metadataReads.get(), greaterThan(0));
+
+        long limit = expected - 1;
+        CircuitBreaker narrow = requestBreaker(limit + "b");
+        long tripBaseline = narrow.getUsed();
+        AtomicInteger trippedReads = new AtomicInteger();
+        ExternalSourceResolver tripped = planningResolver(schemas, listings, narrow, trippedReads);
+        EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
+        PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
+        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), trippedFuture);
+        CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
+        assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
+        assertEquals(0, trippedReads.get());
+        assertEquals(0L, trippedReservation.queryHeld());
+        assertEquals(tripBaseline, narrow.getUsed());
+    }
+
+    /**
+     * Strict multi-file has its own post-listing charge. A declared schema still reserves
+     * {@code planningBytes + fileCount * 760} before the anchor footer read, and a limit under that
+     * charge trips with the ledger left at zero.
+     */
+    public void testStrictListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        String file1 = "s3://bucket/data/year=2024/f1.parquet";
+        String file2 = "s3://bucket/data/year=2025/f2.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(
+            file1,
+            List.of(attr("id", DataType.INTEGER)),
+            file2,
+            List.of(attr("id", DataType.INTEGER))
+        );
+        Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
+        DatasetMapping strict = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("id", new DatasetFieldMapping("integer", null)))
+        );
+
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, listings, wide, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
+        long baseline = wide.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, future);
+        ExternalSourceResolution resolution = future.actionGet();
+        FileList listing = resolution.resolvedSource(glob).fileList();
+        assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
+        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        assertThat(expected, greaterThan(0L));
+        assertEquals(baseline + expected, wide.getUsed());
+        assertEquals(expected, reservation.queryHeld());
+        assertThat(metadataReads.get(), greaterThan(0));
+
+        long limit = expected - 1;
+        CircuitBreaker narrow = requestBreaker(limit + "b");
+        long tripBaseline = narrow.getUsed();
+        AtomicInteger trippedReads = new AtomicInteger();
+        ExternalSourceResolver tripped = planningResolver(schemas, listings, narrow, trippedReads);
+        EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
+        PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
+        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, trippedFuture);
+        CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
+        assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
+        assertEquals(0, trippedReads.get());
+        assertEquals(0L, trippedReservation.queryHeld());
+        assertEquals(tripBaseline, narrow.getUsed());
+    }
+
+    /** One explicit file builds a schema map and still leaves the request breaker at baseline. */
+    public void testSingleFileResolveDoesNotChargePlanningBytes() throws Exception {
+        String file = "s3://bucket/data/f1.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CircuitBreaker breaker = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of(), breaker, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(1, resolution.resolvedSource(file).fileList().fileCount());
+        assertThat(metadataReads.get(), greaterThan(0));
+        assertEquals(baseline, breaker.getUsed());
+        assertEquals(0L, reservation.queryHeld());
+    }
+
+    /**
+     * A declared overlay on one file canonicalizes the shape. That resolve never took the per-file listing
+     * credit, so a six-column shape must not open a queryHeld charge.
+     */
+    public void testSingleFileDeclaredOverlayDoesNotChargePlanningBytes() throws Exception {
+        String file = "s3://bucket/data/f1.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(
+            file,
+            List.of(
+                attr("c0", DataType.INTEGER),
+                attr("c1", DataType.INTEGER),
+                attr("c2", DataType.INTEGER),
+                attr("c3", DataType.INTEGER),
+                attr("c4", DataType.INTEGER),
+                attr("c5", DataType.INTEGER)
+            )
+        );
+        DatasetMapping overlay = new DatasetMapping(
+            new DatasetMapping.Mappings(
+                DatasetMapping.Dynamic.TRUE,
+                Map.of(
+                    "c0",
+                    new DatasetFieldMapping("integer", null),
+                    "c1",
+                    new DatasetFieldMapping("integer", null),
+                    "c2",
+                    new DatasetFieldMapping("integer", null),
+                    "c3",
+                    new DatasetFieldMapping("integer", null),
+                    "c4",
+                    new DatasetFieldMapping("integer", null),
+                    "c5",
+                    new DatasetFieldMapping("integer", null)
+                )
+            )
+        );
+        CircuitBreaker breaker = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of(), breaker, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, overlay), null, future);
+        future.actionGet();
+
+        assertThat(metadataReads.get(), greaterThan(0));
+        assertEquals(baseline, breaker.getUsed());
+        assertEquals(0L, reservation.queryHeld());
+    }
+
+    /**
+     * Reconcile gather holds each file's private attribute list until its completion drops that list.
+     * The run stays open through the caller notification, so overlay and the next listing are still charged.
+     * queryHeld stays at the listing credit when the unique shape fits, and close drops only the run.
+     */
+    public void testPrivateSchemaListsChargeTheGatherRunAndReleaseOnClose() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        String file1 = "s3://bucket/data/year=2024/f1.parquet";
+        String file2 = "s3://bucket/data/year=2025/f2.parquet";
+        Map<String, List<Attribute>> schemas = Map.of(
+            file1,
+            List.of(attr("id", DataType.INTEGER)),
+            file2,
+            List.of(attr("id", DataType.INTEGER))
+        );
+        Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        long oneList = SchemaInterner.privateListBytes(1);
+        long bothLists = oneList * 2;
+
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, listings, wide, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
+        long baseline = wide.getUsed();
+        ExternalPlanningReservation.Run[] openRun = new ExternalPlanningReservation.Run[1];
+        long[] whileOpen = new long[3];
+        resolver.schemaGatherRunProbe = run -> {
+            if (run.held() == bothLists) {
+                openRun[0] = run;
+                whileOpen[0] = run.held();
+                whileOpen[1] = reservation.queryHeld();
+                whileOpen[2] = wide.getUsed();
+            }
+        };
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        long[] expectedHolder = new long[1];
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
+            // Still inside the gather completion. An earlier close would already have released the run.
+            FileList listing = resolution.resolvedSource(glob).fileList();
+            long expectedNow = listing.planningBytes() + listing.fileCount() * 760L;
+            expectedHolder[0] = expectedNow;
+            assertNotNull(openRun[0]);
+            assertEquals(bothLists, openRun[0].held());
+            assertEquals(expectedNow, reservation.queryHeld());
+            assertEquals(baseline + expectedNow + bothLists, wide.getUsed());
+            future.onResponse(resolution);
+        }, future::onFailure));
+        ExternalSourceResolution resolution = future.actionGet();
+        long expected = expectedHolder[0];
+        FileList listing = resolution.resolvedSource(glob).fileList();
+        assertEquals(expected, listing.planningBytes() + listing.fileCount() * 760L);
+
+        assertEquals(bothLists, whileOpen[0]);
+        assertEquals(expected, whileOpen[1]);
+        assertEquals(baseline + expected + bothLists, whileOpen[2]);
+        assertEquals(0L, openRun[0].held());
+        assertEquals(expected, reservation.queryHeld());
+        assertEquals(baseline + expected, wide.getUsed());
+        assertEquals(bothLists, whileOpen[2] - wide.getUsed());
+
+        // Fits the listing credit and one private list. The second list trips. The failure path closes the run.
+        long limit = baseline + expected + oneList;
+        CircuitBreaker narrow = requestBreaker(limit + "b");
+        long tripBaseline = narrow.getUsed();
+        assertEquals(baseline, tripBaseline);
+        AtomicInteger trippedReads = new AtomicInteger();
+        ExternalSourceResolver tripped = planningResolver(schemas, listings, narrow, trippedReads);
+        EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
+        ExternalPlanningReservation.Run[] trippedRun = new ExternalPlanningReservation.Run[1];
+        tripped.schemaGatherRunProbe = run -> trippedRun[0] = run;
+        PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
+        long[] heldDuringFailure = new long[1];
+        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(trippedFuture::onResponse, e -> {
+            // The failure notification runs before the gather completion releases the run.
+            assertNotNull(trippedRun[0]);
+            heldDuringFailure[0] = trippedRun[0].held();
+            trippedFuture.onFailure(e);
+        }));
+        CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
+        assertEquals(oneList, heldDuringFailure[0]);
+        assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
+        assertNotNull(trippedRun[0]);
+        assertEquals(0L, trippedRun[0].held());
+        assertEquals(expected, trippedReservation.queryHeld());
+        assertEquals(tripBaseline + expected, narrow.getUsed());
+        assertThat(trippedReads.get(), greaterThan(0));
+    }
+
+    private static ExternalPlanningReservation bindPlanning(
+        ExternalSourceResolver resolver,
+        EsqlExecutionInfo info,
+        CircuitBreaker breaker
+    ) {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        info.externalPlanning(reservation);
+        resolver.planning(reservation);
+        return reservation;
+    }
+
+    private ExternalSourceResolver planningResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        CircuitBreaker breaker,
+        AtomicInteger metadataReads
+    ) {
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        StubFormatReader formatReader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                metadataReads.incrementAndGet();
+                return super.metadata(object);
+            }
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            factory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    private static CircuitBreaker requestBreaker(String limit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new HierarchyCircuitBreakerService(CircuitBreakerMetrics.NOOP, settings, List.of(), clusterSettings).getBreaker(
+            CircuitBreaker.REQUEST
+        );
     }
 
     private ExternalSourceResolver createResolver(

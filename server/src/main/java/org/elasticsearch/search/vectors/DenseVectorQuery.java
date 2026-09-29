@@ -673,6 +673,19 @@ public abstract class DenseVectorQuery extends Query {
         @Override
         public void nextDocsAndScores(int upTo, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
             if (bulkScorer == null) {
+                // Advancing the conjunction returned by iterator() may have moved the vector iterator forward while
+                // leaving the filter iterator behind: ConjunctionDISI keeps a higher-cost BitSetIterator (e.g. a cached
+                // filter) as a side bit set that it queries via Bits#get instead of advancing, so the filter iterator can
+                // still sit at docID -1 while the vector iterator has reached NO_MORE_DOCS. VectorScorer#bulk builds its
+                // own conjunction over the vector and filter iterators and requires them to be on the same document, so
+                // re-align the filter iterator to the vector iterator before creating the bulk scorer.
+                // See https://github.com/elastic/elasticsearch/issues/159517.
+                if (filterIterator != null) {
+                    int vectorDoc = vectorScorer.iterator().docID();
+                    if (filterIterator.docID() < vectorDoc) {
+                        filterIterator.advance(vectorDoc);
+                    }
+                }
                 bulkScorer = vectorScorer.bulk(filterIterator);
             }
             bulkScorer.nextDocsAndScores(upTo, liveDocs, buffer);

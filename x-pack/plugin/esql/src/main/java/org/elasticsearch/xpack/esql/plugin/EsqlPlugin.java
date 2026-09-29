@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -123,9 +126,13 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestTestDataSourceConnectionAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceNodeAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -518,6 +525,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        FormatReaderRegistry formatReaderRegistry = dataSourceModule.formatReaderRegistry();
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO,
+            formatReaderRegistry::setMaxDecompressionRatio
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
+            formatReaderRegistry::setMaxDecompressionRatioZstd
+        );
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -688,6 +704,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT,
+                EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
@@ -718,6 +736,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
@@ -735,6 +754,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+            new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
+            new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
@@ -764,11 +785,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        // The _test connectivity probe is additionally gated by its own FeatureFlag (snapshot-on, release-off).
         if (Federation.isAvailable(restHandlersServices.settings())) {
             handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestPutDatasetAction());
+            if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
+            }
+            handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }
@@ -785,6 +810,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EsqlQueryStatus.ENTRY);
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
+        entries.add(StreamingPageOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);

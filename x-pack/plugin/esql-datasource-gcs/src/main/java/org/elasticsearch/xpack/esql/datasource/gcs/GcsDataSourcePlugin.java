@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -53,15 +54,34 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (enabled() == false) {
+            return Map.of();
+        }
+        return Map.of("gcs", "gs");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         if (enabled() == false) {
             return Map.of();
         }
-        StorageProviderFactory gcsFactory = StorageProviderFactory.of(
+        StorageProviderFactory gcsBase = StorageProviderFactory.of(
             () -> new GcsStorageProvider((GcsConfiguration) null),
             GcsConfiguration::fromQueryConfig,
             GcsStorageProvider::new
         );
+        StorageProviderFactory gcsFactory = StorageProviderFactory.withTestConnection(gcsBase, config -> {
+            GcsConfiguration cfg = GcsConfiguration.fromQueryConfig(config).value();
+            GcsStorageProvider p = new GcsStorageProvider(cfg);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("gs", gcsFactory);
     }
 

@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Represents a byte range within a file for a file-based external source.
@@ -43,6 +44,21 @@ public class FileSplit implements ExternalSplit {
 
     static final TransportVersion ESQL_SPLIT_STATS_COMPACT = TransportVersion.fromName("esql_split_stats_compact");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+
+    /**
+     * {@link Collections#unmodifiableMap} wrapper class. Discovery freezes each survivor's partition
+     * map once; the constructor keeps that instance. {@code Map.copyOf} is not used: {@code _file.directory}
+     * and {@code _file.modified} are null for some files.
+     */
+    private static final Class<?> UNMODIFIABLE_MAP_CLASS = Collections.unmodifiableMap(new LinkedHashMap<String, Object>()).getClass();
+
+    /** LinkedHashMap copies made for a caller that did not pass an already-frozen partition map. */
+    private static final AtomicLong DEFENSIVE_PARTITION_MAP_COPIES = new AtomicLong();
+
+    /** Test hook: how many defensive partition-map copies the constructor has made. */
+    static long defensivePartitionMapCopies() {
+        return DEFENSIVE_PARTITION_MAP_COPIES.get();
+    }
 
     private final String sourceType;
     private final StoragePath path;
@@ -232,9 +248,7 @@ public class FileSplit implements ExternalSplit {
         this.length = length;
         this.format = format;
         this.config = config != null ? Map.copyOf(config) : Map.of();
-        this.partitionValues = partitionValues != null && partitionValues.isEmpty() == false
-            ? Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues))
-            : Map.of();
+        this.partitionValues = freezePartitionValues(partitionValues);
         this.columnMapping = columnMapping;
         // Empty list and null mean the same thing at this layer: "no schema pin." Collapse so the reader
         // does exactly one null-check downstream (mirrors FormatReadContext.readSchema's compact ctor).
@@ -257,6 +271,22 @@ public class FileSplit implements ExternalSplit {
             this.splitStats = null;
             this.statistics = null;
         }
+    }
+
+    /**
+     * Reuses a map already wrapped by {@link Collections#unmodifiableMap} (discovery freezes one
+     * {@link LinkedHashMap} per survivor, including null directory and mtime). Any other map is
+     * copied so a caller cannot mutate the split after construction. Empty stays {@link Map#of()}.
+     */
+    private static Map<String, Object> freezePartitionValues(@Nullable Map<String, Object> partitionValues) {
+        if (partitionValues == null || partitionValues.isEmpty()) {
+            return Map.of();
+        }
+        if (partitionValues.getClass() == UNMODIFIABLE_MAP_CLASS) {
+            return partitionValues;
+        }
+        DEFENSIVE_PARTITION_MAP_COPIES.incrementAndGet();
+        return Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues));
     }
 
     public FileSplit(StreamInput in) throws IOException {

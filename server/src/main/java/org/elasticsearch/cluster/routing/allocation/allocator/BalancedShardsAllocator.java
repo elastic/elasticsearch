@@ -904,7 +904,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         public boolean moveShards() {
             final var shardMoved = new AtomicBoolean(false);
-            final var bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker();
+            final var bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker(allocation.clusterInfo());
 
             iterateNodesAndMoveCannotRemain(shardMoved, bestNonPreferredShardMovementsTracker);
             if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
@@ -1252,7 +1252,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Keeps track of the single "best" shard movement we could make from each node, as scored by
-         * {@link BalancingWeights#shardMovePreference}. Provides a utility for checking if
+         * {@link BalancingWeights#movePrioritisationForNode}. Provides a utility for checking if
          * a proposed movement is "better" than the current best for that node.
          */
         private class BestShardMovementsTracker {
@@ -1262,6 +1262,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // LinkedHashMap so we iterate in insertion order
             private final Map<String, StoredShardMovement> bestShardMovementsByNode = new LinkedHashMap<>();
             private final Map<String, Comparator<ShardRouting>> comparatorCache = new HashMap<>();
+            private final ClusterInfo clusterInfo;
+
+            public BestShardMovementsTracker(ClusterInfo clusterInfo) {
+                this.clusterInfo = clusterInfo;
+            }
 
             /**
              * Is the provided {@link ShardRouting} potentially a better shard to move than the one
@@ -1277,7 +1282,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> balancingWeights.movePrioritisationForNode(allocation.routingNodes().node(nodeId), allocation.clusterInfo())
+                    nodeId -> balancingWeights.movePrioritisationForNode(allocation.routingNodes().node(nodeId), clusterInfo)
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison < 0;

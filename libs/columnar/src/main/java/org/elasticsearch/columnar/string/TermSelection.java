@@ -96,6 +96,12 @@ final class TermSelection {
         for (int id : byDensity) {
             terms.get(id, scratch);
             final long cost = TermQuota.cost(scratch);
+            // NOTE: a term the whole budget cannot buy is in no dictionary this bounds, so it is not part
+            // of the problem being relaxed. Crediting a fraction of it would bound the column by a term it
+            // can never name.
+            if (cost > budget) {
+                continue;
+            }
             if (spent + cost <= budget) {
                 spent += cost;
                 held = clampSum(held, counts[id]);

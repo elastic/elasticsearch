@@ -187,6 +187,18 @@ public class SummaryMergerTests extends ESTestCase {
         assertEquals("eighty of two hundred cannot reach half", SummaryMerger.Outcome.NO_DICTIONARY, second.decide(true).outcome());
     }
 
+    // NOTE: a hundred and one bytes never fit a hundred, so the only dictionary this column could have is
+    // the one byte term. Crediting a fraction of the term that cannot fit put the bound at 99 of 100 and
+    // left a merge undecided that nothing could have settled in the dictionary's favour.
+    public void testATermLargerThanTheCapCannotRaiseTheBound() {
+        final SummaryMerger merger = new SummaryMerger(new DictionaryPolicy(100, 0.5, 1.0), ROOMY_SUMMARY);
+        merger.add(100, 10 + 90 * 101, BestCoverage.UNKNOWN, terms("a", "b".repeat(101)), counts(10L, 90L));
+
+        final SummaryMerger.Decision decision = merger.decide(true);
+        assertEquals("only the one byte term is affordable", 10, decision.bestCoverage().namedValues());
+        assertEquals(SummaryMerger.Outcome.NO_DICTIONARY, decision.outcome());
+    }
+
     public void testSummedCountsThatClearTheBarProveADictionary() {
         final SummaryMerger merger = mergerCappedAt(4);
         merger.add(300, 1200, BestCoverage.UNKNOWN, terms("head"), counts(100L));

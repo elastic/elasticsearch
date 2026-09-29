@@ -856,7 +856,11 @@ public class ViewResolver {
      * remote.
      */
     private static boolean patternIsExclusion(String pattern) {
-        return IndexPattern.isExclusion(pattern);
+        if (pattern.startsWith("-")) {
+            return true;
+        }
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
     }
 
     /**

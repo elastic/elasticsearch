@@ -52,11 +52,6 @@ public final class SourceFanInUnionAll extends UnionAll {
      */
     public static final int MAX_PRODUCERS = MergePlan.MAX_BRANCHES;
 
-    /** True when {@code count} is more producers than one {@code FROM} may expand to. */
-    public static boolean exceedsMaxProducers(int count) {
-        return count > MAX_PRODUCERS;
-    }
-
     public SourceFanInUnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, flattenDirect(children), output);
     }
@@ -83,7 +78,12 @@ public final class SourceFanInUnionAll extends UnionAll {
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return SourceFanInUnionAll::checkSourceFanIn;
+        return super.postAnalysisPlanVerification().andThen(SourceFanInUnionAll::checkProducerCount);
+    }
+
+    /** The lone producer when only one is left, otherwise this fan-in. */
+    public LogicalPlan collapseSingleChild() {
+        return children().size() == 1 ? children().getFirst() : this;
     }
 
     /**
@@ -92,16 +92,14 @@ public final class SourceFanInUnionAll extends UnionAll {
      * contribute the producers inside them. Any other node is one producer; index reads that
      * {@link #withIndexReadsCollapsed} merged count once.
      */
-    public static int producerCount(LogicalPlan plan) {
-        if (plan instanceof SourceFanInUnionAll fanIn) {
+    static int producerCount(LogicalPlan plan) {
+        LogicalPlan current = unwrapSourcePipeline(plan);
+        if (current instanceof SourceFanInUnionAll fanIn) {
             int count = 0;
             for (LogicalPlan child : fanIn.children()) {
                 count += producerCount(child);
             }
             return count;
-        }
-        if (isSourcePipelineUnary(plan)) {
-            return producerCount(((UnaryPlan) plan).child());
         }
         return 1;
     }
@@ -110,54 +108,50 @@ public final class SourceFanInUnionAll extends UnionAll {
      * A {@link ViewUnionAll} that is only a resolved {@code FROM}: datasets, indices, or a mix, including a unary
      * pipeline on that expansion beside a matched namesake. An index-only view union, a {@code FORK}, a join, or a
      * subquery is not a source list.
+     * <p>
+     * Index and dataset leaves are treated alike, so a view that filters an index promotes the same as one that
+     * filters a dataset.
      */
     public static boolean isSourceExpansion(ViewUnionAll view) {
         if (view.children().isEmpty() || view.anyMatch(p -> p instanceof ExternalRelation) == false) {
             return false;
         }
         for (LogicalPlan child : view.children()) {
-            if (isPromotable(child) == false) {
+            if (isProducer(unwrapSourcePipeline(child)) == false) {
                 return false;
             }
         }
         return true;
     }
 
+    /** A dataset read, an index read, or a nested fan-in. */
+    public static boolean isProducer(LogicalPlan plan) {
+        return plan instanceof SourceFanInUnionAll || plan instanceof ExternalRelation || plan instanceof EsRelation;
+    }
+
     /**
-     * A producer ({@link ExternalRelation}, {@link EsRelation}, or a nested fan-in), bare or under a unary pipeline.
-     * Index and dataset leaves are treated alike, so a view that filters an index promotes the same as one that
-     * filters a dataset. {@link #isSourceExpansion} already keeps index-only view unions out.
+     * Strips the unary commands that stay wrapped around a source fan-in: a filter, projection, eval, limit,
+     * sort, or aggregate. Any other node is returned as is, so a command such as {@code FORK} or a subquery
+     * is not walked through.
      */
-    private static boolean isPromotable(LogicalPlan plan) {
+    private static LogicalPlan unwrapSourcePipeline(LogicalPlan plan) {
         LogicalPlan current = plan;
-        while (isSourcePipelineUnary(current)) {
+        while (current instanceof Filter
+            || current instanceof Project
+            || current instanceof Rename
+            || current instanceof Eval
+            || current instanceof Limit
+            || current instanceof OrderBy
+            || current instanceof Aggregate) {
             current = ((UnaryPlan) current).child();
         }
-        return current instanceof SourceFanInUnionAll || current instanceof ExternalRelation || current instanceof EsRelation;
+        return current;
     }
 
-    /**
-     * A unary command that stays wrapped around a source fan-in: a filter, projection, eval, limit,
-     * sort, or aggregate. Any other node is one producer, so a command such as {@code FORK} or a
-     * subquery is not walked through.
-     */
-    public static boolean isSourcePipelineUnary(LogicalPlan plan) {
-        return plan instanceof Filter
-            || plan instanceof Project
-            || plan instanceof Rename
-            || plan instanceof Eval
-            || plan instanceof Limit
-            || plan instanceof OrderBy
-            || plan instanceof Aggregate;
-    }
-
-    private static void checkSourceFanIn(LogicalPlan plan, Failures failures) {
+    private static void checkProducerCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof SourceFanInUnionAll fanIn) {
-            if (fanIn.children().isEmpty()) {
-                failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
-            }
             int producers = producerCount(fanIn);
-            if (exceedsMaxProducers(producers)) {
+            if (producers > MAX_PRODUCERS) {
                 failures.add(
                     Failure.fail(
                         fanIn,
@@ -171,7 +165,6 @@ public final class SourceFanInUnionAll extends UnionAll {
                 );
             }
         }
-        UnionAll.checkOutputTypes(plan, failures);
     }
 
     /**
@@ -186,14 +179,8 @@ public final class SourceFanInUnionAll extends UnionAll {
      * <p>
      * Must run after index resolution and before branch alignment wraps each child in a projection. It is an
      * explicit step rather than part of the constructor, because a node must keep the children it is built with.
-     */
-    public SourceFanInUnionAll withIndexReadsCollapsed() {
-        return withIndexReadsCollapsed(false);
-    }
-
-    /**
-     * Collapses compatible sibling index scans and preserves fields that are unmapped in part of the
-     * resulting scan when {@code loadUnmappedFields} is enabled.
+     *
+     * @param loadUnmappedFields marks fields that are unmapped in part of the merged scan as potentially unmapped
      */
     public SourceFanInUnionAll withIndexReadsCollapsed(boolean loadUnmappedFields) {
         List<LogicalPlan> children = children();
@@ -427,14 +414,7 @@ public final class SourceFanInUnionAll extends UnionAll {
 
     /** Flattens a fan-in that is itself a direct child. A pipeline wrapped around an inner fan-in stays put. */
     private static List<LogicalPlan> flattenDirect(List<LogicalPlan> children) {
-        boolean nested = false;
-        for (LogicalPlan child : children) {
-            if (child instanceof SourceFanInUnionAll) {
-                nested = true;
-                break;
-            }
-        }
-        if (nested == false) {
+        if (children.stream().noneMatch(child -> child instanceof SourceFanInUnionAll)) {
             return children;
         }
         List<LogicalPlan> flat = new ArrayList<>(children.size());

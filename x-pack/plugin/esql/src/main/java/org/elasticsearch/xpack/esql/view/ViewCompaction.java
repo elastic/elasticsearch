@@ -175,10 +175,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // and collapse a fan-in that has a single producer left.
         return plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
             LogicalPlan pruned = fanIn.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
-            if (pruned instanceof SourceFanInUnionAll prunedFanIn && prunedFanIn.children().size() == 1) {
-                return prunedFanIn.children().getFirst();
-            }
-            return pruned;
+            return pruned instanceof SourceFanInUnionAll prunedFanIn ? prunedFanIn.collapseSingleChild() : pruned;
         });
     }
 
@@ -563,7 +560,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     private static boolean containsExclusion(UnresolvedRelation ur) {
         for (String pattern : ur.indexPattern().indexPattern().split(",")) {
-            if (IndexPattern.isExclusion(pattern)) {
+            if (pattern.startsWith("-")) {
+                return true;
+            }
+            var split = RemoteClusterAware.splitIndexName(pattern);
+            if (split.clusterAlias() != null && split.indexExpression().startsWith("-")) {
                 return true;
             }
         }

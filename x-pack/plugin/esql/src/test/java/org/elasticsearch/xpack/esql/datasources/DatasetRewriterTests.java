@@ -855,7 +855,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
+        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
         assertThat(ex.getMessage(), containsString("the current limit of 8"));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
     }

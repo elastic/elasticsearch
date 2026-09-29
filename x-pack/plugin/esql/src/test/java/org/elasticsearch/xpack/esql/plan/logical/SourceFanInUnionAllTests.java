@@ -44,23 +44,23 @@ import static org.hamcrest.Matchers.not;
 
 public class SourceFanInUnionAllTests extends ESTestCase {
 
-    public void testCheckForkAllowsSourceFanIn() {
+    public void testCheckForkAllowsSourceFanInAndDatasetView() {
         Fork fork = new Fork(Source.EMPTY, List.of(fanIn(external("a"), external("b")), index("idx")), List.of());
         assertThat(verifyAnalysis(fork), not(containsString("FORK after subquery")));
         assertThat(verifyAnalysis(fork), not(containsString("Only a single FORK")));
+
+        // A dataset view is one FROM, so it is allowed under FORK the same way a source fan-in is.
+        Fork overView = new Fork(Source.EMPTY, List.of(viewOf(external("a"), index("idx")), index("other")), List.of());
+        assertThat(verifyAnalysis(overView), not(containsString("FORK after subquery")));
     }
 
-    public void testCheckForkRejectsUserUnionViewUnionAndSecondFork() {
+    public void testCheckForkRejectsUserUnionIndexViewUnionAndSecondFork() {
         Fork overUnion = new Fork(
             Source.EMPTY,
             List.of(new UnionAll(Source.EMPTY, List.of(external("a"), external("b")), List.of()), index("idx")),
             List.of()
         );
         assertThat(verifyAnalysis(overUnion), containsString("FORK after subquery is not supported"));
-
-        // A dataset view is one FROM, so it is allowed under FORK the same way a source fan-in is.
-        Fork overView = new Fork(Source.EMPTY, List.of(viewOf(external("a"), index("idx")), index("other")), List.of());
-        assertThat(verifyAnalysis(overView), not(containsString("FORK after subquery")));
 
         Fork overIndexView = new Fork(Source.EMPTY, List.of(viewOf(index("a"), index("b")), index("other")), List.of());
         assertThat(verifyAnalysis(overIndexView), containsString("FORK after subquery is not supported"));
@@ -74,39 +74,32 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     public void testPromoteDatasetViewsAndMixedSourceBesideIndex() {
-        LogicalPlan datasets = PromoteSourceFanIn.promote(viewOf(external("ds1"), external("ds2")));
+        LogicalPlan datasets = promote(viewOf(external("ds1"), external("ds2")));
         assertThat(datasets, instanceOf(SourceFanInUnionAll.class));
         assertThat(datasets.children(), hasSize(2));
 
-        LogicalPlan mixed = PromoteSourceFanIn.promote(viewOf(external("ds"), index("idx")));
+        LogicalPlan mixed = promote(viewOf(external("ds"), index("idx")));
         assertThat(mixed, instanceOf(SourceFanInUnionAll.class));
         assertThat(mixed.children().get(0), instanceOf(ExternalRelation.class));
         assertThat(mixed.children().get(1), instanceOf(EsRelation.class));
     }
 
-    public void testPromoteFlattensNestedFanInAndRejectsNinthProducer() {
-        LogicalPlan flattened = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), external("c")));
+    public void testPromoteFlattensNestedFanIn() {
+        LogicalPlan flattened = promote(viewOf(fanIn(external("a"), external("b")), external("c")));
         assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
         assertThat(flattened.children(), hasSize(3));
         assertThat(flattened.children().get(0), instanceOf(ExternalRelation.class));
-
-        List<LogicalPlan> nine = new ArrayList<>();
-        for (int i = 0; i < 9; i++) {
-            nine.add(external("ds" + i));
-        }
-        LogicalPlan tooMany = PromoteSourceFanIn.promote(viewOf(nine));
-        assertThat(verifyAnalysis(tooMany), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
     public void testPromoteLeavesIndexOnlyViewUnion() {
         ViewUnionAll indexes = viewOf(index("a"), index("b"));
-        assertThat(PromoteSourceFanIn.promote(indexes), equalTo(indexes));
+        assertThat(promote(indexes), equalTo(indexes));
     }
 
     public void testPromoteKeepsFilterOnFanInBesideNamesake() {
         SourceFanInUnionAll inner = fanIn(external("ds1"), external("ds2"));
-        Filter filter = new Filter(Source.EMPTY, inner, new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(filter, index("namesake")));
+        Filter filter = filter(inner);
+        LogicalPlan promoted = promote(viewOf(filter, index("namesake")));
 
         assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
         assertThat(promoted.children(), hasSize(2));
@@ -122,37 +115,26 @@ public class SourceFanInUnionAllTests extends ESTestCase {
      * promotes too, so the result does not depend on which side of the union carries the {@code WHERE}.
      */
     public void testPromoteKeepsUnaryOverSingleDatasetBesideOtherSource() {
-        Filter filtered = new Filter(Source.EMPTY, external("ds1"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(filtered, external("ds2")));
+        Filter filtered = filter(external("ds1"));
+        LogicalPlan promoted = promote(viewOf(filtered, external("ds2")));
         assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
         assertThat(promoted.children().get(0), instanceOf(Filter.class));
         assertThat(((Filter) promoted.children().get(0)).child(), instanceOf(ExternalRelation.class));
 
         Limit limited = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER), external("ds1"));
-        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("idx"))), instanceOf(SourceFanInUnionAll.class));
-        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("idx")), true), instanceOf(ViewUnionAll.class));
+        assertThat(promote(viewOf(limited, index("idx"))), instanceOf(SourceFanInUnionAll.class));
 
         Fork fork = new Fork(Source.EMPTY, List.of(viewOf(filtered, external("ds2")), index("other")), List.of());
         assertThat(verifyAnalysis(fork), not(containsString("FORK after subquery")));
 
-        Filter filteredIndex = new Filter(Source.EMPTY, index("idx"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        assertThat(PromoteSourceFanIn.promote(viewOf(filteredIndex, external("ds2"))), instanceOf(SourceFanInUnionAll.class));
+        Filter filteredIndex = filter(index("idx"));
+        assertThat(promote(viewOf(filteredIndex, external("ds2"))), instanceOf(SourceFanInUnionAll.class));
         Fork forkOverFilteredIndex = new Fork(
             Source.EMPTY,
             List.of(viewOf(fanIn(external("a"), external("b")), filteredIndex), index("other")),
             List.of()
         );
         assertThat(verifyAnalysis(forkOverFilteredIndex), not(containsString("FORK after subquery")));
-    }
-
-    public void testPromoteRejectsEightProducersPlusNamesake() {
-        List<LogicalPlan> producers = new ArrayList<>();
-        for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {
-            producers.add(external("ds" + i));
-        }
-        Filter filter = new Filter(Source.EMPTY, fanIn(producers), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        LogicalPlan tooMany = PromoteSourceFanIn.promote(viewOf(filter, index("namesake")));
-        assertThat(verifyAnalysis(tooMany), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
     /**
@@ -169,13 +151,13 @@ public class SourceFanInUnionAllTests extends ESTestCase {
             for (int i = 0; i < 5; i++) {
                 datasets.add(external(view + "_ds" + i));
             }
-            branches.add(new Filter(Source.EMPTY, fanIn(datasets), new Literal(Source.EMPTY, true, DataType.BOOLEAN)));
+            branches.add(filter(fanIn(datasets)));
         }
         LinkedHashMap<String, LogicalPlan> named = new LinkedHashMap<>();
         named.put("va", branches.get(0));
         named.put("vb", branches.get(1));
         Source from = new Source(1, 0, "FROM va, vb");
-        LogicalPlan promoted = PromoteSourceFanIn.promote(new ViewUnionAll(from, named, named.keySet(), List.of()));
+        LogicalPlan promoted = promote(new ViewUnionAll(from, named, named.keySet(), List.of()));
 
         assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
         assertThat(SourceFanInUnionAll.producerCount(promoted), equalTo(10));
@@ -183,11 +165,19 @@ public class SourceFanInUnionAllTests extends ESTestCase {
             verifyAnalysis(promoted),
             containsString("[FROM va, vb] resolved to 10 sources, exceeding the current limit of 8 per FROM")
         );
+
+        // A full filtered fan-in plus one matched namesake is one producer over the cap.
+        List<LogicalPlan> producers = new ArrayList<>();
+        for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {
+            producers.add(external("ds" + i));
+        }
+        LogicalPlan tooMany = promote(viewOf(filter(fanIn(producers)), index("namesake")));
+        assertThat(verifyAnalysis(tooMany), containsString("resolved to 9 sources"));
     }
 
     public void testViewUnionOfForkBesideNamesakeIsNotPromoted() {
         ViewUnionAll view = viewOf(new Fork(Source.EMPTY, List.of(index("a"), index("b")), List.of()), index("namesake"));
-        LogicalPlan promoted = PromoteSourceFanIn.promote(view);
+        LogicalPlan promoted = promote(view);
         assertThat(promoted, instanceOf(ViewUnionAll.class));
 
         Failures failures = new Failures();
@@ -196,13 +186,9 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     public void testUserUnionOfFilteredFanInIsNotPromoted() {
-        Filter filter = new Filter(
-            Source.EMPTY,
-            fanIn(external("ds1"), external("ds2")),
-            new Literal(Source.EMPTY, true, DataType.BOOLEAN)
-        );
+        Filter filter = filter(fanIn(external("ds1"), external("ds2")));
         UnionAll userUnion = new UnionAll(Source.EMPTY, List.of(filter, index("idx")), List.of());
-        LogicalPlan promoted = PromoteSourceFanIn.promote(userUnion);
+        LogicalPlan promoted = promote(userUnion);
         assertThat(promoted, instanceOf(UnionAll.class));
         assertThat(promoted, not(instanceOf(SourceFanInUnionAll.class)));
     }
@@ -228,7 +214,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     /** A view union that is not promoted must not keep a fan-in nested under it; each producer becomes its own branch. */
     public void testPromoteLiftsFanInBesideNonPromotableBranch() {
         Fork nestedFork = new Fork(Source.EMPTY, List.of(index("c"), index("d")), List.of());
-        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), nestedFork));
+        LogicalPlan promoted = promote(viewOf(fanIn(external("a"), external("b")), nestedFork));
 
         assertThat(promoted, instanceOf(ViewUnionAll.class));
         ViewUnionAll view = (ViewUnionAll) promoted;
@@ -243,11 +229,11 @@ public class SourceFanInUnionAllTests extends ESTestCase {
      */
     public void testPreserveViewBoundariesPromotesOnlySourceOnlyViewBranches() {
         Limit limited = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER), fanIn(external("a"), external("b")));
-        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("namesake")), true), instanceOf(ViewUnionAll.class));
-        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("namesake")), false), instanceOf(SourceFanInUnionAll.class));
+        assertThat(promote(viewOf(limited, index("namesake")), true), instanceOf(ViewUnionAll.class));
+        assertThat(promote(viewOf(limited, index("namesake")), false), instanceOf(SourceFanInUnionAll.class));
 
-        Filter filtered = new Filter(Source.EMPTY, fanIn(external("a"), external("b")), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        assertThat(PromoteSourceFanIn.promote(viewOf(filtered, index("namesake")), true), instanceOf(SourceFanInUnionAll.class));
+        Filter filtered = filter(fanIn(external("a"), external("b")));
+        assertThat(promote(viewOf(filtered, index("namesake")), true), instanceOf(SourceFanInUnionAll.class));
     }
 
     public void testNamedSubqueryRewriteLeavesSourceFanIn() {
@@ -279,9 +265,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         fork.postAnalysisPlanVerification().accept(fanIn, broadcast);
         assertThat(broadcast.toString(), not(containsString("FORK supports up to")));
 
-        Failures own = new Failures();
-        fanIn.postAnalysisPlanVerification().accept(fanIn, own);
-        assertThat(own.toString(), containsString("resolved to 9 sources"));
+        assertThat(verifyAnalysis(fanIn), containsString("resolved to 9 sources"));
 
         List<LogicalPlan> forkBranches = new ArrayList<>();
         for (int i = 0; i < 9; i++) {
@@ -293,22 +277,8 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(forkCap.toString(), containsString("FORK supports up to"));
     }
 
-    public void testEightDatasetsPlusEightNamesakesFailProducerCheck() {
-        List<LogicalPlan> children = new ArrayList<>();
-        for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {
-            children.add(external("ds" + i));
-            children.add(index("idx" + i));
-        }
-        SourceFanInUnionAll fanIn = fanIn(children).withIndexReadsCollapsed();
-        // The 8 index reads merge into one, leaving 8 datasets + 1 merged index = 9 producers.
-        assertThat(fanIn.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS + 1));
-        Failures failures = new Failures();
-        fanIn.postAnalysisPlanVerification().accept(fanIn, failures);
-        assertThat(failures.toString(), containsString("resolved to 9 sources"));
-        assertThat(failures.toString(), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
-    }
-
-    public void testSevenDatasetsPlusIndexReadsCollapseToEightBranches() {
+    /** Index reads merge into one scan, so they count once toward the per-FROM producer cap. */
+    public void testIndexReadsCountOnceTowardProducerCap() {
         List<LogicalPlan> children = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
             children.add(external("ds" + i));
@@ -317,52 +287,36 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         for (int i = 0; i < 7; i++) {
             children.add(index("shadow" + i));
         }
-        SourceFanInUnionAll fanIn = fanIn(children).withIndexReadsCollapsed();
-        assertThat(fanIn.children(), hasSize(8));
-        long indexBranches = fanIn.children().stream().filter(c -> c instanceof EsRelation).count();
-        assertThat(indexBranches, equalTo(1L));
-        EsRelation merged = (EsRelation) fanIn.children().get(7);
+        SourceFanInUnionAll atCap = fanIn(children).withIndexReadsCollapsed(false);
+        assertThat(atCap.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS));
+        EsRelation merged = (EsRelation) atCap.children().get(7);
         assertThat(merged.indexPattern(), equalTo("idx,shadow0,shadow1,shadow2,shadow3,shadow4,shadow5,shadow6"));
-        Failures failures = new Failures();
-        fanIn.postAnalysisPlanVerification().accept(fanIn, failures);
-        assertThat(failures.toString(), not(containsString("resolved to")));
-    }
+        assertThat(verifyAnalysis(atCap), not(containsString("resolved to")));
 
-    public void testIndexReadsCountAsOneProducer() {
-        List<LogicalPlan> children = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            children.add(external("ds" + i));
-            children.add(index("shadow" + i));
-        }
-        children.add(index("idx"));
-        LogicalPlan promoted = PromoteSourceFanIn.promote(fanIn(children));
-        assertThat(promoted.children(), hasSize(5));
-        assertThat(verifyAnalysis(promoted), not(containsString("resolved to")));
-    }
-
-    public void testConstructorKeepsIndexReads() {
-        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("a"), index("b"));
-        assertThat(fanIn.children(), hasSize(3));
+        children.add(external("ds7"));
+        SourceFanInUnionAll overCap = fanIn(children).withIndexReadsCollapsed(false);
+        assertThat(overCap.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS + 1));
+        assertThat(verifyAnalysis(overCap), containsString("resolved to 9 sources"));
     }
 
     public void testIndexReadsWithConflictingTypesStaySeparate() {
         EsRelation keyword = index("a", field("emp_no", DataType.KEYWORD));
         EsRelation integer = index("b", field("emp_no", DataType.INTEGER));
         SourceFanInUnionAll fanIn = fanIn(external("ds"), keyword, integer);
-        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+        assertThat(fanIn.withIndexReadsCollapsed(false), equalTo(fanIn));
     }
 
     public void testIndexReadsWithDifferentUnmappedFieldMetadataStaySeparate() {
         FieldAttribute mapped = field("value", DataType.LONG);
         FieldAttribute partiallyUnmapped = mapped.withField(new PotentiallyUnmappedSingleTypeEsField(mapped.field(), Set.of("b_mapped")));
         SourceFanInUnionAll fanIn = fanIn(external("ds"), index("a", mapped), index("b", partiallyUnmapped));
-        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+        assertThat(fanIn.withIndexReadsCollapsed(false), equalTo(fanIn));
     }
 
     public void testIndexReadsWithExclusionsStaySeparate() {
         for (String pattern : List.of("idx_*,-idx_b", "remote:idx_*,remote:-idx_b", "remote:idx_*,-remote:*")) {
             SourceFanInUnionAll fanIn = fanIn(external("ds"), index("idx_b"), index(pattern));
-            assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+            assertThat(fanIn.withIndexReadsCollapsed(false), equalTo(fanIn));
         }
     }
 
@@ -371,9 +325,9 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         EsRelation first = indexOver("v_idx", "idx");
         EsRelation second = indexOver("idx", "idx");
         SourceFanInUnionAll overlapping = fanIn(external("ds"), first, second);
-        assertThat(overlapping.withIndexReadsCollapsed(), equalTo(overlapping));
+        assertThat(overlapping.withIndexReadsCollapsed(false), equalTo(overlapping));
 
-        SourceFanInUnionAll disjoint = fanIn(external("ds"), indexOver("a", "a"), indexOver("b", "b")).withIndexReadsCollapsed();
+        SourceFanInUnionAll disjoint = fanIn(external("ds"), indexOver("a", "a"), indexOver("b", "b")).withIndexReadsCollapsed(false);
         assertThat(disjoint.children(), hasSize(2));
     }
 
@@ -382,7 +336,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         EsRelation overlapping = indexOver("overlapping", List.of("a", "b"), List.of(field("emp_no")));
         EsRelation second = indexOver("second", "b");
 
-        SourceFanInUnionAll collapsed = fanIn(external("ds"), first, overlapping, second).withIndexReadsCollapsed();
+        SourceFanInUnionAll collapsed = fanIn(external("ds"), first, overlapping, second).withIndexReadsCollapsed(false);
 
         assertThat(collapsed.children(), hasSize(3));
         assertThat(((EsRelation) collapsed.children().get(1)).indexPattern(), equalTo("first,second"));
@@ -419,18 +373,18 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         MetadataAttribute id = new MetadataAttribute(Source.EMPTY, "_id", DataType.KEYWORD, false);
         EsRelation withId = new EsRelation(Source.EMPTY, "a", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(empNo, id));
         SourceFanInUnionAll fanIn = fanIn(external("ds"), withId, index("b", empNo));
-        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+        assertThat(fanIn.withIndexReadsCollapsed(false), equalTo(fanIn));
     }
 
     public void testEmptyMappingMarkerDroppedWhenMerged() {
         EsRelation empty = new EsRelation(Source.EMPTY, "empty", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), Analyzer.NO_FIELDS);
         FieldAttribute empNo = field("emp_no");
-        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("idx", empNo), empty).withIndexReadsCollapsed();
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("idx", empNo), empty).withIndexReadsCollapsed(false);
         assertThat(fanIn.children(), hasSize(2));
         assertThat(fanIn.children().get(1).output(), equalTo(List.of(empNo)));
 
         EsRelation otherEmpty = new EsRelation(Source.EMPTY, "other", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), Analyzer.NO_FIELDS);
-        SourceFanInUnionAll bothEmpty = fanIn(external("ds"), empty, otherEmpty).withIndexReadsCollapsed();
+        SourceFanInUnionAll bothEmpty = fanIn(external("ds"), empty, otherEmpty).withIndexReadsCollapsed(false);
         assertThat(bothEmpty.children().get(1).output(), equalTo(Analyzer.NO_FIELDS));
     }
 
@@ -448,6 +402,18 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         UnionAll.checkNestedSubqueryLimits(fork, 20, 5, "[max_branch_count] query pragma", "[max_branch_level] query pragma", failures);
         assertThat(failures.toString(), containsString("64 branches"));
         assertThat(failures.toString(), containsString("limit of 20"));
+    }
+
+    private static LogicalPlan promote(LogicalPlan plan) {
+        return promote(plan, false);
+    }
+
+    private static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries) {
+        return PromoteSourceFanIn.promote(plan, preserveViewBoundaries, false);
+    }
+
+    private static Filter filter(LogicalPlan child) {
+        return new Filter(Source.EMPTY, child, Literal.TRUE);
     }
 
     private static String verifyAnalysis(LogicalPlan plan) {

@@ -56,6 +56,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -186,30 +187,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
-    private static final Set<String> CREATED_VIEWS = Set.of(
-        "employees_view",
-        "employees_filtered_view",
-        "mapped_dataset_view",
-        "fork_source_view",
-        "fork_filtered_view",
-        "fork_body_view",
-        "computed_ds_view",
-        "dup_idx_view",
-        "ds_pair_view",
-        "filtered_idx_view",
-        "fork_idx_view",
-        "idx_view",
-        "stats_ds_view",
-        "drop_view",
-        "rename_view",
-        "load_view",
-        "scope_view",
-        "single_ds_view"
-    );
+    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view", "mapped_dataset_view");
+
+    /** Views created through {@link #createView}, deleted after each test alongside {@link #CREATED_VIEWS}. */
+    private final Set<String> createdViews = new HashSet<>();
 
     @After
     public void cleanupViews() throws Exception {
-        for (String view : CREATED_VIEWS) {
+        createdViews.addAll(CREATED_VIEWS);
+        for (String view : createdViews) {
             try {
                 client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
@@ -5091,39 +5077,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 TIMEOUT
             )
         ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
-        }
-    }
-
-    public void testForkFourBranchesOverFiveDatasets() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        List<String> datasets = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            String name = "fork_cap5_ds" + i;
-            registerDataset(name, "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-            datasets.add(name);
-        }
-        // Each dataset has emp_no 1, 2, and 3. Five producers under four FORK branches is 20 leaves.
-        String query = "FROM "
-            + String.join(", ", datasets)
-            + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) (WHERE emp_no == 3) (WHERE emp_no <= 3)"
-            + " | STATS c = COUNT(*) BY _fork | SORT _fork";
-        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(4));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(5L));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
-            assertThat(((Number) rows.get(2).get(0)).longValue(), equalTo(5L));
-            assertThat(rows.get(2).get(1).toString(), equalTo("fork3"));
-            assertThat(((Number) rows.get(3).get(0)).longValue(), equalTo(15L));
-            assertThat(rows.get(3).get(1).toString(), equalTo("fork4"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "fork1"), List.of(2, "fork2"))));
         }
     }
 
@@ -5150,172 +5104,78 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) (WHERE emp_no == 3) (WHERE emp_no <= 3)"
             + " | STATS c = COUNT(*) BY _fork | SORT _fork";
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(4));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(14L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(4L));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
-            assertThat(((Number) rows.get(2).get(0)).longValue(), equalTo(4L));
-            assertThat(rows.get(2).get(1).toString(), equalTo("fork3"));
-            assertThat(((Number) rows.get(3).get(0)).longValue(), equalTo(22L));
-            assertThat(rows.get(3).get(1).toString(), equalTo("fork4"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(14L, "fork1"), List.of(4L, "fork2"), List.of(4L, "fork3"), List.of(22L, "fork4")))
+            );
         }
-    }
-
-    public void testForkOverSourceOnlyView() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_view_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_view_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_source_view", "FROM fork_view_a, fork_view_b")));
-
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM fork_source_view | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | STATS c = COUNT(*) BY _fork | SORT _fork"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
-        }
-    }
-
-    public void testForkOverFilteredViewMatchesInline() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_filt_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_filt_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("fork_filtered_view", "FROM fork_filt_a, fork_filt_b | WHERE emp_no > 1")
-            )
-        );
-        String forkTail = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
-
-        List<List<Object>> fromView;
-        try (var response = run(syncEsqlQueryRequest("FROM fork_filtered_view" + forkTail), TIMEOUT)) {
-            fromView = getValuesList(response);
-        }
-        List<List<Object>> inline;
-        try (var response = run(syncEsqlQueryRequest("FROM fork_filt_a, fork_filt_b | WHERE emp_no > 1" + forkTail), TIMEOUT)) {
-            inline = getValuesList(response);
-        }
-        assertThat(fromView, equalTo(inline));
-        assertThat(fromView, hasSize(4));
     }
 
     /**
-     * A view over one dataset resolves to a pipeline over the bare dataset rather than over a fan-in. Beside another
-     * source it is still one {@code FROM}, so {@code FORK} accepts it the same as a view over several datasets.
+     * {@code FORK} over a view that expands to datasets returns the same rows as the same {@code FROM} written inline.
+     * Covers views that are only sources, filter them, compute over one dataset beside another source, rename or drop
+     * columns, and a view whose body is itself the {@code FORK}.
      */
-    public void testForkOverSingleDatasetViewBesideDatasetMatchesInline() throws Exception {
+    public void testForkOverDatasetViewsMatchesInline() throws Exception {
         registerDataSource("local_ds", Map.of());
-        registerDataset("single_view_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("single_view_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        String forkTail = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
-        for (String body : List.of("FROM single_view_a | WHERE emp_no > 1", "FROM single_view_a | EVAL x = 1")) {
-            assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("single_ds_view", body)));
-            List<List<Object>> fromView;
-            try (var response = run(syncEsqlQueryRequest("FROM single_ds_view, single_view_b" + forkTail), TIMEOUT)) {
-                fromView = getValuesList(response);
-            }
+        registerDataset("fork_ds_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_ds_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_ds_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+        String fork12 = " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
+        String fork23 = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
+        String forkRenamed = " | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id";
+        String pair = "FROM fork_ds_a, fork_ds_b";
+        // view body, query over the view, equivalent inline query
+        List<List<String>> cases = List.of(
+            List.of(pair, "FROM fork_view" + fork12, pair + fork12),
+            List.of(pair + " | WHERE emp_no > 1", "FROM fork_view" + fork23, pair + " | WHERE emp_no > 1" + fork23),
+            List.of("FROM fork_ds_a | WHERE emp_no > 1", "FROM fork_view, fork_ds_b" + fork23, pair + fork23),
+            List.of("FROM fork_ds_a | EVAL x = 1", "FROM fork_view, fork_ds_b" + fork23, pair + fork23),
+            List.of(
+                pair + " | RENAME emp_no AS id",
+                "FROM fork_view, fork_ds_a" + forkRenamed,
+                pair + " | RENAME emp_no AS id" + forkRenamed
+            ),
+            List.of(pair + " | DROP first_name", "FROM fork_view, fork_ds_alt" + fork12, pair + " | DROP first_name" + fork12),
+            List.of(pair + fork12, "FROM fork_view | KEEP emp_no, _fork | SORT _fork, emp_no", pair + fork12)
+        );
+        for (List<String> c : cases) {
+            createView("fork_view", c.get(0));
             List<List<Object>> inline;
-            try (var response = run(syncEsqlQueryRequest("FROM single_view_a, single_view_b" + forkTail), TIMEOUT)) {
+            try (var response = run(syncEsqlQueryRequest(c.get(2)), TIMEOUT)) {
                 inline = getValuesList(response);
             }
-            assertThat(body, fromView, equalTo(inline));
-            assertThat(body, fromView, hasSize(4));
-            assertAcked(client().execute(DeleteViewAction.INSTANCE, deleteViewRequest("single_ds_view")));
+            try (var response = run(syncEsqlQueryRequest(c.get(1)), TIMEOUT)) {
+                assertThat(c.get(0), getValuesList(response), equalTo(inline));
+            }
+            assertThat(c.get(0), inline, hasSize(4));
+            assertAcked(client().execute(DeleteViewAction.INSTANCE, deleteViewRequest("fork_view")));
         }
     }
 
-    public void testForkOverDatasetViewWithRenameMatchesInline() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("rename_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("rename_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        String viewBody = "FROM rename_a, rename_b | RENAME emp_no AS id";
-        String tail = " | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id";
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("rename_view", viewBody)));
-
-        List<List<Object>> inline;
-        try (var response = run(syncEsqlQueryRequest(viewBody + tail), TIMEOUT)) {
-            inline = getValuesList(response);
-            assertThat(inline, hasSize(4));
-        }
-        try (var response = run(syncEsqlQueryRequest("FROM rename_view, rename_a" + tail), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(inline));
-        }
-    }
-
-    public void testForkOverDatasetViewWithDropMatchesInline() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("drop_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("drop_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("drop_c", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
-        String viewBody = "FROM drop_a, drop_b | DROP first_name";
-        String tail = " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("drop_view", viewBody)));
-
-        List<List<Object>> inline;
-        try (var response = run(syncEsqlQueryRequest(viewBody + tail), TIMEOUT)) {
-            inline = getValuesList(response);
-            assertThat(inline, hasSize(4));
-        }
-        try (var response = run(syncEsqlQueryRequest("FROM drop_view, drop_c" + tail), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(inline));
-        }
-    }
-
-    public void testForkOverUserSubqueryRejected() {
+    /** A user subquery, alone or beside a view, is not a source list, so {@code FORK} still rejects it. */
+    public void testForkOverUserSubqueryRejected() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("idx_for_view").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_sub", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        createView("idx_view", "FROM idx_for_view");
 
-        Exception failure = expectThrows(
-            Exception.class,
-            () -> run(
-                syncEsqlQueryRequest("FROM fork_sub, (FROM fork_sub | WHERE emp_no > 0) | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)"),
-                TIMEOUT
-            ).close()
-        );
-        assertCauseMessageContains(failure, "FORK after subquery is not supported");
-    }
-
-    public void testViewBodyForkMatchesInline() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_body_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_body_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        String forkQuery =
-            "FROM fork_body_a, fork_body_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_body_view", forkQuery)));
-
-        List<List<Object>> fromView;
-        try (var response = run(syncEsqlQueryRequest("FROM fork_body_view | KEEP emp_no, _fork | SORT _fork, emp_no"), TIMEOUT)) {
-            fromView = getValuesList(response);
+        for (String from : List.of("FROM fork_sub, (FROM fork_sub | WHERE emp_no > 0)", "FROM idx_view, (FROM fork_sub)")) {
+            Exception failure = expectThrows(
+                Exception.class,
+                () -> run(syncEsqlQueryRequest(from + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)"), TIMEOUT).close()
+            );
+            assertCauseMessageContains(failure, "FORK after subquery is not supported");
         }
-        List<List<Object>> inline;
-        try (var response = run(syncEsqlQueryRequest(forkQuery), TIMEOUT)) {
-            inline = getValuesList(response);
-        }
-        assertThat(fromView, equalTo(inline));
-        assertThat(fromView, hasSize(4));
     }
 
     public void testForkOverViewWhoseBodyIsForkRejected() throws Exception {
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_nested_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("fork_nested_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("fork_body_view", "FROM fork_nested_a, fork_nested_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)")
-            )
-        );
+        createView("fork_body_view", "FROM fork_nested_a, fork_nested_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)");
 
         Exception failure = expectThrows(
             Exception.class,
@@ -5332,12 +5192,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("computed_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("computed_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("computed_ds_view", "FROM computed_a, computed_b | EVAL emp_no = emp_no - 100")
-            )
-        );
+        createView("computed_ds_view", "FROM computed_a, computed_b | EVAL emp_no = emp_no - 100");
 
         var request = syncEsqlQueryRequest("FROM computed_ds_view | KEEP emp_no | SORT emp_no");
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(1));
@@ -5351,19 +5206,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("ds_pair_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("ds_pair_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, putViewRequest("ds_pair_view", "FROM ds_pair_a, ds_pair_b | WHERE emp_no > 1"))
-        );
+        createView("ds_pair_view", "FROM ds_pair_a, ds_pair_b | WHERE emp_no > 1");
 
         var request = syncEsqlQueryRequest(
             "FROM ds_pair_view | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | STATS c = COUNT(*) BY _fork | SORT _fork"
         );
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(3));
         try (var response = run(request, TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork2"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L, "fork2"))));
         }
     }
 
@@ -5374,10 +5224,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         client().admin().indices().prepareRefresh("dup_idx").get();
         registerDataSource("local_ds", Map.of());
         registerDataset("dup_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("dup_idx_view", "FROM dup_idx")));
+        createView("dup_idx_view", "FROM dup_idx");
 
         try (var response = run(syncEsqlQueryRequest("FROM dup_idx_view, dup_idx, dup_ds | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(5L));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
         }
     }
 
@@ -5389,7 +5239,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         client().admin().indices().prepareRefresh("scope_idx_*").get();
         registerDataSource("local_ds", Map.of());
         registerDataset("scope_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("scope_view", "FROM scope_idx_*, -scope_idx_b")));
+        createView("scope_view", "FROM scope_idx_*, -scope_idx_b");
 
         try (var response = run(syncEsqlQueryRequest("FROM scope_idx_b, scope_view | KEEP emp_no | SORT emp_no"), TIMEOUT)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(20))));
@@ -5397,21 +5247,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM scope_idx_b, scope_ds, scope_view | KEEP emp_no | SORT emp_no"), TIMEOUT)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(20))));
         }
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM scope_idx_b, scope_ds, scope_view | FORK (WHERE emp_no >= 10) (WHERE emp_no == 20)"
-                        + " | STATS c = COUNT(*) BY _fork | SORT _fork"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(1L));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+        String forkQuery = "FROM scope_idx_b, scope_ds, scope_view | FORK (WHERE emp_no >= 10) (WHERE emp_no == 20)"
+            + " | STATS c = COUNT(*) BY _fork | SORT _fork";
+        try (var response = run(syncEsqlQueryRequest(forkQuery), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L, "fork1"), List.of(1L, "fork2"))));
         }
     }
 
@@ -5429,7 +5268,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("load_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         // The no-op exclusion keeps this view's field-caps response separate from load_b_* until analysis.
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("load_view", "FROM load_a_mapped, -load_unused")));
+        createView("load_view", "FROM load_a_mapped, -load_unused");
 
         String prefix = "SET unmapped_fields=\"load\"; FROM ";
         String tail = " | WHERE value IS NOT NULL | KEEP value | SORT value";
@@ -5456,11 +5295,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("ds_pair_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("ds_pair_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("ds_pair_view", "FROM ds_pair_a, ds_pair_b")));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("filtered_idx_view", "FROM filtered_idx | WHERE emp_no > 1")));
+        createView("ds_pair_view", "FROM ds_pair_a, ds_pair_b");
+        createView("filtered_idx_view", "FROM filtered_idx | WHERE emp_no > 1");
 
         try (var response = run(syncEsqlQueryRequest("FROM ds_pair_view, filtered_idx_view | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(7L));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(7L))));
         }
         String forkQuery = "FROM ds_pair_view, filtered_idx_view"
             + " | FORK (WHERE emp_no == 1) (WHERE emp_no > 1)"
@@ -5479,32 +5318,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         prepareIndex("fork_idx").setSource(Map.of("emp_no", 1, "first_name", "Idx")).get();
         prepareIndex("fork_idx").setSource(Map.of("emp_no", 2, "first_name", "Idx")).get();
         client().admin().indices().prepareRefresh("fork_idx").get();
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("fork_idx_view", "FROM fork_idx | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)")
-            )
-        );
+        createView("fork_idx_view", "FROM fork_idx | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)");
 
         try (var response = run(syncEsqlQueryRequest("FROM fork_idx_view, fork_idx | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(4L));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(4L))));
         }
-    }
-
-    /** A user subquery beside a view is not a source list, so {@code FORK} still rejects it. */
-    public void testForkOverViewBesideUserSubqueryRejected() throws Exception {
-        assertAcked(
-            client().admin().indices().prepareCreate("idx_for_view").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
-        );
-        registerDataSource("local_ds", Map.of());
-        registerDataset("sub_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("idx_view", "FROM idx_for_view")));
-
-        Exception failure = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM idx_view, (FROM sub_ds) | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)"), TIMEOUT).close()
-        );
-        assertCauseMessageContains(failure, "FORK after subquery is not supported");
     }
 
     /** {@code FORK} over a view that aggregates two datasets runs each branch over the aggregated rows. */
@@ -5512,12 +5330,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("stats_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("stats_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("stats_ds_view", "FROM stats_a, stats_b | STATS c = COUNT(*) BY emp_no")
-            )
-        );
+        createView("stats_ds_view", "FROM stats_a, stats_b | STATS c = COUNT(*) BY emp_no");
 
         try (
             var response = run(
@@ -5527,12 +5340,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 TIMEOUT
             )
         ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(0).get(1), equalTo(1));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(2L));
-            assertThat(rows.get(1).get(1), equalTo(2));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L, 1, "fork1"), List.of(2L, 2, "fork2"))));
         }
     }
 
@@ -6509,6 +6317,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
+    }
+
+    private void createView(String name, String query) {
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest(name, query)));
+        createdViews.add(name);
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

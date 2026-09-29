@@ -1280,15 +1280,10 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         List<SourceFanInUnionAll> fanIns = new ArrayList<>();
         result.forEachDown(SourceFanInUnionAll.class, fanIns::add);
         assertThat(fanIns, not(empty()));
-        boolean aggregateUnderFanIn = false;
-        for (SourceFanInUnionAll fanIn : fanIns) {
-            for (LogicalPlan branch : fanIn.children()) {
-                if (branch.anyMatch(p -> p instanceof Aggregate)) {
-                    aggregateUnderFanIn = true;
-                }
-            }
-        }
-        assertThat("STATS branch must push the aggregate under the source fan-in", aggregateUnderFanIn, equalTo(true));
+        assertTrue(
+            "STATS branch must push the aggregate under the source fan-in",
+            fanIns.stream().flatMap(fanIn -> fanIn.children().stream()).anyMatch(branch -> branch.anyMatch(p -> p instanceof Aggregate))
+        );
     }
 
     /**
@@ -1349,7 +1344,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     private LogicalPlan optimizedHeterogeneousPlan(String query) {
         var parsed = TEST_PARSER.parseQuery(query);
         // Replace the single UnresolvedRelation from "FROM employees, ext_emps" with the
-        // source fan-in DatasetRewriter builds for a mixed FROM.
+        // UnionAll structure that DatasetRewriter would have produced.
         var rewritten = parsed.transformUp(
             UnresolvedRelation.class,
             r -> new SourceFanInUnionAll(

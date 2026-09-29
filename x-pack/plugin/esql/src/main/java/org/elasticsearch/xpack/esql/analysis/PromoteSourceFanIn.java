@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
@@ -44,11 +42,6 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
         return promote(plan, context.preserveViewBoundaries(), context.unmappedResolution().loadsUnmappedFields());
     }
 
-    /** {@link #promote(LogicalPlan, boolean)} for a request without a DSL filter. */
-    public static LogicalPlan promote(LogicalPlan plan) {
-        return promote(plan, false);
-    }
-
     /**
      * Promotes every source-expansion view union, merges sibling index reads in every fan-in (see
      * {@link SourceFanInUnionAll#withIndexReadsCollapsed}), and collapses any single-child fan-in that results.
@@ -56,25 +49,13 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
      * @param preserveViewBoundaries {@code true} when the request carries a DSL filter that is applied at view
      *                               output boundaries. A view branch that computes over its sources then keeps
      *                               its {@link ViewUnionAll}, because promotion would drop that boundary.
+     * @param loadUnmappedFields     {@code true} when unmapped fields are loaded, see
+     *                               {@link SourceFanInUnionAll#withIndexReadsCollapsed}
      */
-    public static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries) {
-        return promote(plan, preserveViewBoundaries, false);
-    }
-
-    private static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries, boolean loadUnmappedFields) {
-        LogicalPlan promoted = plan.transformUp(ViewUnionAll.class, view -> promoteOne(view, preserveViewBoundaries));
-        return collapseSingleChildFanIns(
-            promoted.transformUp(SourceFanInUnionAll.class, fanIn -> fanIn.withIndexReadsCollapsed(loadUnmappedFields))
-        );
-    }
-
-    private static LogicalPlan collapseSingleChildFanIns(LogicalPlan plan) {
-        return plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
-            if (fanIn.children().size() == 1) {
-                return fanIn.children().getFirst();
-            }
-            return fanIn;
-        });
+    public static LogicalPlan promote(LogicalPlan plan, boolean preserveViewBoundaries, boolean loadUnmappedFields) {
+        return plan.transformUp(ViewUnionAll.class, view -> promoteOne(view, preserveViewBoundaries))
+            .transformUp(SourceFanInUnionAll.class, fanIn -> fanIn.withIndexReadsCollapsed(loadUnmappedFields))
+            .transformDown(SourceFanInUnionAll.class, SourceFanInUnionAll::collapseSingleChild);
     }
 
     private static LogicalPlan promoteOne(ViewUnionAll view, boolean preserveViewBoundaries) {
@@ -98,7 +79,7 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
             while (current instanceof Filter filter) {
                 current = filter.child();
             }
-            if ((current instanceof SourceFanInUnionAll || current instanceof ExternalRelation || current instanceof EsRelation) == false) {
+            if (SourceFanInUnionAll.isProducer(current) == false) {
                 return false;
             }
         }

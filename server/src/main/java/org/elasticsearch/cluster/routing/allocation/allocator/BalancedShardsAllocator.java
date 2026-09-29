@@ -1198,6 +1198,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * This overload will always search for relocation targets for {@link Decision#NOT_PREFERRED}
          * allocations.
          *
+         * @see #decideMove(ProjectIndex, ShardRouting, Predicate)
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
          * @return The {@link MoveDecision} for the shard
@@ -1265,7 +1266,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     return decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanForceAllocateForVacate);
                 }
             }
-
             return moveDecision;
         }
 
@@ -2246,5 +2246,4 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert indexName.equals(shard.getIndexName()) : "Index name mismatch [" + this + "] vs [" + shard + "]";
         }
     }
-
 }

@@ -100,6 +100,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -484,7 +485,9 @@ public class StatelessPlugin extends Plugin
                 prewarmMaxThreads,
                 TimeValue.timeValueMinutes(5),
                 true,
-                PREWARM_THREAD_POOL_SETTING
+                PREWARM_THREAD_POOL_SETTING,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             ),
             new ScalingExecutorBuilder(
                 UPLOAD_PREWARM_THREAD_POOL,
@@ -927,7 +930,7 @@ public class StatelessPlugin extends Plugin
         StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
-        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
+        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(settings, threadPool, meterRegistry));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
             objectStoreService,
@@ -1059,7 +1062,8 @@ public class StatelessPlugin extends Plugin
                 commitServiceProvider,
                 indexShardCacheWarmer,
                 hollowShardMetrics.get(),
-                services.client()
+                services.client(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             )
         );
         components.add(primaryRelocationSourceService);
@@ -1388,6 +1392,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS,
             ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD,
             ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING,
+            BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING,
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
@@ -1482,6 +1487,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,

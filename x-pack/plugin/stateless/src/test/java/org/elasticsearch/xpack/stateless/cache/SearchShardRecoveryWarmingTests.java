@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -104,6 +106,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
@@ -373,6 +376,125 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(false));
             assertThat(plan.timeout(), equalTo(TimeValue.ZERO));
+        }
+    }
+
+    /**
+     * Builds a cluster state where shard 1 of {@code indexName} is an INITIALIZING {@link ShardRouting.Role#SEARCH_ONLY} replica
+     * representing a resharding split target. The index has resharding metadata that identifies shard 0 as the source shard and shard 1
+     * as the target, matching what {@link IndexReshardingMetadata#newSplitByMultiple(int, int)} produces for a 1→2 split.
+     * Shard 1 has no active search copy (it is brand-new), so the non-relocation {@code hasAnotherActiveSearchShardCopy} branch does
+     * not apply — only the reshard-target branch applies.
+     */
+    private static ClusterState clusterStateReshardTargetInitializingSearchShard(String indexName) {
+        final String primaryNodeId = "primary-node";
+        final String targetNodeId = "target-node";
+        final String masterNodeId = "master-node";
+        // Build the base metadata first so that routingNumShards is initialized, then layer resharding on top.
+        final IndexMetadata baseIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), IndexMetadata.INDEX_UUID_NA_VALUE, 1, 0))
+            .primaryTerm(0, 1)
+            .build();
+        final IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(baseIndexMetadata)
+            .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
+            .primaryTerm(1, 1)
+            .build();
+        final ShardId shard0 = new ShardId(indexMetadata.getIndex(), 0);
+        final ShardId shard1 = new ShardId(indexMetadata.getIndex(), 1);
+        // Each shard's IndexShardRoutingTable requires exactly one primary. For shard 1, the INDEX_ONLY primary
+        // is recovering on the same node as the search-only replica; the SEARCH_ONLY shard is the one under test.
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addIndexShard(
+                new IndexShardRoutingTable.Builder(shard0).addShard(
+                    TestShardRouting.shardRoutingBuilder(shard0, primaryNodeId, true, STARTED)
+                        .withRole(ShardRouting.Role.INDEX_ONLY)
+                        .build()
+                )
+            )
+            .addIndexShard(
+                new IndexShardRoutingTable.Builder(shard1).addShard(
+                    TestShardRouting.shardRoutingBuilder(shard1, primaryNodeId, true, STARTED)
+                        .withRole(ShardRouting.Role.INDEX_ONLY)
+                        .build()
+                )
+                    .addShard(
+                        TestShardRouting.shardRoutingBuilder(shard1, targetNodeId, false, INITIALIZING)
+                            .withRole(ShardRouting.Role.SEARCH_ONLY)
+                            .build()
+                    )
+            );
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create(primaryNodeId))
+                    .add(DiscoveryNodeUtils.create(targetNodeId))
+                    .add(DiscoveryNodeUtils.create(masterNodeId))
+                    .localNodeId(targetNodeId)
+                    .masterNodeId(masterNodeId)
+                    .build()
+            )
+            .metadata(
+                Metadata.builder().put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false)).generateClusterUuidIfNeeded()
+            )
+            .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
+            .build();
+    }
+
+    /**
+     * The reshard-target warming timeout default must be at least a few seconds smaller than the search-shards-online timeout so that
+     * warming has time to finish before the state machine gives up waiting for the shard to go GREEN and publishes SPLIT without it.
+     */
+    public void testReshardTargetWarmingTimeoutDefaultIsSmallerThanOnlineTimeout() {
+        final long warmingDefault = SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(
+            Settings.EMPTY
+        ).millis();
+        final long onlineDefault = SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getDefault(Settings.EMPTY).millis();
+        assertThat(
+            "reshard target warming timeout default must leave at least 3 s margin before the search-shards-online timeout",
+            warmingDefault,
+            lessThan(onlineDefault - TimeValue.timeValueSeconds(3).millis())
+        );
+    }
+
+    /**
+     * Resharding split target: the shard is brand-new (no other active search copy), so
+     * {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} must use the reshard-target timeout rather than skip.
+     */
+    public void testSearchRecoveryReshardTargetAwaitsWarming() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            var service = newWarmingService(threadPool);
+            ClusterState state = clusterStateReshardTargetInitializingSearchShard("idx");
+            ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(
+                plan.timeout(),
+                equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(Settings.EMPTY))
+            );
+        }
+    }
+
+    /**
+     * Resharding split target with an active cluster shutdown: the timeout is short enough that warming still proceeds — unlike the
+     * non-relocation branch, the reshard-target branch does not suppress warming during shutdown.
+     */
+    public void testSearchRecoveryReshardTargetAwaitsWarmingEvenWithActiveShutdown() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            var service = newWarmingService(threadPool);
+            ClusterState base = clusterStateReshardTargetInitializingSearchShard("idx");
+            ClusterState state = withActiveShutdownNodeMetadata(base, null);
+            assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
+            ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(
+                plan.timeout(),
+                equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(Settings.EMPTY))
+            );
         }
     }
 

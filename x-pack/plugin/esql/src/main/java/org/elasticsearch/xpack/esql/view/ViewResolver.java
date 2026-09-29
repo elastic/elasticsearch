@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -668,27 +669,17 @@ public class ViewResolver {
                 // the single entry is properly tracked in viewBranchKeys and wrapped in a
                 // ViewUnionAll for ViewRequestFilterRewriter to find.
                 //
-                // The exception is a view whose body already branches (a subquery in its definition, which the parser
-                // turns into a UnionAll — note that a multi-pattern `FROM a, b` is a single relation, not a branch).
-                // Adding a wrapper around it would nest one MergePlan inside another, and the runtime cannot execute
-                // that: the coordinator has no exchange source for the inner merge, so it fails post-optimization
-                // verification ("Nested subqueries are not supported") or, if that check is bypassed, at execution with
-                // "ExchangeSourceHandler wasn't provided". Such a view keeps the pre-filter behaviour — no boundary
-                // marker, so its filter takes the index pushdown path. See ViewRequestFilterIT for the shape.
-                if (subqueries.size() == 1 && (preserveViewBoundaries == false || containsBranchPoint(subqueries.getFirst().plan()))) {
+                // A view whose body already branches (a subquery in its definition, which the parser turns into a
+                // UnionAll — note that a multi-pattern `FROM a, b` is a single relation, not a branch) gets a wrapper
+                // too: a plain UnionAll nested under the ViewUnionAll boundary verifies and executes like any other
+                // nested subquery, and the wrapper is what lets the request filter apply to the view's *output* while
+                // the boundary marking blocks the raw DSL from the leaves inside. See ViewRequestFilterIT for the shape.
+                if (subqueries.size() == 1 && preserveViewBoundaries == false) {
                     return subqueries.getFirst().plan();
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth, preserveViewBoundaries);
             }).addListener(listener);
         }));
-    }
-
-    /**
-     * Whether {@code plan} already contains a branch point ({@code Fork}/{@code UnionAll}/{@link ViewUnionAll}), which
-     * makes it unsafe to wrap in another one — the runtime cannot execute nested {@link MergePlan}s.
-     */
-    private static boolean containsBranchPoint(LogicalPlan plan) {
-        return plan.anyMatch(MergePlan.class::isInstance);
     }
 
     /**
@@ -1121,7 +1112,8 @@ public class ViewResolver {
 
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
-        LogicalPlan subquery = parser.apply(view.query(), view.name());
+        LogicalPlan parsed = parser.apply(view.query(), view.name());
+        LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
         if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
@@ -1129,11 +1121,11 @@ public class ViewResolver {
             // or outer UnresolvedRelations would have its exclusion's scope widened across the
             // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
             // else branch to prevent merging.
-            return ur;
+            return parsed;
         } else {
             // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
             // maintained with the view name for branch identification.
-            return new NamedSubquery(subquery.source(), subquery, view.name());
+            return new NamedSubquery(parsed.source(), parsed, view.name());
         }
     }
 

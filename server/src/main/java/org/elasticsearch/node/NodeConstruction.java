@@ -475,7 +475,6 @@ class NodeConstruction {
         Settings envSettings = initialEnvironment.settings();
         DeprecationLogger.initialize(envSettings);
 
-        JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
@@ -513,11 +512,6 @@ class NodeConstruction {
                 initialEnvironment.pluginsDir()
             );
         }
-
-        Node.deleteTemporaryApmConfig(
-            jvmInfo,
-            (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
-        );
 
         pluginsService = serviceProvider.newPluginService(initialEnvironment, pluginsLoader);
         modules.bindToInstance(PluginsService.class, pluginsService);

@@ -63,6 +63,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
+
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -170,11 +171,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         return updatedTotal;
     }
 
-    private void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
-        ProcessingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
+    private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         int failureStoreRedirects = 0;
@@ -184,7 +181,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
+        int totalItems = bulkResponse.getItems().length;
+        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
             BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
             if (failure != null) {
                 // we're counting each document as one item here
@@ -205,7 +203,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 failureStoreRedirects++;
             }
         }
-        if (bulkItemResponses.getItems().length == failures) {
+        if (totalItems == failures) {
             // all items failed, so we report total items as failures
             failures = context.totalItems();
         }

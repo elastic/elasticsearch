@@ -48,6 +48,31 @@ public class StorageProviderRegistryTests extends ESTestCase {
         }
     }
 
+    public void testLimiterForSchemeCarriesSchemeAndRaisableCarrier() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(2, limiter.maxPermits());
+            assertTrue(limiter.settingCanRaiseLimit());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testLimiterForSchemeExplicitMaxIsUnraisable() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 500).build();
+        ExternalSourceSettings.BlobStoreConcurrency expected = ExternalSourceSettings.blobStoreConcurrencyInfo(settings);
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(expected.permits(), limiter.maxPermits());
+            assertFalse(limiter.settingCanRaiseLimit());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public void testFrameworkOnlyWithDoesNotCloseDefault() {
         AtomicInteger closes = new AtomicInteger();
         try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {

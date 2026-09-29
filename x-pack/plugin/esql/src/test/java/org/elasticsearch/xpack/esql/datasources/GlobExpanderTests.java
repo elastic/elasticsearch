@@ -3403,4 +3403,371 @@ public class GlobExpanderTests extends ESTestCase {
         @Override
         public void close() {}
     }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // Bounded listing. Every assertion below is paired with the count of keys the provider was actually asked
+    // for: a bound that filtered keys it had already read would satisfy a fileCount assertion and save nothing,
+    // and the count is the only thing that tells the two apart.
+    // ---------------------------------------------------------------------------------------------------------
+
+    /** A glob wide enough that the bound bites, under the default listing order. */
+    private static List<StorageEntry> wideListing(int count) {
+        List<StorageEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i), 100));
+        }
+        return entries;
+    }
+
+    public void testBoundStopsListingAndMarksTruncated() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("the bound is a key budget, so it decides the file count here", 1000, result.fileCount());
+        assertTrue("a listing cut short must say so", result.isTruncated());
+        assertEquals("keys past the bound must never be pulled from the provider", 1000, provider.keysPulled());
+        assertNull("a truncated listing identifies no file set, so it carries no fingerprint", result.fileSetFingerprint());
+    }
+
+    /**
+     * The positive control for the test above: the same glob and the same provider with no bound reads every key
+     * and reports an untruncated listing. Without this, a bound that silently did nothing would still look green.
+     */
+    public void testUnboundedListingReadsEveryKeyAndIsNotTruncated() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertEquals(5000, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(5000, provider.keysPulled());
+        assertNotNull("a complete multi-file listing still identifies its file set", result.fileSetFingerprint());
+    }
+
+    /**
+     * The ordering gate. A bound keeps the first keys the provider reports, so it is only sound where the
+     * dataset's order IS listing order. Under {@code file_sort_by: name, file_order: desc} the anchor
+     * FIRST_FILE_WINS would pick sits at the far end of the glob, so the bound is dropped and everything listed.
+     */
+    public void testBoundIsDroppedWhenFileOrderIsNotListingOrder() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+        Map<String, Object> config = new HashMap<>();
+        config.put(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
+        config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "name");
+        config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            config,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("a dataset ordering the glob itself cannot be answered from a prefix of it", 5000, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(5000, provider.keysPulled());
+        assertEquals("file_order still decides the anchor", "s3://bucket/data/part-004999.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
+     * query into "matched no files" for any dataset whose first keys happen to be another format.
+     */
+    public void testBoundedListingMatchingNothingRelistsInFull() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        listing.add(entry("s3://bucket/data/zzz.parquet", 100));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("the file past the bound is still found", 1, result.fileCount());
+        assertEquals("s3://bucket/data/zzz.parquet", result.path(0).toString());
+        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+    }
+
+    /** Partition columns come from the paths visited, so a bound decides them along with the file set. */
+    public void testBoundedListingDetectsPartitionsFromTheKeysItVisited() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/f-%04d.parquet", i), 100));
+        }
+        listing.add(entry("s3://bucket/data/year=2025/late.parquet", 100));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertTrue(result.isTruncated());
+        assertNotNull("the column is still detected from the keys that were read", result.partitionMetadata());
+        assertEquals(Set.of("year"), result.partitionMetadata().partitionColumns().keySet());
+        assertEquals(1000, provider.keysPulled());
+    }
+
+    /**
+     * A bounded drain must not ask the iterator for another entry once it has reached the bound. On a paging store
+     * {@code hasNext()} is the call that fetches the next page, so asking once too often turns a one-page listing
+     * into two requests - the saving the bound exists for, spent on a page that is then discarded.
+     */
+    public void testBoundedListingDoesNotAskPastTheBound() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1005; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/f-%04d.parquet", i), 100));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertTrue(result.isTruncated());
+        assertEquals(1000, provider.keysPulled());
+        assertEquals("the drain must stop asking at the bound, not one call past it", 1000, provider.hasNextCalls());
+    }
+
+    /**
+     * The backstop in {@code expand} must decline the bound under the same conditions as
+     * {@code ExternalSourceResolver.listingBoundFor}, including a {@code _file.*} hint. That hint prunes no
+     * folder, so it is not a partition-pruning hint, but it selects the anchor - and this entry point is
+     * reachable without the resolver, so a direct caller must not be able to bound past it.
+     */
+    public void testBoundIsDeclinedForAFileMetadataHint() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1005; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/f-%04d.parquet", i), 100));
+        }
+        var fileHint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.NAME,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("f-1004.parquet")
+        );
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            List.of(fileHint),
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertFalse("a _file.* hint must decline the bound, as listingBoundFor does", result.isTruncated());
+        assertEquals("the whole glob must be listed so the hint can select its file", 1005, provider.keysPulled());
+    }
+
+    /**
+     * The one user-visible way a bounded answer is narrower than an unbounded one: a partition column's type
+     * comes from the values seen, so a column that is integral within the bound and non-numeric beyond it types
+     * differently. The unbounded expansion over the same listing is the control.
+     */
+    public void testBoundedListingTypesPartitionColumnsFromTheValuesItVisited() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/f-%04d.parquet", i), 100));
+        }
+        listing.add(entry("s3://bucket/data/year=unknown/late.parquet", 100));
+
+        FileList bounded = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            new CountingStubProvider(listing),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+        FileList unbounded = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            new CountingStubProvider(listing),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertTrue(bounded.isTruncated());
+        assertFalse(unbounded.isTruncated());
+        assertEquals(Set.of("year"), bounded.partitionMetadata().partitionColumns().keySet());
+        assertEquals(Set.of("year"), unbounded.partitionMetadata().partitionColumns().keySet());
+        assertEquals(
+            "the value that widens the type is beyond the bound",
+            DataType.KEYWORD,
+            unbounded.partitionMetadata().partitionColumns().get("year")
+        );
+        assertNotEquals(
+            "a bounded listing must type from the prefix, not the dataset",
+            DataType.KEYWORD,
+            bounded.partitionMetadata().partitionColumns().get("year")
+        );
+    }
+
+    /**
+     * The property that keeps FIRST_FILE_WINS's answer identical under a bound: the anchor it reads is the file
+     * at index 0, a bound keeps a prefix in listing order, and the compacted encodings reproduce each file at the
+     * index it was listed at. So the bounded and unbounded enumerations must agree on index 0 — and on every
+     * index the bounded one has — even though only the unbounded one is compacted.
+     */
+    public void testBoundedExpansionAgreesWithAnUnboundedOneOnEveryIndexItHas() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/month=%02d/f-%05d.parquet", i % 12 + 1, i), 100));
+        }
+        String pattern = "s3://bucket/data/" + "**/*.parquet";
+        StoragePath storagePath = StoragePath.of(pattern);
+
+        FileList bounded = GlobExpander.expandAndCompact(
+            pattern,
+            new CountingStubProvider(entries),
+            null,
+            HIVE_ON,
+            storagePath,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+        FileList full = GlobExpander.expandAndCompact(
+            pattern,
+            new CountingStubProvider(entries),
+            null,
+            HIVE_ON,
+            storagePath,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertTrue(bounded.isTruncated());
+        assertFalse(full.isTruncated());
+        assertEquals(3000, full.fileCount());
+        assertEquals(1000, bounded.fileCount());
+        assertEquals("the anchor FIRST_FILE_WINS reads must not move", full.path(0), bounded.path(0));
+        for (int i = 0; i < bounded.fileCount(); i++) {
+            assertEquals("index " + i + " must name the same file in both", full.path(i), bounded.path(i));
+        }
+    }
+
+    /**
+     * A bound is only a prefix of the same listing when nothing else is narrowing it. Partition-pruning hints are
+     * such a narrowing: the unbounded listing descends only the directories the hint admits, while the flat
+     * listing a bound forces applies no partition pruning at all — the hints it consults are the complement of
+     * the pruning ones. Honouring a bound here would answer from the first keys of the WHOLE dataset while the
+     * unbounded query answers from the pruned subtree, and {@code FIRST_FILE_WINS} would read a different file
+     * and report a different schema for the same query with a different limit. So the bound is declined.
+     */
+    public void testBoundIsDeclinedWhenPartitionHintsPruneTheListing() throws IOException {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+
+        FileList unbounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, Integer.MAX_VALUE);
+        // A bound of 1 would keep exactly the first key of the unpruned listing, which is under year=2024.
+        FileList bounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, 1);
+
+        assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", bounded.isTruncated());
+        assertEquals("the hinted answer must not depend on whether a bound was offered", paths(unbounded), paths(bounded));
+        for (String path : paths(bounded)) {
+            assertTrue(path + " must be under year=2025", path.startsWith("s3://bucket/data/year=2025/"));
+        }
+    }
+
+    /** Counts what the drain actually pulled, which is what separates a saved request from a filtered key. */
+    private static class CountingStubProvider extends StubProvider {
+        private int keysPulled;
+        private int hasNextCalls;
+
+        CountingStubProvider(List<StorageEntry> listing) {
+            super(listing);
+        }
+
+        int keysPulled() {
+            return keysPulled;
+        }
+
+        /**
+         * Calls to {@code hasNext()}, which is what costs a request on a paging store: the S3 iterator fetches the
+         * next {@code ListObjectsV2} page there as soon as the current one is exhausted. A drain that asks after it
+         * has already reached its bound buys a page it discards.
+         */
+        int hasNextCalls() {
+            return hasNextCalls;
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            StorageIterator delegate = super.listObjects(prefix, recursive);
+            return new StorageIterator() {
+                @Override
+                public boolean hasNext() {
+                    hasNextCalls++;
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public StorageEntry next() {
+                    keysPulled++;
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
+        }
+    }
 }

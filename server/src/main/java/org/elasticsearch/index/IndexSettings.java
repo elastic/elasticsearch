@@ -691,6 +691,19 @@ public final class IndexSettings {
     );
 
     /**
+     * Per-index opt-in for batch indexing. When set to {@code true} on a TSDB backing index,
+     * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
+     * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
+     * setting and its feature flag are also active.
+     */
+    public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
+        "index.time_series.batch_indexing",
+        false,
+        Property.Final,
+        Property.IndexScope
+    );
+
+    /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
     public boolean isES87TSDBCodecEnabled() {

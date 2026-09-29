@@ -25,7 +25,6 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
-        .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")

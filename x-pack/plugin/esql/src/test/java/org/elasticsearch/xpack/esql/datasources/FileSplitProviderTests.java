@@ -1432,6 +1432,175 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Cache hits stay GET-free at a few thousand files. Misses still issue one {@code readBytesAsync}
+     * each — the same count an eager task list would have issued. A second footer read per file fails this.
+     */
+    public void testMixedCachedFootersKeepEagerGetCount() throws Exception {
+        int hits = 1500;
+        int misses = 500;
+        AtomicInteger gets = new AtomicInteger();
+        AtomicInteger cacheHits = new AtomicInteger();
+        RangeAwareFormatReader reader = countingCachedRangeReader(name -> name.startsWith("hit-"), gets, cacheHits);
+        ExecutorService io = Executors.newFixedThreadPool(
+            4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            List<StorageEntry> entries = new ArrayList<>(hits + misses);
+            for (int i = 0; i < hits; i++) {
+                entries.add(new StorageEntry(StoragePath.of("s3://b/hit-" + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            for (int i = 0; i < misses; i++) {
+                entries.add(new StorageEntry(StoragePath.of("s3://b/miss-" + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            FileList fileList = GlobExpander.fileListOf(entries, "s3://b/*.parquet");
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+            provider.discoverSplitsAsync(ctx, io, future);
+            SplitDiscoveryResult result = future.actionGet(60, TimeUnit.SECONDS);
+            assertEquals(hits + misses, result.splits().size());
+            assertEquals(hits, cacheHits.get());
+            assertEquals("one GET per miss and none per hit", misses, gets.get());
+        } finally {
+            io.shutdownNow();
+        }
+    }
+
+    /** Thousands of parsed-footer hits: no GET, and no file-task shell. */
+    public void testThousandsOfCacheHitsIssueNoGetsOrFileTasks() throws Exception {
+        int files = 2000;
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger cacheHits = new AtomicInteger();
+        RangeAwareFormatReader reader = delayedAsyncRangeReader(
+            started,
+            release,
+            new CopyOnWriteArrayList<>(),
+            null,
+            null,
+            name -> name.endsWith(".parquet"),
+            cacheHits
+        );
+        ExecutorService io = Executors.newFixedThreadPool(
+            4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            provider.resetLiveFileTasks();
+            provider.discoverSplitsAsync(rangeAwareContext(files), io, future);
+            SplitDiscoveryResult result = future.actionGet(60, TimeUnit.SECONDS);
+            assertEquals(files, result.splits().size());
+            assertEquals(files, cacheHits.get());
+            assertEquals("cached footers must not issue a GET", 1, started.getCount());
+            assertEquals(0, provider.peakLiveFileTasks());
+            assertEquals(0, provider.liveFileTasks());
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    /**
+     * Miss planning constructs a file task only inside the throttle slot. The mock reports
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#readBytesAsyncReleasesExecutor()}
+     * so planning uses {@link ExternalSourceSettings#externalIoThreads}, which can exceed the pinning
+     * cap. Peak live shells stay within the concurrency {@code gatherAsync} was actually given.
+     * A request cap of 2 collapses that value onto {@link FileSplitProvider#splitDiscoveryConcurrency()}
+     * and would stay green if the production cap later moved.
+     */
+    public void testFileTaskWindowBoundedByDiscoveryConcurrency() throws Exception {
+        int files = 2000;
+        Settings providerSettings = Settings.builder().put(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.getKey(), 32).build();
+        int externalThreads = ExternalSourceSettings.externalIoThreads(providerSettings);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        RangeAwareFormatReader reader = delayedAsyncRangeReader(started, release, new CopyOnWriteArrayList<>(), null, null);
+        ExecutorService io = Executors.newFixedThreadPool(
+            externalThreads + 4,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io, providerSettings, true);
+            provider.resetLiveFileTasks();
+            provider.discoverSplitsAsync(rangeAwareContext(files), io, future);
+            int gatherConcurrency = provider.planningGatherConcurrency();
+            assertThat(gatherConcurrency, greaterThan(0));
+            if (externalThreads > FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY) {
+                assertThat(
+                    "releasing parquet must not fall back to the pinning cap",
+                    gatherConcurrency,
+                    greaterThan(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY)
+                );
+            }
+            assertThat(provider.peakLiveFileTasks(), greaterThan(0));
+            assertThat(provider.peakLiveFileTasks(), lessThanOrEqualTo(gatherConcurrency));
+            assertThat(provider.liveFileTasks(), lessThanOrEqualTo(gatherConcurrency));
+            assertTrue("in-flight misses must start", started.await(30, TimeUnit.SECONDS));
+            release.countDown();
+            assertEquals(files, future.actionGet(60, TimeUnit.SECONDS).splits().size());
+            assertEquals(0, provider.liveFileTasks());
+            assertThat(provider.peakLiveFileTasks(), lessThanOrEqualTo(gatherConcurrency));
+        } finally {
+            release.countDown();
+            io.shutdownNow();
+        }
+    }
+
+    public void testFrozenPartitionMapSharedAcrossRangeSplits() {
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        RangeAwareFormatReader reader = createMockRangeReader(List.of(new SplitRange(0, 100), new SplitRange(100, 100)));
+        FileSplitProvider splitter = rangeAwareProvider(reader, null);
+        List<ExternalSplit> splits = splitter.discoverSplits(rangeAwareContext(1)).splits();
+
+        assertEquals(2, splits.size());
+        Map<String, Object> first = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> second = ((FileSplit) splits.get(1)).partitionValues();
+        assertSame(first, second);
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        assertNull(first.get(FileMetadataColumns.MODIFIED));
+        expectThrows(UnsupportedOperationException.class, () -> first.put("x", 1));
+    }
+
+    public void testSiblingFilesShareHiveValuesAndDirectory() {
+        StorageEntry first = new StorageEntry(
+            StoragePath.of("s3://bucket/region=east/year=2024/id=3000000000/a.parquet"),
+            10,
+            Instant.EPOCH
+        );
+        StorageEntry second = new StorageEntry(
+            StoragePath.of("s3://bucket/region=east/year=2024/id=3000000000/b.parquet"),
+            20,
+            Instant.EPOCH
+        );
+        List<StorageEntry> entries = List.of(first, second);
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/region=east/year=2024/id=3000000000/*.parquet");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), meta, List.of());
+
+        List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertNotSame(left, right);
+        assertSame(left.get("region"), right.get("region"));
+        assertSame(left.get("year"), right.get("year"));
+        assertSame(left.get("id"), right.get("id"));
+        assertEquals("east", left.get("region"));
+        assertEquals(2024, left.get("year"));
+        assertEquals(3000000000L, left.get("id"));
+        assertSame(left.get(FileMetadataColumns.DIRECTORY), right.get(FileMetadataColumns.DIRECTORY));
+        assertNotSame(left.get(FileMetadataColumns.PATH), right.get(FileMetadataColumns.PATH));
+        Map<String, Object> listed = meta.filePartitionValues().get(first.path());
+        assertSame(listed.get("year"), left.get("year"));
+        assertFalse(listed.containsKey(FileMetadataColumns.PATH));
+        assertNull(left.get(FileMetadataColumns.MODIFIED));
+    }
+
     private static int probeConcurrencyFor(Settings settings) {
         return new FileSplitProvider(1024, new DecompressionCodecRegistry(), null, null, settings).splitDiscoveryConcurrency();
     }
@@ -4876,13 +5045,22 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static FileSplitProvider rangeAwareProvider(RangeAwareFormatReader reader, @Nullable Executor executor, Settings settings) {
+        return rangeAwareProvider(reader, executor, settings, false);
+    }
+
+    private static FileSplitProvider rangeAwareProvider(
+        RangeAwareFormatReader reader,
+        @Nullable Executor executor,
+        Settings settings,
+        boolean releasesExecutor
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
         formatRegistry.byName("parquet");
         return new FileSplitProvider(
             FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
             new DecompressionCodecRegistry(),
-            createMockStorageRegistry(),
+            createMockStorageRegistry(releasesExecutor, releasesExecutor, settings),
             formatRegistry,
             settings,
             executor
@@ -4896,6 +5074,95 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         FileList fileList = GlobExpander.fileListOf(entries, "s3://b/*.parquet");
         return new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+    }
+
+    /**
+     * Range reader that serves {@code cachedSplitRanges} for names matching {@code cachedObjectName}
+     * and counts one {@code readBytesAsync} per miss. Completes the GET inline so a few thousand files stay cheap.
+     */
+    private static RangeAwareFormatReader countingCachedRangeReader(
+        java.util.function.Predicate<String> cachedObjectName,
+        AtomicInteger gets,
+        AtomicInteger cacheHits
+    ) {
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        return new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
+                return List.of(new SplitRange(0, object.length()));
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                if (cachedObjectName.test(object.path().objectName()) == false) {
+                    return null;
+                }
+                cacheHits.incrementAndGet();
+                try {
+                    return List.of(new SplitRange(0, object.length()));
+                } catch (IOException e) {
+                    return null;
+                }
+            }
+
+            @Override
+            public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+                long len;
+                try {
+                    len = Math.min(8, object.length());
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                object.readBytesAsync(0, len, factory, executor, ActionListener.wrap(buf -> {
+                    gets.incrementAndGet();
+                    buf.close();
+                    try {
+                        listener.onResponse(List.of(new SplitRange(0, object.length())));
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                    }
+                }, listener::onFailure));
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     /**

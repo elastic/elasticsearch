@@ -257,13 +257,11 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
                 TimeValue ageOfTheOldestCommitPendingUpload;
                 if (oldestCommitUploadStartTime == null) {
-                    // When `oldestCommitUploadStartTime` is null it means that there are commits pending upload
+                    // When `oldestCommitUploadStartTime` is null, it means that there are no pending upload commits,
                     // and as such we can remove throttling (TimeValue.ZERO should always be smaller than `settings.deactivationThreshold`).
                     ageOfTheOldestCommitPendingUpload = TimeValue.ZERO;
                 } else {
-                    ageOfTheOldestCommitPendingUpload = TimeValue.timeValueMillis(
-                        relativeTimeMillis.get() - stats.oldestCommitUploadStartTimeRelativeMillis()
-                    );
+                    ageOfTheOldestCommitPendingUpload = TimeValue.timeValueMillis(relativeTimeMillis.get() - oldestCommitUploadStartTime);
                     oldestCommitAgeSecondsHistogram.record(ageOfTheOldestCommitPendingUpload.seconds());
                 }
 

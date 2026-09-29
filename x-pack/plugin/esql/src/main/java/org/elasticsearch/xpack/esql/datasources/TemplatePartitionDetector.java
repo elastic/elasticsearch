@@ -137,11 +137,12 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         }
 
         LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
+        HivePartitionDetector.CastInterner interner = new HivePartitionDetector.CastInterner();
         for (int i = 0; i < files.size(); i++) {
             Map<String, String> raw = allRawPartitions.get(i);
             LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(columnCount);
             for (Map.Entry<String, String> e : raw.entrySet()) {
-                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey())));
+                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey()), interner));
             }
             filePartitionValues.put(files.get(i).path(), typed);
         }

@@ -26,8 +26,9 @@ import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
 
     static final String CODEC_NAME = "ES8193TSDB";
-    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 512 * 1024;
-    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 8096;
+    // Public: also read by BinaryDocValuesScanCost's decode-cost estimate.
+    public static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 512 * 1024;
+    public static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 8096;
 
     public ES819Version3TSDBDocValuesFormat() {
         this(false, false, false);

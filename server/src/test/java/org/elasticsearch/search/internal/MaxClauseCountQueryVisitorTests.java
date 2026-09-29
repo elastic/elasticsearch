@@ -279,8 +279,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
 
         BooleanQuery.Builder bool = new BooleanQuery.Builder();
-        // One clause alone (~544 KB) fits comfortably under the 1 MB limit; enough clauses to exceed it demonstrates
-        // that the walk trips before the full tree — and any Lucene search over it — is built.
+        // One clause (~544 KB) fits under the 1 MB limit; ten must trip before the tree finishes building.
         int clauses = 10;
         for (int i = 0; i < clauses; i++) {
             bool.add(

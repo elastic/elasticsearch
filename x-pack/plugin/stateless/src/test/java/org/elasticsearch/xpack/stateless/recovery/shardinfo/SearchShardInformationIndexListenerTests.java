@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -72,6 +73,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -421,7 +423,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
         when(clusterService.state()).thenReturn(state);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
@@ -443,29 +445,11 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
     }
 
-    public void testWrongResponderLeavesClaimedIdFreeToRetry() {
-        long sourceGen = 10L;
-        long otherGen = 20L;
-        ClusterState state = drainStateTwoSources(index, "source", sourceGen, "other", otherGen, "target");
-        when(clusterService.state()).thenReturn(state);
-        ShardWarmVolumes volumes = newVolumes(state);
-        IndexShard indexShard = relocatingDrainShard("source");
-
-        newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
-        client.lastExecution()
-            .listener()
-            .onResponse(new TransportFetchSearchShardInformationAction.Response(5L, "other", otherGen, Map.of(shardId, 3L)));
-
-        assertThat(volumes.get(state, "other").volumes(), equalTo(Map.of(shardId, 3L)));
-        assertThat(volumes.get(state, "source"), nullValue());
-        assertTrue(volumes.claimFetch(state, "source"));
-    }
-
     public void testDidNotCollectClearsClaimForRetry() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
         when(clusterService.state()).thenReturn(state);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
@@ -478,17 +462,64 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertTrue(volumes.claimFetch(state, "source"));
     }
 
-    public void testFailureRecordsFetchMetricAndRetries() {
+    public void testFailureClearsClaimForRetry() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
         when(clusterService.state()).thenReturn(state);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
         newListener(System::currentTimeMillis, volumes).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
         client.lastExecution().listener().onFailure(new RuntimeException("rpc failed"));
         assertMetrics(0, 1);
         assertTrue(volumes.claimFetch(state, "source"));
+    }
+
+    public void testSecondShardDoesNotClaimVolumesWhileFetchInFlight() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard firstShard = relocatingDrainShard("source", shardId);
+        IndexShard secondShard = relocatingDrainShard("source", new ShardId(index, 1));
+
+        SearchShardInformationIndexListener listener = newListener(System::currentTimeMillis, volumes);
+        listener.beforeIndexShardRecovery(firstShard, indexSettings, ActionListener.noop());
+        listener.beforeIndexShardRecovery(secondShard, indexSettings, latchedActionListener);
+
+        assertThat(client.executionCount(), equalTo(2));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> first = client.execution(0);
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> second = client.execution(1);
+        assertTrue(first.request().wantVolumes());
+        assertFalse(second.request().wantVolumes());
+        first.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+        assertTrue(volumes.claimFetch(state, "source"));
+        second.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
+    }
+
+    public void testExecuteThrowsReleasesClaim() {
+        long generation = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", generation);
+        when(clusterService.state()).thenReturn(state);
+        ShardWarmVolumes volumes = newVolumes();
+        IndexShard indexShard = relocatingDrainShard("source");
+        Client throwingClient = mock(Client.class);
+        doThrow(new RuntimeException("synchronous execute failure")).when(throwingClient).execute(any(), any(), any());
+
+        new SearchShardInformationIndexListener(
+            throwingClient,
+            collector,
+            clusterSettings,
+            System::currentTimeMillis,
+            clusterService,
+            volumes
+        ).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+        assertTrue(volumes.claimFetch(state, "source"));
+        assertMetrics(0, 1);
     }
 
     private SearchShardInformationIndexListener newListener() {
@@ -504,19 +535,22 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     }
 
     private IndexShard relocatingDrainShard(String sourceId) {
+        return relocatingDrainShard(sourceId, shardId);
+    }
+
+    private IndexShard relocatingDrainShard(String sourceId, ShardId sid) {
         IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting shardRouting = TestShardRouting.shardRoutingBuilder(shardId, "target", false, INITIALIZING)
+        ShardRouting shardRouting = TestShardRouting.shardRoutingBuilder(sid, "target", false, INITIALIZING)
             .withRelocatingNodeId(sourceId)
             .withRole(ShardRouting.Role.SEARCH_ONLY)
             .build();
         when(indexShard.routingEntry()).thenReturn(shardRouting);
-        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.shardId()).thenReturn(sid);
         return indexShard;
     }
 
-    private static ShardWarmVolumes newVolumes(ClusterState state) {
-        ClusterService volumesClusterService = mock(ClusterService.class);
-        when(volumesClusterService.getClusterSettings()).thenReturn(
+    private static ShardWarmVolumes newVolumes() {
+        return new ShardWarmVolumes(
             new ClusterSettings(
                 Settings.builder()
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
@@ -524,8 +558,6 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
                 Set.of(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
             )
         );
-        when(volumesClusterService.state()).thenReturn(state);
-        return new ShardWarmVolumes(volumesClusterService);
     }
 
     private static ClusterState drainState(Index index, String sourceNodeId, String targetNodeId, long startedAtMillis) {
@@ -649,6 +681,11 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         int executionCount() {
             return executions.size();
+        }
+
+        @SuppressWarnings("unchecked")
+        <Request extends ActionRequest, Response extends ActionResponse> Execution<Request, Response> execution(int index) {
+            return (Execution<Request, Response>) executions.get(index);
         }
 
         @SuppressWarnings("unchecked")

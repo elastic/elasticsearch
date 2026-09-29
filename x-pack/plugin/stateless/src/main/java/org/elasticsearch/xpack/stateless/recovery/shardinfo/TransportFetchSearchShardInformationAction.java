@@ -236,6 +236,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         return shards;
     }
 
+    // Shards still recovering onto the source when shutdown began are recorded with 0 or partial volumes.
     static Map<ShardId, Long> collectWarmVolumes(List<IndexShard> shards) {
         return collectWarmVolumes(shards, TransportFetchSearchShardInformationAction::tryEstimateShardWarmVolume);
     }

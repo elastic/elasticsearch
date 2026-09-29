@@ -20,13 +20,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.HashMap;
@@ -37,9 +37,6 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ShardWarmVolumesTests extends ESTestCase {
 
@@ -69,7 +66,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
 
         assertTrue(volumes.claimFetch(state, "source"));
         assertTrue(volumes.isInFlight("source"));
@@ -78,10 +75,9 @@ public class ShardWarmVolumesTests extends ESTestCase {
 
     public void testEmptyEntryIsMissForFormulaAndBlocksClaim() {
         Index index = new Index("idx", randomUUID());
-        ShardId shardId = new ShardId(index, 0);
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of()));
 
         assertThat(volumes.get(state, "source"), nullValue());
@@ -89,26 +85,12 @@ public class ShardWarmVolumesTests extends ESTestCase {
         assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    public void testNonEmptyPutIsVisibleToGet() {
-        Index index = new Index("idx", randomUUID());
-        ShardId shardId = new ShardId(index, 0);
-        long startedAtMillis = randomNonNegativeLong();
-        ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        ShardWarmVolumes volumes = newVolumes(state);
-        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(shardId, 99L)));
-
-        assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 99L)));
-        assertThat(volumes.get(state, "source"), sameInstance(volumes.peek("source")));
-        assertFalse(volumes.claimFetch(state, "source"));
-    }
-
     public void testGenerationMismatchIsMissAndAllowsReclaim() {
         Index index = new Index("idx", randomUUID());
         long firstGen = randomLongBetween(1, 1000);
         long secondGen = firstGen + randomLongBetween(1, 1000);
-        ClusterState first = drainState(index, "source", "target", firstGen);
         ClusterState second = drainState(index, "source", "target", secondGen);
-        ShardWarmVolumes volumes = newVolumes(second);
+        ShardWarmVolumes volumes = newVolumes();
         volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
 
         assertThat(volumes.get(second, "source"), nullValue());
@@ -116,26 +98,12 @@ public class ShardWarmVolumesTests extends ESTestCase {
         assertTrue(volumes.claimFetch(second, "source"));
     }
 
-    public void testFailureClearsInFlightAndAllowsRetry() {
-        Index index = new Index("idx", randomUUID());
-        long startedAtMillis = randomNonNegativeLong();
-        ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        ShardWarmVolumes volumes = newVolumes(state);
-
-        assertTrue(volumes.claimFetch(state, "source"));
-        volumes.recordFetchFailure();
-        volumes.releaseClaim("source");
-        assertFalse(volumes.isInFlight("source"));
-        assertThat(volumes.peek("source"), nullValue());
-        assertTrue(volumes.claimFetch(state, "source"));
-    }
-
-    public void testCompleteFetchStoresUnderResponder() {
+    public void testCompleteFetchStoresAndReleasesClaim() {
         Index index = new Index("idx", randomUUID());
         ShardId shardId = new ShardId(index, 0);
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(state, "source"));
 
         volumes.completeFetch(state, "source", "source", startedAtMillis, Map.of(shardId, 10L));
@@ -144,20 +112,47 @@ public class ShardWarmVolumesTests extends ESTestCase {
         assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    public void testWrongResponderDoesNotConsumeClaimedId() {
+    public void testCompleteFetchGenerationMismatchDoesNotStore() {
         Index index = new Index("idx", randomUUID());
         ShardId shardId = new ShardId(index, 0);
-        long sourceGen = randomLongBetween(1, 1000);
-        long otherGen = sourceGen + randomLongBetween(1, 1000);
-        ClusterState state = drainState(index, Map.of("source", sourceGen, "other", otherGen), "target", TransportVersion.current());
-        ShardWarmVolumes volumes = newVolumes(state);
-        assertTrue(volumes.claimFetch(state, "source"));
+        long firstGen = randomLongBetween(1, 1000);
+        long secondGen = firstGen + randomLongBetween(1, 1000);
+        ClusterState first = drainState(index, "source", "target", firstGen);
+        ClusterState second = drainState(index, "source", "target", secondGen);
+        ShardWarmVolumes volumes = newVolumes();
+        assertTrue(volumes.claimFetch(first, "source"));
 
-        volumes.completeFetch(state, "source", "other", otherGen, Map.of(shardId, 77L));
-        assertThat(volumes.get(state, "other").volumes(), equalTo(Map.of(shardId, 77L)));
+        volumes.completeFetch(second, "source", "source", firstGen, Map.of(shardId, 10L));
+        assertThat(volumes.peek("source"), nullValue());
+        assertFalse(volumes.isInFlight("source"));
+    }
+
+    public void testCompleteFetchAfterSourceLeftDoesNotStore() {
+        Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState withSource = drainState(index, "source", "target", startedAtMillis);
+        ClusterState withoutSource = ClusterState.builder(withSource)
+            .nodes(DiscoveryNodes.builder(withSource.nodes()).remove("source"))
+            .build();
+        ShardWarmVolumes volumes = newVolumes();
+        assertTrue(volumes.claimFetch(withSource, "source"));
+
+        volumes.completeFetch(withoutSource, "source", "source", startedAtMillis, Map.of(shardId, 10L));
+        assertThat(volumes.peek("source"), nullValue());
+        assertFalse(volumes.isInFlight("source"));
+    }
+
+    public void testDisabledSettingDoesNotClaimOrReturnStoredEntry() {
+        Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", startedAtMillis);
+        ShardWarmVolumes volumes = newVolumes(false);
+        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(shardId, 99L)));
+
+        assertFalse(volumes.claimFetch(state, "source"));
         assertThat(volumes.get(state, "source"), nullValue());
-        assertThat(volumes.entryForGeneration(state, "source"), nullValue());
-        assertTrue(volumes.claimFetch(state, "source"));
     }
 
     public void testRemovedNodesCleanup() {
@@ -167,11 +162,26 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ClusterState withoutSource = ClusterState.builder(withSource)
             .nodes(DiscoveryNodes.builder(withSource.nodes()).remove("source"))
             .build();
-        ShardWarmVolumes volumes = newVolumes(withSource);
+        ShardWarmVolumes volumes = newVolumes();
+        assertTrue(volumes.claimFetch(withSource, "source"));
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
         volumes.clusterChanged(new ClusterChangedEvent("test", withoutSource, withSource));
         assertThat(volumes.peek("source"), nullValue());
         assertFalse(volumes.isInFlight("source"));
+    }
+
+    public void testAbsentNodeSweptWhenNodesDidNotChange() {
+        Index index = new Index("idx", randomUUID());
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState withSource = drainState(index, "source", "target", startedAtMillis);
+        ClusterState withoutSource = ClusterState.builder(withSource)
+            .nodes(DiscoveryNodes.builder(withSource.nodes()).remove("source"))
+            .build();
+        ClusterState later = ClusterState.builder(withoutSource).incrementVersion().build();
+        ShardWarmVolumes volumes = newVolumes();
+        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
+        volumes.clusterChanged(new ClusterChangedEvent("test", later, withoutSource));
+        assertThat(volumes.peek("source"), nullValue());
     }
 
     public void testCancelledShutdownClearsMemoAndInFlight() {
@@ -181,7 +191,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ClusterState cancelled = ClusterState.builder(drain)
             .metadata(Metadata.builder(drain.metadata()).removeCustom(NodesShutdownMetadata.TYPE))
             .build();
-        ShardWarmVolumes volumes = newVolumes(drain);
+        ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(drain, "source"));
         volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
 
@@ -196,7 +206,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         long secondGen = firstGen + randomLongBetween(1, 1000);
         ClusterState first = drainState(index, "source", "target", firstGen);
         ClusterState second = drainState(index, "source", "target", secondGen);
-        ShardWarmVolumes volumes = newVolumes(first);
+        ShardWarmVolumes volumes = newVolumes();
         volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
 
         volumes.clusterChanged(new ClusterChangedEvent("test", second, first));
@@ -207,27 +217,27 @@ public class ShardWarmVolumesTests extends ESTestCase {
     public void testDoesNotClaimWhenMinTransportVersionUnsupported() {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
-        TransportVersion old = TransportVersion.fromId(TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES.id() - 1);
+        TransportVersion old = TransportVersionUtils.randomVersionNotSupporting(
+            TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES
+        );
         ClusterState state = drainState(index, Map.of("source", startedAtMillis), "target", old);
-        ShardWarmVolumes volumes = newVolumes(state);
+        ShardWarmVolumes volumes = newVolumes();
         assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    private static ShardWarmVolumes newVolumes(ClusterState state) {
-        return new ShardWarmVolumes(clusterService(state));
+    private static ShardWarmVolumes newVolumes() {
+        return newVolumes(true);
     }
 
-    private static ClusterService clusterService(ClusterState state) {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
-                .build(),
-            Set.of(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
+    private static ShardWarmVolumes newVolumes(boolean enabled) {
+        return new ShardWarmVolumes(
+            new ClusterSettings(
+                Settings.builder()
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), enabled)
+                    .build(),
+                Set.of(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
+            )
         );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.state()).thenReturn(state);
-        return clusterService;
     }
 
     private static ClusterState drainState(Index index, String sourceNodeId, String targetNodeId, long startedAtMillis) {

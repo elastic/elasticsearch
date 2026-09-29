@@ -1280,7 +1280,7 @@ public class SharedBlobCacheWarmingService {
      *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero):
      *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
      *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists):
-     *   {@code (shardSize / sumSizesOnSource) * remaining}, proportional to shard sizes</li>
+     *   {@code (warm volume / sum of warm volumes on source) * remaining}. An unknown shard contributes 0.</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)} and {@code remaining = deadline - now}.
      */
@@ -1366,7 +1366,6 @@ public class SharedBlobCacheWarmingService {
             return 0;
         }
         long sourceWarmVolumeSum = 0L;
-        int shardsWithVolumeOnSource = 0;
         Long thisShardVolume = null;
         for (ShardRouting routing : sourceNode) {
             assert routing.isSearchable();
@@ -1375,18 +1374,14 @@ public class SharedBlobCacheWarmingService {
                 continue;
             }
             sourceWarmVolumeSum += volume;
-            shardsWithVolumeOnSource++;
             if (routing.shardId().equals(shardId)) {
                 thisShardVolume = volume;
             }
         }
-        if (shardsWithVolumeOnSource == 0 || sourceWarmVolumeSum <= 0L) {
+        if (thisShardVolume == null || sourceWarmVolumeSum <= 0L) {
             return 0;
         }
-        final double shardVolume = thisShardVolume != null
-            ? thisShardVolume
-            : sourceWarmVolumeSum / (double) shardsWithVolumeOnSource;
-        return (shardVolume / (double) sourceWarmVolumeSum) * remaining;
+        return (thisShardVolume / (double) sourceWarmVolumeSum) * remaining;
     }
 
     /**

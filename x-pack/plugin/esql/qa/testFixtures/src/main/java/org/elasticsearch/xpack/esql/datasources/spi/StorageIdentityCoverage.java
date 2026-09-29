@@ -34,6 +34,15 @@ import static org.junit.Assert.fail;
  * <p>
  * The aliases and exclusions are themselves censused: a name in either map that the configuration does not declare
  * fails too, so a renamed or removed setting cannot leave a stale entry behind that silently excuses its successor.
+ * <p>
+ * <b>What this reaches, and what it cannot.</b> It applies to a provider whose configuration is a
+ * {@link DataSourceConfiguration}, because that is what declares a field set to derive the question from: S3, GCS and
+ * Azure. Two implementors of {@link StorageIdentity} are outside it by construction rather than by oversight.
+ * {@code HttpConfiguration} is not a {@code DataSourceConfiguration} and declares no field table; its identity folds
+ * the custom headers, the only per-data-source credential HTTP sends. {@code FlightStorageProvider} has no
+ * configuration at all and declares a zero-component private singleton, which is what {@link StorageIdentity}
+ * prescribes for a provider with none. A new provider of either shape gains nothing from this and needs its own
+ * argument.
  */
 public final class StorageIdentityCoverage {
 

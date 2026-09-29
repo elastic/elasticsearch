@@ -40,6 +40,14 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
     public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
         "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE =
+        "ES|QL datafeed{2} source_time_field [{0}] resolves to type [{1}] on the queried source, but must be date or "
+            + "date_nanos; source_time_field must name the raw indexed timestamp field on the source, not an alias "
+            + "produced by STATS, BUCKET, or EVAL.";
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED =
+        "ES|QL datafeed{2} source_time_field [{0}] could not be resolved as a field on the queried source: {1}; "
+            + "source_time_field must name the raw indexed timestamp field on the source, not an alias produced by "
+            + "STATS, BUCKET, or EVAL.";
     public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
         "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED =

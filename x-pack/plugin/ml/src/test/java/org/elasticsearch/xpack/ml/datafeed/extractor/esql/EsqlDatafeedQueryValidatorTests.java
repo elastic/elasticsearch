@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -299,6 +300,179 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), equalTo(securityFailure));
     }
 
+    public void testValidateSourceTimeFieldGivenDateSucceeds() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(
+            validator.capturedParams,
+            equalTo(
+                List.of(
+                    new EsqlQueryRequestBuilder.EsqlQueryParam(
+                        "sourceTimeField",
+                        "@timestamp",
+                        EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER
+                    )
+                )
+            )
+        );
+    }
+
+    public void testValidateSourceTimeFieldGivenDateNanosSucceeds() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date_nanos"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateSourceTimeFieldGivenWrongTypeFails() {
+        List<ColumnInfo> columns = List.of(mockColumn("bucket", "keyword"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "bucket",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            "datafeed-1"
+        );
+
+        assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(failure.get().getMessage(), containsString("source_time_field [bucket]"));
+        assertThat(failure.get().getMessage(), containsString("type [keyword]"));
+        assertThat(failure.get().getMessage(), containsString("for datafeed [datafeed-1]"));
+        assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
+    }
+
+    public void testValidateSourceTimeFieldGivenUnknownColumnFails() {
+        RuntimeException unknownColumn = new RuntimeException("Found 1 problem\nline 1:20: Unknown column [bucket]");
+        TestValidator validator = new TestValidator(unknownColumn);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "bucket",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(failure.get().getMessage(), containsString("source_time_field [bucket]"));
+        assertThat(failure.get().getMessage(), containsString("Unknown column [bucket]"));
+        assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
+    }
+
+    public void testValidateSourceTimeFieldGivenIndexNotFoundSucceeds() {
+        TestValidator validator = new TestValidator(new IndexNotFoundException("logs"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success for missing index", e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateSourceTimeFieldGivenNoMatchingProjectIsDeferred() {
+        TestValidator validator = new TestValidator(new NoMatchingProjectException("_alias:*"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:*",
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected deferral for NoMatchingProjectException", e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateSourceTimeFieldProbesOnlyTheLeadingFromCommand() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "FROM logs | STATS bucket = BUCKET(@timestamp, 1h) BY bucket",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> {}, e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(validator.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+    }
+
+    public void testValidateSourceTimeFieldGivenNonFromLeadingQuerySkips() {
+        TestValidator validator = new TestValidator(new RuntimeException("should not be invoked"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "ROW x = 1",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected skip for a non-FROM-leading query", e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, nullValue());
+    }
+
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),
@@ -500,6 +674,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         private final Exception cannedFailure;
         String capturedQuery;
         String capturedRouting;
+        List<EsqlQueryRequestBuilder.EsqlQueryParam> capturedParams;
 
         TestValidator(EsqlQueryResponse response) {
             this.cannedResponse = response;
@@ -517,10 +692,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             String query,
             Map<String, String> headers,
             String projectRouting,
+            List<EsqlQueryRequestBuilder.EsqlQueryParam> params,
             ActionListener<EsqlQueryResponse> listener
         ) {
             capturedQuery = query;
             capturedRouting = projectRouting;
+            capturedParams = params;
             if (cannedFailure != null) {
                 listener.onFailure(cannedFailure);
             } else {

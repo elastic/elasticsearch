@@ -754,14 +754,26 @@ public class JobConfigProvider {
                 Job job = jobBuilder.build();
                 DatafeedJobValidator.validate(config, job, xContentRegistry);
                 if (config.getEsqlQuery() != null) {
-                    new EsqlDatafeedQueryValidator().validateQuery(
+                    EsqlDatafeedQueryValidator queryValidator = new EsqlDatafeedQueryValidator();
+                    queryValidator.validateQuery(
                         client,
                         headers,
                         config.getEsqlQuery(),
                         config.getProjectRouting(),
                         job.getDataDescription().getTimeField(),
                         EsqlDatafeedQueryValidator.requiredSummaryCountField(config, job),
-                        listener,
+                        ActionListener.wrap(
+                            ok -> queryValidator.validateSourceTimeField(
+                                client,
+                                headers,
+                                config.getEsqlQuery(),
+                                config.getProjectRouting(),
+                                config.getSourceTimeField(),
+                                listener,
+                                config.getId()
+                            ),
+                            listener::onFailure
+                        ),
                         config.getId()
                     );
                 } else {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
@@ -99,7 +101,101 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+    }
+
+    /**
+     * Validates that {@code sourceTimeField} resolves to a {@code date}/{@code date_nanos} column on the
+     * queried source, by running a {@code | KEEP ??sourceTimeField | LIMIT 0} probe against the leading
+     * FROM command of the datafeed's ES|QL query. This deliberately reuses the ES|QL engine itself (rather
+     * than a separate field-caps call) so CPS/remote sources resolve the source_time_field the same way
+     * {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor#next()} resolves it when
+     * building its {@code RangeQueryBuilder} time filter. Tolerates {@link NoMatchingProjectException} and
+     * {@link IndexNotFoundException} exactly like {@link #validateQuery} — the index/project may not exist yet.
+     * Calls {@code listener.onResponse(true)} on success or those tolerated failures, and
+     * {@code listener.onFailure} for an unresolvable column, a wrong column type, or any other problem.
+     */
+    public void validateSourceTimeField(
+        Client client,
+        Map<String, String> headers,
+        String esqlQuery,
+        @Nullable String projectRouting,
+        String sourceTimeField,
+        ActionListener<Boolean> listener,
+        @Nullable String datafeedId
+    ) {
+        String fromCommand = extractLeadingFromCommand(esqlQuery);
+        if (fromCommand == null) {
+            // Every ES|QL datafeed query is expected to start with FROM (DatafeedConfig requires an index
+            // source); if this narrow scan can't confirm that, don't block PUT on something it cannot resolve.
+            listener.onResponse(Boolean.TRUE);
+            return;
+        }
+        String probeQuery = fromCommand + " | KEEP ??sourceTimeField | LIMIT 0";
+        List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
+
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            try {
+                checkSourceTimeFieldType(response.response().columns(), sourceTimeField, datafeedId);
+                listener.onResponse(Boolean.TRUE);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+                // Deferred-existence cases: the project may be linked later or the index may not
+                // exist yet. Skip the column check — there is nothing to validate against.
+                listener.onResponse(Boolean.TRUE);
+            } else {
+                listener.onFailure(sourceTimeFieldUnresolvedException(sourceTimeField, datafeedId, cause));
+            }
+        });
+
+        executeEsqlQueryAsync(client, probeQuery, headers, projectRouting, params, responseListener);
+    }
+
+    /**
+     * Narrow scan for the ES|QL pipeline's leading FROM command (everything up to the first depth-zero
+     * pipe), used to build a source_time_field probe query against the same source the datafeed queries.
+     * Returns {@code null} when the query does not lead with FROM (not expected for datafeeds).
+     */
+    private static String extractLeadingFromCommand(String esqlQuery) {
+        String leading = EsqlQueryClauseScanner.extractLeadingCommand(esqlQuery).strip();
+        return isFromCommand(leading) ? leading : null;
+    }
+
+    private static boolean isFromCommand(String command) {
+        return command.length() > 4 && command.regionMatches(true, 0, "FROM", 0, 4) && Character.isWhitespace(command.charAt(4));
+    }
+
+    private static void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
+        // The KEEP ??sourceTimeField probe either resolves to exactly the one requested column, or fails
+        // execution before a response is produced (handled by the onFailure branch in validateSourceTimeField).
+        String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
+        if (isDateColumnType(outputType) == false) {
+            String datafeedContext = datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
+            throw new IllegalArgumentException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE, sourceTimeField, outputType, datafeedContext)
+            );
+        }
+    }
+
+    private static IllegalArgumentException sourceTimeFieldUnresolvedException(
+        String sourceTimeField,
+        @Nullable String datafeedId,
+        Throwable cause
+    ) {
+        String datafeedContext = datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
+        return new IllegalArgumentException(
+            Messages.getMessage(
+                Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED,
+                sourceTimeField,
+                cause == null ? "unknown error" : cause.getMessage(),
+                datafeedContext
+            ),
+            cause
+        );
     }
 
     /**
@@ -157,7 +253,7 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
     }
 
     static void validateEmittedTimesInSourceWindow(
@@ -382,6 +478,7 @@ public class EsqlDatafeedQueryValidator {
         String query,
         Map<String, String> headers,
         @Nullable String projectRouting,
+        List<EsqlQueryParam> params,
         ActionListener<EsqlQueryResponse> listener
     ) {
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = (EsqlQueryRequestBuilder<
@@ -389,6 +486,9 @@ public class EsqlDatafeedQueryValidator {
             EsqlQueryResponse>) EsqlQueryRequestBuilder.newRequestBuilder(client).query(query).allowPartialResults(false);
         if (projectRouting != null) {
             builder.projectRouting(projectRouting);
+        }
+        if (params.isEmpty() == false) {
+            builder.params(params);
         }
         ClientHelper.executeWithHeadersAsync(
             client.threadPool().getThreadContext(),

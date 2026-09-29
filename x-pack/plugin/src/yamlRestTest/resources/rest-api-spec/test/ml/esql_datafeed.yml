@@ -169,6 +169,34 @@ setup:
   - match: { 0.time: 0 }
   - match: { 0.value: 2.0 }
 
+  - do:
+      ml.put_job:
+        job_id: esql-datafeed-source-time-field-alias-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "bucket",
+              "time_format": "epoch_ms"
+            }
+          }
+
+  - do:
+      catch: /source_time_field \[bucket\]/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-source-time-field-alias
+        body: >
+          {
+            "job_id": "esql-datafeed-source-time-field-alias-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "bucket",
+            "grouping_interval": "1h",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | STATS value = AVG(value) BY bucket = BUCKET(time, 1 hour)"
+          }
+
 ---
 "Test ES|QL datafeed lifecycle APIs":
   - do:

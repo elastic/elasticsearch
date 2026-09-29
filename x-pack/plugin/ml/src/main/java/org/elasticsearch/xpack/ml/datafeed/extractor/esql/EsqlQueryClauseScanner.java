@@ -52,6 +52,38 @@ final class EsqlQueryClauseScanner {
         return new ScanResult(hasOuterLimit, hasOuterTimeWhere, hasOuterTimeSort);
     }
 
+    /**
+     * Returns the pipeline's leading command — everything up to (not including) the first depth-zero
+     * {@code |} — or the whole query when it has no top-level pipe. Used to derive a probe query against
+     * the same source a FROM-leading ES|QL datafeed query reads from, without depending on the full ES|QL
+     * parser (absent from the ml plugin's main compile classpath).
+     */
+    static String extractLeadingCommand(String query) {
+        for (int index = 0, nestingDepth = 0; index < query.length();) {
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else if (isOpeningDelimiter(character)) {
+                nestingDepth++;
+                index++;
+            } else if (isClosingDelimiter(character)) {
+                nestingDepth = Math.max(0, nestingDepth - 1);
+                index++;
+            } else if (character == '|' && nestingDepth == 0) {
+                return query.substring(0, index);
+            } else {
+                index++;
+            }
+        }
+        return query;
+    }
+
     static boolean endsInLineComment(String query) {
         for (int index = 0; index < query.length();) {
             if (query.charAt(index) == '"') {

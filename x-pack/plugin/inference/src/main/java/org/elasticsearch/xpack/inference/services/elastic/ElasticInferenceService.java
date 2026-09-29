@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -400,8 +401,13 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             return;
         }
 
-        actionCreator.create(
+        var overriddenModel = ElasticInferenceServiceDocumentExtractionModel.of(
             elasticInferenceServiceDocumentExtractionModel,
+            ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(request.taskSettings())
+        );
+
+        actionCreator.create(
+            overriddenModel,
             getCurrentTraceInfo(),
             listener.delegateFailureAndWrap((delegate, action) -> action.execute(fromDocumentExtractionRequest(request), timeout, delegate))
         );

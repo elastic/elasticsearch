@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +28,26 @@ import java.util.Map;
 public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInferenceServiceModel {
 
     public static final String DOCUMENT_EXTRACTION_PATH = "/api/v1/document-extraction";
+
+    /**
+     * Document extraction is the first Elastic Inference Service task type whose task settings are supplied per-request
+     * rather than persisted on the inference endpoint (the endpoint enforces empty task settings, see the constructors
+     * below). This creates a copy of {@code model} carrying the request's task settings, used only for the lifetime of
+     * a single inference call.
+     */
+    public static ElasticInferenceServiceDocumentExtractionModel of(
+        ElasticInferenceServiceDocumentExtractionModel model,
+        TaskSettings taskSettings
+    ) {
+        return new ElasticInferenceServiceDocumentExtractionModel(model, taskSettings);
+    }
+
     private final URI uri;
+
+    public ElasticInferenceServiceDocumentExtractionModel(ElasticInferenceServiceDocumentExtractionModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+        this.uri = model.uri();
+    }
 
     public ElasticInferenceServiceDocumentExtractionModel(
         String inferenceEntityId,

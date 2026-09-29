@@ -92,14 +92,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
     boolean valuesSorted();
 
-    /**
-     * Whether the mapping guaranteed at most one non-null value per document ({@code multi_value: false}).
-     * When {@code true}, the column was written with {@code BinaryDocValuesFormat.PLAIN} framing — the blob is the
-     * raw value bytes — and readers return them directly rather than building a payload.
-     * Written as a separate byte immediately after the {@link #SORTED} byte.
-     */
-    boolean singleValued();
-
     /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
     Summary summary();
 
@@ -178,7 +170,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         SlotAddressing addressing,
         PlainValues.Metadata values,
         boolean valuesSorted,
-        boolean singleValued,
         boolean valuesWorthNaming,
         Summary summary
     ) implements StringColumnMetadata {
@@ -201,7 +192,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 addressing,
                 values,
                 valuesSorted,
-                singleValued,
                 valuesWorthNaming,
                 summary
             );
@@ -247,7 +237,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted,
-        boolean singleValued,
         Summary summary
     ) implements StringColumnMetadata {
 
@@ -290,7 +279,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 escapeRankBlockSize,
                 dictionarySize,
                 valuesSorted,
-                singleValued,
                 summary
             );
         }
@@ -309,7 +297,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, 0, 0, -1, -1, SlotAddressing.NONE, null, true, false, false);
+        return plain(iterator, 0, 0, 0, 0, -1, -1, SlotAddressing.NONE, null, true, false);
     }
 
     /** A column that stores its values as they were written. */
@@ -324,7 +312,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         SlotAddressing addressing,
         PlainValues.Metadata values,
         boolean valuesSorted,
-        boolean singleValued,
         boolean valuesWorthNaming
     ) {
         return new Plain(
@@ -338,7 +325,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             addressing,
             values,
             valuesSorted,
-            singleValued,
             valuesWorthNaming,
             null
         );
@@ -360,8 +346,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         MonotonicWriter.Table escapeRanks,
         int escapeRankBlockSize,
         int dictionarySize,
-        boolean valuesSorted,
-        boolean singleValued
+        boolean valuesSorted
     ) {
         return new Dictionary(
             iterator,
@@ -379,7 +364,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             escapeRankBlockSize,
             dictionarySize,
             valuesSorted,
-            singleValued,
             null
         );
     }
@@ -398,7 +382,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         out.writeVInt(minLength() + 1);
         out.writeVInt(maxLength() + 1);
         out.writeByte(valuesSorted() ? SORTED : NOT_SORTED);
-        out.writeByte((byte) (singleValued() ? 1 : 0));
         // Written ahead of the layout because finding a document's slots is the same question whichever
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
         // recorded is not shared, so that goes in the body.
@@ -446,7 +429,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int minLength = in.readVInt() - 1;
         int maxLength = in.readVInt() - 1;
         boolean valuesSorted = in.readByte() == SORTED;
-        boolean singleValued = in.readByte() != 0;
         SlotAddressing addressing = in.readByte() != 0 ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
@@ -464,7 +446,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     addressing,
                     values,
                     valuesSorted,
-                    singleValued,
                     valuesWorthNaming
                 );
             }
@@ -490,8 +471,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     escapeRanks,
                     escapeRankBlockSize,
                     dictionarySize,
-                    valuesSorted,
-                    singleValued
+                    valuesSorted
                 );
             }
         };

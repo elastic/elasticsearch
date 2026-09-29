@@ -74,8 +74,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             StringColumnOptions.DEFAULT_DICTIONARY,
             StringColumnOptions.DEFAULT_SUMMARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
-            StringColumnOptions.DEFAULT_SIZES,
-            false
+            StringColumnOptions.DEFAULT_SIZES
         );
 
         try (Directory dir = newDirectory()) {
@@ -103,13 +102,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(
-                null,
-                StringColumnOptions.DEFAULT_SUMMARY,
-                ChunkCodec.ZSTD,
-                StringColumnOptions.DEFAULT_SIZES,
-                false
-            )
+            () -> new StringColumnOptions(null, StringColumnOptions.DEFAULT_SUMMARY, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_SIZES)
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -117,8 +110,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_DICTIONARY,
                 StringColumnOptions.DEFAULT_SUMMARY,
                 null,
-                StringColumnOptions.DEFAULT_SIZES,
-                false
+                StringColumnOptions.DEFAULT_SIZES
             )
         );
         expectThrows(
@@ -127,8 +119,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_DICTIONARY,
                 StringColumnOptions.DEFAULT_SUMMARY,
                 ChunkCodec.ZSTD,
-                null,
-                false
+                null
             )
         );
     }

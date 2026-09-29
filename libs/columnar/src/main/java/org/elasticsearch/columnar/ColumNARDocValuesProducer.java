@@ -170,13 +170,14 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         // interface is what lets a second column type arrive without another shape here.
         return switch (column.metadata()) {
             case NumericColumnMetadata numeric -> numericBinary(numeric);
-            case StringColumnMetadata string -> stringBinary(string);
+            case StringColumnMetadata string -> stringBinary(field, string);
         };
     }
 
-    private BinaryDocValues stringBinary(StringColumnMetadata metadata) throws IOException {
+    private BinaryDocValues stringBinary(FieldInfo field, StringColumnMetadata metadata) throws IOException {
+        final boolean singleValued = "true".equals(field.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE));
         StringColumnReader reader = StringColumnReader.open(metadata, inputs);
-        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), metadata.singleValued());
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {

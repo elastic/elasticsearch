@@ -23,17 +23,8 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * @param summary      how much of what the column held it summarises for a later merge
  * @param chunkCodec   what compresses the chunks the values are written in
  * @param sizes        the units the column's streams are written in
- * @param singleValued when {@code true} the mapping guarantees at most one non-null value per document
- *                     ({@code multi_value: false}), so the column records that guarantee on disk and the
- *                     reader returns the raw value bytes rather than building a payload
  */
-public record StringColumnOptions(
-    DictionaryPolicy dictionary,
-    SummaryPolicy summary,
-    ChunkCodec chunkCodec,
-    Sizes sizes,
-    boolean singleValued
-) {
+public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
@@ -191,17 +182,7 @@ public record StringColumnOptions(
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
-        DEFAULT_SIZES,
-        false
-    );
-
-    /** Default options for a field whose mapping guarantees at most one non-null value per document. */
-    public static final StringColumnOptions DEFAULT_SINGLE_VALUED = new StringColumnOptions(
-        DEFAULT_DICTIONARY,
-        DEFAULT_SUMMARY,
-        ChunkCodec.ZSTD,
-        DEFAULT_SIZES,
-        true
+        DEFAULT_SIZES
     );
 
     public StringColumnOptions {
@@ -225,11 +206,11 @@ public record StringColumnOptions(
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
     }
 }

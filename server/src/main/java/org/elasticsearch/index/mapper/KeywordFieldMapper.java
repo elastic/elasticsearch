@@ -1647,8 +1647,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
         // a bounded dictionary covers much of the column.
         return switch (fieldType().diskFormat()) {
-            case BINARY_COLUMNAR_PAYLOAD -> StringColumnOptions.DEFAULT;
-            case BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT_SINGLE_VALUED;
+            case BINARY_COLUMNAR_PAYLOAD, BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT;
             default -> null;
         };
     }
@@ -2303,8 +2302,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
                 case BINARY_COLUMNAR_SINGLE_VALUE ->
-                    // Single-valued columnar field: write the raw bytes directly — no payload framing needed.
-                    context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
+                    // Single-valued columnar field: raw bytes, no payload framing. The FieldType attribute
+                    // flows into FieldInfo so the codec producer returns the value directly.
+                    context.doc().add(new SingleValuedBinaryDocValuesField(fieldType().name(), binaryValue));
                 case NONE, SORTED_SET -> throw new AssertionError(
                     "field [" + fieldType().name() + "] uses binary doc values but resolved to layout [" + fieldType().diskFormat() + "]"
                 );

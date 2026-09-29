@@ -75,6 +75,13 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String NAVIGATION_CODEC = "ColumNARNavigation";
     static final String NAVIGATION_EXTENSION = "cnn";
 
+    /**
+     * FieldInfo attribute key recording that a string column was written with {@code BinaryDocValuesFormat.PLAIN}
+     * framing — one raw value per document, no count prefix. Set on the Lucene {@code FieldType} by the mapper
+     * so it flows into {@code FieldInfo} at index time; read back by the producer to return raw bytes directly.
+     */
+    public static final String SINGLE_VALUED_ATTRIBUTE = "columnar.string.singleValued";
+
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;

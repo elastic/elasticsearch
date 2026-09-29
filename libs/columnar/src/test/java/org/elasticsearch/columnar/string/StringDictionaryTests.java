@@ -379,8 +379,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             new DictionaryPolicy(4096, 0.5, 0.01),
             new SummaryPolicy(200),
             ChunkCodec.ZSTD,
-            StringColumnOptions.DEFAULT_SIZES,
-            false
+            StringColumnOptions.DEFAULT_SIZES
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -787,8 +786,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 escapeRankBlockSize,
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-            ),
-            false
+            )
         );
     }
 
@@ -835,8 +833,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-                        ),
-                        false
+                        )
                     ),
                     known,
                     dir,

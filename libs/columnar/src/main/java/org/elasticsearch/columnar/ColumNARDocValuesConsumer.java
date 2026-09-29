@@ -142,7 +142,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
             case STRING -> {
-                final boolean singleValued = stringSelector.select(field.name, type).singleValued();
+                final boolean singleValued = "true".equals(field.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE));
                 writeStringColumn(
                     field,
                     type,
@@ -168,7 +168,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                final boolean singleValued = options.singleValued();
+                final boolean singleValued = "true".equals(field.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE));
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, singleValued), vocabulary);
             }
         }

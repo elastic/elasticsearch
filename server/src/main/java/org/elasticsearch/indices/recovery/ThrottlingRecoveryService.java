@@ -179,7 +179,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
             INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
         );
-        // TODO: remove this branch once the settings are registered. Until then, fall back to the disabled defaults.
+        // These settings are only currently registered by the stateless plugin. Elsewhere, fall back to the disabled defaults.
+        // TODO: remove this branch once they are also registered in stateful.
         if (incomingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
             applyIncomingThrottleSettings(
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),

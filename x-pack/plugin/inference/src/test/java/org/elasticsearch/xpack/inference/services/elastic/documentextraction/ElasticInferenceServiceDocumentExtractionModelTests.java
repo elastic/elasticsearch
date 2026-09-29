@@ -27,6 +27,19 @@ public class ElasticInferenceServiceDocumentExtractionModelTests extends ESTestC
         assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/document-extraction"));
     }
 
+    public void testOf_OverridesTaskSettingsAndKeepsEverythingElse() {
+        var model = createModel("http://eis-gateway.com", "my-model-id");
+        var taskSettings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown");
+
+        var overriddenModel = ElasticInferenceServiceDocumentExtractionModel.of(model, taskSettings);
+
+        assertThat(overriddenModel.getTaskSettings(), is(taskSettings));
+        assertThat(overriddenModel.getServiceSettings(), is(model.getServiceSettings()));
+        assertThat(overriddenModel.getInferenceEntityId(), is(model.getInferenceEntityId()));
+        assertThat(overriddenModel.uri(), is(model.uri()));
+        assertThat(model.getTaskSettings(), is(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS));
+    }
+
     public static ElasticInferenceServiceDocumentExtractionModel createModel(String url, String modelId) {
         return new ElasticInferenceServiceDocumentExtractionModel(
             "id",

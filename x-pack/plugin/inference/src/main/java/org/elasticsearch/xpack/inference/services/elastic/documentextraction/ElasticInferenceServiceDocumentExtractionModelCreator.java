@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.ensureEmptyTaskSettingsInRequestContext;
-
 /**
  * Creates {@link ElasticInferenceServiceDocumentExtractionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -43,13 +41,11 @@ public class ElasticInferenceServiceDocumentExtractionModelCreator extends Elast
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        // The extracted content format is hardcoded to markdown for now, so no task settings are exposed
-        ensureEmptyTaskSettingsInRequestContext(taskSettings, context);
-
         return new ElasticInferenceServiceDocumentExtractionModel(
             inferenceId,
             taskType,
             serviceSettings,
+            taskSettings,
             elasticInferenceServiceComponents,
             context,
             endpointMetadata

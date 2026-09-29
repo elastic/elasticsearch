@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -264,6 +265,30 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(ElasticInferenceServiceDocumentExtractionModel.class));
             ElasticInferenceServiceDocumentExtractionModel documentExtractionModel = (ElasticInferenceServiceDocumentExtractionModel) model;
             assertThat(documentExtractionModel.getServiceSettings().modelId(), is("my-document-extraction-model-id"));
+            assertThat(documentExtractionModel.getTaskSettings(), is(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS));
+        }
+    }
+
+    public void testParseRequestConfig_CreatesADocumentExtractionModel_WithTaskSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DOCUMENT_EXTRACTION,
+                getRequestConfigMap(
+                    Map.of(ServiceFields.MODEL_ID, "my-document-extraction-model-id"),
+                    new HashMap<>(Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "markdown")),
+                    Map.of()
+                ),
+                modelListener
+            );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceDocumentExtractionModel.class));
+            ElasticInferenceServiceDocumentExtractionModel documentExtractionModel = (ElasticInferenceServiceDocumentExtractionModel) model;
+            assertThat(documentExtractionModel.getTaskSettings().outputFormat(), is("markdown"));
         }
     }
 
@@ -822,7 +847,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var documents = List.of(
                 new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
             );
-            var documentExtractionRequest = new DocumentExtractionRequest(documents, Map.of());
+            // Request task settings may arrive as an immutable map; the service must cope with that when parsing them
+            var requestTaskSettings = randomBoolean()
+                ? Map.<String, Object>of()
+                : Map.<String, Object>of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "markdown");
+            var documentExtractionRequest = new DocumentExtractionRequest(documents, requestTaskSettings);
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.documentExtractionInfer(model, documentExtractionRequest, null, listener);

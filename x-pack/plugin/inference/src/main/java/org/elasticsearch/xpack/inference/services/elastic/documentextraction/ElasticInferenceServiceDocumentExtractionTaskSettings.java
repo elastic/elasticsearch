@@ -19,26 +19,54 @@ import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
+/**
+ * Task settings for the Elastic Inference Service {@code document_extraction} task type. They can be stored on the inference endpoint
+ * and overridden per request through the {@code task_settings} field of the document extraction request body, where the request
+ * value wins (see {@link #of(ElasticInferenceServiceDocumentExtractionTaskSettings, ElasticInferenceServiceDocumentExtractionTaskSettings)}).
+ */
 public class ElasticInferenceServiceDocumentExtractionTaskSettings implements TaskSettings {
 
     public static final String NAME = "elastic_inference_service_document_extraction_task_settings";
     public static final String OUTPUT_FORMAT = "output_format";
 
-    static final ElasticInferenceServiceDocumentExtractionTaskSettings EMPTY_SETTINGS =
+    private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED = TransportVersion.fromName(
+        "inference_api_eis_document_extraction_added"
+    );
+
+    public static final ElasticInferenceServiceDocumentExtractionTaskSettings EMPTY_SETTINGS =
         new ElasticInferenceServiceDocumentExtractionTaskSettings((String) null);
 
-    public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
+    /**
+     * Parses task settings from a raw config map, removing the fields it recognizes so callers can reject leftover unknown fields.
+     * A null or empty map produces {@link #EMPTY_SETTINGS}.
+     */
+    public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
+
+        ValidationException validationException = new ValidationException();
 
         String outputFormat = ServiceUtils.extractOptionalString(map, OUTPUT_FORMAT, SettingsScope.TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat);
+    }
+
+    /**
+     * Merges stored and request task settings: a field set in {@code requestSettings} overrides the stored value, otherwise the stored
+     * value is kept.
+     */
+    public static ElasticInferenceServiceDocumentExtractionTaskSettings of(
+        ElasticInferenceServiceDocumentExtractionTaskSettings originalSettings,
+        ElasticInferenceServiceDocumentExtractionTaskSettings requestSettings
+    ) {
+        return new ElasticInferenceServiceDocumentExtractionTaskSettings(
+            requestSettings.outputFormat != null ? requestSettings.outputFormat : originalSettings.outputFormat
+        );
     }
 
     private final String outputFormat;
@@ -51,6 +79,11 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         this.outputFormat = outputFormat;
     }
 
+    @Nullable
+    public String outputFormat() {
+        return outputFormat;
+    }
+
     @Override
     public boolean isEmpty() {
         return outputFormat == null || outputFormat.isEmpty();
@@ -58,11 +91,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        if (newSettings == null || newSettings.isEmpty()) {
-            return this;
-        }
-
-        return fromMap(newSettings);
+        return of(this, fromMap(newSettings));
     }
 
     @Override
@@ -72,7 +101,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED;
     }
 
     @Override
@@ -90,5 +119,18 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ElasticInferenceServiceDocumentExtractionTaskSettings that = (ElasticInferenceServiceDocumentExtractionTaskSettings) o;
+        return Objects.equals(outputFormat, that.outputFormat);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(outputFormat);
     }
 }

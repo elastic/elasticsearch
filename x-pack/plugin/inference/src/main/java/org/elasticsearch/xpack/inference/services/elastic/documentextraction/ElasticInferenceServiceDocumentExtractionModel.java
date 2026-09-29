@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,21 +28,23 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
     public static final String DOCUMENT_EXTRACTION_PATH = "/api/v1/document-extraction";
 
     /**
-     * Document extraction is the first Elastic Inference Service task type whose task settings are supplied per-request
-     * rather than persisted on the inference endpoint (the endpoint enforces empty task settings, see the constructors
-     * below). This creates a copy of {@code model} carrying the request's task settings, used only for the lifetime of
-     * a single inference call.
+     * Creates a copy of {@code model} carrying {@code taskSettings} instead of the stored ones. Document extraction accepts task
+     * settings in the inference request body, so this is used for the lifetime of a single inference call to apply the request's
+     * settings on top of the stored ones without touching the persisted endpoint.
      */
     public static ElasticInferenceServiceDocumentExtractionModel of(
         ElasticInferenceServiceDocumentExtractionModel model,
-        TaskSettings taskSettings
+        ElasticInferenceServiceDocumentExtractionTaskSettings taskSettings
     ) {
         return new ElasticInferenceServiceDocumentExtractionModel(model, taskSettings);
     }
 
     private final URI uri;
 
-    public ElasticInferenceServiceDocumentExtractionModel(ElasticInferenceServiceDocumentExtractionModel model, TaskSettings taskSettings) {
+    public ElasticInferenceServiceDocumentExtractionModel(
+        ElasticInferenceServiceDocumentExtractionModel model,
+        ElasticInferenceServiceDocumentExtractionTaskSettings taskSettings
+    ) {
         super(model, taskSettings);
         this.uri = model.uri();
     }
@@ -53,6 +53,7 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
+        @Nullable Map<String, Object> taskSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
@@ -61,6 +62,7 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
             inferenceEntityId,
             taskType,
             ElasticInferenceServiceDocumentExtractionServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(taskSettings),
             elasticInferenceServiceComponents,
             endpointMetadata
         );
@@ -83,12 +85,30 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
         @Nullable EndpointMetadata endpointMetadata
     ) {
         this(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
+            elasticInferenceServiceComponents,
+            endpointMetadata
+        );
+    }
+
+    public ElasticInferenceServiceDocumentExtractionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceDocumentExtractionServiceSettings serviceSettings,
+        ElasticInferenceServiceDocumentExtractionTaskSettings taskSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
+        this(
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EnforcingEmptyTaskSettings.INSTANCE,
+                taskSettings,
                 null,
                 endpointMetadata
             ),
@@ -114,6 +134,11 @@ public class ElasticInferenceServiceDocumentExtractionModel extends ElasticInfer
     @Override
     public ElasticInferenceServiceDocumentExtractionServiceSettings getServiceSettings() {
         return (ElasticInferenceServiceDocumentExtractionServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public ElasticInferenceServiceDocumentExtractionTaskSettings getTaskSettings() {
+        return (ElasticInferenceServiceDocumentExtractionTaskSettings) super.getTaskSettings();
     }
 
     public URI uri() {

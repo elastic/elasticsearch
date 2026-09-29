@@ -354,6 +354,12 @@ public final class DatasetRewriter {
         if (children.size() == 1) {
             return children.get(0);
         }
+        // Every child is a leaf read of this one FROM, which is what lets FORK accept the fan-in as a single source.
+        for (LogicalPlan child : children) {
+            if (SourceFanInUnionAll.isBranching(child)) {
+                throw new IllegalStateException("a source fan-in can only hold the reads of one FROM, found [" + child + "]");
+            }
+        }
         return new SourceFanInUnionAll(relation.source(), children, List.of());
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -95,20 +96,21 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
         if (view.children().stream().noneMatch(child -> child instanceof SourceFanInUnionAll)) {
             return view;
         }
+        // Kept branches go in first so a lifted key cannot take a kept branch's name, as in ViewCompaction.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
         Set<String> viewBranchKeys = new HashSet<>();
-        Set<String> originalKeys = view.namedSubqueries().keySet();
         for (Map.Entry<String, LogicalPlan> entry : view.namedSubqueries().entrySet()) {
-            if (entry.getValue() instanceof SourceFanInUnionAll fanIn) {
-                String parentKey = entry.getKey() == null ? "main" : entry.getKey();
-                int childIndex = 1;
-                for (LogicalPlan child : fanIn.children()) {
-                    flat.put(uniqueKey(flat, originalKeys, parentKey + "#" + childIndex++), child);
-                }
-            } else {
+            if (entry.getValue() instanceof SourceFanInUnionAll == false) {
                 flat.put(entry.getKey(), entry.getValue());
                 if (view.isViewBranch(entry.getKey())) {
                     viewBranchKeys.add(entry.getKey());
+                }
+            }
+        }
+        for (Map.Entry<String, LogicalPlan> entry : view.namedSubqueries().entrySet()) {
+            if (entry.getValue() instanceof SourceFanInUnionAll fanIn) {
+                for (LogicalPlan child : fanIn.children()) {
+                    flat.put(ViewCompaction.makeUniqueKey(flat, entry.getKey()), child);
                 }
             }
         }
@@ -116,14 +118,5 @@ public final class PromoteSourceFanIn extends ParameterizedRule<LogicalPlan, Log
             return view;
         }
         return new ViewUnionAll(view.source(), flat, viewBranchKeys, view.output());
-    }
-
-    private static String uniqueKey(Map<String, LogicalPlan> flat, Set<String> originalKeys, String key) {
-        String candidate = key;
-        int counter = 2;
-        while (flat.containsKey(candidate) || originalKeys.contains(candidate)) {
-            candidate = key + "#" + counter++;
-        }
-        return candidate;
     }
 }

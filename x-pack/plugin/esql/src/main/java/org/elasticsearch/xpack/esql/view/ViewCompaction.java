@@ -69,6 +69,14 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
+    /** Key prefix given to a user-written literal subquery branch of a {@link ViewUnionAll}. */
+    private static final String UNNAMED_VIEW_PREFIX = "unnamed_view_";
+
+    /** True when {@code key} names a user-written literal subquery branch rather than a view or a bare source. */
+    public static boolean isLiteralSubqueryKey(@Nullable String key) {
+        return key != null && key.startsWith(UNNAMED_VIEW_PREFIX);
+    }
+
     /**
      * Backward-compatible helper: runs {@link #preIndexResolution(LogicalPlan)} followed by
      * {@link #postIndexResolution(LogicalPlan, boolean)}. Production code calls the two phases separately;
@@ -205,7 +213,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         });
 
         plan = plan.transformDown(UnionAll.class, unionAll -> {
-            if (unionAll instanceof ViewUnionAll || unionAll instanceof SourceFanInUnionAll) {
+            if (unionAll instanceof ViewUnionAll) {
                 return unionAll;
             }
             boolean hasViewChildren = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll);
@@ -237,7 +245,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                         }
                     }
                 } else if (child instanceof Subquery unnamed) {
-                    String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
+                    String name = UNNAMED_VIEW_PREFIX + Integer.toHexString(unnamed.toString().hashCode());
                     assertSubqueryDoesNotExist(subPlans, name);
                     subPlans.put(name, unnamed.child());
                     // Literal user-written subquery: NOT a view branch.
@@ -418,7 +426,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     /**
      * Generate a unique key for the flat map, avoiding collisions with existing entries.
      */
-    private static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> flat, String key) {
+    public static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> flat, String key) {
         if (key == null) {
             key = "main";
         }

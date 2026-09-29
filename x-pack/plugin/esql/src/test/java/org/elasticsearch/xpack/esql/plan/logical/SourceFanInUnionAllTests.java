@@ -110,6 +110,32 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     /**
+     * {@code FROM v, (FROM ds2)}, where {@code v} is {@code FROM ds1 | WHERE ...}. View compaction keys the user-written
+     * subquery as {@code unnamed_view_<hash>}. It only reads a dataset, but it is still a subquery: the union is not
+     * promoted and {@code FORK} over it is rejected. The same shape with the dataset named in the {@code FROM} itself
+     * (a {@code null} key) is a source list and promotes.
+     */
+    public void testLiteralSubqueryBesideViewIsNotSourceExpansion() {
+        LinkedHashMap<String, LogicalPlan> named = new LinkedHashMap<>();
+        named.put("v", filter(external("ds1")));
+        named.put("unnamed_view_1a2b", external("ds2"));
+        ViewUnionAll withSubquery = new ViewUnionAll(Source.EMPTY, named, Set.of("v"), List.of());
+
+        assertFalse(SourceFanInUnionAll.isSourceExpansion(withSubquery));
+        assertThat(promote(withSubquery), instanceOf(ViewUnionAll.class));
+        Fork fork = new Fork(Source.EMPTY, List.of(withSubquery, index("idx")), List.of());
+        assertThat(verifyAnalysis(fork), containsString("FORK after subquery is not supported"));
+
+        LinkedHashMap<String, LogicalPlan> bare = new LinkedHashMap<>();
+        bare.put("v", filter(external("ds1")));
+        bare.put(null, external("ds2"));
+        ViewUnionAll withBareSource = new ViewUnionAll(Source.EMPTY, bare, Set.of("v"), List.of());
+
+        assertTrue(SourceFanInUnionAll.isSourceExpansion(withBareSource));
+        assertThat(promote(withBareSource), instanceOf(SourceFanInUnionAll.class));
+    }
+
+    /**
      * A {@code FROM} naming one dataset resolves to the bare {@link ExternalRelation}, not a single-child fan-in, so a
      * unary pipeline over it promotes the same as one over a multi-dataset fan-in. A unary over a bare index read
      * promotes too, so the result does not depend on which side of the union carries the {@code WHERE}.
@@ -219,7 +245,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(promoted, instanceOf(ViewUnionAll.class));
         ViewUnionAll view = (ViewUnionAll) promoted;
         assertThat(view.anyMatch(p -> p instanceof SourceFanInUnionAll), equalTo(false));
-        assertThat(view.namedSubqueries().keySet().stream().toList(), equalTo(List.of("b0#1", "b0#2", "b1")));
+        assertThat(view.namedSubqueries().keySet().stream().toList(), equalTo(List.of("b1", "b0", "b0#2")));
         assertThat(view.viewBranchKeys(), equalTo(Set.of("b1")));
     }
 
@@ -234,12 +260,6 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
         Filter filtered = filter(fanIn(external("a"), external("b")));
         assertThat(promote(viewOf(filtered, index("namesake")), true), instanceOf(SourceFanInUnionAll.class));
-    }
-
-    public void testNamedSubqueryRewriteLeavesSourceFanIn() {
-        NamedSubquery named = new NamedSubquery(Source.EMPTY, external("a"), "v");
-        SourceFanInUnionAll fanIn = fanIn(named, external("b"));
-        assertThat(ViewCompaction.preIndexResolution(fanIn), instanceOf(SourceFanInUnionAll.class));
     }
 
     public void testStripViewShadowCollapsesFanIn() {

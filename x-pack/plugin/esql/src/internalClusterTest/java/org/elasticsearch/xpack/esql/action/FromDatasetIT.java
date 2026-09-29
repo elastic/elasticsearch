@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -5315,44 +5316,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * {@code FORK} over a view that expands to datasets returns the same rows as the same {@code FROM} written inline.
-     * Covers views that are only sources, filter them, compute over one dataset beside another source, rename or drop
-     * columns, and a view whose body is itself the {@code FORK}.
+     * Covers views that are only sources, filter them, compute over one dataset beside another source (including
+     * {@code DISSECT}, {@code MV_EXPAND}, and {@code LOOKUP JOIN}), rename or drop columns, and a view whose body is
+     * itself the {@code FORK}.
      */
     public void testForkOverDatasetViewsMatchesInline() throws Exception {
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_ds_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("fork_ds_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("fork_ds_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
-        String fork12 = " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
-        String fork23 = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
-        String forkRenamed = " | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id";
-        String pair = "FROM fork_ds_a, fork_ds_b";
-        // view body, query over the view, equivalent inline query
-        List<List<String>> cases = List.of(
-            List.of(pair, "FROM fork_view" + fork12, pair + fork12),
-            List.of(pair + " | WHERE emp_no > 1", "FROM fork_view" + fork23, pair + " | WHERE emp_no > 1" + fork23),
-            List.of("FROM fork_ds_a | WHERE emp_no > 1", "FROM fork_view, fork_ds_b" + fork23, pair + fork23),
-            List.of("FROM fork_ds_a | EVAL x = 1", "FROM fork_view, fork_ds_b" + fork23, pair + fork23),
-            List.of(
-                pair + " | RENAME emp_no AS id",
-                "FROM fork_view, fork_ds_a" + forkRenamed,
-                pair + " | RENAME emp_no AS id" + forkRenamed
-            ),
-            List.of(pair + " | DROP first_name", "FROM fork_view, fork_ds_alt" + fork12, pair + " | DROP first_name" + fork12),
-            List.of(pair + fork12, "FROM fork_view | KEEP emp_no, _fork | SORT _fork, emp_no", pair + fork12)
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("fork_lookup")
+                .setSettings(Settings.builder().put("index.mode", "lookup").put("index.number_of_shards", 1))
+                .setMapping("emp_no", "type=integer", "dept", "type=keyword")
         );
-        for (List<String> c : cases) {
-            createView("fork_view", c.get(0));
-            List<List<Object>> inline;
-            try (var response = run(syncEsqlQueryRequest(c.get(2)), TIMEOUT)) {
-                inline = getValuesList(response);
-            }
-            try (var response = run(syncEsqlQueryRequest(c.get(1)), TIMEOUT)) {
-                assertThat(c.get(0), getValuesList(response), equalTo(inline));
-            }
-            assertThat(c.get(0), inline, hasSize(4));
-            assertAcked(client().execute(DeleteViewAction.INSTANCE, deleteViewRequest("fork_view")));
+
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a, fork_ds_b",
+            "FROM fork_view | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a, fork_ds_b | WHERE emp_no > 1",
+            "FROM fork_view | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | WHERE emp_no > 1"
+                + " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a | WHERE emp_no > 1",
+            "FROM fork_view, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a | EVAL x = 1",
+            "FROM fork_view, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a | DISSECT first_name \"%{initial}\"",
+            "FROM fork_view, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a | MV_EXPAND first_name",
+            "FROM fork_view, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a | LOOKUP JOIN fork_lookup ON emp_no",
+            "FROM fork_view, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a, fork_ds_b | RENAME emp_no AS id",
+            "FROM fork_view, fork_ds_a | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id",
+            "FROM fork_ds_a, fork_ds_b | RENAME emp_no AS id | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a, fork_ds_b | DROP first_name",
+            "FROM fork_view, fork_ds_alt | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | DROP first_name"
+                + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+        assertForkOverViewMatchesInline(
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_view | KEEP emp_no, _fork | SORT _fork, emp_no",
+            "FROM fork_ds_a, fork_ds_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no"
+        );
+    }
+
+    /** Defines {@code fork_view} as {@code viewBody}, then checks {@code viewQuery} returns the same four rows as {@code inlineQuery}. */
+    private void assertForkOverViewMatchesInline(String viewBody, String viewQuery, String inlineQuery) {
+        createView("fork_view", viewBody);
+        List<List<Object>> inline;
+        try (var response = run(syncEsqlQueryRequest(inlineQuery), TIMEOUT)) {
+            inline = getValuesList(response);
         }
+        try (var response = run(syncEsqlQueryRequest(viewQuery), TIMEOUT)) {
+            assertThat(viewBody, getValuesList(response), equalTo(inline));
+        }
+        assertThat(viewBody, inline, hasSize(4));
+        assertAcked(client().execute(DeleteViewAction.INSTANCE, deleteViewRequest("fork_view")));
     }
 
     /** A user subquery, alone or beside a view, is not a source list, so {@code FORK} still rejects it. */
@@ -5363,8 +5409,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_sub", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         createView("idx_view", "FROM idx_for_view");
+        // A view with a pipeline body is not collapsed to a bare relation, so the subquery sits beside a view branch.
+        createView("filtered_ds_view", "FROM fork_sub | WHERE emp_no > 0");
 
-        for (String from : List.of("FROM fork_sub, (FROM fork_sub | WHERE emp_no > 0)", "FROM idx_view, (FROM fork_sub)")) {
+        for (String from : List.of(
+            "FROM fork_sub, (FROM fork_sub | WHERE emp_no > 0)",
+            "FROM idx_view, (FROM fork_sub)",
+            "FROM filtered_ds_view, (FROM fork_sub)",
+            "FROM filtered_ds_view, (FROM fork_sub | WHERE emp_no > 0)"
+        )) {
             Exception failure = expectThrows(
                 Exception.class,
                 () -> run(syncEsqlQueryRequest(from + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)"), TIMEOUT).close()

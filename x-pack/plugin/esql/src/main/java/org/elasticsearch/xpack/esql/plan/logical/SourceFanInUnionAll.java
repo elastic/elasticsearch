@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +55,8 @@ public final class SourceFanInUnionAll extends UnionAll {
 
     public SourceFanInUnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, flattenDirect(children), output);
+        assert children().stream().noneMatch(child -> child.anyMatch(SourceFanInUnionAll::isBranching))
+            : "a source fan-in holds one FROM's producers, not a FORK, union, or subquery: " + children();
     }
 
     @Override
@@ -87,27 +90,35 @@ public final class SourceFanInUnionAll extends UnionAll {
     }
 
     /**
-     * Producers under {@code plan}. A nested fan-in and a unary pipeline wrapped around one
-     * ({@code WHERE}, {@code EVAL}, {@code STATS}, {@code SORT}, {@code LIMIT}, or a projection)
-     * contribute the producers inside them. Any other node is one producer; index reads that
-     * {@link #withIndexReadsCollapsed} merged count once.
+     * Producers under {@code plan}. The producers of every fan-in inside {@code plan} count, whatever pipeline wraps
+     * them. A plan with no fan-in inside is one producer; index reads that {@link #withIndexReadsCollapsed} merged
+     * count once.
      */
     static int producerCount(LogicalPlan plan) {
-        LogicalPlan current = unwrapSourcePipeline(plan);
-        if (current instanceof SourceFanInUnionAll fanIn) {
-            int count = 0;
+        int nested = nestedProducerCount(plan);
+        return nested == 0 ? 1 : nested;
+    }
+
+    /** Producers of the fan-ins under {@code plan}, or {@code 0} when there is none. */
+    private static int nestedProducerCount(LogicalPlan plan) {
+        int count = 0;
+        if (plan instanceof SourceFanInUnionAll fanIn) {
             for (LogicalPlan child : fanIn.children()) {
                 count += producerCount(child);
             }
-            return count;
+        } else {
+            for (LogicalPlan child : plan.children()) {
+                count += nestedProducerCount(child);
+            }
         }
-        return 1;
+        return count;
     }
 
     /**
-     * A {@link ViewUnionAll} that is only a resolved {@code FROM}: datasets, indices, or a mix, including a unary
-     * pipeline on that expansion beside a matched namesake. An index-only view union, a {@code FORK}, a join, or a
-     * subquery is not a source list.
+     * A {@link ViewUnionAll} that is only a resolved {@code FROM}: datasets, indices, or a mix, including a pipeline
+     * on that expansion beside a matched namesake. An index-only view union is not a source list, and neither is a
+     * branch holding a {@code FORK}, a union, or a subquery. A user-written subquery branch is not a source list either,
+     * even when it only reads sources, so {@code FROM v, (FROM ds)} stays a subquery under {@code FORK}.
      * <p>
      * Index and dataset leaves are treated alike, so a view that filters an index promotes the same as one that
      * filters a dataset.
@@ -116,8 +127,8 @@ public final class SourceFanInUnionAll extends UnionAll {
         if (view.children().isEmpty() || view.anyMatch(p -> p instanceof ExternalRelation) == false) {
             return false;
         }
-        for (LogicalPlan child : view.children()) {
-            if (isProducer(unwrapSourcePipeline(child)) == false) {
+        for (Map.Entry<String, LogicalPlan> entry : view.namedSubqueries().entrySet()) {
+            if (ViewCompaction.isLiteralSubqueryKey(entry.getKey()) || entry.getValue().anyMatch(SourceFanInUnionAll::isBranching)) {
                 return false;
             }
         }
@@ -130,22 +141,12 @@ public final class SourceFanInUnionAll extends UnionAll {
     }
 
     /**
-     * Strips the unary commands that stay wrapped around a source fan-in: a filter, projection, eval, limit,
-     * sort, or aggregate. Any other node is returned as is, so a command such as {@code FORK} or a subquery
-     * is not walked through.
+     * A node that makes a branch more than one {@code FROM} with a pipeline on it: a merge other than a fan-in
+     * ({@code FORK} or a union), or a subquery. Mirrors what {@code FORK} rejects, so any other command, including
+     * one added later, keeps a view branch a source list.
      */
-    private static LogicalPlan unwrapSourcePipeline(LogicalPlan plan) {
-        LogicalPlan current = plan;
-        while (current instanceof Filter
-            || current instanceof Project
-            || current instanceof Rename
-            || current instanceof Eval
-            || current instanceof Limit
-            || current instanceof OrderBy
-            || current instanceof Aggregate) {
-            current = ((UnaryPlan) current).child();
-        }
-        return current;
+    public static boolean isBranching(LogicalPlan plan) {
+        return plan instanceof MergePlan && plan instanceof SourceFanInUnionAll == false || plan instanceof Subquery;
     }
 
     private static void checkProducerCount(LogicalPlan plan, Failures failures) {

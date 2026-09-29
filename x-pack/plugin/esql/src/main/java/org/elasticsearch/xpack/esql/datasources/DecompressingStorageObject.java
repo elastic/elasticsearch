@@ -310,9 +310,11 @@ final class DecompressingStorageObject implements StorageObject {
          * Reads {@code raw} to its end, up to {@link #MAX_TRAILING_DRAIN_BYTES}, so providers that recycle a
          * connection only on an end-of-body read (S3 via Apache HttpClient) can pool it. After a complete
          * decode this is a single read returning {@code -1} with no network I/O. When the body really has
-         * undecoded bytes left (a malformed tail), this blocks {@code close()} on up to
-         * {@code MAX_TRAILING_DRAIN_BYTES / TRAILING_DRAIN_CHUNK_BYTES} socket reads, each bounded by the
-         * provider's read timeout; that is accepted as the price of pooling the common, well-formed case.
+         * undecoded bytes left (a malformed tail), this blocks {@code close()} until up to
+         * {@code MAX_TRAILING_DRAIN_BYTES + 1} bytes have been read, in as many socket reads as the network
+         * delivers them, each bounded by the provider's read timeout; that is accepted as the price of pooling
+         * the common, well-formed case. Runs after {@code closed} is set, so a concurrent release (a cancelling
+         * {@code abortStream} from another thread) returns at once and cancellation waits for this read to end.
          * Best effort: the logical read already succeeded, so a failure here only leaves the connection to the
          * abort that follows. Reads past the retry layer's resume (see {@link ResumeBypassingStorageObject}):
          * a fault here must fall through to the abort, not sleep through a backoff and re-open a GET inside

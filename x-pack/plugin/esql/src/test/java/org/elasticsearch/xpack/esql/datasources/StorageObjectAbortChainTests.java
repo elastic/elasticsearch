@@ -153,6 +153,33 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
+     * Same as {@link #testEndOfBodyReadFaultAfterFullGzipReadDoesNotResume} through the split read chain, where
+     * {@code FileSplitProvider#storageObjectForSplit} puts a {@link RangeStorageObject} view (even at offset 0)
+     * between {@link DecompressingStorageObject} and the per-query budget. The decoder stops at the end of the body
+     * without reading it to {@code -1} on every JDK, so only the release's end-of-body read hits the reset.
+     */
+    public void testEndOfBodyReadFaultThroughSplitRangeViewDoesNotResume() throws IOException {
+        byte[] body = randomByteArrayOfLength(between(1, 100_000));
+
+        ResetAtEndOfBodyStorageObject raw = new ResetAtEndOfBodyStorageObject(body);
+        RetryableStorageObject retryable = new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter()), retryPolicy());
+        StorageObject chain = new DecompressingStorageObject(
+            new RangeStorageObject(new QueryBudgetedStorageObject(retryable, new QueryConcurrencyBudget(3, 60_000L, null)), 0, body.length),
+            new StopAtLengthDecompressionCodec("test", body.length)
+        );
+
+        try (InputStream stream = chain.newStream()) {
+            assertArrayEquals(body, stream.readAllBytes());
+            assertFalse("the decoder must stop before the end-of-body read", raw.endOfBodyFaulted.get());
+        }
+
+        assertTrue("the end-of-body read must have hit the reset", raw.endOfBodyFaulted.get());
+        assertEquals("a fault on the end-of-body read must not re-open the object", 1, raw.opens.get());
+        assertEquals("a fault on the end-of-body read must not count a retry", 0, retryable.metrics().retryCount());
+        assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
+    }
+
+    /**
      * Regression guard for {@link RecordBoundaryProbe#probeAt} through the same decorator chain used for
      * uncompressed text files on object storage. With little enough of its window left to transfer a boundary probe
      * deliberately does <em>not</em> abort: it opens a bounded window, then drains and closes it so the connection
@@ -292,7 +319,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
     /**
      * Serves {@code bytes} in full, then throws a connection reset instead of returning {@code -1}: the shape of
-     * an S3 connection that drops just as the client reads the end of the body. Resume opens return an empty body.
+     * an S3 connection that drops just as the client reads the end of the body. Opens at position 0 serve the same
+     * body; resume opens return an empty body.
      */
     private static final class ResetAtEndOfBodyStorageObject implements StorageObject {
         private final byte[] bytes;
@@ -330,6 +358,10 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         @Override
         public InputStream newStream(long position, long length) {
+            if (position == 0) {
+                // The initial open through a range view; resumes open at the delivered offset.
+                return newStream();
+            }
             opens.incrementAndGet();
             return InputStream.nullInputStream();
         }

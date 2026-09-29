@@ -177,7 +177,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 BlobCacheMetrics.NOOP,
                 clusterService,
                 indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                EvictionPolicyExtension.NOOP
             )
         ) {
             assertEquals(numRegions, SharedBlobCacheServiceTestUtils.freeRegionCount(cacheService));

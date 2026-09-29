@@ -41,6 +41,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
@@ -214,7 +215,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     BlobCacheMetrics.NOOP,
                     clusterService,
                     indicesService,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                    EvictionPolicyExtension.NOOP
                 ) {
                     @Override
                     protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {

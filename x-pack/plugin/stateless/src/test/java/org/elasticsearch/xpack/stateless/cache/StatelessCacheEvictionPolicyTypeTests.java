@@ -89,7 +89,8 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             settings,
             clusterService,
             TestUtils.mockIndicesService(clusterService),
-            clusterService.threadPool()
+            clusterService.threadPool(),
+            EvictionPolicyExtension.NOOP
         );
 
         assertThat(switchingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));

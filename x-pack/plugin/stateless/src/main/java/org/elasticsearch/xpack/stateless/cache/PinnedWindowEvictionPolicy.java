@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension.PinnedWindow;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
@@ -25,10 +26,13 @@ import java.util.function.Predicate;
 /// Eviction policy that does not evict cache regions for shards present on this node whose content timestamp
 /// falls within a configurable pinned window.
 ///
-/// Regions are classified by their [CacheRegion#timestampMillis()] (for shards present on this node):
-///   - a non-negative timestamp (`>= 0`) is pinned iff it falls within the pinned window;
-///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
-///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
+/// [EvictionPolicyExtension.PinnedWindow.Duration] classifies regions of shards present on this node by
+/// [CacheRegion#timestampMillis()]:
+///   - a non-negative timestamp (`>= 0`) is pinned iff it falls within the window;
+///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is pinned (no representative timestamp);
+///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is pinned until backfill completes.
+/// [EvictionPolicyExtension.PinnedWindow.Always] pins every region of a present shard, including those sentinels.
+/// [EvictionPolicyExtension.PinnedWindow.Never] pins none of them.
 ///
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
@@ -45,14 +49,21 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
 
     private final Predicate<ShardId> hasShardPredicate;
     private final TimeProvider timeProvider;
+    private final EvictionPolicyExtension evictionPolicyExtension;
 
     private volatile TimeValue pinnedWindowDuration;
 
     private final Releasable releasePinnedWindowDurationUpdater;
 
-    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, TimeProvider timeProvider, Predicate<ShardId> hasShardPredicate) {
+    public PinnedWindowEvictionPolicy(
+        ClusterSettings clusterSettings,
+        TimeProvider timeProvider,
+        Predicate<ShardId> hasShardPredicate,
+        EvictionPolicyExtension evictionPolicyExtension
+    ) {
         this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
         this.timeProvider = Objects.requireNonNull(timeProvider);
+        this.evictionPolicyExtension = Objects.requireNonNull(evictionPolicyExtension);
         this.pinnedWindowDuration = Objects.requireNonNull(clusterSettings).get(PINNED_WINDOW_DURATION_SETTING);
         this.releasePinnedWindowDurationUpdater = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value)
@@ -80,32 +91,40 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      */
     @Override
     public boolean isProtected(CacheRegion<FileCacheKey> region) {
-        return isProtected(region, currentTimeMillis() - pinnedWindowDuration.getMillis());
+        return isProtected(region, currentTimeMillis());
     }
 
     /**
      * Returns {@code true} if {@code region} is currently protected from eviction by this policy based on its own
-     * state (independent of any incoming region), using a precomputed pinned-window cutoff.
+     * state (independent of any incoming region), using {@code now} as the current time.
      */
-    boolean isProtected(CacheRegion<FileCacheKey> region, long pinnedWindowCutoffMillis) {
+    boolean isProtected(CacheRegion<FileCacheKey> region, long now) {
         if (hasShard(region.key().shardId()) == false) {
             return false;
         }
+        final PinnedWindow window = evictionPolicyExtension.pinnedWindowForShard(region.key().shardId(), pinnedWindowDuration);
+        if (window instanceof PinnedWindow.Never) {
+            return false;
+        }
+        if (window instanceof PinnedWindow.Always) {
+            return true;
+        }
         final long timestampMillis = region.timestampMillis();
         if (timestampMillis < 0) {
-            assert timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+            assert timestampMillis >= 0
+                || timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
                 || timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP : "unexpected negative timestamp: " + timestampMillis;
             return true;
         }
         // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be
         // evicted irrespective of their timestamp.
-        return timestampMillis >= pinnedWindowCutoffMillis;
+        return timestampMillis >= now - ((PinnedWindow.Duration) window).duration().millis();
     }
 
     @Override
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
-        final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
-        return region -> isProtected(region, pinnedWindowCutoffMillis) == false;
+        final long now = currentTimeMillis();
+        return region -> isProtected(region, now) == false;
     }
 
     @Override

@@ -218,7 +218,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
         IndicesService indicesService,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder,
+        EvictionPolicyExtension evictionPolicyExtension
     ) {
         this(
             environment,
@@ -226,7 +227,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             clusterService.getClusterSettings(),
             threadPool,
             blobCacheMetrics,
-            createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            createEvictionPolicy(settings, clusterService, indicesService, threadPool, evictionPolicyExtension),
             System::nanoTime,
             threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
             metricsHolder
@@ -283,10 +284,26 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IndicesService indicesService,
         TimeProvider timeProvider
     ) {
+        return createEvictionPolicy(settings, clusterService, indicesService, timeProvider, EvictionPolicyExtension.NOOP);
+    }
+
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        TimeProvider timeProvider,
+        EvictionPolicyExtension evictionPolicyExtension
+    ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, timeProvider);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, timeProvider, evictionPolicyExtension);
         } else {
-            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, timeProvider);
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(
+                settings,
+                clusterService,
+                indicesService,
+                timeProvider,
+                evictionPolicyExtension
+            );
         }
     }
 

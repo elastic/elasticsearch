@@ -149,6 +149,20 @@ public class AllocationLambdaTests extends AllocationTestCase {
         assertTrue("expected per-invocation bound instance-method-reference charges to be counted, but only [" + bytes + "]", bytes >= 96);
     }
 
+    public void testBoundReferenceToTargetWithInjectedConstantCharged() {
+        // Pattern.split takes the injected regex limit factor; the charge must bind it before running the estimator.
+        String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
+        long base = allocatedBytes(functions + "Pattern p = /,/; return 'x';");
+        long withSplit = allocatedBytes(functions + "Pattern p = /,/; split(p::split); return 'x';");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(
+            java.util.regex.Pattern.compile(","),
+            0,
+            "a,b,c"
+        );
+
+        assertEquals(expected, withSplit - base);
+    }
+
     public void testBoundReferenceToUnannotatedTargetCompletes() {
         // A bound reference to an unannotated target is not charge-captured and resolves normally.
         Object result = compile("int c(IntSupplier s) { return s.getAsInt(); } String x = 'hello'; return c(x::length);", "1mb").execute();

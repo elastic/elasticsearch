@@ -530,13 +530,15 @@ public final class LambdaBootstrap {
                     iface.getField(lambdaClassType, capture.name, capture.type);
                 }
                 iface.loadArgs();
-                iface.invokeDynamic(
-                    CHARGE_METHOD_NAME,
-                    chargeType.toMethodDescriptorString(),
-                    CHARGE_BOOTSTRAP_HANDLE,
-                    scriptCaptureIndex,
-                    estimatorHandle
-                );
+                // The estimator takes the delegate's injected constants where the delegate does: after the receiver, or first
+                // for a plain static method.
+                int injectAt = delegateInvokeType == H_INVOKESTATIC && isDelegateAugmented == false ? 0 : 1;
+                Object[] chargeArgs = new Object[3 + injections.length];
+                chargeArgs[0] = scriptCaptureIndex;
+                chargeArgs[1] = estimatorHandle;
+                chargeArgs[2] = injectAt;
+                System.arraycopy(injections, 0, chargeArgs, 3, injections.length);
+                iface.invokeDynamic(CHARGE_METHOD_NAME, chargeType.toMethodDescriptorString(), CHARGE_BOOTSTRAP_HANDLE, chargeArgs);
             }
 
             Capture[] remaining = new Capture[captures.length - 1];
@@ -716,9 +718,15 @@ public final class LambdaBootstrap {
         String name,
         MethodType chargeType,
         int scriptCaptureIndex,
-        MethodHandle estimator
+        MethodHandle estimator,
+        int injectAt,
+        Object... injections
     ) {
         Class<?> scriptType = chargeType.parameterType(scriptCaptureIndex);
+        // Injected constants are bound first, since the call site never passes them.
+        if (injections.length > 0) {
+            estimator = MethodHandles.insertArguments(estimator, injectAt, injections);
+        }
         // The estimator takes every call-site parameter except the script, in order (explicit casts handle erased Object
         // arguments -> concrete estimator parameter types).
         MethodType estimatorType = chargeType.dropParameterTypes(scriptCaptureIndex, scriptCaptureIndex + 1).changeReturnType(long.class);

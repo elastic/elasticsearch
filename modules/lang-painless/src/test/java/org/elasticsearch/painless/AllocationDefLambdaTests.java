@@ -210,6 +210,19 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         assertEquals("aXc", compile("def s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];", "1mb").execute());
     }
 
+    public void testDefReceiverReferenceToTargetWithInjectedConstantCharged() {
+        String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
+        long base = allocatedBytes(functions + "def p = /,/; return 'x';");
+        long withSplit = allocatedBytes(functions + "def p = /,/; split(p::split); return 'x';");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(
+            java.util.regex.Pattern.compile(","),
+            0,
+            "a,b,c"
+        );
+
+        assertEquals(expected, withSplit - base);
+    }
+
     public void testNestedDefReceiverBoundReferenceInLambdaBodyTrips() {
         // A def-receiver bound reference (s is def, s::concat) built and invoked inside an outer def static lambda body: its
         // trailing #scriptThis capture must resolve against the enclosing lambda's synthetic method (not the top-level

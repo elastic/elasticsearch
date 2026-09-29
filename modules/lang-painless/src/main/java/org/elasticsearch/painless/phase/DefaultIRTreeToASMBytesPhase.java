@@ -1922,9 +1922,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irTypedCaptureReferenceNode.getLocation());
 
         String methodName = irTypedCaptureReferenceNode.getDecorationValue(IRDName.class);
-        Variable captured = writeScope.getVariable(irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class).get(0));
+        List<String> captureNames = irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class);
+        Variable captured = writeScope.getVariable(captureNames.get(0));
         Class<?> expressionType = irTypedCaptureReferenceNode.getDecorationValue(IRDExpressionType.class);
         String expressionCanonicalTypeName = irTypedCaptureReferenceNode.getDecorationString(IRDExpressionType.class);
+
+        // The capture object holds the receiver and, when pushed, the script. Charged like the other reference forms.
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(captureNames.size()));
 
         methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
 

@@ -221,6 +221,50 @@ public class EscfColumnTransformsTests extends ESTestCase {
         }
     }
 
+    public void testBackfillUtf8Before_beforeDocZeroNoElementsToReplay() throws IOException {
+        // beforeDoc=0, elementsOfBeforeDoc=0: nothing to copy, nothing to replay.
+        try (EscfBatch batch = encode("{\"f\":\"alpha\"}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 0);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()));
+        }
+    }
+
+    public void testBackfillUtf8Before_replaysFirstElementOfBeforeDocWhenBeforeDocIsZero() throws IOException {
+        // Regression: beforeDoc=0 means the for-loop-style exit consumed the first element without
+        // writing it, then the inner loop advanced again and picked up the second element instead.
+        try (EscfBatch batch = encode("{\"f\":[\"alpha\",\"beta\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 1);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "alpha"));
+        }
+    }
+
+    public void testBackfillUtf8Before_replaysMultipleElementsOfBeforeDoc() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[\"alpha\",\"beta\",\"gamma\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 2);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "alpha"), tuple(0, "beta"));
+        }
+    }
+
+    public void testBackfillUtf8Before_copiesDocsBeforeAndReplaysElementsOfBeforeDoc() throws IOException {
+        // Two docs: doc 0 = "x", doc 1 = ["alpha", "beta"]. Copy doc 0, replay first element of doc 1.
+        try (EscfBatch batch = encode("{\"f\":\"x\"}", "{\"f\":[\"alpha\",\"beta\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 1, 1);
+            EscfColumn result = EscfColumn.from(dest.finish(2));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "x"), tuple(1, "alpha"));
+        }
+    }
+
     public void testBinaryColumn_throws() {
         int[] offs = { 0, 2 };
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 1, null, offs, new BytesArray(new byte[] { 1, 2 }));

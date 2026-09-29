@@ -155,7 +155,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         final BlobLocation blobLocation = fileToBlobLocations.get(file);
         assert blobLocation != null : "Blob location for file [" + file + "] not found in " + fileToBlobLocations;
         final BlobContainer blobContainer = blobContainerFunc.apply(shardId, blobLocation.primaryTerm());
-        return new BlobStoreFileReader(blobContainer, blobLocation, commitRefReleasable, isShardRelocated);
+        return new BlobStoreFileReader(file, blobContainer, blobLocation, commitRefReleasable, isShardRelocated);
     }
 
     private Releasable maybeWithSnapshotIndexCommitRef() {
@@ -165,6 +165,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     }
 
     static class BlobStoreFileReader implements SnapshotShardContext.FileReader {
+        private final String fileName;
         @Nullable // when snapshot runs on a different node from the primary
         private final Releasable commitRefReleasable;
         private final BlobContainer blobContainer;
@@ -177,11 +178,13 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         private InputStream currentStream; // closed when openInput is called to create a new InputStream and on close()
 
         BlobStoreFileReader(
+            String fileName,
             BlobContainer blobContainer,
             BlobLocation blobLocation,
             Releasable commitRefReleasable,
             @Nullable BooleanSupplier isShardRelocated
         ) {
+            this.fileName = fileName;
             this.blobContainer = blobContainer;
             this.blobLocation = blobLocation;
             this.commitRefReleasable = commitRefReleasable;
@@ -330,6 +333,11 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
             closeCurrentStream();
             assert assertPositionConsistency();
             fileChecksum.verify(this.toString());
+        }
+
+        @Override
+        public String toString() {
+            return "BlobStoreFileReader{fileName='" + fileName + "', blobLocation=" + blobLocation + "}";
         }
 
         private void closeCurrentStream() throws IOException {

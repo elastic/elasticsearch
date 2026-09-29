@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 159698
+summary: "[Inference API] Expose EIS endpoint `capabilities` in inference endpoint\
+  \ metadata"
+type: feature

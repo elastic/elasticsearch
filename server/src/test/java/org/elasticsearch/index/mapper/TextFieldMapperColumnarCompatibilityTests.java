@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
@@ -32,6 +33,48 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
+    }
+
+    /** Index settings with the codec on, so the field's doc values are written as its payload. */
+    private static Settings columnarCodecSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    private void assumeColumnarCodecEnabled() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    }
+
+    /**
+     * Under the codec the doc values are a payload carrying their own slot count, which is the one output the
+     * batch path cannot take straight from the source column, so these pin it against the row path.
+     */
+    public void testColumnarCodecSingleValue() throws IOException {
+        assumeColumnarCodecEnabled();
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").endObject()),
+            columnarCodecSettings(),
+            batch("columnar codec single value", 1L, doc("d1", 1L, "{\"f\":\"a sentence of text\"}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    public void testColumnarCodecArrayOrder() throws IOException {
+        assumeColumnarCodecEnabled();
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec array order",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"first sentence\",null,\"second sentence\"]}"),
+                doc("d2", 2L, "{\"f\":\"solo\"}"),
+                doc("d3", 3L, "{\"f\":[null]}"),
+                doc("d4", 4L, "{}")
+            )
+        );
     }
 
     public void testSingleValue() throws IOException {

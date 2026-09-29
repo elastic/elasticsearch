@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -32,6 +31,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanTopKTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void assumeTopkEnabled() {
@@ -102,9 +105,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
         var dimensions = plan.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
             .toList();
         assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES, "pod")));

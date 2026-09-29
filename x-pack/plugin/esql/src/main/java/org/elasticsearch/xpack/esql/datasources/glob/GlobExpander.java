@@ -49,9 +49,7 @@ import java.util.function.Consumer;
  */
 public final class GlobExpander {
 
-    /**
-     * Entries reserved per breaker call. One provider page, so a walk reserves about as often as it lists.
-     */
+    /** Entries reserved per breaker call. One provider page, so a walk reserves about as often as it lists. */
     private static final int LISTING_RESERVE_BATCH = 1000;
 
     private static final Logger logger = LogManager.getLogger(GlobExpander.class);
@@ -151,18 +149,9 @@ public final class GlobExpander {
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
      * is left uncompacted, because neither compacted encoding carries the truncation flag — see
-     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. A query that reads rows may
-     * be handed such a prefix: what a schema costs is the dataset's business, so the bound is asked for on the
-     * dataset's terms and split discovery lists the dataset itself when the prefix does not cover what it reads.
-     * <p>
-     * Whether a bound is eligible at all — a mode whose schema does not span every file, no dataset-wide
-     * statistics wanted, no dataset-chosen file order — is the caller's to establish, and
-     * {@code ExternalSourceResolver#listingExtentsFor} is where that is decided. This class honours the extents it
-     * is handed wherever it can, and two shapes cannot: a comma-separated resource list, where a key budget has no
-     * single meaning across the segments, and a pattern whose every segment enumerates to finitely many literal
-     * spellings, which is probed key by key rather than listed. Both return every match. A caller cannot tell from
-     * the result that its bound was refused - {@link FileList#isTruncated()} is simply false - which is how three
-     * tests came to be written against a bound that was never taken.
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
+     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
+     * byte for byte as before.
      */
     public static FileList expandAndCompact(
         String path,
@@ -281,18 +270,25 @@ public final class GlobExpander {
      * nothing but litter or another format matches nothing while the dataset is full of files. Both report empty
      * for a dataset that has data, which is silent zero rows rather than a slow query.
      *
-     * <p>So emptiness is decided on the un-narrowed glob: drop the rewrite and the bound and list once more.
-     * The {@code _file.*} filters are kept — they are exact and can hide nothing. If that is empty too the pattern
-     * genuinely matches nothing and the caller's "matched no files" error stands. A full re-list can exceed
-     * {@code max_discovered_files} and throw, exactly as the unfiltered query would; that is deliberate, because
-     * telling a narrowing miss from a genuinely empty dataset needs the whole listing. A multi-value hint does not
-     * rewrite the glob, so this method does not retry it. The flat listing lists once more, without the value
-     * filter, when that filter keeps nothing. Hints stay on the query, so the row filter still yields zero rows
-     * from that anchor.
+     * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
+     * the rewrite skipped, while the partition hints stay. {@link PartitionValueMatcher} keeps a spelling the splice
+     * missed ({@code month=06} for {@code month == 6}) and drops folders the typed comparison excludes. The
+     * {@code _file.*} filters stay too — they are exact and can hide nothing.
+     *
+     * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
+     * re-lists without the filter and can return an anchor, so that pass is not the caller's "matched no files"
+     * error. Two paths still list without the value filter, and a large tree on either still throws
+     * {@code max_discovered_files}: the flat listing's second pass
+     * when the value filter keeps nothing ({@code year == 2099} against only other years), and a walk that returns
+     * no files, which re-lists with the value filter suppressed. A matching partition that itself exceeds the cap
+     * still throws with the typed filter applied. A multi-value hint does not rewrite the glob, so this method does
+     * not retry it. Hints stay on the query, so the row filter still yields zero rows from an anchor the listing
+     * kept.
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
-     * to disambiguate and this expands once, with no retry.
+     * to disambiguate and this expands once, with no retry. A non-empty splice is not retried, so a folder spelled
+     * exactly as {@link String#valueOf} hides every other spelling of the same value.
      */
     private static FileList expandGlobWithRewriteFallback(
         String pattern,
@@ -357,27 +353,24 @@ public final class GlobExpander {
         }
 
         final IOException narrowedFailure = failure;
-        logger.debug(
-            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the narrowing that produced it",
-            narrowedFailure
-        );
+        // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
+        String retryDetail = rewritten ? "re-listing the original glob with the partition filter" : "re-listing without the bound";
+        logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
         try {
+            // Skip the splice. Passing the original hints through doExpandGlob's rewrite would list month=6 again.
             return doExpandGlob(
                 pattern,
                 provider,
-                // The rewrite is dropped; the exact _file.* filters are kept.
-                rewritten ? fileMetadataHints(hints) : hints,
+                hints,
                 partitionConfig,
                 maxDiscoveredFiles,
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                // Both extents are dropped, not just the file set: this listing is the whole glob, so partition
-                // detection folds over all of it. Sampling a full listing is a different change, with a different
-                // story for the files past the sample, which carry no partition values.
                 ListingExtents.UNBOUNDED,
-                memory
+                memory,
+                false
             );
         } catch (IOException retryFailure) {
             if (failure != null) {
@@ -520,10 +513,45 @@ public final class GlobExpander {
         ListingExtents extents,
         ListingMemory memory
     ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            true
+        );
+    }
+
+    /**
+     * Lists {@code pattern}, splicing hint values into it only when {@code allowRewrite} is true. The empty-rewrite
+     * retry passes false so a second pass cannot splice {@code month=6} again. Hints still feed the walk, the value
+     * filter, and {@code _file.*} either way. The flag is not a query input, so it stays off {@link ListingIdentity}.
+     */
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        ListingMemory memory,
+        boolean allowRewrite
+    ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String effectivePattern = effectivePattern(pattern, hints, partitionConfig);
+        String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -554,8 +582,6 @@ public final class GlobExpander {
 
         // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
         List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
-        // Every segment enumerates, so the keys are probed rather than listed and there is no page to stop at:
-        // this branch returns every match and honours no file-set extent. Same blind spot as the comma list.
         if (candidates != null) {
             List<StorageEntry> matched = new ArrayList<>();
             StorageEntry fileHintAnchor = null;
@@ -580,8 +606,6 @@ public final class GlobExpander {
             }
             fileOrder.apply(matched);
             List<String> notices = new ArrayList<>();
-            // Probed key by key, so this branch returns every match and honours no file-set extent. The listing is
-            // not a prefix of anything, and detection folds over all of it.
             PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
             return new GenericFileList(matched, pattern, partitionMetadata, notices);
         }
@@ -628,8 +652,6 @@ public final class GlobExpander {
                     }
                     fileOrder.apply(walked);
                     List<String> walkNotices = new ArrayList<>();
-                    // Reached only when the file set is unbounded, so this listing is never a prefix: detection
-                    // folds over all of it, as it did before the extents were split.
                     PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
@@ -690,8 +712,8 @@ public final class GlobExpander {
 
         // Set below, once the drain has stopped: true when it stopped at the file-set extent rather than exhausting.
         boolean truncated = false;
-        // High-water mark of entries this walk has reserved heap for. Never reset across the re-list below: the
-        // re-listed set is the same size or smaller, and what was reserved is not refunded here.
+        // High-water mark of entries this walk has reserved heap for. Never reset across the re-list below:
+        // the re-listed set is the same size or smaller, and what was reserved is not refunded here.
         int reserved = 0;
         boolean relistUnfiltered = false;
         do {
@@ -862,6 +884,20 @@ public final class GlobExpander {
     }
 
     /**
+     * Mutates {@code matched}: appends {@code entry} when there are no {@code _file.*} hints or it matches them,
+     * then returns {@code anchor} unchanged. Otherwise leaves {@code matched} alone and returns {@code anchor} if
+     * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
+     * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
+     * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
+     * {@code matched} is empty. That also keeps a genuine {@code _file.*} miss out of
+     * {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
+     * <p>
+     * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
+     * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and
+     * undo the cap split. Union across pruned files that contribute no rows is not worth holding the full glob.
+     * The donor is the first listing-order reject, not a {@code file_order} pick over the pre-filter set.
+     */
+    /**
      * Reserves heap for the entries retained since the last reservation, a batch at a time.
      * <p>
      * One batch is a provider page, so a walk reserves about as often as it fetches, and the check itself costs a
@@ -879,21 +915,6 @@ public final class GlobExpander {
         memory.reserve((long) (retained - reservedUpTo) * FileList.LISTING_BYTES_PER_ENTRY);
         return retained;
     }
-
-    /**
-     * Mutates {@code matched}: appends {@code entry} when there are no {@code _file.*} hints or it matches them,
-     * then returns {@code anchor} unchanged. Otherwise leaves {@code matched} alone and returns {@code anchor} if
-     * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
-     * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
-     * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
-     * {@code matched} is empty. That also keeps a genuine {@code _file.*} miss out of
-     * {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
-     * <p>
-     * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
-     * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and
-     * undo the cap split. Union across pruned files that contribute no rows is not worth holding the full glob.
-     * The donor is the first listing-order reject, not a {@code file_order} pick over the pre-filter set.
-     */
 
     private static StorageEntry addOrStashAnchor(
         StorageEntry entry,
@@ -1263,8 +1284,9 @@ public final class GlobExpander {
     /**
      * Everything about a query that determines which files a {@code path} lists: the resolved
      * {@link PartitionConfig} (strategy AND path template), the effective (post-rewrite) glob pattern, the
-     * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible (see
-     * {@link PartitionPruningWalk}), the resolved {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}.
+     * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible or a rewrite
+     * left the original pattern walk-eligible (see {@link PartitionPruningWalk}), the resolved
+     * {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}.
      * These are the inputs {@link #doExpandGlob} consults beyond the storage contents themselves — via
      * {@link #effectivePattern}, {@link #applyFileMetadataFilters} and {@link #partitionPruningHints} — and this
      * value shares those same helpers, so the listing cache key cannot drift from the listing it names. It binds only
@@ -1294,22 +1316,29 @@ public final class GlobExpander {
             FileOrderConfig fileOrder
         ) {
             String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
+            // The empty-rewrite retry lists the original glob with these hints. A splice can make the effective
+            // pattern non-walkable (month=* becomes month=6) while the original stays walkable, so a deeper open
+            // range still changes the retry. Those hints join the key. A splice that hits does not consult them;
+            // including them only fragments the cache. Provider support cannot be known at key time.
+            boolean retryMayFilterOriginal = effectivePattern.equals(path) == false && walkShapeEligible(path, partitionConfig);
             return new ListingIdentity(
                 partitionConfig,
                 effectivePattern,
                 encodedHints(fileMetadataHints(hints)),
                 // The walk is the second hint channel into the listing: partition hints decide which folders are
                 // enumerated without changing the effective pattern, so on a walk-eligible pattern they must join
-                // the identity or a filtered query poisons the cache. Eligibility is judged on the EFFECTIVE
-                // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
-                // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
+                // the identity or a filtered query poisons the cache. Eligibility is the effective pattern, or the
+                // original when a rewrite made the effective pattern non-walkable: the empty-rewrite retry walks
+                // the original. A keyed data/year=*/** rewrites to data/year=2024/** and stays walkable, so the
+                // walk prunes under that prefix. Over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
                 // spellings such as 2.5 and narrow the detected type). A non-integral equality does not either:
                 // printing 6.0 would miss price=6.00. A multi-value hint does not rewrite either. All of these
                 // change which files the listing keeps, so they join the identity: the walk's hints on a
                 // walkable pattern, every partition hint under TEMPLATE (the walk is off, the flat filter is not),
-                // and the flat post-filter hints on any other pattern.
-                walkShapeEligible(effectivePattern, partitionConfig) || templateValueFilter(partitionConfig)
+                // the hints a rewritten walkable original may apply on retry, and the flat post-filter hints on
+                // any other pattern.
+                walkShapeEligible(effectivePattern, partitionConfig) || templateValueFilter(partitionConfig) || retryMayFilterOriginal
                     ? encodedHints(partitionPruningHints(hints))
                     : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
@@ -1386,9 +1415,10 @@ public final class GlobExpander {
      * A string that identifies the listing a given set of hints produces for a given path: equal discriminators
      * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
      * inputs and why they are exhaustive; hints that reach none of them leave the discriminator untouched, so an
-     * incidentally-filtered query still shares the un-filtered entry. On a walk-eligible pattern every
-     * non-{@code _file.*} hint joins the key — pre-resolution nothing can tell a partition column from a data
-     * column, so over-inclusion (safe fragmentation) is the only sound reading. The exclusion settings resolve from
+     * incidentally-filtered query still shares the un-filtered entry. On a walk-eligible pattern, and on a rewritten
+     * pattern whose original glob is walk-eligible, every non-{@code _file.*} hint joins the key — pre-resolution
+     * nothing can tell a partition column from a data column, so over-inclusion (safe fragmentation) is the only
+     * sound reading. The exclusion settings resolve from
      * {@code config} via {@link ExclusionConfig#fromConfig}. File order resolves via {@link FileOrderConfig#forListing}.
      */
     public static String listingCacheDiscriminator(

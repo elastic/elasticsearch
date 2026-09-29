@@ -473,6 +473,78 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, nullValue());
     }
 
+    // Regression test for elastic-workspace-g2sz.2: a leading line comment before FROM must not defeat the
+    // FROM-detection scan. extractLeadingCommand() returns the comment together with the FROM command (it
+    // only skips comments while looking for the next top-level pipe, not when reporting the leading text),
+    // so the probe-eligibility check must skip past the comment itself before comparing against "FROM".
+    public void testValidateSourceTimeFieldGivenLineCommentPrefixedQueryProbes() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "// note\nFROM logs",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, equalTo("// note\nFROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+    }
+
+    // Same as above but for a leading block comment.
+    public void testValidateSourceTimeFieldGivenBlockCommentPrefixedQueryProbes() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "/* x */ FROM logs",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, equalTo("/* x */ FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+    }
+
+    // Regression test for elastic-workspace-g2sz.2: TS is a real ES|QL source command (time-series source),
+    // and EsqlDataExtractor#fetchSourceRangeSummary already reuses extractLeadingCommand() generically (not
+    // FROM-specific) at runtime, so a TS-leading datafeed query's runtime path already works. The PUT-time
+    // validator must accept it too rather than silently skipping the source_time_field check.
+    public void testValidateSourceTimeFieldGivenTsLeadingQueryProbes() {
+        List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "TS metrics-* | STATS avg(value) BY host",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, equalTo("TS metrics-* | KEEP ??sourceTimeField | LIMIT 0"));
+    }
+
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),

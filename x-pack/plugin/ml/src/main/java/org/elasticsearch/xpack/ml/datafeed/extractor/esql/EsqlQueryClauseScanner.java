@@ -84,6 +84,17 @@ final class EsqlQueryClauseScanner {
         return query;
     }
 
+    /**
+     * Skips leading whitespace and comments, returning the index of the first non-whitespace,
+     * non-comment character (or {@code query.length()} if the query is entirely whitespace/comments).
+     * Shared by callers that need to inspect the keyword a leading command starts with (e.g. checking for
+     * {@code FROM}/{@code TS}) without being fooled by a comment {@link #extractLeadingCommand} would
+     * otherwise include verbatim in its returned substring.
+     */
+    static int skipLeadingWhitespaceAndComments(String query) {
+        return skipWhitespaceAndComments(query, 0);
+    }
+
     static boolean endsInLineComment(String query) {
         for (int index = 0; index < query.length();) {
             if (query.charAt(index) == '"') {

@@ -107,12 +107,12 @@ public class EsqlDatafeedQueryValidator {
     /**
      * Validates that {@code sourceTimeField} resolves to a {@code date}/{@code date_nanos} column on the
      * queried source, by running a {@code | KEEP ??sourceTimeField | LIMIT 0} probe against the leading
-     * FROM command of the datafeed's ES|QL query. This deliberately reuses the ES|QL engine itself (rather
-     * than a separate field-caps call) so CPS/remote sources resolve the source_time_field the same way
-     * {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor#next()} resolves it when
-     * building its {@code RangeQueryBuilder} time filter. Tolerates {@link NoMatchingProjectException} and
-     * {@link IndexNotFoundException} exactly like {@link #validateQuery} — the index/project may not exist yet.
-     * Calls {@code listener.onResponse(true)} on success or those tolerated failures, and
+     * FROM/TS command of the datafeed's ES|QL query. This deliberately reuses the ES|QL engine itself
+     * (rather than a separate field-caps call) so CPS/remote sources resolve the source_time_field the same
+     * way {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor#next()} resolves it
+     * when building its {@code RangeQueryBuilder} time filter. Tolerates {@link NoMatchingProjectException}
+     * and {@link IndexNotFoundException} exactly like {@link #validateQuery} — the index/project may not
+     * exist yet. Calls {@code listener.onResponse(true)} on success or those tolerated failures, and
      * {@code listener.onFailure} for an unresolvable column, a wrong column type, or any other problem.
      */
     public void validateSourceTimeField(
@@ -124,14 +124,15 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        String fromCommand = extractLeadingFromCommand(esqlQuery);
-        if (fromCommand == null) {
-            // Every ES|QL datafeed query is expected to start with FROM (DatafeedConfig requires an index
-            // source); if this narrow scan can't confirm that, don't block PUT on something it cannot resolve.
+        String sourceCommand = extractLeadingSourceCommand(esqlQuery);
+        if (sourceCommand == null) {
+            // Every ES|QL datafeed query is expected to start with FROM or TS (DatafeedConfig requires an
+            // index source); if this narrow scan can't confirm that, don't block PUT on something it cannot
+            // resolve.
             listener.onResponse(Boolean.TRUE);
             return;
         }
-        String probeQuery = fromCommand + " | KEEP ??sourceTimeField | LIMIT 0";
+        String probeQuery = sourceCommand + " | KEEP ??sourceTimeField | LIMIT 0";
         List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
@@ -156,17 +157,37 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Narrow scan for the ES|QL pipeline's leading FROM command (everything up to the first depth-zero
+     * Narrow scan for the ES|QL pipeline's leading FROM/TS command (everything up to the first depth-zero
      * pipe), used to build a source_time_field probe query against the same source the datafeed queries.
-     * Returns {@code null} when the query does not lead with FROM (not expected for datafeeds).
+     * {@link EsqlQueryClauseScanner#extractLeadingCommand} only skips comments while looking for the next
+     * top-level pipe -- it returns any leading comment together with the command text -- so the FROM/TS
+     * keyword check below skips past a leading comment/whitespace prefix separately, without stripping it
+     * from the returned command (the comment is harmless, and reusing it verbatim keeps the probe query a
+     * faithful echo of the user's leading command).
+     * <p>
+     * Returns {@code null} when the query does not lead with FROM or TS (not expected for datafeeds).
      */
-    private static String extractLeadingFromCommand(String esqlQuery) {
+    private static String extractLeadingSourceCommand(String esqlQuery) {
         String leading = EsqlQueryClauseScanner.extractLeadingCommand(esqlQuery).strip();
-        return isFromCommand(leading) ? leading : null;
+        int commandStart = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(leading);
+        return isSourceCommand(leading, commandStart) ? leading : null;
     }
 
-    private static boolean isFromCommand(String command) {
-        return command.length() > 4 && command.regionMatches(true, 0, "FROM", 0, 4) && Character.isWhitespace(command.charAt(4));
+    /**
+     * Whether {@code text} has a FROM or TS command keyword starting at {@code index}, followed by a
+     * whitespace boundary. TS (time-series source) is accepted alongside FROM because
+     * {@link EsqlDataExtractor#fetchSourceRangeSummary} already probes a TS-leading query's source the same
+     * way at runtime -- see elastic-workspace-g2sz.2 -- so the PUT-time validator must not silently skip it.
+     */
+    private static boolean isSourceCommand(String text, int index) {
+        return matchesCommandKeyword(text, index, "FROM") || matchesCommandKeyword(text, index, "TS");
+    }
+
+    private static boolean matchesCommandKeyword(String text, int index, String keyword) {
+        int end = index + keyword.length();
+        return end < text.length()
+            && text.regionMatches(true, index, keyword, 0, keyword.length())
+            && Character.isWhitespace(text.charAt(end));
     }
 
     private static void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {

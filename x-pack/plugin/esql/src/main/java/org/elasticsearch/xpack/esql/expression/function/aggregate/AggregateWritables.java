@@ -29,6 +29,7 @@ public class AggregateWritables {
             Irate.ENTRY,
             LegacyIrate.ENTRY,
             Idelta.ENTRY,
+            Changes.ENTRY,
             Increase.ENTRY,
             Delta.ENTRY,
             Deriv.ENTRY,

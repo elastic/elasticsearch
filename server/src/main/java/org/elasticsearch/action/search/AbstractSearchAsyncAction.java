@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
@@ -95,6 +96,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
+    private final CircuitBreaker circuitBreaker;
     private final long clusterStateVersion;
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
@@ -143,6 +145,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         ClusterState clusterState,
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
+        CircuitBreaker circuitBreaker,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
@@ -178,6 +181,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         this.discoveryNodes = clusterState::nodes;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        this.circuitBreaker = circuitBreaker;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
@@ -575,6 +579,13 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    /**
+     * The {@link CircuitBreaker#REQUEST} breaker to account coordinating-node memory against.
+     */
+    CircuitBreaker circuitBreaker() {
+        return circuitBreaker;
     }
 
     /**

@@ -851,6 +851,7 @@ public class StatelessPlugin extends Plugin
             ? warmingRatioProviderFactoryRef.get()
             : new DefaultWarmingRatioProviderFactory();
         final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
+        components.add(new PluginComponentBinding<>(WarmingRatioProvider.class, warmingRatioProvider));
         final ShardWarmVolumes warmVolumes;
         if (hasSearchRole) {
             warmVolumes = new ShardWarmVolumes(clusterService.getClusterSettings());

@@ -1340,7 +1340,8 @@ public class SharedBlobCacheWarmingService {
      *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero):
      *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
      *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists):
-     *   {@code (warm volume / sum of warm volumes on source) * remaining}. An unknown shard contributes 0.</li>
+     *   {@code (warm volume / sum of warm volumes on source) * remaining}. Warm volume is the estimated bytes
+     *   offline warming would fetch. An unknown shard contributes 0.</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)} and {@code remaining = deadline - now}.
      */
@@ -1377,7 +1378,7 @@ public class SharedBlobCacheWarmingService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
-        // Warm-volume shares are source current-commit prefixes; they can differ from this target's WarmTarget plan.
+        // Warm-volume shares use the source's current-commit prefixes; they can differ from this target's WarmTarget plan.
         final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, shardId, remaining);
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.

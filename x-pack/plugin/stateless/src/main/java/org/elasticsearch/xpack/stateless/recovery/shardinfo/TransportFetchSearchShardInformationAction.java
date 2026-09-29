@@ -41,7 +41,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
@@ -59,6 +61,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.ToLongFunction;
 
 /**
  * Transport Action to share the state of the last acquired index searcher across shards.
@@ -98,8 +101,9 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     private final Executor genericExecutor;
     private final AtomicInteger seed = new AtomicInteger(0);
     private final LongSupplier nowSupplier;
-    // Memoization of the shard sizes table. Only populated on requests that ask for it, which are only sent when there is a shutdown signal
-    // for this node present.
+    private final WarmingRatioProvider warmingRatioProvider;
+    // Memoization of estimated offline-warming bytes. Only populated on requests that ask for it, which are only sent when there is a
+    // shutdown signal for this node present.
     private final Object sourceMemoLock = new Object();
     private VolumesSnapshot sourceMemo;
 
@@ -111,7 +115,8 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         ProjectResolver projectResolver,
         TransportService transportService,
         ActionFilters actionFilters,
-        IndicesService indicesService
+        IndicesService indicesService,
+        WarmingRatioProvider warmingRatioProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, TransportFetchSearchShardInformationAction.Request::new, threadPool.generic());
         this.clusterService = clusterService;
@@ -121,6 +126,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         this.genericExecutor = threadPool.generic();
         this.shardActionName = actionName + "[s]";
         this.nowSupplier = threadPool::absoluteTimeInMillis;
+        this.warmingRatioProvider = warmingRatioProvider;
         transportService.registerRequestHandler(
             shardActionName,
             genericExecutor,
@@ -211,6 +217,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         });
     }
 
+    // Shards still recovering onto the source when shutdown began are recorded with 0 or partial volumes.
     private VolumesSnapshot cachedOrCollect(ClusterState state) {
         final var shutdown = state.metadata().nodeShutdowns().get(state.nodes().getLocalNodeId());
         final long generation = shutdown == null ? Long.MIN_VALUE : shutdown.getStartedAtMillis();
@@ -218,7 +225,11 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             if (sourceMemo != null && sourceMemo.generation() == generation) {
                 return sourceMemo;
             }
-            sourceMemo = new VolumesSnapshot(generation, collectWarmVolumes(snapshotSearchableShards(indicesService)));
+            final long nowMillis = nowSupplier.getAsLong();
+            sourceMemo = new VolumesSnapshot(
+                generation,
+                collectWarmVolumes(snapshotSearchableShards(indicesService), shard -> tryEstimateShardWarmVolume(shard, nowMillis))
+            );
             return sourceMemo;
         }
     }
@@ -236,11 +247,6 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         return shards;
     }
 
-    // Shards still recovering onto the source when shutdown began are recorded with 0 or partial volumes.
-    static Map<ShardId, Long> collectWarmVolumes(List<IndexShard> shards) {
-        return collectWarmVolumes(shards, TransportFetchSearchShardInformationAction::tryEstimateShardWarmVolume);
-    }
-
     // visible for testing
     static Map<ShardId, Long> collectWarmVolumes(List<IndexShard> shards, Function<IndexShard, OptionalLong> estimator) {
         Map<ShardId, Long> volumes = new HashMap<>();
@@ -254,7 +260,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         return Map.copyOf(volumes);
     }
 
-    static OptionalLong tryEstimateShardWarmVolume(IndexShard shard) {
+    OptionalLong tryEstimateShardWarmVolume(IndexShard shard, long nowMillis) {
         Store store = null;
         boolean acquired = false;
         try {
@@ -264,7 +270,14 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
                 return OptionalLong.empty();
             }
             SearchDirectory directory = SearchDirectory.unwrapDirectory(store.directory());
-            return OptionalLong.of(estimateWarmVolume(directory.getCurrentCommitBlobFileRanges()));
+            return OptionalLong.of(
+                estimateWarmVolume(
+                    directory.getCurrentCommitBlobFileRanges(),
+                    warmingRatioProvider,
+                    directory::resolveRegionTimestampMillis,
+                    nowMillis
+                )
+            );
         } catch (Exception e) {
             logger.debug(() -> "failed to estimate warm volume for " + shard.shardId(), e);
             return OptionalLong.empty();
@@ -276,18 +289,46 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     }
 
     /**
-     * Sum of per-blob prefix ends: {@code max(fileOffset + fileLength)} for each blob name.
+     * Estimated bytes offline warming would fetch, repeating
+     * {@link org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#byteRangeToWarmForCC} per compound commit:
+     * each blob is warmed from 0 up to the furthest {@code ccStart + round(ccSize * ratio)} among its commits.
+     * Files carry no commit identity, so a commit is approximated by the files of one blob sharing a timestamp range,
+     * and its extent by those files' offsets (header bytes and no-longer-referenced files are not counted).
      */
-    public static long estimateWarmVolume(Collection<BlobFileRanges> ranges) {
-        Map<String, Long> prefixEnd = new HashMap<>();
+    static long estimateWarmVolume(
+        Collection<BlobFileRanges> ranges,
+        WarmingRatioProvider ratioProvider,
+        ToLongFunction<StatelessCompoundCommit.TimestampFieldValueRange> resolveTimestamp,
+        long nowMillis
+    ) {
+        // Use timestamp range to identify commits. It's the best we have, and it's acceptable if there is a clash.
+        record CommitInBlob(String blobName, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {}
+        record Extent(long start, long end) {
+            Extent union(Extent other) {
+                return new Extent(Math.min(start, other.start), Math.max(end, other.end));
+            }
+        }
+        Map<CommitInBlob, Extent> commits = new HashMap<>();
         for (BlobFileRanges range : ranges) {
-            prefixEnd.merge(range.blobName(), range.fileOffset() + range.fileLength(), Math::max);
+            commits.merge(
+                new CommitInBlob(range.blobName(), range.timestampRange()),
+                new Extent(range.fileOffset(), range.fileOffset() + range.fileLength()),
+                Extent::union
+            );
         }
-        long total = 0L;
-        for (long end : prefixEnd.values()) {
-            total += end;
+        Map<String, Long> warmEndPerBlob = new HashMap<>();
+        for (var commit : commits.entrySet()) {
+            var timestampRange = commit.getKey().timestampRange();
+            double ratio = ratioProvider.getWarmingRatio(timestampRange, resolveTimestamp.applyAsLong(timestampRange), nowMillis);
+            if (ratio <= 0) {
+                continue;
+            }
+            Extent extent = commit.getValue();
+            long size = extent.end() - extent.start();
+            long warmEnd = extent.start() + Math.min(size, Math.round(size * ratio));
+            warmEndPerBlob.merge(commit.getKey().blobName(), warmEnd, Math::max);
         }
-        return total;
+        return warmEndPerBlob.values().stream().mapToLong(Long::longValue).sum();
     }
 
     // visible for testing

@@ -56,9 +56,11 @@ import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.junit.After;
@@ -121,13 +123,16 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
+    private static final WarmingRatioProvider UNIT_RATIO = (range, ts, now) -> 1.0d;
+
     private final TransportFetchSearchShardInformationAction action = new TransportFetchSearchShardInformationAction(
         threadPool,
         clusterService,
         DefaultProjectResolver.INSTANCE,
         transportService,
         ActionFilters.EMPTY,
-        indicesService
+        indicesService,
+        UNIT_RATIO
     );
 
     @Before
@@ -427,7 +432,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
                 DefaultProjectResolver.INSTANCE,
                 capturingTransportService,
                 ActionFilters.EMPTY,
-                indicesService
+                indicesService,
+                UNIT_RATIO
             );
             volumesAction.doExecute(createTask(), request, ActionListener.noop());
             CapturingTransport.CapturedRequest[] captured = capturing.capturedRequests();
@@ -626,20 +632,58 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
     }
 
-    public void testEstimateWarmVolumeTwoFilesOneBlobUsesMax() {
+    public void testEstimateWarmVolumeRatioZeroIsZero() {
         BlobFileRanges first = range("blob-a", 0, 10);
         BlobFileRanges second = range("blob-a", 5, 20);
-        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(first, second)), equalTo(25L));
+        assertThat(estimateWarmVolume(List.of(first, second), 0.0d), equalTo(0L));
     }
 
-    public void testEstimateWarmVolumeTwoBlobsSumsMaxima() {
+    public void testEstimateWarmVolumeRatioOneMatchesFullPrefix() {
+        BlobFileRanges first = range("blob-a", 0, 10);
+        BlobFileRanges second = range("blob-a", 5, 20);
+        assertThat(estimateWarmVolume(List.of(first, second), 1.0d), equalTo(25L));
+        assertThat(estimateWarmVolume(List.of(), 1.0d), equalTo(0L));
+    }
+
+    public void testEstimateWarmVolumeFractionalRatio() {
+        BlobFileRanges file = range("blob-a", 0, 100);
+        assertThat(estimateWarmVolume(List.of(file), 0.4d), equalTo(40L));
+    }
+
+    public void testEstimateWarmVolumeUsesPerCommitRatio() {
+        var oldCommit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
+        var recentCommit = new StatelessCompoundCommit.TimestampFieldValueRange(10, 20);
+        BlobFileRanges oldRange = range("blob-a", 0, 40, oldCommit);
+        BlobFileRanges recentRange = range("blob-a", 40, 60, recentCommit);
+        WarmingRatioProvider provider = (tsRange, resolved, now) -> oldCommit.equals(tsRange) ? 1.0d : 0.5d;
+        assertThat(estimateWarmVolume(shuffledList(List.of(oldRange, recentRange)), provider), equalTo(70L));
+    }
+
+    public void testEstimateWarmVolumeFilesOfOneCommitFormOneExtent() {
+        var commit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
+        BlobFileRanges first = range("blob-a", 0, 30, commit);
+        BlobFileRanges second = range("blob-a", 50, 50, commit);
+        assertThat(estimateWarmVolume(List.of(first, second), 0.5d), equalTo(50L));
+    }
+
+    public void testEstimateWarmVolumeMissingRangeUsesResolverFallback() {
+        BlobFileRanges noRange = range("blob-a", 0, 50);
+        long fallback = 999L;
+        WarmingRatioProvider provider = (tsRange, resolved, now) -> {
+            assertNull(tsRange);
+            assertThat(resolved, equalTo(fallback));
+            return 1.0d;
+        };
+        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(noRange), provider, tsRange -> {
+            assertNull(tsRange);
+            return fallback;
+        }, 0L), equalTo(50L));
+    }
+
+    public void testEstimateWarmVolumeSeveralBlobsAreSummed() {
         BlobFileRanges blobA = range("blob-a", 0, 10);
         BlobFileRanges blobB = range("blob-b", 3, 7);
-        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(blobA, blobB)), equalTo(20L));
-    }
-
-    public void testEstimateWarmVolumeEmptyIsZero() {
-        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of()), equalTo(0L));
+        assertThat(estimateWarmVolume(List.of(blobA, blobB), 1.0d), equalTo(20L));
     }
 
     public void testSnapshotSearchableShardsSkipsNonSearchable() {
@@ -661,7 +705,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         IndexShard shard = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
         when(shard.store()).thenReturn(closedStore(new ShardId(idx, 0)));
 
-        assertThat(TransportFetchSearchShardInformationAction.tryEstimateShardWarmVolume(shard), equalTo(OptionalLong.empty()));
+        assertThat(action.tryEstimateShardWarmVolume(shard, 0L), equalTo(OptionalLong.empty()));
     }
 
     public void testEstimateReleasesStoreRefWhenDirectoryThrows() throws Exception {
@@ -678,7 +722,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             doThrow(new RuntimeException("directory failed")).when(store).directory();
             when(shard.store()).thenReturn(store);
             int refsBefore = store.refCount();
-            assertThat(TransportFetchSearchShardInformationAction.tryEstimateShardWarmVolume(shard), equalTo(OptionalLong.empty()));
+            assertThat(action.tryEstimateShardWarmVolume(shard, 0L), equalTo(OptionalLong.empty()));
             assertThat(store.refCount(), equalTo(refsBefore));
         } finally {
             store.close();
@@ -695,7 +739,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             if (shard == ok) {
                 return OptionalLong.of(40L);
             }
-            return TransportFetchSearchShardInformationAction.tryEstimateShardWarmVolume(shard);
+            return action.tryEstimateShardWarmVolume(shard, 0L);
         });
         assertThat(volumes, equalTo(Map.of(new ShardId(idx, 0), 40L)));
     }
@@ -752,7 +796,8 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             DefaultProjectResolver.INSTANCE,
             mock(TransportService.class),
             ActionFilters.EMPTY,
-            indicesService
+            indicesService,
+            UNIT_RATIO
         );
     }
 
@@ -800,7 +845,27 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         return store;
     }
 
+    private static long estimateWarmVolume(List<BlobFileRanges> ranges, double ratio) {
+        return estimateWarmVolume(ranges, (tsRange, resolved, now) -> ratio);
+    }
+
+    private static long estimateWarmVolume(List<BlobFileRanges> ranges, WarmingRatioProvider ratioProvider) {
+        return TransportFetchSearchShardInformationAction.estimateWarmVolume(ranges, ratioProvider, tsRange -> 0L, 0L);
+    }
+
     private static BlobFileRanges range(String blobName, long offset, long length) {
-        return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+        return range(blobName, offset, length, null);
+    }
+
+    private static BlobFileRanges range(
+        String blobName,
+        long offset,
+        long length,
+        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new BlobFileRanges(
+            new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length),
+            timestampRange
+        );
     }
 }

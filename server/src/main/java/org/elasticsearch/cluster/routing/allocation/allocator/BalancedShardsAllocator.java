@@ -1032,7 +1032,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             while (shardsToCheck.hasNext()) {
                 final ShardRouting shardRouting = shardsToCheck.next();
                 final ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecision moveDecision = decideMoveWithDeciderName(
+                final MoveDecision moveDecision = decideMove(
                     index,
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
@@ -1120,7 +1120,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
             }
             try {
-                return decideMoveWithDeciderName(index, storedShardMovement.shardRouting(), ignored -> true);
+                return decideMove(index, storedShardMovement.shardRouting(), ignored -> true);
             } finally {
                 allocation.setDebugMode(oldDebugMode);
             }
@@ -1216,14 +1216,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * This overload will always search for relocation targets for {@link Decision#NOT_PREFERRED}
          * allocations.
          *
-         * @see #decideMoveWithDeciderName(ProjectIndex, ShardRouting, Predicate)
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
          * @return The {@link MoveDecision} for the shard
          */
         public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
             // Always assess options for non-preferred allocations
-            return decideMoveWithDeciderName(index, shardRouting, ignored -> true);
+            return decideMove(index, shardRouting, ignored -> true);
         }
 
         /**
@@ -1248,7 +1247,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *                              be returned.
          * @return The {@link MoveDecision} for the shard
          */
-        private MoveDecision decideMoveWithDeciderName(
+        private MoveDecision decideMove(
             ProjectIndex index,
             ShardRouting shardRouting,
             Predicate<ShardRouting> nonPreferredPredicate

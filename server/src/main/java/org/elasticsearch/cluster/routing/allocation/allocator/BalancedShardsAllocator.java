@@ -1247,11 +1247,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *                              be returned.
          * @return The {@link MoveDecision} for the shard
          */
-        private MoveDecision decideMove(
-            ProjectIndex index,
-            ShardRouting shardRouting,
-            Predicate<ShardRouting> nonPreferredPredicate
-        ) {
+        private MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting, Predicate<ShardRouting> nonPreferredPredicate) {
             NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
             index.assertMatch(shardRouting);
 
@@ -1263,7 +1259,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
-            final Decision canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+            Decision canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
                 return MoveDecision.createRemainYesDecision(canRemainDecision);
             }
@@ -1280,11 +1276,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanAllocate);
+            final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanAllocate);
             if (moveDecision.cannotRemainAndCannotMove()) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
-                    moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanForceAllocateForVacate);
+                    return decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanForceAllocateForVacate);
                 }
             }
 
@@ -1399,10 +1395,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             public void putBestMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
-                bestShardMovementsByNode.put(
-                    shardRouting.currentNodeId(),
-                    new StoredShardMovement(shardRouting, moveDecision)
-                );
+                bestShardMovementsByNode.put(shardRouting.currentNodeId(), new StoredShardMovement(shardRouting, moveDecision));
             }
 
             public Iterable<StoredShardMovement> getBestShardMovements() {

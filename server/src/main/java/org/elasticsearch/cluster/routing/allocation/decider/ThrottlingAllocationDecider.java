@@ -48,6 +48,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = 2;
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = 4;
     public static final String NAME = "throttling";
+    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING = new Setting<>(
         "cluster.routing.allocation.node_concurrent_recoveries",
         Integer.toString(DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES),
@@ -188,7 +189,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
                 if (primaryShard == null) {
-                    return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
+                    return allocation.decision(NO_DECISION, NAME, "primary shard for this replica is not yet active");
                 }
                 int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {

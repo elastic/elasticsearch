@@ -39,6 +39,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed";
 
     public static final String NAME = "max_retry";
+    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     private static final Decision YES_NO_FAILURES = Decision.single(Decision.Type.YES, NAME, "shard has no previous failures");
 
@@ -54,14 +55,14 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         final var unassignedInfo = shardRouting.unassignedInfo();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.failedAllocations();
         if (numFailedAllocations > 0) {
-            final var decision = numFailedAllocations >= maxRetries ? Decision.NO : Decision.YES;
+            final var decision = numFailedAllocations >= maxRetries ? NO_DECISION : Decision.YES;
             return allocation.debugDecision() ? debugDecision(decision, unassignedInfo, numFailedAllocations, maxRetries) : decision;
         }
 
         final var relocationFailureInfo = shardRouting.relocationFailureInfo();
         final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.failedRelocations();
         if (numFailedRelocations > 0) {
-            final var decision = numFailedRelocations >= maxRetries ? Decision.NO : Decision.YES;
+            final var decision = numFailedRelocations >= maxRetries ? NO_DECISION : Decision.YES;
             return allocation.debugDecision() ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries) : decision;
         }
 

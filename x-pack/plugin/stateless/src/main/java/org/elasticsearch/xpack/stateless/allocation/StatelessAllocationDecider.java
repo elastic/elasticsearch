@@ -45,16 +45,15 @@ public class StatelessAllocationDecider extends AllocationDecider {
 
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {
         var roles = routingNode.node().getRoles();
-        return canAllocateShardToNode(shardRouting, roles) ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
-            : allocation.debugDecision()
-                ? allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "shard role [%s] does not match stateless node role [%s]",
-                    shardRouting.role(),
-                    statelessNodeRole(roles)
-                )
-            : NO_DECISION;
+        return canAllocateShardToNode(shardRouting, roles)
+            ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
+            : allocation.decision(
+                NO_DECISION,
+                NAME,
+                "shard role [%s] does not match stateless node role [%s]",
+                shardRouting.role(),
+                statelessNodeRole(roles)
+            );
     }
 
     private static boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {

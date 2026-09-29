@@ -68,6 +68,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     private final Decision disabledDecision;
     private final Decision notApplicableToNodeDecision;
     private final Decision canRemainDisabledDecision;
+    private final Decision noDecision;
 
     private final Set<DiscoveryNodeRole> applicableRoles;
 
@@ -100,6 +101,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             deciderDescription + " allocation decider is applicable only to " + roleNames + " nodes"
         );
         this.canRemainDisabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " decider can remain disabled");
+        this.noDecision = new Decision.Single(Decision.Type.NO, name, null);
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, timeValue -> {
@@ -168,9 +170,9 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 if (logger.isDebugEnabled()) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NO, name, message);
+                return allocation.decision(noDecision, name, message);
             } else {
-                return Decision.NO;
+                return noDecision;
             }
         }
 
@@ -209,9 +211,9 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 if (logger.isDebugEnabled()) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NO, name, message);
+                return allocation.decision(noDecision, name, message);
             } else {
-                return Decision.NO;
+                return noDecision;
             }
         }
 
@@ -263,9 +265,9 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 if (logger.isDebugEnabled()) {
                     logCanRemainMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(Decision.NO, name, message);
+                return allocation.decision(noDecision, name, message);
             } else {
-                return Decision.NO;
+                return noDecision;
             }
         }
 

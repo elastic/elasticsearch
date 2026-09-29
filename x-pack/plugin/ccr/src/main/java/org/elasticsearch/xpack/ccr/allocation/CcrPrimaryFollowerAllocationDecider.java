@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
  */
 public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider {
     static final String NAME = "ccr_primary_follower";
+    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -44,7 +45,7 @@ public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider
         }
         if (node.node().isRemoteClusterClient() == false) {
             return allocation.decision(
-                Decision.NO,
+                NO_DECISION,
                 NAME,
                 "shard is a primary follower and being bootstrapped, but node does not have the "
                     + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()

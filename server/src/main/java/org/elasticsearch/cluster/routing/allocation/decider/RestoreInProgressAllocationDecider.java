@@ -24,6 +24,7 @@ import org.elasticsearch.common.ReferenceDocs;
 public class RestoreInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "restore_in_progress";
+    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(final ShardRouting shardRouting, final RoutingNode node, final RoutingAllocation allocation) {
@@ -60,7 +61,7 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
         UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         if (unassignedInfo.failedAllocations() > 0) {
             return allocation.decision(
-                Decision.NO,
+                NO_DECISION,
                 NAME,
                 "shard has failed to be restored from the snapshot [%s] - manually close or delete the index [%s] in order to retry "
                     + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Check the "
@@ -71,7 +72,7 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                Decision.NO,
+                NO_DECISION,
                 NAME,
                 "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
                     + "Please check constraints applied in index and cluster settings, then retry the restore. "

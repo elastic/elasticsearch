@@ -27,6 +27,7 @@ import java.util.Set;
 public class ResizeAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "resize";
+    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -42,7 +43,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
             assert resizeSourceIndex != null;
             final IndexMetadata sourceIndexMetadata = allocation.metadata().findIndex(resizeSourceIndex).orElse(null);
             if (sourceIndexMetadata == null) {
-                return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
+                return allocation.decision(NO_DECISION, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
             }
             if (indexMetadata.getNumberOfShards() < sourceIndexMetadata.getNumberOfShards()) {
                 // this only handles splits and clone so far.
@@ -54,13 +55,13 @@ public class ResizeAllocationDecider extends AllocationDecider {
                 : IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, indexMetadata.getNumberOfShards());
             ShardRouting sourceShardRouting = allocation.routingNodes().activePrimary(shardId);
             if (sourceShardRouting == null) {
-                return allocation.decision(Decision.NO, NAME, "source primary shard [%s] is not active", shardId);
+                return allocation.decision(NO_DECISION, NAME, "source primary shard [%s] is not active", shardId);
             }
             if (node != null) { // we might get called from the 2 param canAllocate method..
                 if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {
                     return allocation.decision(Decision.YES, NAME, "source primary is allocated on this node");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "source primary is allocated on another node");
+                    return allocation.decision(NO_DECISION, NAME, "source primary is allocated on another node");
                 }
             } else {
                 return allocation.decision(Decision.YES, NAME, "source primary is active");

@@ -184,7 +184,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 );
             } else {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node [%s] is a node replacement target for node [%s], "
                         + "shards cannot auto expand to be on it until the replacement is complete",
@@ -210,7 +210,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 );
             } else {
                 return allocation.decision(
-                    Decision.NO,
+                    NO_DECISION,
                     NAME,
                     "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
                     node.getId(),
@@ -239,7 +239,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                Decision.NO,
+                NO_DECISION,
                 NAME,
                 "shard is not on the source of a node replacement relocated to the replacement target"
             );

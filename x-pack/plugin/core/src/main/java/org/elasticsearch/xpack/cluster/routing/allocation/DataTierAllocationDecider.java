@@ -112,7 +112,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {
         return allocation.decision(
-            Decision.NO,
+            NO_DECISION,
             NAME,
             "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
             String.join(",", tierPreference)
@@ -121,7 +121,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     private static Decision debugNoRequirementsNotMet(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
         return allocation.decision(
-            Decision.NO,
+            NO_DECISION,
             NAME,
             "index has a preference for tiers [%s] and node does not meet the required [%s] tier",
             String.join(",", tierPreference),

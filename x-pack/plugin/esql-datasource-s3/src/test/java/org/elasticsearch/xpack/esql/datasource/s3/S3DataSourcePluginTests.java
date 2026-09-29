@@ -236,11 +236,11 @@ public class S3DataSourcePluginTests extends ESTestCase {
                 org.elasticsearch.common.ValidationException.class,
                 () -> factory.create(Settings.EMPTY, stored)
             );
-            assertThat(readException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(readException.getMessage(), containsString("endpoint must use https"));
             assertThat(readException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
             // Connection-test probe refuses the stored endpoint for the same reason.
             var testException = expectThrows(org.elasticsearch.common.ValidationException.class, () -> factory.testConnection(stored));
-            assertThat(testException.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(testException.getMessage(), containsString("endpoint must use https"));
             assertThat(testException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
         }
     }

@@ -90,7 +90,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass ]
+          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass, optional_fields_load_all_subqueries ]
       reason: "analysis of a conversion over a sub-query union that resolves on a later pass terminates"
   # does_not_exist delays the EVAL by one analyzer pass. The union is allowed, so the query has to finish.
   - do:

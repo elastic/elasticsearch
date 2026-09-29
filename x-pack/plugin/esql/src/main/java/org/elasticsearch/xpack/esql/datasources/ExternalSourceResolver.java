@@ -3737,8 +3737,8 @@ public class ExternalSourceResolver {
             // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
             // connector config (Map.of()): the inferred text rail stores none either, and the schema cache is shared
             // across users, so the seed must not retain the dataset's credentials. buildMetadataFromCache re-merges the
-            // live query config on read. Build the seed inside the loader so its buildFormatConfig runs only on a cache
-            // MISS, not on every (mostly warm) resolve.
+            // live query config on read. Build the seed inside the loader so deriving its identity runs only on a
+            // cache MISS, not on every (mostly warm) resolve.
             SchemaCacheEntry entry = cacheService.getOrComputeSchema(
                 schemaKey,
                 k -> SchemaCacheEntry.from(

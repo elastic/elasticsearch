@@ -19,7 +19,7 @@ import java.util.TreeMap;
 /**
  * Cache key for file listing results. Includes a 128-bit Murmur3 hash of credential
  * values (NOT the credential keys) for isolation between users with different credentials.
- * Endpoint and region are included because the same bucket on different endpoints
+ * The storage identity is included because the same bucket on different endpoints
  * contains different objects.
  *
  * <p>The {@code listingDiscriminatorH1/H2} are a 128-bit hash of everything about the query that changes which

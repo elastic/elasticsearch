@@ -1464,13 +1464,12 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
-            // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
-            // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
-            // several entries — one per (formatType, formatConfig) tuple (e.g. header_row=true vs
-            // header_row=false count rows differently). The config fingerprint disambiguates
-            // them, and it is node-stable: both the data node's contribution and the coordinator's entry
-            // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
-            // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
+            // Enrich the schema entry whose config matches the contribution. A schema key carries the identities
+            // its participants report, so the SAME file can have several entries — one per way of reading it (e.g.
+            // header_row=true vs header_row=false count rows differently). The config fingerprint disambiguates
+            // them, and it is node-stable because both sides ask the same reader for it: the data node's
+            // contribution and the coordinator's entry derive it from one place, so the guard holds across JVMs
+            // (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
             // Serialize the read-modify-write per file path with the same lock commitStripeDelta uses:
             // this method and applyStripeDelta both collect matching entries under forEach, then enrich

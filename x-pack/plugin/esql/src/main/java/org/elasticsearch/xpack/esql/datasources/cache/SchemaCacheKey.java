@@ -13,12 +13,10 @@ import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
- * Endpoint and region are included because the same canonical path on different
+ * The identity component carries what each participant reports about itself, because the same canonical path on different
  * endpoints resolves to different objects.
  * <p>
  * {@code fileSetFingerprint} carries the 128-bit fingerprint of the resolved file set for a
@@ -34,66 +32,6 @@ public record SchemaCacheKey(
     @Nullable FileSetFingerprint fileSetFingerprint,
     String definitionVersion
 ) {
-    // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
-    // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
-    // schema": any option that changes either the schema or whether schema inference fails on
-    // the same input must appear here, or two queries with different formatting will collide on
-    // the same cache entry.
-    //
-    // Notes on the less-obvious entries:
-    // - max_field_size: a runtime parsing limit; doesn't change inferred types but can flip
-    // schema inference between success and failure on the same bytes.
-    // - schema_sample_size: bounds how many rows feed type inference; smaller samples can
-    // widen/narrow the inferred type for borderline columns.
-    // - column_prefix: only changes column NAMES (when header_row=false), but names are part
-    // of the schema.
-    // - skip_rows: drops leading content records on the first split, so the inferred header and
-    // sampled rows change (and a leftover preamble would leak into later splits if the cap were
-    // raised past the first-split window).
-    // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
-    // null-filled, so captured row and column null counts must not be shared across policies.
-    // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
-    // which per-file stats are aggregated for aggregate pushdown.
-    // - file_sort_by / file_order: FFW donor is listing.path(0). The dataset-aggregate COUNT key
-    // uses the file-set fingerprint (order-blind) plus formatConfig, so two FFW queries over the
-    // same files with different donors must not share one memoized COUNT. file_exclusions stays
-    // out: it changes the fingerprint.
-    // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
-    // values on the same bytes, so neither schemas nor captured stats may cross modes.
-    // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
-    // [..] are not record ends) and, on a no-quote baseline, bare brackets resolves the mode
-    // to quoted — so two configs differing only in this key can interpret the same bytes with
-    // different record boundaries and must not share schemas or stats.
-    private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
-        "delimiter",
-        "quote",
-        "escape",
-        "mode",
-        "multi_value_syntax",
-        "encoding",
-        "datetime_format",
-        "partition_detection",
-        "partition_path",
-        "format",
-        "null_value",
-        "header",
-        "header_row",
-        "column_prefix",
-        "comment",
-        "max_field_size",
-        "schema_sample_size",
-        "skip_rows",
-        // trim_spaces changes stored string values and the null-ness of whitespace-only cells on the
-        // same bytes, so neither captured stats nor schemas may cross it.
-        "trim_spaces",
-        "error_mode",
-        "max_errors",
-        "max_error_ratio",
-        "schema_resolution",
-        "file_sort_by",
-        "file_order"
-    );
-
     /**
      * The version of the stored definitions this query reads under, as a named component rather than
      * a format setting: it is not an option a reader parses, and it must not be filtered by the
@@ -193,48 +131,4 @@ public record SchemaCacheKey(
         return formatType().endsWith(DATASET_AGGREGATE_MARKER);
     }
 
-    /**
-     * Whether {@code key} participates in the cache identity: it changes how rows are interpreted (or whether
-     * inference fails on the same bytes). Credentials are not excluded here because no credential name is in
-     * the allow-list to begin with; what isolates two identities over one object is the definition version.
-     * The single predicate behind
-     * {@link #buildFormatConfig}, exposed so each format module can assert that every key its reader consumes is
-     * either identity-affecting here or explicitly declared inert on that module's side. Without that assertion a
-     * newly added reader option defaults to "does not affect identity" silently, and two queries that read the same
-     * bytes differently collide on one cache entry.
-     */
-    public static boolean affectsIdentity(String key) {
-        return FORMAT_AFFECTING_PARAMS.contains(key);
-    }
-
-    /**
-     * Canonical, node-stable identity of the row-interpretation-affecting config: the format-affecting
-     * params (credentials and non-format keys excluded), sorted and rendered {@code key=value,...}.
-     * Deterministic across JVMs and independent of column projection, so a coordinator and a data node
-     * derive the same string for the same logical query config — the basis for the cross-node stats
-     * cache fingerprint.
-     */
-    public static String buildFormatConfig(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return "";
-        }
-        TreeMap<String, String> sorted = new TreeMap<>();
-        for (Map.Entry<String, Object> entry : config.entrySet()) {
-            String key = entry.getKey();
-            if (affectsIdentity(key)) {
-                sorted.put(key, String.valueOf(entry.getValue()));
-            }
-        }
-        if (sorted.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : sorted.entrySet()) {
-            if (sb.length() > 0) {
-                sb.append(',');
-            }
-            sb.append(entry.getKey()).append('=').append(entry.getValue());
-        }
-        return sb.toString();
-    }
 }

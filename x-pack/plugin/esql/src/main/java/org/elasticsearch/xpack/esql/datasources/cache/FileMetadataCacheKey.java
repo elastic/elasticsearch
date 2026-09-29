@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import java.util.Map;
 
 /**
- * Key for a cached {@link FileMetadata}. Deliberately credential-INDEPENDENT (endpoint + region only,
- * no access key / token) so the entry is shared across users exactly like the schema cache — the same
- * canonical path on the same endpoint/region resolves to the same object regardless of who asks. The
- * same canonical path on a different endpoint resolves to a different object, so endpoint and region
+ * Key for a cached {@link FileMetadata}. Deliberately credential-INDEPENDENT — a storage identity names only
+ * the fields its configuration declares non-secret — so the entry is shared across users exactly like the
+ * schema cache: the same canonical path under the same storage identity resolves to the same object
+ * regardless of who asks. The same canonical path under a different storage identity resolves to a
+ * different object, so that identity
  * are part of the identity.
  */
 public record FileMetadataCacheKey(String canonicalPath, String storageIdentity, String definitionVersion) {

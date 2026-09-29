@@ -49,7 +49,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     public void testDatasetAggregateKeyIgnoresCredentials() {
-        // Mirrors buildFormatConfig: credentials are not row-interpretation-affecting, so two users
+        // A storage identity names only non-secret fields: credentials are not row-interpretation-affecting, so two users
         // over the same files share the aggregate (the schema cache is shared by design).
         SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
@@ -102,26 +102,6 @@ public class SchemaCacheKeyTests extends ESTestCase {
         SchemaCacheKey usEast = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", usEastIdentity, Map.of());
         SchemaCacheKey euWest = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", euWestIdentity, Map.of());
         assertNotEquals(usEast, euWest);
-    }
-
-    /**
-     * {@code hive_partitioning} is a deprecated no-op and must NOT discriminate the schema cache. Two configs
-     * differing only in this key must produce the same {@code buildFormatConfig} string, so they share one cache
-     * entry rather than fragmenting it unnecessarily. This pin catches a regression where the key is re-added to
-     * {@code FORMAT_AFFECTING_PARAMS}.
-     */
-    public void testHivePartitioningDoesNotAffectCacheKey() {
-        FileSetFingerprint fingerprint = new FileSetFingerprint(11, 22);
-        SchemaCacheKey withKey = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            fingerprint,
-            "ndjson",
-            "",
-            Map.of("hive_partitioning", "false")
-        );
-        SchemaCacheKey withoutKey = SchemaCacheKey.forDatasetAggregate(PATTERN, fingerprint, "ndjson", "", Map.of());
-        assertEquals(withKey, withoutKey);
-        assertEquals(SchemaCacheKey.buildFormatConfig(Map.of("hive_partitioning", "false")), SchemaCacheKey.buildFormatConfig(Map.of()));
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {

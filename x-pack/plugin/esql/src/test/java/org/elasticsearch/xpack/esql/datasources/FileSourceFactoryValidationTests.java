@@ -12,7 +12,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -402,23 +401,4 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertTrue("inert entries that are no longer coordinator keys: " + stale, stale.isEmpty());
     }
 
-    /**
-     * Pins that moving the coordinator's contribution from the cache's hand-written list to the coordinator itself
-     * changes where the value comes from and not what it contains: every key the coordinator identifies affects the
-     * cache key today, and every key it declares inert does not. Delete this when the hand-written list goes, since
-     * it is what makes the preservation claim checkable while both exist.
-     */
-    public void testCoordinatorIdentityCoversExactlyWhatTheCacheKeyCoversToday() {
-        Set<String> identifying = new TreeSet<>(FileSourceFactory.COORDINATOR_KEYS);
-        identifying.removeAll(FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS);
-        for (String key : identifying) {
-            assertTrue(
-                "[" + key + "] identifies the coordinator's contribution but does not affect the cache key today",
-                SchemaCacheKey.affectsIdentity(key)
-            );
-        }
-        for (String key : FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS) {
-            assertFalse("[" + key + "] is declared inert but affects the cache key today", SchemaCacheKey.affectsIdentity(key));
-        }
-    }
 }

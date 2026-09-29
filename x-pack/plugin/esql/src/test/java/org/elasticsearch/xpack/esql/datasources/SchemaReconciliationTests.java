@@ -1018,6 +1018,93 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertNoResponseWarnings();
     }
 
+    /**
+     * A type change after the third file must still name that type, while quoting only the first three
+     * paths in glob order. Paths are inserted out of lexicographic order so a sort would quote different
+     * files. {@code INTEGER} precedes {@code KEYWORD} in enum order too; the missing-column test below
+     * is the one that disagrees with enum order.
+     */
+    public void testUnionByNameLateKeywordConflictQuotesFirstThreeThenMore() {
+        List<String> warnings = new ArrayList<>();
+        StoragePath first = path("s3://b/z.parquet");
+        StoragePath second = path("s3://b/a.parquet");
+        StoragePath third = path("s3://b/m.parquet");
+        StoragePath fourth = path("s3://b/b.parquet");
+        StoragePath fifth = path("s3://b/y.parquet");
+        StoragePath late = path("s3://b/c.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(first, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(second, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(third, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(fourth, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(fifth, meta(List.of(attr("val", DataType.INTEGER))));
+        metadata.put(late, meta(List.of(attr("val", DataType.KEYWORD))));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertEquals(
+            List.of(
+                "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/z.parquet (integer), s3://b/a.parquet (integer), s3://b/m.parquet (integer), "
+                    + "+3 more; types [integer, keyword]"
+            ),
+            warnings
+        );
+    }
+
+    /**
+     * Files that lack the column are not contributors. The three quoted paths are the first files that
+     * actually contain it, in glob order. Leading type is {@code KEYWORD} and the late type is
+     * {@code INTEGER}, so the type list is {@code [keyword, integer]} — the reverse of enum order.
+     */
+    public void testUnionByNameWarningQuotesFirstFilesThatContainTheColumn() {
+        List<String> warnings = new ArrayList<>();
+        StoragePath missingEarly = path("s3://b/000-early.parquet");
+        StoragePath missingNext = path("s3://b/001-early.parquet");
+        StoragePath firstWithColumn = path("s3://b/z.parquet");
+        StoragePath secondWithColumn = path("s3://b/a.parquet");
+        StoragePath thirdWithColumn = path("s3://b/m.parquet");
+        StoragePath late = path("s3://b/c.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(missingEarly, meta(List.of(attr("other", DataType.INTEGER))));
+        metadata.put(missingNext, meta(List.of(attr("other", DataType.INTEGER))));
+        metadata.put(firstWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(secondWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(thirdWithColumn, meta(List.of(attr("val", DataType.KEYWORD))));
+        metadata.put(late, meta(List.of(attr("val", DataType.INTEGER))));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
+
+        assertThat(result.unifiedSchema().get(1).name(), equalTo("val"));
+        assertThat(result.unifiedSchema().get(1).dataType(), equalTo(DataType.KEYWORD));
+        assertEquals(
+            List.of(
+                "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/z.parquet (keyword), s3://b/a.parquet (keyword), s3://b/m.parquet (keyword), "
+                    + "+1 more; types [keyword, integer]"
+            ),
+            warnings
+        );
+    }
+
+    public void testUnionByNameManyFilesSameTypeEmitsNoWarning() {
+        // Same rule as testUnionByNameAllKeywordEmitsNoWarning, past the three-path sample cap.
+        List<Attribute> schema = List.of(attr("name", DataType.KEYWORD));
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) {
+            metadata.put(path("s3://b/f" + i + ".csv"), meta(schema));
+        }
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(result.perFileInfo().size(), equalTo(8));
+        assertNoResponseWarnings();
+    }
+
     public void testUnionByNameLosslessWideningEmitsNoWarning() {
         // Lossless widening (INT + LONG → LONG, INT + DOUBLE → DOUBLE, DATETIME + DATE_NANOS →
         // DATE_NANOS) is unchanged behavior and must not emit a stringification warning.

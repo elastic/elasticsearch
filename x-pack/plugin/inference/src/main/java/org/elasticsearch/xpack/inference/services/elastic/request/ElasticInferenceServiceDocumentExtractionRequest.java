@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
@@ -24,9 +22,10 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.jsonEntity;
 
 /**
  * A request to the Elastic Inference Service document extraction endpoint. The extracted content format is not configurable: the
@@ -57,12 +56,9 @@ public class ElasticInferenceServiceDocumentExtractionRequest extends ElasticInf
     @Override
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(getURI());
-        var requestEntity = Strings.toString(
-            new ElasticInferenceServiceDocumentExtractionRequestEntity(documents, model.getServiceSettings().modelId())
+        httpPost.setEntity(
+            jsonEntity(new ElasticInferenceServiceDocumentExtractionRequestEntity(documents, model.getServiceSettings().modelId()))
         );
-
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));

@@ -27,13 +27,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that update-by-query reserves heap against the REQUEST circuit breaker for the {@link
- * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
- * CircuitBreakingException} to the client when that reservation can't fit.
+ * End-to-end check that update-by-query surfaces a {@link CircuitBreakingException} to the client when
+ * the REQUEST circuit breaker limit is too small to accommodate the fetched source data, without issuing
+ * any bulk request that would push the node toward OOM.
  *
  * <p>This is the UBQ companion to {@link ReindexCircuitBreakerTests}; the two paths share the lifecycle in
- * {@link AbstractAsyncBulkByPaginatedSearchAction} but each concrete action has its own breaker wiring with a distinct
- * label, so each needs its own end-to-end coverage to guard against wiring drift.
+ * {@link AbstractAsyncBulkByPaginatedSearchAction}. Since the fetch circuit breaker now charges
+ * {@code fetch[source]} bytes to the REQUEST breaker for each batch, a low limit trips during the fetch
+ * phase rather than at bulk-batch reservation time.
  */
 public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
 
@@ -46,15 +47,15 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Sized below the BulkRequest reservation UBQ will attempt (≈ 40 KiB) so the breaker trips
-            // when the action calls reserveBatchAllocation in prepareBulkRequest.
+            // Sized below the fetch-source charge UBQ will accumulate for one batch (≈ 40–42 KiB for
+            // 5 docs × ~8 KiB source each) so the breaker trips during FetchPhase.
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
             .build();
     }
 
     public void testUpdateByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
-        // Five docs × ~8 000-byte source ⇒ BulkRequest.estimatedSizeInBytes() ≈ 5 × (8 000 + 50) ≈ 40 250
-        // bytes, which exceeds the 30 KiB breaker limit configured above.
+        // Five docs × ~8 000-byte source ⇒ FetchPhase accumulates ≈ 5 × (8 000 + metadata overhead) ≈ 42 KiB
+        // of fetch[source] charges, which exceeds the 30 KiB breaker limit configured above.
         int batchSize = 5;
         int docCount = batchSize;
         int sourceBytes = 8_000;
@@ -72,8 +73,9 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
         );
         Throwable circuitBreakingCause = ExceptionsHelper.unwrap(thrown, CircuitBreakingException.class);
         assertThat("expected CircuitBreakingException in cause chain, got: " + thrown, circuitBreakingCause, notNullValue());
-        // The label is set by TransportUpdateByQueryAction.AsyncIndexBySearchAction#reserveBatchAllocation.
-        assertThat(circuitBreakingCause.getMessage(), containsString("update_by_query_bulk_batch"));
+        // The fetch circuit breaker trips during FetchPhase before the bulk-batch reservation is reached;
+        // the label is set by FetchPhase's source accounting.
+        assertThat(circuitBreakingCause.getMessage(), containsString("fetch[source]"));
 
         // Source documents should remain unchanged — no bulk request was issued.
         // assertHitCount handles SearchResponse refcount release; calling .get() and dropping the response

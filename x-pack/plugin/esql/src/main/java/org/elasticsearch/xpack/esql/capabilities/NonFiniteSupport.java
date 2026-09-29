@@ -19,6 +19,7 @@ import java.io.IOException;
  * results instead of rejecting them to {@code null} (or throwing). The non-finite-preserving form is only used by the
  * PromQL translation, which requires IEEE-754 semantics; the strict (finite-only) form is the ES|QL default.
  * <p>
+<<<<<<< HEAD
  *     The non-finite flag is gated on the wire behind {@link #nonFiniteTransportVersion()}, which defaults to
  *     {@link #ESQL_PROMQL_NON_FINITE_MATH}. Implementations that add the flag to an existing writeable override that
  *     method with a later version so mixed-version clusters that already know the original version do not see an
@@ -26,6 +27,12 @@ import java.io.IOException;
  *     contains a node that predates the implementation's version, so every node evaluates identical math.
  *     Implementations supply {@link #allowNonFinite()} and {@link #toStrictVariant()} and reuse
  *     {@link #readNonFinite(StreamInput)} / {@link #writeNonFinite(StreamOutput)} for serialization.
+=======
+ *     The non-finite flag is gated behind {@link #ESQL_PROMQL_NON_FINITE_MATH} on the wire, and a non-finite-preserving
+ *     instance is downgraded to its strict variant whenever the cluster contains a node that predates that version, so
+ *     every node evaluates identical math. Implementations supply {@link #allowNonFinite()} and {@link #toStrictVariant()}
+ *     and reuse {@link #readNonFinite(StreamInput)} / {@link #writeNonFinite(StreamOutput)} for serialization.
+>>>>>>> upstream/main
  * </p>
  * <p>
  *     Equality does not need to be implemented per expression: {@code Function} folds the flag into {@code equals} and
@@ -35,6 +42,7 @@ import java.io.IOException;
 public interface NonFiniteSupport extends TransportVersionAware {
 
     TransportVersion ESQL_PROMQL_NON_FINITE_MATH = TransportVersion.fromName("esql_promql_non_finite_math");
+<<<<<<< HEAD
     TransportVersion ESQL_PROMQL_NON_FINITE_UNARY_MATH = TransportVersion.fromName("esql_promql_non_finite_unary_math");
 
     /**
@@ -45,6 +53,8 @@ public interface NonFiniteSupport extends TransportVersionAware {
     default TransportVersion nonFiniteTransportVersion() {
         return ESQL_PROMQL_NON_FINITE_MATH;
     }
+=======
+>>>>>>> upstream/main
 
     /**
      * Whether this expression preserves non-finite scalar results ({@code true}) or rejects them ({@code false}).
@@ -60,21 +70,33 @@ public interface NonFiniteSupport extends TransportVersionAware {
     default Expression forTransportVersion(TransportVersion minTransportVersion) {
         // Older nodes cannot evaluate the non-finite-preserving variant; when any node in the cluster predates it,
         // downgrade to strict (finite-only) math so every node produces identical results.
+<<<<<<< HEAD
         return allowNonFinite() && minTransportVersion.supports(nonFiniteTransportVersion()) == false ? toStrictVariant() : null;
+=======
+        return allowNonFinite() && minTransportVersion.supports(ESQL_PROMQL_NON_FINITE_MATH) == false ? toStrictVariant() : null;
+>>>>>>> upstream/main
     }
 
     /**
      * Writes the non-finite flag, but only on versions that understand it, so the byte stream stays compatible with
+<<<<<<< HEAD
      * older nodes. Mirrors {@link #readNonFinite(StreamInput, TransportVersion)} using
      * {@link #nonFiniteTransportVersion()}.
      */
     default void writeNonFinite(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(nonFiniteTransportVersion())) {
+=======
+     * older nodes. Mirrors {@link #readNonFinite(StreamInput)}.
+     */
+    default void writeNonFinite(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_PROMQL_NON_FINITE_MATH)) {
+>>>>>>> upstream/main
             out.writeBoolean(allowNonFinite());
         }
     }
 
     /**
+<<<<<<< HEAD
      * Reads the non-finite flag for implementations that use the default {@link #ESQL_PROMQL_NON_FINITE_MATH} version.
      * Predating versions never wrote the byte and are treated as strict ({@code false}). This is {@code static} so it
      * can be used from a delegating {@code this(...)} constructor call, where instance methods are not yet available.
@@ -90,5 +112,13 @@ public interface NonFiniteSupport extends TransportVersionAware {
      */
     static boolean readNonFinite(StreamInput in, TransportVersion version) throws IOException {
         return in.getTransportVersion().supports(version) && in.readBoolean();
+=======
+     * Reads the non-finite flag written by {@link #writeNonFinite(StreamOutput)}; versions that predate it never wrote
+     * the byte and are treated as strict ({@code false}). This is {@code static} so it can be used from a delegating
+     * {@code this(...)} constructor call, where instance methods are not yet available.
+     */
+    static boolean readNonFinite(StreamInput in) throws IOException {
+        return in.getTransportVersion().supports(ESQL_PROMQL_NON_FINITE_MATH) && in.readBoolean();
+>>>>>>> upstream/main
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -17,8 +18,14 @@ import java.util.PriorityQueue;
 /**
  * Groups many small {@link ExternalSplit}s into {@link CoalescedSplit}s to reduce scheduling overhead. Uses greedy
  * bin-packing by size when every split reports a known (non-negative) {@code estimatedSizeInBytes()}, and falls back
- * to count-based grouping otherwise. When either packing yields fewer groups than the caller's {@code minGroupCount}
- * floor, the splits are re-binned to meet that floor so read parallelism is not collapsed onto one schedulable unit.
+ * to count-based grouping otherwise. Size packing also caps each bin at {@code maxFilesPerGroup} leaves
+ * (default {@link #DEFAULT_MAX_FILES_PER_GROUP}) so a group of tiny files cannot grow unbounded under the
+ * byte budget. When either packing yields fewer groups than the caller's {@code minGroupCount} floor, the
+ * splits are re-binned to meet that floor so read parallelism is not collapsed onto one schedulable unit.
+ * When grouping runs and every split reports a size, packed groups are ordered by
+ * {@link #claimCost(ExternalSplit)} so a local slice queue claims the heaviest work first.
+ * Node assignment that redistributes those groups must use the same cost; weighing by stored
+ * bytes alone treats a many-leaf group as cheap. Unknown-size grouping keeps pack/floor order.
  *
  * <p>This class is the sole owner of the grouping policy: whether a scan is worth coalescing at all
  * ({@link #shouldCoalesce}), how splits are packed, and how the floor is met. Callers supply budgets and the floor;
@@ -28,9 +35,35 @@ public final class SplitCoalescer {
 
     public static final long DEFAULT_TARGET_GROUP_SIZE_BYTES = 128 * 1024 * 1024; // 128 MB
     public static final int DEFAULT_TARGET_GROUP_COUNT = 8;
+    /**
+     * Hard cap on how many leaves a size-packed group may hold. Independent of {@link #COALESCING_THRESHOLD}, which
+     * is the minimum split count before grouping is worth doing at all.
+     */
+    public static final int DEFAULT_MAX_FILES_PER_GROUP = 32;
+    /**
+     * Virtual per-leaf open cost folded into {@link #claimCost(ExternalSplit)}. A literal 4 MiB heuristic, not
+     * derived from the packing knobs, so raising {@link #DEFAULT_MAX_FILES_PER_GROUP} does not silently change
+     * claim order or node assignment. Size packing caps file count directly rather than folding this cost into
+     * the byte budget.
+     */
+    static final long DEFAULT_OPEN_COST_BYTES = 4L * 1024 * 1024;
     public static final int COALESCING_THRESHOLD = 32;
 
     private SplitCoalescer() {}
+
+    /**
+     * Work of claiming one split or packed group: stored bytes plus a fixed per-leaf open cost. Claim
+     * order and node assignment share this so a many-leaf group of tiny files is not treated as cheaper
+     * than a single large file of similar stored size. A {@link CoalescedSplit} counts each direct
+     * child as a leaf; any other split counts as one leaf.
+     */
+    public static long claimCost(ExternalSplit split) {
+        if (split == null) {
+            throw new IllegalArgumentException("split cannot be null");
+        }
+        int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+        return Math.max(0L, split.estimatedSizeInBytes()) + (long) leaves * DEFAULT_OPEN_COST_BYTES;
+    }
 
     /**
      * Whether a scan holding {@code splitCount} splits is worth grouping at all. This is the single home of that
@@ -78,11 +111,32 @@ public final class SplitCoalescer {
 
     /**
      * Coalesces with a floor of {@code minGroupCount} on the number of produced groups, clamped to the number of
+     * input splits, and {@link #DEFAULT_MAX_FILES_PER_GROUP} as the per-group file cap.
+     */
+    public static List<ExternalSplit> coalesce(
+        List<ExternalSplit> splits,
+        long targetGroupSizeBytes,
+        int targetGroupCount,
+        int minGroupCount
+    ) {
+        return coalesce(splits, targetGroupSizeBytes, targetGroupCount, minGroupCount, DEFAULT_MAX_FILES_PER_GROUP);
+    }
+
+    /**
+     * Coalesces with a floor of {@code minGroupCount} on the number of produced groups, clamped to the number of
      * input splits. A scan over many small files therefore stays spread across at least
      * {@code min(splitCount, minGroupCount)} independently schedulable units, so read concurrency is not collapsed
      * to a single unit when tiny files would otherwise bin-pack into one group. The size budget still raises the
-     * group count above the floor when the data needs more bins to stay under {@code targetGroupSizeBytes}; the
-     * floor only ever adds groups, never merges past the size budget.
+     * group count above the floor when the data needs more bins to stay under {@code targetGroupSizeBytes} or
+     * {@code maxFilesPerGroup}. The floor only ever adds groups: it re-spreads into more bins and does not
+     * consult {@code maxFilesPerGroup}. Size packing with the file cap already emitted at least
+     * {@code ceil(leaves / maxFilesPerGroup)} bins, so a higher floor cannot concentrate more leaves per
+     * group than the cap allowed. {@code maxFilesPerGroup} applies only to size packing — count-based
+     * grouping (unknown sizes) ignores it. When grouping runs and every split reports a size, groups are
+     * returned in descending {@link #claimCost(ExternalSplit)} order, which is the order a local slice
+     * queue claims. Weighted node assignment uses the same cost so a many-leaf group is not treated as
+     * cheap work. Unknown-size grouping keeps pack/floor order. Below {@link #COALESCING_THRESHOLD}
+     * the input order is preserved.
      *
      * <p>The returned list is always the coalescer's own, never {@code splits} itself, including when the input is
      * too small to be worth grouping. Callers replace the contents of the list they passed in, so handing theirs
@@ -92,7 +146,8 @@ public final class SplitCoalescer {
         List<ExternalSplit> splits,
         long targetGroupSizeBytes,
         int targetGroupCount,
-        int minGroupCount
+        int minGroupCount,
+        int maxFilesPerGroup
     ) {
         if (splits == null) {
             throw new IllegalArgumentException("splits cannot be null");
@@ -106,6 +161,9 @@ public final class SplitCoalescer {
         if (minGroupCount < 1) {
             throw new IllegalArgumentException("minGroupCount must be positive, got: " + minGroupCount);
         }
+        if (maxFilesPerGroup < 1) {
+            throw new IllegalArgumentException("maxFilesPerGroup must be positive, got: " + maxFilesPerGroup);
+        }
         if (shouldCoalesce(splits.size()) == false) {
             return new ArrayList<>(splits);
         }
@@ -118,50 +176,89 @@ public final class SplitCoalescer {
             }
         }
 
-        List<List<ExternalSplit>> bins = allHaveSize ? packBySize(splits, targetGroupSizeBytes) : packByCount(splits, targetGroupCount);
+        List<List<ExternalSplit>> bins = allHaveSize
+            ? packBySize(splits, targetGroupSizeBytes, maxFilesPerGroup)
+            : packByCount(splits, targetGroupCount);
 
         int targetGroups = Math.min(splits.size(), minGroupCount);
         if (bins.size() < targetGroups) {
             bins = floorGroups(splits, targetGroups, targetGroupSizeBytes, allHaveSize);
         }
-        return buildResult(bins);
+        List<ExternalSplit> result = buildResult(bins);
+        // Unknown-size bins have no stored bytes to rank; keep pack/floor order.
+        if (allHaveSize) {
+            result = sortByClaimCost(result);
+        }
+        return result;
     }
 
-    private static List<List<ExternalSplit>> packBySize(List<ExternalSplit> splits, long targetGroupSizeBytes) {
+    private static List<List<ExternalSplit>> packBySize(List<ExternalSplit> splits, long targetGroupSizeBytes, int maxFilesPerGroup) {
         List<ExternalSplit> sorted = new ArrayList<>(splits);
         sorted.sort(Comparator.comparingLong(ExternalSplit::estimatedSizeInBytes).reversed());
 
         List<List<ExternalSplit>> bins = new ArrayList<>();
         List<Long> binSizes = new ArrayList<>();
+        List<Integer> openBins = new ArrayList<>();
 
         for (ExternalSplit split : sorted) {
             long size = split.estimatedSizeInBytes();
             if (isStandalone(split, targetGroupSizeBytes)) {
                 bins.add(new ArrayList<>(List.of(split)));
                 binSizes.add(size);
+                // Oversized bins cannot accept another non-negative leaf. Exact-budget bins stay open for
+                // zero-size files until they hit the file cap.
+                if (size == targetGroupSizeBytes && maxFilesPerGroup > 1) {
+                    openBins.add(bins.size() - 1);
+                }
                 continue;
             }
 
             int bestBin = -1;
+            int bestOpenPos = -1;
             long bestRemaining = Long.MAX_VALUE;
-            for (int i = 0; i < bins.size(); i++) {
+            for (int oi = 0; oi < openBins.size(); oi++) {
+                int i = openBins.get(oi);
                 long remaining = targetGroupSizeBytes - binSizes.get(i);
                 if (remaining >= size && remaining < bestRemaining) {
                     bestBin = i;
+                    bestOpenPos = oi;
                     bestRemaining = remaining;
                 }
             }
 
             if (bestBin >= 0) {
-                bins.get(bestBin).add(split);
+                List<ExternalSplit> bin = bins.get(bestBin);
+                bin.add(split);
                 binSizes.set(bestBin, binSizes.get(bestBin) + size);
+                if (bin.size() >= maxFilesPerGroup) {
+                    openBins.remove(bestOpenPos);
+                }
             } else {
                 bins.add(new ArrayList<>(List.of(split)));
                 binSizes.add(size);
+                if (maxFilesPerGroup > 1) {
+                    openBins.add(bins.size() - 1);
+                }
             }
         }
 
         return bins;
+    }
+
+    private static List<ExternalSplit> sortByClaimCost(List<ExternalSplit> groups) {
+        int n = groups.size();
+        Integer[] order = new Integer[n];
+        long[] costs = new long[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+            costs[i] = claimCost(groups.get(i));
+        }
+        Arrays.sort(order, Comparator.comparingLong((Integer i) -> costs[i]).reversed());
+        List<ExternalSplit> sorted = new ArrayList<>(n);
+        for (int i : order) {
+            sorted.add(groups.get(i));
+        }
+        return sorted;
     }
 
     private static List<List<ExternalSplit>> packByCount(List<ExternalSplit> splits, int targetGroupCount) {

@@ -502,7 +502,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             );
         });
 
-        assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+        assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
         assertThat(e.getCause(), instanceOf(S3Exception.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
@@ -587,15 +587,11 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             )
         );
 
-        if (stage == 0) {
-            assertEquals("Failed to upload parts", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        } else if (stage == 1) {
-            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
+        if (stage == 2) {
+            assertSame(providerException, e);
         } else {
-            assertEquals("Failed to upload parts", e.getMessage());
-            assertSame(providerException, e.getCause());
+            assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
+            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         }
 
         verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
@@ -865,13 +861,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             () -> blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, Runnable::run)
         );
 
-        if (stage == 0) {
-            assertEquals("Failed to upload parts", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        } else {
-            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
-            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
-        }
+        assertEquals("Unable to copy object [" + blobName + "] using multipart upload", e.getMessage());
+        assertThat(e.getCause(), instanceOf(AwsServiceException.class));
 
         verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));

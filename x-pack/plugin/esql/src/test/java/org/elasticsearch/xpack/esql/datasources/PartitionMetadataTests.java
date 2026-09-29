@@ -12,11 +12,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.lessThan;
 
 public class PartitionMetadataTests extends ESTestCase {
 
@@ -129,7 +132,7 @@ public class PartitionMetadataTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://b/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"), 100, Instant.EPOCH)
         );
 
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
         assertFalse(pm.isEmpty());
         assertEquals(Set.of("month"), pm.nullablePartitionColumns());
     }
@@ -140,8 +143,132 @@ public class PartitionMetadataTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://b/year=2024/month=02/f2.parquet"), 100, Instant.EPOCH)
         );
 
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
         assertFalse(pm.isEmpty());
         assertEquals(Set.of(), pm.nullablePartitionColumns());
+    }
+
+    public void testShareByGroupsCollapsesIdenticalDirectoryRows() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        Object[] years = new Object[] { 2024, 2024, 2025 };
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { years }, 3);
+        assertEquals(3, pm.rowCount());
+        assertEquals(3, pm.fileCount());
+
+        short[] groups = new short[] { 0, 0, 1 };
+        PartitionMetadata shared = pm.shareByGroups(groups, 2);
+        assertEquals(2, shared.rowCount());
+        assertEquals(3, shared.fileCount());
+        assertEquals(2024, shared.getValue(0, "year"));
+        assertEquals(2024, shared.getValue(1, "year"));
+        assertEquals(2025, shared.getValue(2, "year"));
+        // Tiny fixtures can see planningBytes rise slightly from the fileToRow index; the win is fewer value rows.
+        assertThat(shared.rowCount(), lessThan(pm.rowCount()));
+    }
+
+    public void testGetValueAtMatchesNamedLookupOnSharedRows() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        cols.put("region", DataType.KEYWORD);
+        Object[][] values = new Object[][] { { 2024, 2024, 2025 }, { "east", "east", null } };
+        PartitionMetadata shared = PartitionMetadata.columnar(cols, values, 3).shareByGroups(new short[] { 0, 0, 1 }, 2);
+        List<String> names = List.copyOf(shared.partitionColumns().keySet());
+        for (int f = 0; f < shared.fileCount(); f++) {
+            for (int c = 0; c < names.size(); c++) {
+                assertEquals(shared.getValue(f, names.get(c)), shared.getValueAt(f, c));
+            }
+        }
+        expectThrows(IndexOutOfBoundsException.class, () -> shared.getValueAt(3, 0));
+    }
+
+    public void testShareByGroupsNoOpWhenEveryFileIsItsOwnGroup() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        assertSame(pm, pm.shareByGroups(new short[] { 0, 1 }, 2));
+    }
+
+    /**
+     * Sibling disagreement is a detector or grouping bug, so it trips an assertion in tests. Sharing only
+     * saves memory, so production code must not fail the query over it.
+     */
+    public void testShareByGroupsAssertsOnDisagreeingSiblingValues() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        AssertionError e = expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0 }, 1));
+        assertTrue(e.getMessage().contains("disagree"));
+    }
+
+    public void testShareByGroupsAssertsOnMisfitGrouping() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2024, 2024 } }, 3);
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0 }, 1));
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0, 2 }, 2));
+        expectThrows(AssertionError.class, () -> pm.shareByGroups(new short[] { 0, 0, 0 }, 2));
+    }
+
+    public void testOutOfRangeOrdinalIsAnAssertionFailure() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata pm = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        assertEquals(1, pm.resolveFileIndex(1, null));
+        expectThrows(AssertionError.class, () -> pm.resolveFileIndex(2, null));
+        expectThrows(AssertionError.class, () -> pm.resolveFileIndex(-1, null));
+    }
+
+    public void testCoversFileCount() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        PartitionMetadata ordinal = PartitionMetadata.columnar(cols, new Object[][] { new Object[] { 2024, 2025 } }, 2);
+        assertTrue(ordinal.coversFileCount(2));
+        assertFalse(ordinal.coversFileCount(3));
+        assertTrue(PartitionMetadata.EMPTY.coversFileCount(7));
+        PartitionMetadata pathKeyed = new PartitionMetadata(
+            cols,
+            Map.of(StoragePath.of("s3://b/year=2024/f.parquet"), Map.of("year", 2024))
+        );
+        assertTrue("path-keyed metadata resolves by path, not position", pathKeyed.coversFileCount(3));
+        assertTrue(new PartitionMetadata(cols, Map.of()).coversFileCount(3));
+    }
+
+    public void testPlanningBytesTracksStructureNotOldFlatConstant() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        for (int i = 0; i < 20; i++) {
+            cols.put("p" + i, DataType.KEYWORD);
+        }
+        int files = 1_000;
+        Object[][] byCol = new Object[20][files];
+        for (int c = 0; c < 20; c++) {
+            Arrays.fill(byCol[c], "v");
+        }
+        PartitionMetadata deep = PartitionMetadata.columnar(cols, byCol, files);
+        long expected = 64L + 20L * 24L + 20L * files * 8L;
+        assertEquals(expected, deep.planningBytes());
+        // Intentional: structure-sized charge is far below the old 560×files pad (here 560 KB).
+        assertThat(deep.planningBytes(), lessThan(560L * files));
+    }
+
+    public void testPathKeyedEqualsAndHashCodeIgnoreInsertionOrder() {
+        LinkedHashMap<String, DataType> cols = new LinkedHashMap<>();
+        cols.put("year", DataType.INTEGER);
+        StoragePath a = StoragePath.of("s3://b/year=2024/a.parquet");
+        StoragePath b = StoragePath.of("s3://b/year=2025/b.parquet");
+
+        LinkedHashMap<StoragePath, Map<String, Object>> orderAb = new LinkedHashMap<>();
+        orderAb.put(a, Map.of("year", 2024));
+        orderAb.put(b, Map.of("year", 2025));
+        LinkedHashMap<StoragePath, Map<String, Object>> orderBa = new LinkedHashMap<>();
+        orderBa.put(b, Map.of("year", 2025));
+        orderBa.put(a, Map.of("year", 2024));
+
+        PartitionMetadata left = new PartitionMetadata(cols, orderAb);
+        PartitionMetadata right = new PartitionMetadata(cols, orderBa);
+        assertEquals(left, right);
+        assertEquals(left.hashCode(), right.hashCode());
+        assertEquals(2024, left.getValue(0, a, "year"));
+        assertEquals(2024, right.getValue(0, a, "year"));
     }
 }

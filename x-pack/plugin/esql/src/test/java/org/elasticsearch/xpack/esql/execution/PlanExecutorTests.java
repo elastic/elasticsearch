@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
 
@@ -71,5 +73,36 @@ public class PlanExecutorTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * The 7-arg create passes null suppliers (yml snapshot fallback). Production {@code esql()} uses
+     * the 10-arg create; without this, a revert to the 7-arg call would still compile.
+     */
+    public void testCreateExternalSourceResolverForwardsLiveListingCaps() {
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger(2);
+        AtomicInteger maxGlobExpansion = new AtomicInteger(3);
+        AtomicInteger maxListedObjects = new AtomicInteger(4);
+        ExternalSourceResolver resolver = PlanExecutor.createExternalSourceResolver(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
+            Settings.EMPTY,
+            null,
+            () -> false,
+            1,
+            null,
+            maxDiscoveredFiles::get,
+            maxGlobExpansion::get,
+            maxListedObjects::get
+        );
+        assertEquals(2, resolver.maxDiscoveredFiles());
+        assertEquals(3, resolver.maxGlobExpansion());
+        assertEquals(4, resolver.maxListedObjects());
+        maxDiscoveredFiles.set(10);
+        maxGlobExpansion.set(11);
+        maxListedObjects.set(12);
+        assertEquals(10, resolver.maxDiscoveredFiles());
+        assertEquals(11, resolver.maxGlobExpansion());
+        assertEquals(12, resolver.maxListedObjects());
     }
 }

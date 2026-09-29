@@ -166,7 +166,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             );
 
             if (stage == 0 || stage == 2) {
-                assertEquals("Failed to upload parts", e.getMessage());
+                assertEquals("Concurrent multipart operation failed", e.getMessage());
             }
             if (stage == 2) {
                 assertSame(providerException, e.getCause());

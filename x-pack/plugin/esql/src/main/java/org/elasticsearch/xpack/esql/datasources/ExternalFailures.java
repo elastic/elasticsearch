@@ -213,16 +213,18 @@ public final class ExternalFailures {
      * directly rather than re-deriving it from the cause.
      */
     public static String locate(String prefix, String location, @Nullable String detail) {
+        String shown = redactHttpUrl(location);
         if (detail == null) {
             // A message-less throwable reaches here from the arms that pass getMessage() straight in --
             // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
             // than appending the word "null".
-            return prefix + " [" + location + "]";
+            return prefix + " [" + shown + "]";
         }
-        // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
-        // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
-        // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.
-        return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
+        // Redact every occurrence of the raw location before deciding: a pre-signed URL's redacted form is a prefix of
+        // the raw one, so a detail naming the raw URL also "contains" the redacted form and would pass the signature
+        // through. A detail built from the redacted form (the HTTP store's own messages) already names the location.
+        String safeDetail = detail.replace(location, shown);
+        return safeDetail.contains(shown) ? safeDetail : prefix + " [" + shown + "]: " + safeDetail;
     }
 
     /**
@@ -271,5 +273,29 @@ public final class ExternalFailures {
     private static boolean derivesMessageFrom(Throwable wrapper, Throwable cause) {
         String message = wrapper.getMessage();
         return message == null || message.equals(cause.toString());
+    }
+
+    /**
+     * Drops the query string, fragment and user info from an {@code http}/{@code https} location, where a pre-signed
+     * URL carries its signature and a {@code user:pass@} its credentials. Other schemes are returned unchanged: their
+     * user info is not a secret (for {@code wasb}/{@code wasbs} it is the container name).
+     */
+    public static String redactHttpUrl(String location) {
+        int schemeEnd = location.indexOf("://");
+        if (schemeEnd < 0) {
+            return location;
+        }
+        String scheme = location.substring(0, schemeEnd);
+        if (scheme.equalsIgnoreCase("http") == false && scheme.equalsIgnoreCase("https") == false) {
+            return location;
+        }
+        String rest = location.substring(schemeEnd + 3);
+        int query = rest.indexOf('?');
+        int fragment = rest.indexOf('#');
+        int end = Math.min(query < 0 ? rest.length() : query, fragment < 0 ? rest.length() : fragment);
+        rest = rest.substring(0, end);
+        int pathStart = rest.indexOf('/');
+        int at = rest.lastIndexOf('@', pathStart < 0 ? rest.length() - 1 : pathStart - 1);
+        return location.substring(0, schemeEnd + 3) + (at < 0 ? rest : rest.substring(at + 1));
     }
 }

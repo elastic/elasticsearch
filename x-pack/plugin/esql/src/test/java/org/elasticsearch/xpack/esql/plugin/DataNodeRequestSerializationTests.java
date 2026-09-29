@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -52,6 +51,7 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -110,6 +110,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
@@ -129,7 +130,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             request.indicesOptions(),
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
-            true
+            true,
+            randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
 
@@ -172,7 +174,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             IndicesOptions.STRICT_EXPAND_OPEN,
             false,
             false,
-            false
+            false,
+            randomBoolean()
         );
 
         DataNodeRequest copy = copyInstance(request, TransportVersion.current());
@@ -206,9 +209,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var runNodeLevelReduction = in.runNodeLevelReduction();
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var retainSearchContexts = in.retainSearchContexts();
+        var singleNodeOptimizations = in.singleNodeOptimizations();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -257,6 +261,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 reductionLateMaterialization = reductionLateMaterialization == false;
             }
             case 10 -> retainSearchContexts = retainSearchContexts == false;
+            case 11 -> singleNodeOptimizations = singleNodeOptimizations == false;
             default -> throw new AssertionError("invalid value");
         }
 
@@ -271,7 +276,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            retainSearchContexts
+            retainSearchContexts,
+            singleNodeOptimizations
         );
         request.setParentTask(parentTask);
         return request;
@@ -284,7 +290,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     static Versioned<LogicalPlan> parse(String query, UnmappedResolution unmappedResolution) {
         var analyzer = analyzer().addIndex("test", "mapping-basic.json").unmappedResolution(unmappedResolution).buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
+        var logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);
     }
 

@@ -33,7 +33,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.ToIntFunction;
 
@@ -105,8 +104,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
-        // Non-null past the sorted-set branch above: a field with no binary column never reaches here. See the constructor.
-        return switch (Objects.requireNonNull(binaryFormat, "no binary doc-values framing for field [" + fieldName + "]")) {
+        if (binaryFormat == null) {
+            // Sorted-set keyword with no values in this leaf (mapped but never indexed).
+            return ConstantNull.COLUMN_READER;
+        }
+        return switch (binaryFormat) {
             case COLUMNAR_PAYLOAD -> {
                 // The count travels in the blob, so there is no companion column to load or advance on.
                 TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);

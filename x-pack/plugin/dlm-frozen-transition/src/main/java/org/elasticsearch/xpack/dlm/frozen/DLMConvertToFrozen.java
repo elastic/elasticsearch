@@ -70,6 +70,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -116,6 +117,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
 
+    private final Index index;
+    // The index name is heavily used, so we abstract it here.
     private final String indexName;
     private final ProjectId projectId;
     private final Client client;
@@ -124,14 +127,15 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private final Clock clock;
 
     public DLMConvertToFrozen(
-        String indexName,
+        Index index,
         ProjectId projectId,
         Client client,
         ClusterService clusterService,
         Supplier<XPackLicenseState> licenseStateSupplier,
         Clock clock
     ) {
-        this.indexName = indexName;
+        this.index = index;
+        this.indexName = index.getName();
         this.projectId = projectId;
         this.client = client;
         this.clusterService = clusterService;
@@ -175,6 +179,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     @Override
+    public Index getIndex() {
+        return index;
+    }
+
+    @Override
     public ProjectId getProjectId() {
         return projectId;
     }
@@ -203,8 +212,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      */
     void checkIfEligibleForConvertToFrozen() {
         ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.indices().containsKey(indexName) == false) {
-            throw new IndexNotFoundException(indexName);
+        if (projectMetadata.hasIndex(index) == false) {
+            throw new IndexNotFoundException(index);
         }
 
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
@@ -573,7 +582,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private boolean isCleanUpComplete(String forceMergeIndex) {
         // return false if original or clone indices still exist
         ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.indices().containsKey(indexName)) {
+        if (projectMetadata.hasIndex(indexName)) {
             return false;
         }
         if (projectMetadata.indices().containsKey(forceMergeIndex)) {
@@ -936,15 +945,21 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Returns {@code true} if the snapshot with the given name is either no longer listed in
-     * {@link SnapshotsInProgress} for the specified repository, or is still listed but has
-     * reached a completed (non-running) state such as {@code SUCCESS} or {@code FAILED}.
+     * Returns {@code true} if the snapshot with the given name is no longer listed in
+     * {@link SnapshotsInProgress} for the specified repository.
+     * <p>
+     * An entry can reach a completed shard-level state (e.g. {@code SUCCESS}) before the snapshot is
+     * finalized in the repository and removed from cluster state. Until it is removed,
+     * {@code TransportGetSnapshotsAction} still reports the snapshot as {@link SnapshotState#IN_PROGRESS}
+     * via {@link SnapshotInfo#inProgress}, so we must wait for the entry to disappear rather than for
+     * its shard-level state to complete, or {@link #checkSnapshotInfoSuccess} will observe an
+     * internally-inconsistent, not-yet-finalized {@link SnapshotInfo} and fail.
      */
     private boolean isSnapshotNoLongerInProgress(ClusterState state, String repositoryName, String snapshotName) {
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         return snapshotsInProgress.forRepo(projectId, repositoryName)
             .stream()
-            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName) && entry.state().completed() == false);
+            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName));
     }
 
     /**

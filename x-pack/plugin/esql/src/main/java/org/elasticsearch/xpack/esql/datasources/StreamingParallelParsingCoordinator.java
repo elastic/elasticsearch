@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -29,7 +31,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,7 +49,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -146,7 +146,9 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope.PROJECTED,
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
-            new NoopCircuitBreaker("streaming-parse-test")
+            new NoopCircuitBreaker("streaming-parse-test"),
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -225,7 +227,9 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
-            new NoopCircuitBreaker("streaming-parse-test")
+            new NoopCircuitBreaker("streaming-parse-test"),
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -253,7 +257,9 @@ public final class StreamingParallelParsingCoordinator {
         StripeColumnScope statsColumnScope,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -281,6 +287,7 @@ public final class StreamingParallelParsingCoordinator {
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
+                .readCounters(formatCounters)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -302,7 +309,9 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             admission,
-            breaker
+            breaker,
+            readCounters,
+            formatCounters
         );
     }
 
@@ -457,8 +466,9 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final InputStream decompressedStream;
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
-        /** CPU nanos accumulated across segmentator and all parser threads; delivered to {@link #originalReader} on close. */
-        private final AtomicLong coordinatorCpuNanos = new AtomicLong();
+        private final ExternalReadCounters readCounters;
+        @Nullable
+        private final FormatReadCounters formatCounters;
         /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
         private final SegmentableFormatReader originalReader;
 
@@ -501,7 +511,9 @@ public final class StreamingParallelParsingCoordinator {
                 statsColumnScope,
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
-                new NoopCircuitBreaker("streaming-parse-test")
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
             );
         }
 
@@ -522,7 +534,9 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope statsColumnScope,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
-            CircuitBreaker breaker
+            CircuitBreaker breaker,
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters
         ) {
             this.admission = admission;
             this.breaker = breaker;
@@ -567,12 +581,26 @@ public final class StreamingParallelParsingCoordinator {
             this.tasksOutstanding = new AtomicInteger(1);
 
             this.decompressedStream = decompressedStream;
+            this.readCounters = readCounters;
+            this.formatCounters = formatCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
             // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
             // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
-            Runnable segmentatorTask = () -> runSegmentator(this.decompressedStream, this.chunkSize);
+            Runnable segmentatorTask = () -> {
+                try {
+                    readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+                } finally {
+                    // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
+                    // and exit on their own after processing. Segmentator's done; decrement and signal
+                    // so the consumer wakes if it's the last task standing (EOF condition is
+                    // currentChunk >= chunksDispatched && tasksOutstanding == 0).
+                    if (tasksOutstanding.decrementAndGet() == 0) {
+                        signalReady();
+                    }
+                }
+            };
             admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
         }
 
@@ -623,21 +651,20 @@ public final class StreamingParallelParsingCoordinator {
             return currentSplitter;
         }
 
-        private RecordTooLargeException recordTooLargeException(int scannedBytes) {
+        private RecordTooLargeException recordTooLargeException() {
+            return new RecordTooLargeException("record " + exceedsRecordLimit());
+        }
+
+        /**
+         * The limit a record ran into, as a size, with the likely cause for the formats that quote: a record
+         * that never ends there is usually a quote or bracket left open.
+         */
+        private String exceedsRecordLimit() {
             String hint = switch (reader.formatName()) {
-                case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
+                case "csv", "tsv" -> ", possibly an unclosed quote or bracket";
                 default -> "";
             };
-            return new RecordTooLargeException(
-                "record exceeded external_max_record_size ["
-                    + maxRecordBytes
-                    + "] after scanning ["
-                    + scannedBytes
-                    + "] bytes for format ["
-                    + reader.formatName()
-                    + "]"
-                    + hint
-            );
+            return "exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]" + hint;
         }
 
         /**
@@ -672,12 +699,10 @@ public final class StreamingParallelParsingCoordinator {
          * this is a one-shot truncation event, not a per-row skip stream.
          */
         private void emitTruncationWarning(long recordStartByte, String causeMessage) {
-            String warning = "External read truncated at byte ["
-                + recordStartByte
-                + "] (start of an oversized record); results are partial (error_mode="
-                + errorPolicy.modeName()
-                + "): "
-                + causeMessage;
+            String record = storageObject == null
+                ? "Record "
+                : "Record in [" + ExternalFailures.redactHttpUrl(storageObject.path().toString()) + "] ";
+            String warning = record + exceedsRecordLimit() + "; results are partial";
             Consumer<String> partialResultsWarningSink = warningSinks.partialResultsWarningSink();
             if (partialResultsWarningSink != null) {
                 partialResultsWarningSink.accept(warning);
@@ -693,7 +718,6 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void runSegmentator(InputStream stream, int chunkSize) {
-            long startCpu = ThreadCpuTimer.currentNanos();
             byte[] carry = null;
             int carryLen = 0;
             int chunkIndex = 0;
@@ -736,7 +760,7 @@ public final class StreamingParallelParsingCoordinator {
                         // stops here but the iterator keeps draining already-dispatched chunks, so the pool
                         // must not permanently lose a slot.
                         recycleBuffer(buf);
-                        throw recordTooLargeException(totalBytes);
+                        throw recordTooLargeException();
                     }
 
                     if (lastNewline < 0) {
@@ -838,17 +862,7 @@ public final class StreamingParallelParsingCoordinator {
                 firstError.compareAndSet(null, e);
                 signalReady();
             } finally {
-                if (startCpu >= 0) {
-                    coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
-                }
                 closeStream();
-                // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
-                // and exit on their own after processing. Segmentator's done; decrement and signal
-                // so the consumer wakes if it's the last task standing (EOF condition is
-                // currentChunk >= chunksDispatched && tasksOutstanding == 0).
-                if (tasksOutstanding.decrementAndGet() == 0) {
-                    signalReady();
-                }
             }
         }
 
@@ -1004,6 +1018,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 int queueSlot = chunk.index % pageQueueRingSize;
                 queue = pageQueues[queueSlot];
+                var finalQueue = queue;
                 ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer, 0, chunk.length);
                 // - firstSplit: only chunk 0 carries the file's leading bytes (header for CSV).
                 // - lastSplit: every chunk is aligned to a record boundary by the segmentator, so
@@ -1036,6 +1051,7 @@ public final class StreamingParallelParsingCoordinator {
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(warningSinks.informationalWarningSink())
+                    .readCounters(formatCounters)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
                 // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is
@@ -1045,21 +1061,7 @@ public final class StreamingParallelParsingCoordinator {
                 // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
                 // carries a coverage.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-                long startCpu = ThreadCpuTimer.currentNanos();
-                try (bound) {
-                    try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
-                        while (pages.hasNext()) {
-                            if (firstError.get() != null || closed.get()) {
-                                break;
-                            }
-                            putPageAndSignal(queue, pages.next());
-                        }
-                    }
-                } finally {
-                    if (startCpu >= 0) {
-                        coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
-                    }
-                }
+                readCounters.meteredCpu((() -> pagesReadLoop(bound, chunkObj, ctx, finalQueue)));
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
                 signalReady();
@@ -1072,6 +1074,24 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 if (tasksOutstanding.decrementAndGet() == 0) {
                     signalReady();
+                }
+            }
+        }
+
+        private void pagesReadLoop(
+            ExternalStatsCapture.Handle bound,
+            ByteArrayStorageObject chunkObj,
+            FormatReadContext ctx,
+            ArrayBlockingQueue<Page> queue
+        ) throws IOException, InterruptedException {
+            try (bound) {
+                try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                    while (pages.hasNext()) {
+                        if (firstError.get() != null || closed.get()) {
+                            break;
+                        }
+                        putPageAndSignal(queue, pages.next());
+                    }
                 }
             }
         }
@@ -1178,7 +1198,7 @@ public final class StreamingParallelParsingCoordinator {
             // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
                 if (len + growBy > maxRecordBytes) {
-                    throw recordTooLargeException(len);
+                    throw recordTooLargeException();
                 }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
@@ -1187,7 +1207,7 @@ public final class StreamingParallelParsingCoordinator {
                 // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
                 int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
                 if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
-                    throw recordTooLargeException(grown.length);
+                    throw recordTooLargeException();
                 }
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);
@@ -1554,7 +1574,6 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
-            originalReader.acceptReadCpuNanos(coordinatorCpuNanos.get());
             // Backstop: if the segmentator was never promoted from the admission queue (still pending
             // when the timeout fired) or if any code path did not call closeStream() themselves,
             // release the stream now. In the timeout and interrupt paths tasksOutstanding may still

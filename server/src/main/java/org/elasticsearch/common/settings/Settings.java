@@ -10,6 +10,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -856,6 +857,30 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /** Returns the number of settings in this settings object. */
     public int size() {
         return keySet().size();
+    }
+
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Settings.class);
+    private static final long TREE_MAP_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
+    // TreeMap.Entry: object header + 5 refs (key, value, parent, left, right) + 1 byte (color flag)
+    private static final long TREE_MAP_ENTRY_RAM_BYTES_USED = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 1
+    );
+
+    /**
+     * Returns a best-effort estimate of the heap footprint of this settings object. The backing store is a {@link TreeMap}, so this
+     * counts the map and per-entry node overhead. Keys and string values are interned via {@code internKeyOrValue}, so they are not
+     * counted here to avoid over-counting strings shared across many {@link Settings} instances; list-value overhead is minor and
+     * omitted. Secure settings are not counted (they are not populated on the index- and template-level settings this is used for).
+     * <p>
+     * This is intentionally a plain estimate rather than an {@link org.apache.lucene.util.Accountable} implementation: {@link Settings}
+     * is a very widely shared value type, and the shared-string caveat above means a naive per-instance {@code ramBytesUsed()} would
+     * systematically over-count when summed across a cluster state.
+     */
+    public long estimatedRamBytesUsed() {
+        if (settings.isEmpty()) {
+            return SHALLOW_RAM_BYTES_USED;
+        }
+        return SHALLOW_RAM_BYTES_USED + TREE_MAP_RAM_BYTES_USED + (long) settings.size() * TREE_MAP_ENTRY_RAM_BYTES_USED;
     }
 
     /** Returns the fully qualified setting names contained in this settings object. */

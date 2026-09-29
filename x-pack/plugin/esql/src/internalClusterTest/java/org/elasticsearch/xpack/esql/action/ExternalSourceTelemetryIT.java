@@ -663,8 +663,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Unknown-type PUT dies in the coord {@code doExecute} pre-check. Max-count is thrown from the
-     * CAS task body and is the path that reaches {@code recordingListener.onFailure}.
+     * Unknown-type PUT is refused in {@code putDataSource} before the task is submitted. Max-count
+     * is thrown from the CAS task body and is the path that reaches {@code recordingListener.onFailure}.
      */
     public void testConfigChangesRecordMaxCountFromTaskBody() throws Exception {
         long rejectedBefore = clusterTotal(

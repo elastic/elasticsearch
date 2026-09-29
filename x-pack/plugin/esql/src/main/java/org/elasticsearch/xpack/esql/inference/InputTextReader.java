@@ -72,6 +72,16 @@ public class InputTextReader implements Releasable {
     }
 
     /**
+     * Number of values held at the given position. Greater than one for a multi-valued field, which callers that read a
+     * limited number of values need in order to tell that they are discarding data.
+     *
+     * @param pos the position index in the block
+     */
+    public int valueCount(int pos) {
+        return textBlock.getValueCount(pos);
+    }
+
+    /**
      * Returns the total number of positions (text entries) in the block.
      */
     public int estimatedSize() {

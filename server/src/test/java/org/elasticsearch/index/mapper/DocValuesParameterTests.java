@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -708,9 +709,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * being thrown out.
      */
     public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false);
+        }
         DocumentMapper mapper = createMapperService(
-            settings,
+            settings.build(),
             fieldMapping(
                 b -> b.field("type", "keyword")
                     .startObject("doc_values")
@@ -847,6 +851,27 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         ).documentMapper();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-geopoint")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
+    /**
+     * A strict-columnar index whose {@code created-version} predates {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}
+     * must still write malformed values to the {@code ._ignore_malformed} column on the write path — the same column the old read
+     * path expects. This is the write-path BWC counterpart to
+     * {@code CompositeSyntheticFieldLoaderTests#testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex}.
+     */
+    public void testIgnoreMalformedInPreMergeColumnarIndexWritesToIgnoreMalformedColumn() throws Exception {
+        IndexVersion preMerge = IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            preMerge,
+            settings,
+            () -> true,
+            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
 
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
     }

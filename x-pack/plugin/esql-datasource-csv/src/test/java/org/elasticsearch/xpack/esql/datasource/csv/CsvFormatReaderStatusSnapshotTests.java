@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -15,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -24,22 +24,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-
 /**
- * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
+ * Verifies that counters passed via {@link FormatReadContext#readCounters()} are populated after a real
  * read drains a CSV file. Complements {@link CsvReaderCountersTests} (which exercises the counter
  * struct in isolation) by exercising the full FormatReader → batch-iterator wiring.
- * <p>
- * The last two pin the COUNTER LIFETIME in both directions, mirroring the NDJSON suite. CSV has the correct
- * shape today — only {@link CsvFormatReader#withReadConfig} shares its parent's counters — and these exist to
- * keep it: the chain's root is the node-lifetime reader the format registry hands out, so a wither that shares
- * above the per-query seam mixes concurrent queries' telemetry, while a fork at the per-file seam leaves the
- * reader that reads reporting into a copy nobody snapshots. Neither is observable from a single drained reader,
- * which is why both assert on a SECOND live copy.
  */
 public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
@@ -51,7 +41,6 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
-        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String csv = """
             id:long,name:keyword
             1,Alice
@@ -60,70 +49,56 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
             """;
         StorageObject object = inMemoryCsv(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvReaderCounters counters = (CsvReaderCounters) reader.newReadCounters();
 
-        // Snapshot before drain: counters should be at zero, header_detected false.
-        var before = reader.statusSnapshot();
-        assertEquals(0L, before.rowsEmitted());
-        assertEquals(0L, before.parseErrors());
-        assertEquals(false, before.headerDetected());
-        assertEquals(0L, before.readNanos());
-
-        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).readCounters(counters).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 Releasables.close(page::releaseBlocks);
             }
         }
 
-        var after = reader.statusSnapshot();
-        assertEquals("3 data rows parsed (header excluded)", 3L, after.rowsEmitted());
-        assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
-        assertEquals("header row detected", true, after.headerDetected());
-        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
-        assertTrue("read_cpu_nanos should be > 0 after at least one batch", after.readCpuNanos() > 0);
-        assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
-
-        // Test manual addition to read_cpu_nanos
-        long readNanosBeforeAccept = after.readCpuNanos();
-        reader.acceptReadCpuNanos(99_999L);
-        assertThat(reader.statusSnapshot().readCpuNanos(), equalTo(readNanosBeforeAccept + 99_999L));
-
+        var snapshot = counters.snapshot();
+        assertEquals("3 data rows parsed (header excluded)", 3L, snapshot.rowsEmitted());
+        assertEquals("no malformed rows in this fixture", 0L, snapshot.parseErrors());
+        assertEquals("header row detected", true, snapshot.headerDetected());
     }
 
-    public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
-        CsvFormatReader base = new CsvFormatReader(blockFactory);
-        CsvFormatReader first = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
-        CsvFormatReader second = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
+    public void testSiblingQueryReadersHaveIsolatedCounters() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvReaderCounters firstCounters = (CsvReaderCounters) reader.newReadCounters();
+        CsvReaderCounters secondCounters = (CsvReaderCounters) reader.newReadCounters();
 
-        drain(first);
+        drain(reader, firstCounters);
 
-        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
-        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+        assertTrue("the reader that ran must report its own work", firstCounters.snapshot().rowsEmitted() > 0);
+        assertEquals("the sibling counters must not see it", 0L, secondCounters.snapshot().rowsEmitted());
     }
 
-    public void testPerFileReadConfigCopyReportsThroughItsParent() throws IOException {
+    public void testPerFileReadConfigCopyUsesTheSameCounters() throws IOException {
         CsvFormatReader query = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfigTrackingConsumedKeys(Map.of("delimiter", ","))
             .value();
         CsvFormatReader perFile = query.withReadConfig("0123456789abcdef0123456789abcdef");
+        CsvReaderCounters counters = (CsvReaderCounters) query.newReadCounters();
 
-        drain(perFile);
+        drain(perFile, counters);
 
         assertTrue(
-            "withReadConfig runs per file, below the reader the status envelope snapshots, so its work must land"
-                + " in the parent — a fork here is the zero-read-time defect this pins against",
-            query.statusSnapshot().rowsEmitted() > 0
+            "withReadConfig runs per file; passing the same counters object threads work through to the caller",
+            counters.snapshot().rowsEmitted() > 0
         );
     }
 
-    private void drain(CsvFormatReader reader) throws IOException {
+    private void drain(CsvFormatReader reader, CsvReaderCounters counters) throws IOException {
         String csv = """
             id:long,name:keyword
             1,Alice
             2,Bob
             3,Carol
             """;
-        try (CloseableIterator<Page> iterator = reader.read(inMemoryCsv(csv), List.of("id", "name"), 10)) {
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).readCounters(counters).build();
+        try (CloseableIterator<Page> iterator = reader.read(inMemoryCsv(csv), context)) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 Releasables.close(page::releaseBlocks);

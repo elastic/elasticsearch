@@ -92,7 +92,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-/** Test cases for AbstractIVFKnnVectorQuery objects. */
+/** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;
@@ -977,8 +977,18 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         private final List<LongAccumulator> captured;
 
         AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<LongAccumulator> captured) {
-            super(field, 0f, k, k, null, resolver);
+            super(field, 0f, k, k, null, resolver, false);
             this.captured = captured;
+        }
+
+        /**
+         * Unreachable here: counting needs the field's vector encoding, which this double - shared by the
+         * float and byte test subclasses - does not know. Only the post-filter path calls it, and this query
+         * is never wrapped in a {@link PostFilterKnnQuery}.
+         */
+        @Override
+        public int countTotalVectors(List<LeafReaderContext> leaves) {
+            throw new UnsupportedOperationException("AccumulatorCapturingQuery only exercises rewrite() accumulator wiring");
         }
 
         @Override
@@ -999,7 +1009,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
 
         @Override
-        Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
+        Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
             return null;
         }
 

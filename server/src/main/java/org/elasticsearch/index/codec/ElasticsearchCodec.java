@@ -88,7 +88,7 @@ public abstract class ElasticsearchCodec extends FilterCodec {
         // into a subclass means reworking how PerFieldMapperCodec is built, so it is left for a follow-up.
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(new ValidatingFieldInfosFormat(delegate.fieldInfosFormat(), syntheticId));
         // TSDBStoredFieldsFormat adds a reader for synthetic ids, and only for segments whose _id says it has one; writes go
-        // straight to the format underneath. Segments without a synthetic id are unaffected either way.
+        // straight to the format underneath.
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(
             new ElasticsearchStoredFieldsFormat(storedFieldsMode, legacyMode, delegate.storedFieldsFormat())
         );

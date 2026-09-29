@@ -299,10 +299,10 @@ public class ServiceAccountService {
             account.roles(),
             account.enabled(),
             account.description(),
-            account.creator(),
+            account.createdBy(),
             account.createdAt(),
-            account.editor(),
-            account.editedAt()
+            account.updatedBy(),
+            account.updatedAt()
         );
     }
 

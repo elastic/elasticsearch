@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * sorting. Built-in accounts are not in the security index and so are not searched; {@link GetServiceAccountRequest}
  * reports them.
  * <p>
- * {@code withProfileUid} asks for the profile uid of each matched account's creator and editor
+ * {@code withProfileUid} asks for the profile uid of each matched account's creator and last updater
  * <p>
  * Local-only: the node that receives the REST request runs the search itself, so the request is never serialized.
  */

@@ -75,9 +75,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      * roles are reported as the caller gave them. The description is free text that means nothing to Elasticsearch,
      * carried for the caller's benefit, and is {@code null} when the account has none.
      * <p>
-     * The creator and editor record who created the account and who last replaced it, and the two timestamps when.
-     * Each is {@code null} when unknown: the editor and its timestamp until the account is first replaced, and the
-     * creator and its timestamp for an account written before they were recorded.
+     * The two authors record who created the account and who last replaced it, and the two timestamps when. Each is
+     * {@code null} when unknown: the updating author and its timestamp until the account is first replaced, and the
+     * creating author and its timestamp for an account written before they were recorded.
      * <p>
      * The two profile uids are not stored with the account. They are looked up when a caller asks for them with
      * {@code with_profile_uid}, and are {@code null} otherwise, or when the author has no profile.
@@ -87,12 +87,12 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         List<String> roles,
         boolean enabled,
         @Nullable String description,
-        @Nullable ServiceAccountAuthor creator,
+        @Nullable ServiceAccountAuthor createdBy,
         @Nullable Instant createdAt,
-        @Nullable ServiceAccountAuthor editor,
-        @Nullable Instant editedAt,
-        @Nullable String creatorProfileUid,
-        @Nullable String editorProfileUid
+        @Nullable ServiceAccountAuthor updatedBy,
+        @Nullable Instant updatedAt,
+        @Nullable String createdByProfileUid,
+        @Nullable String updatedByProfileUid
     ) implements ServiceAccountInfo {
 
         public UserManaged {
@@ -115,30 +115,30 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             List<String> roles,
             boolean enabled,
             @Nullable String description,
-            @Nullable ServiceAccountAuthor creator,
+            @Nullable ServiceAccountAuthor createdBy,
             @Nullable Instant createdAt,
-            @Nullable ServiceAccountAuthor editor,
-            @Nullable Instant editedAt
+            @Nullable ServiceAccountAuthor updatedBy,
+            @Nullable Instant updatedAt
         ) {
-            this(principal, roles, enabled, description, creator, createdAt, editor, editedAt, null, null);
+            this(principal, roles, enabled, description, createdBy, createdAt, updatedBy, updatedAt, null, null);
         }
 
         /**
-         * The same account with the profile uids of its creator and editor filled in. A uid given for an author the
+         * The same account with the profile uids of its two authors filled in. A uid given for an author the
          * account does not have is dropped, since there is no one it could belong to.
          */
-        public UserManaged withProfileUids(@Nullable String creatorProfileUid, @Nullable String editorProfileUid) {
+        public UserManaged withProfileUids(@Nullable String createdByProfileUid, @Nullable String updatedByProfileUid) {
             return new UserManaged(
                 principal,
                 roles,
                 enabled,
                 description,
-                creator,
+                createdBy,
                 createdAt,
-                editor,
-                editedAt,
-                creator == null ? null : creatorProfileUid,
-                editor == null ? null : editorProfileUid
+                updatedBy,
+                updatedAt,
+                createdBy == null ? null : createdByProfileUid,
+                updatedBy == null ? null : updatedByProfileUid
             );
         }
 
@@ -208,12 +208,12 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                     out.writeOptionalString(userManaged.description());
                 }
                 if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION)) {
-                    out.writeOptionalWriteable(userManaged.creator());
+                    out.writeOptionalWriteable(userManaged.createdBy());
                     out.writeOptionalInstant(userManaged.createdAt());
-                    out.writeOptionalWriteable(userManaged.editor());
-                    out.writeOptionalInstant(userManaged.editedAt());
-                    out.writeOptionalString(userManaged.creatorProfileUid());
-                    out.writeOptionalString(userManaged.editorProfileUid());
+                    out.writeOptionalWriteable(userManaged.updatedBy());
+                    out.writeOptionalInstant(userManaged.updatedAt());
+                    out.writeOptionalString(userManaged.createdByProfileUid());
+                    out.writeOptionalString(userManaged.updatedByProfileUid());
                 }
             }
         }
@@ -247,23 +247,23 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 if (userManaged.description() != null) {
                     builder.field("description", userManaged.description());
                 }
-                if (userManaged.creator() != null) {
-                    builder.field("creator", userManaged.creator());
+                if (userManaged.createdBy() != null) {
+                    builder.field("created_by", userManaged.createdBy());
                 }
                 if (userManaged.createdAt() != null) {
                     builder.field("created_at", userManaged.createdAt().toEpochMilli());
                 }
-                if (userManaged.creatorProfileUid() != null) {
-                    builder.field("creator_profile_uid", userManaged.creatorProfileUid());
+                if (userManaged.createdByProfileUid() != null) {
+                    builder.field("created_by_profile_uid", userManaged.createdByProfileUid());
                 }
-                if (userManaged.editor() != null) {
-                    builder.field("editor", userManaged.editor());
+                if (userManaged.updatedBy() != null) {
+                    builder.field("updated_by", userManaged.updatedBy());
                 }
-                if (userManaged.editedAt() != null) {
-                    builder.field("edited_at", userManaged.editedAt().toEpochMilli());
+                if (userManaged.updatedAt() != null) {
+                    builder.field("updated_at", userManaged.updatedAt().toEpochMilli());
                 }
-                if (userManaged.editorProfileUid() != null) {
-                    builder.field("editor_profile_uid", userManaged.editorProfileUid());
+                if (userManaged.updatedByProfileUid() != null) {
+                    builder.field("updated_by_profile_uid", userManaged.updatedByProfileUid());
                 }
             }
         }

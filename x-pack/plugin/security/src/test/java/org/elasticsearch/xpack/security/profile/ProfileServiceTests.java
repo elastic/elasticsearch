@@ -1379,7 +1379,7 @@ public class ProfileServiceTests extends ESTestCase {
             doAnswer(invocation -> {
                 assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
                 final MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
-                // one search for alice, who is both creator and editor; none for bob, whose realm is not configured
+                // one search for alice, who is both creator and updater; none for bob, whose realm is not configured
                 assertThat(multiSearchRequest.requests(), iterableWithSize(1));
                 assertThat(
                     ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),

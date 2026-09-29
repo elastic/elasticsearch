@@ -71,7 +71,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     }
 
     /**
-     * One profile lookup covers every author of every account, creator then editor in account order, and the uids
+     * One profile lookup covers every author of every account, creator then updater in account order, and the uids
      * come back in that order and land on the authors they belong to. Built-in accounts and accounts with no
      * attribution have no authors and pass through untouched, and an author without a profile leaves the field out.
      */
@@ -82,7 +82,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         stubUserManagedAccounts(List.of(edited, created, legacy));
         final boolean bobHasAProfile = randomBoolean();
         final String bobUid = bobHasAProfile ? "u_bob" : null;
-        // alice (creator of edited), bob (editor of edited), bob (creator of created)
+        // alice (creator of edited), bob (updater of edited), bob (creator of created)
         stubProfileUids(Arrays.asList("u_alice", bobUid, bobUid));
 
         final List<ServiceAccountInfo> infos = infosFor(new GetServiceAccountRequest("apps", null, bothKinds().getType(), true));
@@ -135,16 +135,20 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         assertThat(expectThrows(ElasticsearchException.class, future::actionGet).getMessage(), equalTo("profiles unavailable"));
     }
 
-    private static ServiceAccountInfo.UserManaged attributed(String principal, ServiceAccountAuthor creator, ServiceAccountAuthor editor) {
+    private static ServiceAccountInfo.UserManaged attributed(
+        String principal,
+        ServiceAccountAuthor createdBy,
+        ServiceAccountAuthor updatedBy
+    ) {
         return new ServiceAccountInfo.UserManaged(
             principal,
             List.of("role"),
             true,
             null,
-            creator,
+            createdBy,
             Instant.ofEpochMilli(1_700_000_000_000L),
-            editor,
-            editor == null ? null : Instant.ofEpochMilli(1_700_000_001_000L)
+            updatedBy,
+            updatedBy == null ? null : Instant.ofEpochMilli(1_700_000_001_000L)
         );
     }
 

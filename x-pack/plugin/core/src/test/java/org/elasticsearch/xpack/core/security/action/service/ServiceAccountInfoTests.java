@@ -58,17 +58,17 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                 ),
                 withEnabled(userManaged, userManaged.enabled() == false),
                 withDescription(userManaged, randomValueOtherThan(userManaged.description(), ServiceAccountInfoTests::randomDescription)),
-                withCreator(userManaged, randomValueOtherThan(userManaged.creator(), ServiceAccountInfoTests::randomOptionalAuthor)),
+                withCreatedBy(userManaged, randomValueOtherThan(userManaged.createdBy(), ServiceAccountInfoTests::randomOptionalAuthor)),
                 withCreatedAt(userManaged, randomValueOtherThan(userManaged.createdAt(), ServiceAccountInfoTests::randomOptionalInstant)),
-                withEditor(userManaged, randomValueOtherThan(userManaged.editor(), ServiceAccountInfoTests::randomOptionalAuthor)),
-                withEditedAt(userManaged, randomValueOtherThan(userManaged.editedAt(), ServiceAccountInfoTests::randomOptionalInstant)),
-                withCreatorProfileUid(
+                withUpdatedBy(userManaged, randomValueOtherThan(userManaged.updatedBy(), ServiceAccountInfoTests::randomOptionalAuthor)),
+                withUpdatedAt(userManaged, randomValueOtherThan(userManaged.updatedAt(), ServiceAccountInfoTests::randomOptionalInstant)),
+                withCreatedByProfileUid(
                     userManaged,
-                    randomValueOtherThan(userManaged.creatorProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
+                    randomValueOtherThan(userManaged.createdByProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
                 ),
-                withEditorProfileUid(
+                withUpdatedByProfileUid(
                     userManaged,
-                    randomValueOtherThan(userManaged.editorProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
+                    randomValueOtherThan(userManaged.updatedByProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
                 ),
                 randomBuiltIn()
             );
@@ -81,12 +81,12 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
@@ -96,12 +96,12 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             roles,
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
@@ -111,12 +111,12 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             enabled,
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
@@ -126,27 +126,27 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             description,
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
-    private static ServiceAccountInfo.UserManaged withCreator(ServiceAccountInfo.UserManaged info, ServiceAccountAuthor creator) {
+    private static ServiceAccountInfo.UserManaged withCreatedBy(ServiceAccountInfo.UserManaged info, ServiceAccountAuthor createdBy) {
         return new ServiceAccountInfo.UserManaged(
             info.principal(),
             info.roles(),
             info.enabled(),
             info.description(),
-            creator,
+            createdBy,
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
@@ -156,72 +156,72 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             createdAt,
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
-    private static ServiceAccountInfo.UserManaged withEditor(ServiceAccountInfo.UserManaged info, ServiceAccountAuthor editor) {
+    private static ServiceAccountInfo.UserManaged withUpdatedBy(ServiceAccountInfo.UserManaged info, ServiceAccountAuthor updatedBy) {
         return new ServiceAccountInfo.UserManaged(
             info.principal(),
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            editor,
-            info.editedAt(),
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            updatedBy,
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
-    private static ServiceAccountInfo.UserManaged withCreatorProfileUid(ServiceAccountInfo.UserManaged info, String creatorProfileUid) {
+    private static ServiceAccountInfo.UserManaged withCreatedByProfileUid(ServiceAccountInfo.UserManaged info, String createdByProfileUid) {
         return new ServiceAccountInfo.UserManaged(
             info.principal(),
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            creatorProfileUid,
-            info.editorProfileUid()
+            info.updatedBy(),
+            info.updatedAt(),
+            createdByProfileUid,
+            info.updatedByProfileUid()
         );
     }
 
-    private static ServiceAccountInfo.UserManaged withEditorProfileUid(ServiceAccountInfo.UserManaged info, String editorProfileUid) {
+    private static ServiceAccountInfo.UserManaged withUpdatedByProfileUid(ServiceAccountInfo.UserManaged info, String updatedByProfileUid) {
         return new ServiceAccountInfo.UserManaged(
             info.principal(),
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            info.editedAt(),
-            info.creatorProfileUid(),
-            editorProfileUid
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            updatedByProfileUid
         );
     }
 
-    private static ServiceAccountInfo.UserManaged withEditedAt(ServiceAccountInfo.UserManaged info, Instant editedAt) {
+    private static ServiceAccountInfo.UserManaged withUpdatedAt(ServiceAccountInfo.UserManaged info, Instant updatedAt) {
         return new ServiceAccountInfo.UserManaged(
             info.principal(),
             info.roles(),
             info.enabled(),
             info.description(),
-            info.creator(),
+            info.createdBy(),
             info.createdAt(),
-            info.editor(),
-            editedAt,
-            info.creatorProfileUid(),
-            info.editorProfileUid()
+            info.updatedBy(),
+            updatedAt,
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
         );
     }
 
@@ -317,18 +317,18 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
     }
 
     /**
-     * The creator and editor are rendered as nested objects, the timestamps as epoch milliseconds, and whatever is
+     * The two authors are rendered as nested objects, the timestamps as epoch milliseconds, and whatever is
      * unknown is left out.
      */
     public void testAttributionIsRenderedAsNestedObjectsAndEpochMillis() throws IOException {
-        final ServiceAccountAuthor creator = new ServiceAccountAuthor("alice", "Alice", null, "native1", "native", null);
+        final ServiceAccountAuthor createdBy = new ServiceAccountAuthor("alice", "Alice", null, "native1", "native", null);
         final Instant createdAt = Instant.ofEpochMilli(1_700_000_000_000L);
         final ServiceAccountInfo.UserManaged created = new ServiceAccountInfo.UserManaged(
             "apps/worker",
             List.of("role-a"),
             true,
             null,
-            creator,
+            createdBy,
             createdAt,
             null,
             null
@@ -344,35 +344,35 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                     List.of("role-a"),
                     "enabled",
                     true,
-                    "creator",
+                    "created_by",
                     Map.of("principal", "alice", "full_name", "Alice", "realm", "native1", "realm_type", "native"),
                     "created_at",
                     1_700_000_000_000L
                 )
             )
         );
-        assertThat(createdMap, not(hasKey("editor")));
-        assertThat(createdMap, not(hasKey("edited_at")));
+        assertThat(createdMap, not(hasKey("updated_by")));
+        assertThat(createdMap, not(hasKey("updated_at")));
 
-        final ServiceAccountAuthor editor = new ServiceAccountAuthor("bob", null, "bob@example.com", "ldap1", "ldap", null);
+        final ServiceAccountAuthor updatedBy = new ServiceAccountAuthor("bob", null, "bob@example.com", "ldap1", "ldap", null);
         final Map<String, Object> editedMap = innerToMap(
             new ServiceAccountInfo.UserManaged(
                 "apps/worker",
                 List.of("role-a"),
                 true,
                 null,
-                creator,
+                createdBy,
                 createdAt,
-                editor,
+                updatedBy,
                 Instant.ofEpochMilli(1_700_000_001_000L)
             )
         );
         assertThat(
-            editedMap.get("editor"),
+            editedMap.get("updated_by"),
             equalTo(Map.of("principal", "bob", "email", "bob@example.com", "realm", "ldap1", "realm_type", "ldap"))
         );
-        assertThat(editedMap.get("edited_at"), equalTo(1_700_000_001_000L));
-        assertThat(editedMap.get("creator"), equalTo(createdMap.get("creator")));
+        assertThat(editedMap.get("updated_at"), equalTo(1_700_000_001_000L));
+        assertThat(editedMap.get("created_by"), equalTo(createdMap.get("created_by")));
 
         final Map<String, Object> unattributed = innerToMap(new ServiceAccountInfo.UserManaged("apps/worker", List.of(), false, null));
         assertThat(unattributed, equalTo(Map.of("type", "user_managed", "roles", List.of(), "enabled", false)));
@@ -383,27 +383,27 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
      * a uid for an author the account does not have is dropped.
      */
     public void testProfileUidsAreReportedBesideTheAuthorsTheAccountHas() throws IOException {
-        final ServiceAccountAuthor creator = new ServiceAccountAuthor("alice", null, null, "native1", "native", null);
+        final ServiceAccountAuthor createdBy = new ServiceAccountAuthor("alice", null, null, "native1", "native", null);
         final ServiceAccountInfo.UserManaged created = new ServiceAccountInfo.UserManaged(
             "apps/worker",
             List.of(),
             true,
             null,
-            creator,
+            createdBy,
             Instant.ofEpochMilli(1_700_000_000_000L),
             null,
             null
         );
-        assertThat(created.creatorProfileUid(), nullValue());
-        assertThat(innerToMap(created), not(hasKey("creator_profile_uid")));
+        assertThat(created.createdByProfileUid(), nullValue());
+        assertThat(innerToMap(created), not(hasKey("created_by_profile_uid")));
 
         final ServiceAccountInfo.UserManaged resolved = created.withProfileUids("u_alice", "u_nobody");
-        assertThat(resolved.creatorProfileUid(), equalTo("u_alice"));
-        assertThat(resolved.editorProfileUid(), nullValue());
+        assertThat(resolved.createdByProfileUid(), equalTo("u_alice"));
+        assertThat(resolved.updatedByProfileUid(), nullValue());
         final Map<String, Object> rendered = innerToMap(resolved);
-        assertThat(rendered.get("creator_profile_uid"), equalTo("u_alice"));
-        assertThat(rendered.get("creator"), equalTo(Map.of("principal", "alice", "realm", "native1", "realm_type", "native")));
-        assertThat(rendered, not(hasKey("editor_profile_uid")));
+        assertThat(rendered.get("created_by_profile_uid"), equalTo("u_alice"));
+        assertThat(rendered.get("created_by"), equalTo(Map.of("principal", "alice", "realm", "native1", "realm_type", "native")));
+        assertThat(rendered, not(hasKey("updated_by_profile_uid")));
         assertThat(innerToMap(created.withProfileUids(null, null)), equalTo(innerToMap(created)));
 
         final ServiceAccountInfo.UserManaged unattributed = new ServiceAccountInfo.UserManaged("apps/worker", List.of(), true, null);

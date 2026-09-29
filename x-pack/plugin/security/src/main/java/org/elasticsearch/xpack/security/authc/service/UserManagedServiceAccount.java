@@ -31,8 +31,8 @@ import java.util.Objects;
  * The description is free text carried for whoever administers the account. It means nothing to Elasticsearch and
  * so is deliberately kept out of the {@link User}, which is what authorization and audit see. The same goes for the
  * attribution: who created the account and who last replaced it, and when. Each of those is {@code null} when the
- * document does not record it, which is the case for the editor until the account is first replaced and for the
- * creator of an account written before attribution was recorded.
+ * document does not record it, which is the case for the updating author until the account is first replaced and
+ * for the creating author of an account written before attribution was recorded.
  */
 final class UserManagedServiceAccount implements ServiceAccount {
 
@@ -41,7 +41,7 @@ final class UserManagedServiceAccount implements ServiceAccount {
      * format changes so readers can branch on how old a document is, independently of the
      * Elasticsearch release that wrote it.
      * <p>
-     * Version 2 added the {@code creator}, {@code created_at}, {@code editor} and {@code edited_at} fields.
+     * Version 2 added the {@code creator}, {@code creation_time}, {@code updated_by} and {@code update_time} fields.
      */
     record Version(int version) implements VersionId<Version> {
         static final Version CURRENT = new Version(2);
@@ -58,13 +58,13 @@ final class UserManagedServiceAccount implements ServiceAccount {
     @Nullable
     private final String description;
     @Nullable
-    private final ServiceAccountAuthor creator;
+    private final ServiceAccountAuthor createdBy;
     @Nullable
     private final Instant createdAt;
     @Nullable
-    private final ServiceAccountAuthor editor;
+    private final ServiceAccountAuthor updatedBy;
     @Nullable
-    private final Instant editedAt;
+    private final Instant updatedAt;
     private final User user;
 
     UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, @Nullable String description) {
@@ -76,19 +76,19 @@ final class UserManagedServiceAccount implements ServiceAccount {
         List<String> roles,
         boolean enabled,
         @Nullable String description,
-        @Nullable ServiceAccountAuthor creator,
+        @Nullable ServiceAccountAuthor createdBy,
         @Nullable Instant createdAt,
-        @Nullable ServiceAccountAuthor editor,
-        @Nullable Instant editedAt
+        @Nullable ServiceAccountAuthor updatedBy,
+        @Nullable Instant updatedAt
     ) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
         this.description = description;
-        this.creator = creator;
+        this.createdBy = createdBy;
         this.createdAt = createdAt;
-        this.editor = editor;
-        this.editedAt = editedAt;
+        this.updatedBy = updatedBy;
+        this.updatedAt = updatedAt;
         this.user = new User(
             id.asPrincipal(),
             this.roles.toArray(String[]::new),
@@ -123,8 +123,8 @@ final class UserManagedServiceAccount implements ServiceAccount {
     }
 
     @Nullable
-    ServiceAccountAuthor creator() {
-        return creator;
+    ServiceAccountAuthor createdBy() {
+        return createdBy;
     }
 
     @Nullable
@@ -133,13 +133,13 @@ final class UserManagedServiceAccount implements ServiceAccount {
     }
 
     @Nullable
-    ServiceAccountAuthor editor() {
-        return editor;
+    ServiceAccountAuthor updatedBy() {
+        return updatedBy;
     }
 
     @Nullable
-    Instant editedAt() {
-        return editedAt;
+    Instant updatedAt() {
+        return updatedAt;
     }
 
     @Override
@@ -152,14 +152,14 @@ final class UserManagedServiceAccount implements ServiceAccount {
             + enabled
             + ", description="
             + description
-            + ", creator="
-            + creator
+            + ", createdBy="
+            + createdBy
             + ", createdAt="
             + createdAt
-            + ", editor="
-            + editor
-            + ", editedAt="
-            + editedAt
+            + ", updatedBy="
+            + updatedBy
+            + ", updatedAt="
+            + updatedAt
             + '}';
     }
 }

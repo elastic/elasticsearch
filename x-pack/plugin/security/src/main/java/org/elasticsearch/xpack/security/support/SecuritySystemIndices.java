@@ -593,7 +593,7 @@ public class SecuritySystemIndices {
                     if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS)) {
                         // Who last replaced a user-managed service account. The same shape as "creator", which the
                         // account's creator shares with API keys, minus the user's metadata, which is not recorded.
-                        builder.startObject("editor");
+                        builder.startObject("updated_by");
                         {
                             builder.field("type", "object");
                             builder.startObject("properties");
@@ -626,12 +626,9 @@ public class SecuritySystemIndices {
                         }
                         builder.endObject();
 
-                        builder.startObject("created_at");
-                        builder.field("type", "date");
-                        builder.field("format", "epoch_millis");
-                        builder.endObject();
-
-                        builder.startObject("edited_at");
+                        // When a user-managed service account was last replaced. When it was created shares the
+                        // "creation_time" field with API keys.
+                        builder.startObject("update_time");
                         builder.field("type", "date");
                         builder.field("format", "epoch_millis");
                         builder.endObject();
@@ -1208,9 +1205,10 @@ public class SecuritySystemIndices {
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
 
         /**
-         * Mapping for who created and last replaced a user-managed service account and when: the {@code editor},
-         * {@code created_at} and {@code edited_at} fields, and the {@code api_key} an author acted through. The
-         * creator reuses the existing {@code creator} field, which gains {@code api_key}.
+         * Mapping for who created and last replaced a user-managed service account and when: the {@code updated_by}
+         * and {@code update_time} fields, and the {@code api_key} an author acted through. The creator and creation
+         * time reuse the existing {@code creator} and {@code creation_time} fields, and {@code creator} gains
+         * {@code api_key}.
          */
         ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
 

@@ -293,33 +293,33 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testStoredAttributionIsLoaded() {
-        final ServiceAccountAuthor creator = randomAuthor();
-        final ServiceAccountAuthor editor = randomAuthor();
+        final ServiceAccountAuthor createdBy = randomAuthor();
+        final ServiceAccountAuthor updatedBy = randomAuthor();
         final Instant createdAt = Instant.ofEpochMilli(randomLongBetween(0, NOW.toEpochMilli()));
-        final Instant editedAt = Instant.ofEpochMilli(randomLongBetween(createdAt.toEpochMilli(), NOW.toEpochMilli()));
+        final Instant updatedAt = Instant.ofEpochMilli(randomLongBetween(createdAt.toEpochMilli(), NOW.toEpochMilli()));
         final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
-        source.put("creator", storedAuthor(creator));
-        source.put("created_at", createdAt.toEpochMilli());
-        // The editor is absent until the account is first replaced.
+        source.put("creator", storedAuthor(createdBy));
+        source.put("creation_time", createdAt.toEpochMilli());
+        // The updater is absent until the account is first replaced.
         final boolean edited = randomBoolean();
         if (edited) {
-            source.put("editor", storedAuthor(editor));
-            source.put("edited_at", editedAt.toEpochMilli());
+            source.put("updated_by", storedAuthor(updatedBy));
+            source.put("update_time", updatedAt.toEpochMilli());
         }
         respondToGetWith(source);
 
         final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
-        assertThat(account.creator(), equalTo(creator));
+        assertThat(account.createdBy(), equalTo(createdBy));
         assertThat(account.createdAt(), equalTo(createdAt));
-        assertThat(account.editor(), edited ? equalTo(editor) : nullValue());
-        assertThat(account.editedAt(), edited ? equalTo(editedAt) : nullValue());
+        assertThat(account.updatedBy(), edited ? equalTo(updatedBy) : nullValue());
+        assertThat(account.updatedAt(), edited ? equalTo(updatedAt) : nullValue());
         // Attribution is for administrators, not for authorization or audit, so the user is unchanged by it.
         assertThat(account.asUser().metadata().keySet(), contains(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
     }
 
     /**
      * Documents written before attribution was recorded have none of the fields, and read back as an account whose
-     * creator and editor are unknown.
+     * creator and updater are unknown.
      */
     public void testAnAccountWrittenBeforeAttributionWasRecordedReadsBackWithoutIt() {
         final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
@@ -327,52 +327,52 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondToGetWith(source);
 
         final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
-        assertThat(account.creator(), nullValue());
+        assertThat(account.createdBy(), nullValue());
         assertThat(account.createdAt(), nullValue());
-        assertThat(account.editor(), nullValue());
-        assertThat(account.editedAt(), nullValue());
+        assertThat(account.updatedBy(), nullValue());
+        assertThat(account.updatedAt(), nullValue());
     }
 
     public void testMalformedAttributionIsTreatedAsAnAbsentAccount() {
         final Map<String, Consumer<Map<String, Object>>> corruptions = new LinkedHashMap<>();
         corruptions.put("creator that is not an object", source -> source.put("creator", "alice"));
         corruptions.put("creator without a principal", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.remove("principal");
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.remove("principal");
+            source.put("creator", createdBy);
         });
         corruptions.put("creator with a null realm", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("realm", null);
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("realm", null);
+            source.put("creator", createdBy);
         });
         corruptions.put("creator with a full name that is not a string", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("full_name", 42);
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("full_name", 42);
+            source.put("creator", createdBy);
         });
         corruptions.put("creator with a realm domain that is not an object", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("realm_domain", "domain1");
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("realm_domain", "domain1");
+            source.put("creator", createdBy);
         });
         corruptions.put("creator with a realm domain without a name", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("realm_domain", Map.of("realms", List.of()));
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("realm_domain", Map.of("realms", List.of()));
+            source.put("creator", createdBy);
         });
-        corruptions.put("created_at that is not a number", source -> source.put("created_at", "2024-01-01"));
-        corruptions.put("editor that is not an object", source -> source.put("editor", List.of("bob")));
-        corruptions.put("edited_at that is not a number", source -> source.put("edited_at", true));
+        corruptions.put("creation_time that is not a number", source -> source.put("creation_time", "2024-01-01"));
+        corruptions.put("updated_by that is not an object", source -> source.put("updated_by", List.of("bob")));
+        corruptions.put("update_time that is not a number", source -> source.put("update_time", true));
         corruptions.put("creator with an api key that is not an object", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("api_key", "VuaCfGcBCdbkQm-e5aOx");
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("api_key", "VuaCfGcBCdbkQm-e5aOx");
+            source.put("creator", createdBy);
         });
         corruptions.put("creator with an api key without an id", source -> {
-            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
-            creator.put("api_key", Map.of("name", "deploy-bot-key"));
-            source.put("creator", creator);
+            final Map<String, Object> createdBy = new HashMap<>(storedAuthor(randomAuthor()));
+            createdBy.put("api_key", Map.of("name", "deploy-bot-key"));
+            source.put("creator", createdBy);
         });
 
         corruptions.forEach((description, corruption) -> {
@@ -472,10 +472,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     /**
-     * A new document records the caller as its creator and has no editor yet. The changes for an existing document
-     * record the caller as its editor and leave the creator alone.
+     * A new document records the caller as its creator and has no updater yet. The changes for an existing document
+     * record the caller as its updater and leave the creator alone.
      */
-    public void testPutAccountAttributesACreationToTheCallerAndAReplacementToTheEditor() {
+    public void testPutAccountAttributesACreationToTheCallerAndAReplacementToTheUpdater() {
         respondWithUpdateResult(randomFrom(DocWriteResponse.Result.CREATED, DocWriteResponse.Result.UPDATED));
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
 
@@ -485,15 +485,15 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
         final Map<String, Object> upsert = upsertDocument();
         assertThat(upsert.get("creator"), equalTo(storedAuthor(author)));
-        assertThat(upsert.get("created_at"), equalTo(NOW.toEpochMilli()));
-        assertThat(upsert, not(hasKey("editor")));
-        assertThat(upsert, not(hasKey("edited_at")));
+        assertThat(upsert.get("creation_time"), equalTo(NOW.toEpochMilli()));
+        assertThat(upsert, not(hasKey("updated_by")));
+        assertThat(upsert, not(hasKey("update_time")));
 
         final Map<String, Object> changes = changesDocument();
-        assertThat(changes.get("editor"), equalTo(storedAuthor(author)));
-        assertThat(changes.get("edited_at"), equalTo(NOW.toEpochMilli()));
+        assertThat(changes.get("updated_by"), equalTo(storedAuthor(author)));
+        assertThat(changes.get("update_time"), equalTo(NOW.toEpochMilli()));
         assertThat(changes, not(hasKey("creator")));
-        assertThat(changes, not(hasKey("created_at")));
+        assertThat(changes, not(hasKey("creation_time")));
     }
 
     /**
@@ -511,22 +511,22 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         future.actionGet();
 
         @SuppressWarnings("unchecked")
-        final Map<String, Object> creator = (Map<String, Object>) upsertDocument().get("creator");
-        assertThat(creator.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
-        assertThat(creator.get("realm"), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
-        assertThat(creator.get("realm_type"), equalTo(ApiKeyService.getCreatorRealmType(authentication)));
-        assertThat(creator, not(hasKey("metadata")));
+        final Map<String, Object> createdBy = (Map<String, Object>) upsertDocument().get("creator");
+        assertThat(createdBy.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(createdBy.get("realm"), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
+        assertThat(createdBy.get("realm_type"), equalTo(ApiKeyService.getCreatorRealmType(authentication)));
+        assertThat(createdBy, not(hasKey("metadata")));
         // A write through a key records the key; one run as another user records none, as an explicit null.
-        assertThat(creator, hasKey("api_key"));
+        assertThat(createdBy, hasKey("api_key"));
         if (authentication.isApiKey()) {
             @SuppressWarnings("unchecked")
-            final Map<String, Object> apiKey = (Map<String, Object>) creator.get("api_key");
+            final Map<String, Object> apiKey = (Map<String, Object>) createdBy.get("api_key");
             assertThat(
                 apiKey.get("id"),
                 equalTo(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY))
             );
         } else {
-            assertThat(creator.get("api_key"), nullValue());
+            assertThat(createdBy.get("api_key"), nullValue());
         }
     }
 
@@ -544,7 +544,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
         for (Map<String, Object> document : List.of(upsertDocument(), changesDocument())) {
             assertThat(document.get("roles"), equalTo(List.of(ROLE_A)));
-            for (String field : List.of("creator", "created_at", "editor", "edited_at")) {
+            for (String field : List.of("creator", "creation_time", "updated_by", "update_time")) {
                 assertThat(field, document, not(hasKey(field)));
             }
         }
@@ -569,10 +569,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     /**
-     * An editor's absent fields are written as explicit nulls for the same reason: merged field by field, a left-out
-     * field would keep whatever the previous editor had there.
+     * An updater's absent fields are written as explicit nulls for the same reason: merged field by field, a left-out
+     * field would keep whatever the previous updater had there.
      */
-    public void testPutAccountWritesEveryFieldOfTheEditorSoThatAPreviousEditorCannotShowThrough() {
+    public void testPutAccountWritesEveryFieldOfTheUpdaterSoThatAPreviousUpdaterCannotShowThrough() {
         authentication = AuthenticationTestHelper.builder()
             .realm(false)
             .user(new User(randomAlphaOfLengthBetween(3, 8), new String[] { "role" }, null, null, Map.of(), true))
@@ -584,17 +584,20 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
         @SuppressWarnings("unchecked")
-        final Map<String, Object> editor = (Map<String, Object>) changesDocument().get("editor");
-        assertThat(editor.keySet(), equalTo(Set.of("principal", "full_name", "email", "realm", "realm_type", "realm_domain", "api_key")));
-        assertThat(editor.get("full_name"), nullValue());
-        assertThat(editor.get("email"), nullValue());
-        assertThat(editor.get("realm_domain"), nullValue());
+        final Map<String, Object> updatedBy = (Map<String, Object>) changesDocument().get("updated_by");
+        assertThat(
+            updatedBy.keySet(),
+            equalTo(Set.of("principal", "full_name", "email", "realm", "realm_type", "realm_domain", "api_key"))
+        );
+        assertThat(updatedBy.get("full_name"), nullValue());
+        assertThat(updatedBy.get("email"), nullValue());
+        assertThat(updatedBy.get("realm_domain"), nullValue());
     }
 
     /**
-     * An unnamed API key must clear the previous editor's key name when the update merges nested objects.
+     * An unnamed API key must clear the previous updater's key name when the update merges nested objects.
      */
-    public void testPutAccountClearsThePreviousEditorsApiKeyName() {
+    public void testPutAccountClearsThePreviousUpdatersApiKeyName() {
         respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
         final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
         for (String keyId : List.of("named-key-id", "unnamed-key-id")) {
@@ -610,7 +613,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
             // Apply the same recursive merge used by UpdateHelper for a partial document update.
             XContentHelper.update(source, changesDocument(), false);
-            assertThat(source.get("editor"), equalTo(storedAuthor(ServiceAccountAuthor.fromAuthentication(authentication))));
+            assertThat(source.get("updated_by"), equalTo(storedAuthor(ServiceAccountAuthor.fromAuthentication(authentication))));
         }
     }
 

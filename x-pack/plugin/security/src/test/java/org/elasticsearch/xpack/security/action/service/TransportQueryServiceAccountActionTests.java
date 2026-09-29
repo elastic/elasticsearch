@@ -70,7 +70,7 @@ public class TransportQueryServiceAccountActionTests extends ESTestCase {
     }
 
     /**
-     * Profile uids are looked up for the authors of the page's accounts, creator then editor in page order, and each
+     * Profile uids are looked up for the authors of the page's accounts, creator then updater in page order, and each
      * item keeps its sort values and its place. The total is that of the whole result, so it is untouched.
      */
     public void testProfileUidsAreLookedUpForThePagesAuthorsWhenAskedFor() {

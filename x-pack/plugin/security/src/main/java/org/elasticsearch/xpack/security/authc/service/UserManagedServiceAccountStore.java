@@ -384,7 +384,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
      * <p>
      * The write is a single update with an upsert, so that which of the two happened is decided by the index rather
      * than by a read that a concurrent write could make stale. The upsert is the whole document with the caller as
-     * its creator; the update is every field a write may change, with the caller as its editor, and leaves the
+     * its creator; the update is every field a write may change, with the caller as its updater, and leaves the
      * creator alone. An update merges into the stored document field by field, so a field that a write may leave
      * empty is written as an explicit {@code null} rather than omitted, or the previous value would survive. The
      * attribution fields are not written to a cluster whose nodes do not all declare them, because until then the
@@ -560,14 +560,14 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     /**
      * The whole document, for when the account does not exist yet. The description is left out rather than written
      * as {@code null}, so that an account without one looks the same as one written before the field existed. The
-     * caller is recorded as the creator; there is no editor until the account is replaced.
+     * caller is recorded as the creator; there is no updater until the account is replaced.
      */
     private static XContentBuilder newAccountDocument(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
         @Nullable String description,
-        @Nullable ServiceAccountAuthor creator,
+        @Nullable ServiceAccountAuthor createdBy,
         Instant now
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -580,9 +580,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (description != null) {
             builder.field("description", description);
         }
-        if (creator != null) {
-            addAuthor(builder, "creator", creator);
-            builder.field("created_at", now.toEpochMilli());
+        if (createdBy != null) {
+            addAuthor(builder, "creator", createdBy);
+            builder.field("creation_time", now.toEpochMilli());
         }
         return builder.endObject();
     }
@@ -590,13 +590,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     /**
      * The fields a write changes, for when the account already exists. Merged into the stored document, so the
      * description is written as an explicit {@code null} when there is none: left out, the old one would survive.
-     * The caller is recorded as the editor; the creator is not touched.
+     * The caller is recorded as the updater; the creator is not touched.
      */
     private static XContentBuilder accountChanges(
         List<String> roles,
         boolean enabled,
         @Nullable String description,
-        @Nullable ServiceAccountAuthor editor,
+        @Nullable ServiceAccountAuthor updatedBy,
         Instant now
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -605,16 +605,16 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             .field("roles", roles)
             .field("enabled", enabled)
             .field("description", description);
-        if (editor != null) {
-            addAuthor(builder, "editor", editor);
-            builder.field("edited_at", now.toEpochMilli());
+        if (updatedBy != null) {
+            addAuthor(builder, "updated_by", updatedBy);
+            builder.field("update_time", now.toEpochMilli());
         }
         return builder.endObject();
     }
 
     /**
      * Writes every field of the author, the absent ones as explicit {@code null}s. An update merges objects field
-     * by field, so leaving a field out would keep whatever the previous editor had there. The realm domain is written
+     * by field, so leaving a field out would keep whatever the previous updater had there. The realm domain is written
      * whole, matching the {@code creator} mapping that API keys established. The user's metadata is deliberately not
      * recorded.
      */
@@ -629,7 +629,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (author.apiKey() == null) {
             builder.nullField(ServiceAccountAuthor.API_KEY_FIELD);
         } else {
-            // Unlike the response, the stored object must clear an absent name from the previous editor's key.
+            // Unlike the response, the stored object must clear an absent name from the previous updater's key.
             builder.startObject(ServiceAccountAuthor.API_KEY_FIELD)
                 .field(ServiceAccountAuthor.ApiKey.ID_FIELD, author.apiKey().id())
                 .field(ServiceAccountAuthor.ApiKey.NAME_FIELD, author.apiKey().name())
@@ -670,7 +670,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             return null;
         }
         if (source.get("enabled") instanceof Boolean enabled) {
-            // Each attribution field is absent in documents written before they were recorded, and the editor and
+            // Each attribution field is absent in documents written before they were recorded, and the updater and
             // its timestamp in every document until the account is first replaced.
             try {
                 return new UserManagedServiceAccount(
@@ -679,9 +679,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     enabled,
                     (String) descriptionValue,
                     parseAuthor(source.get("creator"), "creator"),
-                    parseTimestamp(source.get("created_at"), "created_at"),
-                    parseAuthor(source.get("editor"), "editor"),
-                    parseTimestamp(source.get("edited_at"), "edited_at")
+                    parseTimestamp(source.get("creation_time"), "creation_time"),
+                    parseAuthor(source.get("updated_by"), "updated_by"),
+                    parseTimestamp(source.get("update_time"), "update_time")
                 );
             } catch (IllegalArgumentException e) {
                 logger.warn(() -> Strings.format("service account document [%s] %s", expectedPrincipal, e.getMessage()), e);

@@ -1016,19 +1016,19 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetUserManagedAccountInfosReportsWhatTheStoreHolds() {
-        final ServiceAccountAuthor creator = new ServiceAccountAuthor("alice", "Alice", null, "native1", "native", null);
-        final ServiceAccountAuthor editor = new ServiceAccountAuthor("bob", null, "bob@example.com", "ldap1", "ldap", null);
+        final ServiceAccountAuthor createdBy = new ServiceAccountAuthor("alice", "Alice", null, "native1", "native", null);
+        final ServiceAccountAuthor updatedBy = new ServiceAccountAuthor("bob", null, "bob@example.com", "ldap1", "ldap", null);
         final Instant createdAt = Instant.ofEpochMilli(1_700_000_000_000L);
-        final Instant editedAt = Instant.ofEpochMilli(1_700_000_001_000L);
+        final Instant updatedAt = Instant.ofEpochMilli(1_700_000_001_000L);
         final UserManagedServiceAccount enabled = new UserManagedServiceAccount(
             USER_MANAGED_ACCOUNT_ID,
             List.of("role_a", "role_b"),
             true,
             "Deploys things",
-            creator,
+            createdBy,
             createdAt,
-            editor,
-            editedAt
+            updatedBy,
+            updatedAt
         );
         final UserManagedServiceAccount disabled = new UserManagedServiceAccount(
             new ServiceAccountId("engineering", "audit_bot"),
@@ -1049,10 +1049,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     List.of("role_a", "role_b"),
                     true,
                     "Deploys things",
-                    creator,
+                    createdBy,
                     createdAt,
-                    editor,
-                    editedAt
+                    updatedBy,
+                    updatedAt
                 ),
                 new ServiceAccountInfo.UserManaged("engineering/audit_bot", List.of(), false, null)
             )

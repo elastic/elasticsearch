@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * that no account could carry, reserved or malformed, matches nothing instead of being rejected, which is why
  * {@link #validate()} has nothing to say about either.
  * <p>
- * {@code withProfileUid} asks for the profile uid of each user-managed account's creator and editor.
+ * {@code withProfileUid} asks for the profile uid of each user-managed account's creator and last updater.
  * It costs one multi-search of the profile index with a search per distinct person,
  * by principal and realm, across all the accounts reported, so it is off unless asked for.
  */

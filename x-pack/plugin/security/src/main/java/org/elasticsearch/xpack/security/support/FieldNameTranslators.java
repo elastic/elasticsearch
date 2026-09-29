@@ -89,10 +89,12 @@ public final class FieldNameTranslators {
      * query on {@code username} and there are no separate namespace or service fields to translate. The description
      * shares the {@code text} field that role descriptions are stored in, so it answers to the same kinds of query,
      * and like the other text fields of the index it has no fielddata to sort on. The same goes for the name and
-     * email of the account's creator and editor, whose other fields are keywords. Unlike an API key, whose
-     * {@code username} names its creator, an account's {@code username} is its own principal, so its creator is
-     * queried under {@code creator.principal}. A response reports the realm domain by name alone, so the query
-     * field follows the response and is translated to the {@code name} of the stored domain object.
+     * email of the account's two authors, whose other fields are keywords. Unlike an API key, whose {@code username}
+     * names its creator, an account's {@code username} is its own principal, so its creator is queried under
+     * {@code created_by.principal}. The creator is stored in the {@code creator} object that API keys established and
+     * the creation time in their {@code creation_time} field, so both are translated; the updater is stored under the
+     * names the response uses. A response reports the realm domain by name alone, so the query field follows the
+     * response and is translated to the {@code name} of the stored domain object.
      */
     public static final FieldNameTranslators SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
@@ -100,24 +102,24 @@ public final class FieldNameTranslators {
             idemFieldNameTranslator("roles"),
             idemFieldNameTranslator("enabled"),
             idemFieldNameTranslator("description", false),
-            idemFieldNameTranslator("creator.principal"),
-            idemFieldNameTranslator("creator.full_name", false),
-            idemFieldNameTranslator("creator.email", false),
-            idemFieldNameTranslator("creator.realm"),
-            idemFieldNameTranslator("creator.realm_type"),
-            new SimpleFieldNameTranslator("creator.realm_domain.name", "creator.realm_domain"),
-            idemFieldNameTranslator("creator.api_key.id"),
-            idemFieldNameTranslator("creator.api_key.name"),
-            idemFieldNameTranslator("created_at"),
-            idemFieldNameTranslator("editor.principal"),
-            idemFieldNameTranslator("editor.full_name", false),
-            idemFieldNameTranslator("editor.email", false),
-            idemFieldNameTranslator("editor.realm"),
-            idemFieldNameTranslator("editor.realm_type"),
-            new SimpleFieldNameTranslator("editor.realm_domain.name", "editor.realm_domain"),
-            idemFieldNameTranslator("editor.api_key.id"),
-            idemFieldNameTranslator("editor.api_key.name"),
-            idemFieldNameTranslator("edited_at")
+            new SimpleFieldNameTranslator("creator.principal", "created_by.principal"),
+            new SimpleFieldNameTranslator("creator.full_name", "created_by.full_name", false),
+            new SimpleFieldNameTranslator("creator.email", "created_by.email", false),
+            new SimpleFieldNameTranslator("creator.realm", "created_by.realm"),
+            new SimpleFieldNameTranslator("creator.realm_type", "created_by.realm_type"),
+            new SimpleFieldNameTranslator("creator.realm_domain.name", "created_by.realm_domain"),
+            new SimpleFieldNameTranslator("creator.api_key.id", "created_by.api_key.id"),
+            new SimpleFieldNameTranslator("creator.api_key.name", "created_by.api_key.name"),
+            new SimpleFieldNameTranslator("creation_time", "created_at"),
+            idemFieldNameTranslator("updated_by.principal"),
+            idemFieldNameTranslator("updated_by.full_name", false),
+            idemFieldNameTranslator("updated_by.email", false),
+            idemFieldNameTranslator("updated_by.realm"),
+            idemFieldNameTranslator("updated_by.realm_type"),
+            new SimpleFieldNameTranslator("updated_by.realm_domain.name", "updated_by.realm_domain"),
+            idemFieldNameTranslator("updated_by.api_key.id"),
+            idemFieldNameTranslator("updated_by.api_key.name"),
+            new SimpleFieldNameTranslator("update_time", "updated_at")
         )
     );
 

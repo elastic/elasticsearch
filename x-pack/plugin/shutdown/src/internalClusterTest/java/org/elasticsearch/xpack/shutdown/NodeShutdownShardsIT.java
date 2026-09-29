@@ -78,9 +78,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         @Override
         public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME))
-                ? TestDecisions.NO
-                : Decision.YES;
+            return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) ? TestDecisions.NO : Decision.YES;
         }
     }
 

@@ -25,6 +25,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
@@ -156,6 +157,8 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
             bytes = FuzzyQueries.estimateBytes(fq, segmentCount);
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
+        } else if (query instanceof BinaryDocValuesScanCost s) {
+            bytes = RamUsageEstimator.shallowSizeOf(query) + s.estimateDecodeBytes(segmentCount);
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {
@@ -190,7 +193,11 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
                 throw new IndexSearcher.TooManyNestedClauses();
             }
             chargeBytesFor(parent);
-            // ignore the subqueries inside IndexOrDocValuesQuery
+            // Ignore the subqueries inside IndexOrDocValuesQuery, including a BinaryDocValuesScanCost random-access side
+            // (e.g. an IP range query with both points and binary DV): it only runs when the points side isn't chosen by
+            // IndexOrDocValuesQuery's own cost comparison, so charging the parent's floor is conservative, not exact. Not
+            // charging the real decode cost here is a known gap, left as-is for now since it is not implicated by the
+            // scanning-query clauses this estimate targets.
             return QueryVisitor.EMPTY_VISITOR;
         }
         // Return this instance even for MUST_NOT and not an empty QueryVisitor

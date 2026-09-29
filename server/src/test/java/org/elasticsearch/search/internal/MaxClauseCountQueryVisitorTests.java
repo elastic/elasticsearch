@@ -30,16 +30,23 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -207,6 +214,83 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         assertEquals(second.getEstimatedBytes(), first.getEstimatedBytes());
         assertEquals(new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate(), first.getEstimatedBytes());
+    }
+
+    public void testChargesScanningBinaryDocValuesTermQueryByDecodeCostEstimate() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+        query.visit(visitor);
+
+        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+        assertThat(
+            "the binary DV scan estimate must dominate the generic per-clause floor or this test loses its bite",
+            expected,
+            greaterThan(MaxClauseCountQueryVisitor.LEAF_BASE_BYTES)
+        );
+    }
+
+    public void testBooleanOfScanningBinaryDocValuesTermQueriesSumsPerClauseEstimates() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int clauses = randomIntBetween(2, 20);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        long expected = 0L;
+        for (int i = 0; i < clauses; i++) {
+            Query fq = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT);
+            bool.add(fq, BooleanClause.Occur.SHOULD);
+            expected += RamUsageEstimator.shallowSizeOf(fq) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        }
+        bool.build().visit(visitor);
+
+        assertEquals(
+            "each binary DV scan clause must be charged and summed, not floored once for the whole tree",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(clauses, visitor.getNumClauses());
+    }
+
+    public void testScanningBinaryDocValuesTermInSetQueryIsChargedOncePerClauseNotPerTerm() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int termCount = randomIntBetween(2, 500);
+        List<BytesRef> terms = new ArrayList<>(termCount);
+        for (int i = 0; i < termCount; i++) {
+            terms.add(new BytesRef("value" + i));
+        }
+        Query query = new ScanningBinaryDocValuesTermInSetQuery("field", terms, BinaryDocValuesFormat.SEPARATE_COUNT);
+
+        query.visit(visitor);
+
+        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        assertEquals(
+            "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be charged once",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testLargeDisjunctionOfBinaryDocValuesScanClausesTripsBreakerBeforeSearch() {
+        long limit = 1_000_000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        // One clause alone (~544 KB) fits comfortably under the 1 MB limit; enough clauses to exceed it demonstrates
+        // that the walk trips before the full tree — and any Lucene search over it — is built.
+        int clauses = 10;
+        for (int i = 0; i < clauses; i++) {
+            bool.add(
+                new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT),
+                BooleanClause.Occur.SHOULD
+            );
+        }
+
+        expectThrows(CircuitBreakingException.class, () -> bool.build().visit(visitor));
+        assertTrue("a disjunction of binary DV scan clauses sized off real decode cost must trip the breaker", breaker.tripped);
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

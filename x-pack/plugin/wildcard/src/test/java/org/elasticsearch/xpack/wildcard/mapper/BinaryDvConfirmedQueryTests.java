@@ -24,11 +24,25 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
+
+    public void testIsChargedAsABinaryDocValuesScanCost() {
+        Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
+
+        assertThat(query, instanceOf(BinaryDocValuesScanCost.class));
+        assertEquals(
+            "every matches() call opens a decoder over the field's full binary doc values, same as the Scanning* queries",
+            BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE,
+            ((BinaryDocValuesScanCost) query).estimateDecodeBytes(1)
+        );
+    }
 
     public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {
         try (Directory dir = newDirectory()) {

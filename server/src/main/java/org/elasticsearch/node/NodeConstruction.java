@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -693,17 +693,15 @@ class NodeConstruction {
         return scriptService;
     }
 
-    private DataStreamGlobalRetentionSettings createDataStreamServicesAndGlobalRetentionResolver(
+    private DataStreamLifecycleSettings createDataStreamServicesAndLifecycleSettingsResolver(
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterService.getClusterSettings()
-        );
-        modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterService.getClusterSettings());
+        modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
             DataStreamFailureStoreSettings.create(clusterService.getClusterSettings())
@@ -714,9 +712,9 @@ class NodeConstruction {
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings, indexSettingProviders)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamLifecycleSettings, indexSettingProviders)
         );
-        return dataStreamGlobalRetentionSettings;
+        return dataStreamLifecycleSettings;
     }
 
     private UpdateHelper createUpdateHelper(ScriptService scriptService) {
@@ -1024,7 +1022,7 @@ class NodeConstruction {
             threadPool
         );
 
-        final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(
+        final DataStreamLifecycleSettings dataStreamLifecycleSettings = createDataStreamServicesAndLifecycleSettingsResolver(
             threadPool,
             clusterService,
             indicesService,
@@ -1040,7 +1038,7 @@ class NodeConstruction {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            dataStreamGlobalRetentionSettings
+            dataStreamLifecycleSettings
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
@@ -1106,7 +1104,7 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             documentParsingProvider,
             taskManager,
             projectResolver,

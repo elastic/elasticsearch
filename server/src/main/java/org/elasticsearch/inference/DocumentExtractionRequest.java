@@ -19,8 +19,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -77,12 +75,7 @@ public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String
     );
 
     static {
-        INPUT_ITEM_PARSER.declareField(
-            constructorArg(),
-            (parser, context) -> parseContent(parser),
-            new ParseField(CONTENT_FIELD),
-            ObjectParser.ValueType.OBJECT
-        );
+        INPUT_ITEM_PARSER.declareObject(constructorArg(), InferenceString.PARSER, new ParseField(CONTENT_FIELD));
 
         PARSER.declareObjectArray(constructorArg(), INPUT_ITEM_PARSER::apply, new ParseField(INPUT_FIELD));
         PARSER.declareField(
@@ -93,29 +86,35 @@ public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String
         );
     }
 
-    private static InferenceString parseContent(XContentParser parser) throws IOException {
-        var inferenceString = InferenceString.PARSER.parse(parser, null);
-        if (SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES.contains(inferenceString.dataType()) == false) {
-            throw new XContentParseException(
-                Strings.format(
-                    "Field [%s] contains unsupported [%s] value [%s]. Supported values are %s",
-                    CONTENT_FIELD,
-                    InferenceString.TYPE_FIELD,
-                    inferenceString.dataType(),
-                    SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES
-                )
-            );
-        }
-        return inferenceString;
-    }
-
     public static DocumentExtractionRequest of(List<InferenceString> inputs) {
         return new DocumentExtractionRequest(inputs, null);
     }
 
+    /**
+     * @throws IllegalArgumentException if any input has a {@link DataType} outside {@link #SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES}
+     */
     public DocumentExtractionRequest(List<InferenceString> inputs, @Nullable Map<String, Object> taskSettings) {
-        this.inputs = inputs;
+        this.inputs = Objects.requireNonNull(inputs);
         this.taskSettings = Objects.requireNonNullElse(taskSettings, Map.of());
+        validateDataTypes(inputs);
+    }
+
+    private static void validateDataTypes(List<InferenceString> inputs) {
+        for (int i = 0; i < inputs.size(); i++) {
+            var dataType = inputs.get(i).dataType();
+            if (SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES.contains(dataType) == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Field [%s] contains unsupported [%s] value [%s] at index [%d]. Supported values are %s",
+                        INPUT_FIELD,
+                        InferenceString.TYPE_FIELD,
+                        dataType,
+                        i,
+                        SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES
+                    )
+                );
+            }
+        }
     }
 
     public DocumentExtractionRequest(StreamInput in) throws IOException {

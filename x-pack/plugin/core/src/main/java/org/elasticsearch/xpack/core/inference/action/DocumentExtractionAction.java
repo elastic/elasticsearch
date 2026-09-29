@@ -14,20 +14,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DocumentExtractionRequest;
-import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.DocumentExtractionRequest.INPUT_FIELD;
-import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES;
-import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 
 public class DocumentExtractionAction extends ActionType<InferenceAction.Response> {
     public static final DocumentExtractionAction INSTANCE = new DocumentExtractionAction();
@@ -94,25 +90,12 @@ public class DocumentExtractionAction extends ActionType<InferenceAction.Respons
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException e = null;
-            if (documentExtractionRequest.inputs() == null) {
-                e = addValidationError(format("Field [%s] cannot be null", INPUT_FIELD), e);
-            } else if (documentExtractionRequest.inputs().isEmpty()) {
-                e = addValidationError(format("Field [%s] cannot be an empty array", INPUT_FIELD), e);
-            } else {
-                List<InferenceString> inputs = documentExtractionRequest.inputs();
-                for (int i = 0; i < inputs.size(); ++i) {
-                    var dataType = inputs.get(i).dataType();
-                    if (SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES.contains(dataType) == false) {
-                        e = addValidationError(
-                            format("Field [%s] contains unsupported [%s] value %s at index %d", INPUT_FIELD, TYPE_FIELD, dataType, i),
-                            e
-                        );
-                    }
-                }
+            // Non-null inputs and supported data types are already enforced by the DocumentExtractionRequest constructor
+            if (documentExtractionRequest.inputs().isEmpty()) {
+                return addValidationError(format("Field [%s] cannot be an empty array", INPUT_FIELD), null);
             }
 
-            return e;
+            return null;
         }
 
         @Override

@@ -92,19 +92,6 @@ public class DocumentExtractionActionRequestTests extends AbstractWireSerializin
         assertThat(createRandom().isStreaming(), is(false));
     }
 
-    public void testValidate_withNullInputs_returnsValidationException() {
-        var request = new DocumentExtractionAction.Request(
-            randomAlphanumericOfLength(8),
-            new DocumentExtractionRequest(null, Map.of()),
-            new InferenceContext(randomAlphaOfLength(10)),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
-        );
-
-        var validationException = request.validate();
-        assertThat(validationException.validationErrors(), hasSize(1));
-        assertThat(validationException.validationErrors().getFirst(), is("Field [input] cannot be null"));
-    }
-
     public void testValidate_withEmptyInputs_returnsValidationException() {
         var request = new DocumentExtractionAction.Request(
             randomAlphanumericOfLength(8),
@@ -116,22 +103,6 @@ public class DocumentExtractionActionRequestTests extends AbstractWireSerializin
         var validationException = request.validate();
         assertThat(validationException.validationErrors(), hasSize(1));
         assertThat(validationException.validationErrors().getFirst(), is("Field [input] cannot be an empty array"));
-    }
-
-    public void testValidate_withUnsupportedDataType_returnsValidationException() {
-        var request = new DocumentExtractionAction.Request(
-            randomAlphanumericOfLength(8),
-            new DocumentExtractionRequest(List.of(InferenceString.ofText("some text")), Map.of()),
-            new InferenceContext(randomAlphaOfLength(10)),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
-        );
-
-        var validationException = request.validate();
-        assertThat(validationException.validationErrors(), hasSize(1));
-        assertThat(
-            validationException.validationErrors().getFirst(),
-            is("Field [input] contains unsupported [type] value text at index 0")
-        );
     }
 
     public void testValidate_withValidRequest_returnsNull() {

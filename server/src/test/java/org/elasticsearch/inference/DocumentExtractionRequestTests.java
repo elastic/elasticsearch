@@ -25,6 +25,7 @@ import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DO
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -146,21 +147,34 @@ public class DocumentExtractionRequestTests extends AbstractWireSerializingTestC
             """, unsupportedDataType, value);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = expectThrows(XContentParseException.class, () -> DocumentExtractionRequest.PARSER.apply(parser, null));
-            assertThat(exception.getMessage(), containsString("failed to parse field [input]"));
             Throwable rootCause = exception;
             while (rootCause.getCause() != null) {
                 rootCause = rootCause.getCause();
             }
-            assertThat(
-                rootCause.getMessage(),
-                containsString(
-                    Strings.format(
-                        "Field [content] contains unsupported [type] value [%s]. Supported values are [image, pdf]",
-                        unsupportedDataType
-                    )
-                )
-            );
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertThat(rootCause.getMessage(), is(unsupportedDataTypeMessage(unsupportedDataType, 0)));
         }
+    }
+
+    public void testConstructor_WithNullInputs_Throws() {
+        expectThrows(NullPointerException.class, () -> new DocumentExtractionRequest(null, Map.of()));
+    }
+
+    public void testConstructor_WithUnsupportedDataType_Throws() {
+        var unsupportedDataType = randomFrom(EnumSet.complementOf(EnumSet.copyOf(SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES)));
+        var unsupportedInput = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(unsupportedDataType));
+        var inputs = List.of(getRandomSupportedInferenceString(), unsupportedInput);
+
+        var exception = expectThrows(IllegalArgumentException.class, () -> new DocumentExtractionRequest(inputs, Map.of()));
+        assertThat(exception.getMessage(), is(unsupportedDataTypeMessage(unsupportedDataType, 1)));
+    }
+
+    private static String unsupportedDataTypeMessage(DataType dataType, int index) {
+        return Strings.format(
+            "Field [input] contains unsupported [type] value [%s] at index [%d]. Supported values are [image, pdf]",
+            dataType,
+            index
+        );
     }
 
     public void testParser_WithMissingContentField_Throws() throws IOException {

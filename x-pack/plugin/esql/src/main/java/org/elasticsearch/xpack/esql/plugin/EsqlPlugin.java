@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -478,6 +479,31 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.clusterService().getSettings()
         );
 
+        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        AtomicInteger maxGlobExpansion = new AtomicInteger();
+        AtomicInteger maxListedObjects = new AtomicInteger();
+        var clusterSettings = services.clusterService().getClusterSettings();
+        // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
+        // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
+        // read these at expand time; clusterService.getSettings() is the yml snapshot and would ignore persistent
+        // updates.
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        if (federationRegistered) {
+            clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        }
+        // Built before the module because split discovery lists too: a query whose schema came from a prefix of the
+        // dataset lists the rest there, and must do so on the same caps and through the same cache as resolution.
+        DatasetListingService listingService = new DatasetListingService(
+            settings,
+            cacheService,
+            maxDiscoveredFiles::get,
+            maxGlobExpansion::get,
+            maxListedObjects::get
+        );
+
         // Create DataSourceModule with all discovered plugins.
         // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
         // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
@@ -497,7 +523,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.resourceWatcherService(),
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
-            services.threadPool().executor(externalBlobStorePool())
+            services.threadPool().executor(externalBlobStorePool()),
+            listingService
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -512,21 +539,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     projectId
                 )
             );
-
-        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
-        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
-        AtomicInteger maxGlobExpansion = new AtomicInteger();
-        AtomicInteger maxListedObjects = new AtomicInteger();
-        var clusterSettings = services.clusterService().getClusterSettings();
-        // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
-        // are not in ClusterSettings then) and watches cluster state when they are. Resolver reads these
-        // at expand time; clusterService.getSettings() is the yml snapshot and would ignore persistent updates.
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
-        if (federationRegistered) {
-            clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
-        }
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader

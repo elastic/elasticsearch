@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
-import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -357,6 +356,12 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    /**
+     * How this provider lists a dataset when the schema's listing was a prefix of it: the node's live caps, and the
+     * shared listing cache in front of them. A constructor that supplies none gets one over its own {@code settings}
+     * with no cache, which is what a unit test wants and what every caller had before the cache reached here.
+     */
+    private final DatasetListingService listingService;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
 
     public FileSplitProvider() {
@@ -394,12 +399,25 @@ public class FileSplitProvider implements SplitProvider {
         Settings settings,
         @Nullable Executor executor
     ) {
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, executor, null);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        Settings settings,
+        @Nullable Executor executor,
+        @Nullable DatasetListingService listingService
+    ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.executor = executor;
+        this.listingService = listingService != null ? listingService : new DatasetListingService(this.settings, null, null, null, null);
     }
 
     /**
@@ -414,7 +432,7 @@ public class FileSplitProvider implements SplitProvider {
      * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
      * the full listing's many.
      */
-    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed) throws IOException {
+    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
         if (discovery.schemaListingIsComplete()) {
             // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
@@ -522,7 +540,7 @@ public class FileSplitProvider implements SplitProvider {
      * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
      * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
      */
-    private FileList listForQuery(SplitDiscoveryContext context) throws IOException {
+    private FileList listForQuery(SplitDiscoveryContext context) throws Exception {
         String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
         StorageProvider provider = null;
@@ -546,17 +564,13 @@ public class FileSplitProvider implements SplitProvider {
                 context.filterHints(),
                 context.metadataColumnNames()
             );
-            return GlobExpander.expandAndCompact(
-                pattern,
-                provider,
-                hints.isEmpty() ? null : hints,
-                config,
-                storagePath,
-                ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings),
-                ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings),
-                ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings),
-                ListingExtents.UNBOUNDED
-            );
+            List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
+            // filters the cache key already distinguishes. Without this a warm second query over the same dataset
+            // pays the listing again, where resolution's own listing would have been served from the cache.
+            return listingService.isCacheable(provider)
+                ? listingService.cachedListing(pattern, storagePath, provider, narrowing, config)
+                : listingService.expand(pattern, provider, narrowing, config, storagePath, ListingExtents.UNBOUNDED);
         } finally {
             StorageProviderCache.closeLease(provider);
         }
@@ -572,6 +586,10 @@ public class FileSplitProvider implements SplitProvider {
             context = overTheQuerysFileSet(handedContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            // The listing cache reports a loader failure as a checked ExecutionException, and nothing above this
+            // takes one.
+            throw ExceptionsHelper.convertToRuntime(e);
         }
         final FileList fileList = context.fileList();
 

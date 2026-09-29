@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -3459,6 +3460,16 @@ public class FileSplitProviderTests extends ESTestCase {
         @Nullable StreamTracking tracking,
         @Nullable List<StorageEntry> listing
     ) {
+        return createMultiFileStorageRegistry(payloads, tracking, listing, new AtomicInteger());
+    }
+
+    /** @param listings counts {@code listObjects} calls, for a test about how often the dataset is listed. */
+    private static StorageProviderRegistry createMultiFileStorageRegistry(
+        Map<String, byte[]> payloads,
+        @Nullable StreamTracking tracking,
+        @Nullable List<StorageEntry> listing,
+        AtomicInteger listings
+    ) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider provider = new StorageProvider() {
             @Override
@@ -3554,6 +3565,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 if (listing == null) {
                     throw new UnsupportedOperationException();
                 }
+                listings.incrementAndGet();
                 return new StorageIterator() {
                     private final Iterator<StorageEntry> entries = listing.iterator();
 
@@ -5690,6 +5702,85 @@ public class FileSplitProviderTests extends ESTestCase {
      * correctly and says nothing. A warning here would fire on every bounded partitioned query.
      */
     /**
+     * A prefix context over a two-file dataset whose schema's listing held only the first file, so split discovery has
+     * to list the dataset itself.
+     */
+    private static SplitDiscoveryContext overAPrefixOf(List<StorageEntry> everyFile) {
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+        return new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+    }
+
+    private static List<StorageEntry> twoParquetFiles(Map<String, byte[]> payloads) {
+        payloads.put("a.parquet", new byte[2000]);
+        payloads.put("b.parquet", new byte[2000]);
+        return List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 2000, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 2000, Instant.EPOCH)
+        );
+    }
+
+    /**
+     * When the schema came from a prefix, the whole listing moved from resolution — where the listing cache served it
+     * — to split discovery. A warm second query over the same dataset must still be served that listing rather than
+     * pay it again, and what it is served must be the whole dataset rather than whatever the first query happened to
+     * need.
+     */
+    public void testASecondQueryOverTheSameDatasetIsServedItsListingFromTheCache() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicInteger listings = new AtomicInteger();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                createMockRangeReader(List.of(new SplitRange(0, 2000))),
+                null,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+
+            SplitDiscoveryResult cold = provider.discoverSplits(overAPrefixOf(everyFile));
+            SplitDiscoveryResult warm = provider.discoverSplits(overAPrefixOf(everyFile));
+
+            assertEquals("the second query lists nothing", 1, listings.get());
+            assertEquals("and reads the whole dataset", 2, cold.splits().size());
+            assertEquals(cold.splits().size(), warm.splits().size());
+        }
+    }
+
+    /**
+     * The listing caps are dynamic cluster settings, so the value that counts is the one in force when the query lists,
+     * not the one the node started with. A cap lowered below the dataset's size between two queries must refuse the
+     * second.
+     */
+    public void testTheListingCapInForceWhenTheQueryListsIsTheOneThatApplies() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger(10);
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile),
+            new DatasetListingService(Settings.EMPTY, null, maxDiscoveredFiles::get, null, null)
+        );
+
+        assertEquals(2, provider.discoverSplits(overAPrefixOf(everyFile)).splits().size());
+
+        maxDiscoveredFiles.set(1);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.discoverSplits(overAPrefixOf(everyFile)));
+        assertThat(e.getMessage(), containsString("too many files (2, limit 1)"));
+    }
+
+    /**
      * Resolution asks whether any listed file's own name implies a format the dataset does not read, and under a
      * bounded listing it can only ask that of the prefix. A file past it is the one that would reach the reader and
      * be parsed as the dataset's format anyway — wrong data rather than an error — so the question is asked again
@@ -5926,6 +6017,16 @@ public class FileSplitProviderTests extends ESTestCase {
         Settings settings,
         StorageProviderRegistry storageRegistry
     ) {
+        return rangeAwareProvider(reader, executor, settings, storageRegistry, null);
+    }
+
+    private static FileSplitProvider rangeAwareProvider(
+        RangeAwareFormatReader reader,
+        @Nullable Executor executor,
+        Settings settings,
+        StorageProviderRegistry storageRegistry,
+        @Nullable DatasetListingService listingService
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
         formatRegistry.byName("parquet");
@@ -5935,7 +6036,8 @@ public class FileSplitProviderTests extends ESTestCase {
             storageRegistry,
             formatRegistry,
             settings,
-            executor
+            executor,
+            listingService
         );
     }
 

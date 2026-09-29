@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -179,15 +178,15 @@ public class ExternalSourceResolver {
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
     /**
-     * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
-     * {@code ClusterSettings.initializeAndWatchIfRegistered} so a persistent cluster update is visible
-     * on the next expand ({@code initializeAndWatch} throws when federation is unregistered). Null
-     * constructor args fall back to {@code Setting.get(settings)}, the node/yml snapshot tests already
-     * pass in.
+     * The listing this resolution does, with the kept-files / brace-expansion / LIST-walk caps and the shared listing
+     * cache behind it. Production wires the caps to {@code ClusterSettings.initializeAndWatchIfRegistered} so a
+     * persistent cluster update is visible on the next expand ({@code initializeAndWatch} throws when federation is
+     * unregistered). Null constructor args fall back to {@code Setting.get(settings)}, the node/yml snapshot tests
+     * already pass in. Split discovery lists through the same type, which is how the two stay on one set of caps and
+     * one cache.
      */
-    private final IntSupplier maxDiscoveredFiles;
-    private final IntSupplier maxGlobExpansion;
-    private final IntSupplier maxListedObjects;
+    private final DatasetListingService listingService;
+    /** The schema, file-metadata and dataset-aggregate caches. Listing goes through {@link #listingService}. */
     private final ExternalSourceCacheService cacheService;
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
@@ -334,17 +333,17 @@ public class ExternalSourceResolver {
 
     /** Live {@link ExternalSourceSettings#MAX_DISCOVERED_FILES} cap. Visible for wiring tests. */
     public int maxDiscoveredFiles() {
-        return maxDiscoveredFiles.getAsInt();
+        return listingService.maxDiscoveredFiles();
     }
 
     /** Live {@link ExternalSourceSettings#MAX_GLOB_EXPANSION} cap. Visible for wiring tests. */
     public int maxGlobExpansion() {
-        return maxGlobExpansion.getAsInt();
+        return listingService.maxGlobExpansion();
     }
 
     /** Live {@link ExternalSourceSettings#MAX_LISTED_OBJECTS} cap. Visible for wiring tests. */
     public int maxListedObjects() {
-        return maxListedObjects.getAsInt();
+        return listingService.maxListedObjects();
     }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
@@ -478,10 +477,8 @@ public class ExternalSourceResolver {
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
-        this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, settings);
-        this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, settings);
-        this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, settings);
         this.cacheService = cacheService;
+        this.listingService = new DatasetListingService(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects);
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
@@ -491,10 +488,6 @@ public class ExternalSourceResolver {
         this.metadataReadExecutor = command -> executor.execute(
             () -> StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run)
         );
-    }
-
-    private static IntSupplier capOrSettings(@Nullable IntSupplier supplied, Setting<Integer> setting, Settings settings) {
-        return supplied != null ? supplied : () -> setting.get(settings);
     }
 
     /**
@@ -1557,25 +1550,13 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         ListingExtents extents
     ) throws Exception {
-        return GlobExpander.expandAndCompact(
-            path,
-            provider,
-            hints,
-            config,
-            storagePath,
-            maxDiscoveredFiles.getAsInt(),
-            maxGlobExpansion.getAsInt(),
-            maxListedObjects.getAsInt(),
-            extents
-        );
+        return listingService.expand(path, provider, hints, config, storagePath, extents);
     }
 
     /**
-     * Looks up, or computes and caches, the compacted listing for a cacheable provider. The cache-key build and the
-     * compute lambda are kept together on purpose: the discriminator folded into the key must describe exactly the
-     * {@code (path, hints)} the lambda expands, or a filtered query's narrowed listing can be
-     * served to a later unfiltered one. Every cacheable resolution rail routes through here so that pairing lives in
-     * one place. See {@link ListingCacheKey}.
+     * The compacted listing for a cacheable provider, from the shared cache or computed into it. Delegates so the
+     * cache-key build and the compute that fills it stay paired in {@link DatasetListingService#cachedListing}; every
+     * cacheable resolution rail routes through here. See {@link ListingCacheKey}.
      */
     private FileList cachedListing(
         String path,
@@ -1584,23 +1565,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) throws Exception {
-        ListingCacheKey listingKey = ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
-            storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
-        );
-        FileList listing = cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
-        // The compute above lists the whole glob, which is what keeps a bounded listing out of this cache.
-        // Asserted rather than commented because the failure if that ever changes is silent.
-        assert listing.isTruncated() == false : "a truncated listing must never enter the shared listing cache: " + path;
-        // Caps are not part of the listing key: a raise must keep hitting. A later drop still has
-        // to fail closed, or a cached FileList computed under a looser cap would bypass the setting
-        // until TTL. Expand already checked; this re-check is for the hit path.
-        GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
-        return listing;
+        return listingService.cachedListing(path, storagePath, provider, hints, config);
     }
 
     /**
@@ -1609,7 +1574,7 @@ public class ExternalSourceResolver {
      * mtime-based cache invalidation is not reliable for them.
      */
     private boolean isCacheable(StorageProvider provider) {
-        return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
+        return listingService.isCacheable(provider);
     }
 
     /**
@@ -3751,9 +3716,9 @@ public class ExternalSourceResolver {
                 provider,
                 schemaHints,
                 config,
-                maxDiscoveredFiles.getAsInt(),
-                maxGlobExpansion.getAsInt(),
-                maxListedObjects.getAsInt(),
+                listingService.maxDiscoveredFiles(),
+                listingService.maxGlobExpansion(),
+                listingService.maxListedObjects(),
                 extents
             );
         } else if (isCacheable(provider) && extents.boundsFileSet() == false) {

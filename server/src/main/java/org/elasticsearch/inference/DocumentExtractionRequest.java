@@ -23,10 +23,12 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -59,7 +61,9 @@ public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String
      * The {@link DataType}s that can be used as document extraction inputs. Extraction works on binary document formats (e.g. PDFs) and
      * images of documents (via OCR), not on raw text.
      */
-    public static final EnumSet<DataType> SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES = EnumSet.of(DataType.PDF, DataType.IMAGE);
+    public static final Set<DataType> SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES = Collections.unmodifiableSet(
+        EnumSet.of(DataType.PDF, DataType.IMAGE)
+    );
 
     private static final ConstructingObjectParser<InferenceString, Void> INPUT_ITEM_PARSER = new ConstructingObjectParser<>(
         "document_extraction_input",

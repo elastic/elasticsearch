@@ -133,7 +133,7 @@ public class DocumentExtractionRequestTests extends AbstractWireSerializingTestC
     }
 
     public void testParser_WithUnsupportedDataType_Throws() throws IOException {
-        var unsupportedDataType = randomFrom(EnumSet.complementOf(SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES));
+        var unsupportedDataType = randomFrom(EnumSet.complementOf(EnumSet.copyOf(SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES)));
         var value = InferenceStringTests.convertToDataURIIfNeeded(unsupportedDataType, null, randomAlphanumericOfLength(10));
         var requestJson = Strings.format("""
             {
@@ -211,7 +211,7 @@ public class DocumentExtractionRequestTests extends AbstractWireSerializingTestC
     }
 
     public static InferenceString getRandomSupportedInferenceString() {
-        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES);
+        return InferenceStringTests.createRandomUsingDataTypes(EnumSet.copyOf(SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES));
     }
 
     @Override

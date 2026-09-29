@@ -86,7 +86,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// entries are eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
-    /// Currently only registered by the stateless plugin.
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
     /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
     ///
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(

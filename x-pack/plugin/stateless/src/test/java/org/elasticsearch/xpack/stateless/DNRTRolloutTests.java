@@ -26,6 +26,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+/// The data node recovery throttling (DNRT) settings are now registered by [StatelessPlugin] so they are configurable.
+/// Verifies that, without overrides, every feature stays disabled and every throttle limit stays unbounded on a stateless node.
+///
 /// TODO: Remove this test suite once we have rolled DNRT everywhere and updated the defaults.
 public class DNRTRolloutTests extends ESTestCase {
 

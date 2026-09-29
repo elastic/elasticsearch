@@ -45,7 +45,7 @@ public final class RecoveryGateMonitor {
 
     /// How often to re-evaluate the gates while a callback is waiting.
     ///
-    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// Currently only registered by the stateless plugin, elsewhere the default value applies.
     /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
     ///
     public static final Setting<TimeValue> RECHECK_INTERVAL_SETTING = Setting.timeSetting(

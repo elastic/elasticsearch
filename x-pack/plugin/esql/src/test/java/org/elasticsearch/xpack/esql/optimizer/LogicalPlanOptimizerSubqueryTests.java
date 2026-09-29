@@ -38,6 +38,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -671,7 +672,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     private LogicalPlan optimizeWithPragmas(LogicalPlan analyzed, String query, Settings pragmaSettings, EsqlFlags flags) {
         var configuration = configuration(new QueryPragmas(pragmaSettings), query);
         var context = flags == null
-            ? new LogicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion())
+            ? logicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion())
             : new LogicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion(), flags);
         return new LogicalPlanOptimizer(context).optimize(analyzed);
     }

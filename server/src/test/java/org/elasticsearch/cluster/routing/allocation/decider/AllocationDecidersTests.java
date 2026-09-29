@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
@@ -73,11 +74,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningNotPreferred() {
-        final var notPreferred = Decision.single(Decision.Type.NOT_PREFERRED, "test_decider", null);
-        var allDecisions = generateDecisions(notPreferred, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(TestDecisions.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : notPreferred;
+            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : TestDecisions.NOT_PREFERRED;
             case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
@@ -98,10 +98,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
-                Decision.single(Decision.Type.NOT_PREFERRED, "test_decider", null),
+                TestDecisions.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
-                Decision.single(Decision.Type.NO, "no with label", "explanation")
+                TestDecisions.NO
             )
         );
         var expectedDecision = collectToMultiDecision(allDecisions);
@@ -113,10 +113,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
-                Decision.single(Decision.Type.NOT_PREFERRED, "test_decider", null),
+                TestDecisions.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
-                Decision.single(Decision.Type.NO, "no with label", "explanation")
+                TestDecisions.NO
             )
         );
         var expectedDecision = filterAndCollectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);

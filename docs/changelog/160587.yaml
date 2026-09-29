@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 160587
+summary: Resolve alias for function referencing implicit cast field after `UnionAll`
+  subquery
+type: bug

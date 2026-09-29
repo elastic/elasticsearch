@@ -44,6 +44,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -51,9 +52,11 @@ import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_S
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
-    public static final String SIMILARITY_UNSUPPORTED_MESSAGE =
-        "The [similarity] field in [service_settings] is not supported by all nodes in the cluster; "
-            + "finish upgrading the cluster before setting it";
+    public static final String SIMILARITY_UNSUPPORTED_MESSAGE = Strings.format(
+        "The [%s] field in [%s] is not supported by all nodes in the cluster; finish upgrading the cluster before setting it",
+        SIMILARITY,
+        SERVICE_SETTINGS
+    );
 
     private static final XContent jsonXContent = JsonXContent.jsonXContent;
     private static final String APPLICATION_JSON = jsonXContent.type().mediaTypeWithoutParameters();
@@ -193,7 +196,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             }
             builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
             if (similarity != null) {
-                builder.field(ServiceFields.SIMILARITY, similarity);
+                builder.field(SIMILARITY, similarity);
             }
             return builder;
         }
@@ -208,7 +211,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                         builder.field(DIMENSIONS_FIELD, dimensions);
                     }
                     if (similarity != null) {
-                        builder.field(ServiceFields.SIMILARITY, similarity);
+                        builder.field(SIMILARITY, similarity);
                     }
                     return builder;
                 }

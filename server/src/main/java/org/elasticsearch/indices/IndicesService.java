@@ -1003,13 +1003,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
-        long clusterStateVersion
+        long clusterStateVersion,
+        int localRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            localNode,
+            sourceNode,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            localRetries
+        );
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(projectId, recoveryListener, indexShard, indexService.getMetadata(), listener -> {
@@ -1019,7 +1027,11 @@ public class IndicesService extends AbstractLifecycleComponent
             final var store = indexShard.store();
             if (store.tryIncRef() == false) {
                 assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null), ABORT);
+                listener.onRecoveryFailure(
+                    indexShard.recoveryState(),
+                    new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null),
+                    ABORT
+                );
                 return;
             }
             final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));

@@ -361,6 +361,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }, listener);
     }
 
+    /**
+     * Returns tasks currently executing or queued on the applier thread. Exposed for tests that need to observe queue ordering.
+     */
+    public PrioritizedEsThreadPoolExecutor.Pending[] pendingTasks() {
+        return threadPoolExecutor.getPending();
+    }
+
     public ThreadPool threadPool() {
         return threadPool;
     }

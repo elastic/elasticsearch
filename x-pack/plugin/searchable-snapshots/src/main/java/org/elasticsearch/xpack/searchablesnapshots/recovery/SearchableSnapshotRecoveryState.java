@@ -20,7 +20,16 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     private boolean remoteTranslogSet;
 
     public SearchableSnapshotRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
-        super(shardRouting, targetNode, sourceNode, new Index());
+        this(shardRouting, targetNode, sourceNode, 0);
+    }
+
+    public SearchableSnapshotRecoveryState(
+        ShardRouting shardRouting,
+        DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        int localRetries
+    ) {
+        super(shardRouting, targetNode, sourceNode, localRetries);
     }
 
     @Override

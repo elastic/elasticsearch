@@ -236,7 +236,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (serviceClosed) {
                 logger.debug("service is closed, aborting recovery: {}", indexShard.recoveryState());
                 RecoveryListener.wrapPreservingContext(recoveryListener, context)
-                    .onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null), ABORT);
+                    .onRecoveryFailure(
+                        indexShard.recoveryState(),
+                        new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null),
+                        ABORT
+                    );
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", indexShard.recoveryState());
                 final RecoverySource.Type recoveryType = recoverySource.getType();
@@ -245,6 +249,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 executor.execute(() -> {
                     RecoveryListener.wrapPreservingContext(recoveryListener, context)
                         .onRecoveryFailure(
+                            indexShard.recoveryState(),
                             new RecoveryCancelledException(
                                 indexShard.shardId(),
                                 indexShard.recoveryState().getSourceNode(),
@@ -296,6 +301,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(
+                    state,
                     new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                     FAIL_SILENT
                 );
@@ -348,6 +354,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             executor.execute(() -> {
                 stale.listener()
                     .onRecoveryFailure(
+                        state,
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                         FAIL_SILENT
                     );
@@ -393,7 +400,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
-                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
+                .onRecoveryFailure(
+                    pending.recoveryState(),
+                    new RecoveryFailedException(pending.recoveryState(), "service closing", null),
+                    ABORT
+                );
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()
@@ -694,7 +705,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), null, e), FAIL_SEND);
+            listener.onRecoveryFailure(
+                indexShard.recoveryState(),
+                new RecoveryFailedException(indexShard.recoveryState(), null, e),
+                FAIL_SEND
+            );
         }
 
         @Override

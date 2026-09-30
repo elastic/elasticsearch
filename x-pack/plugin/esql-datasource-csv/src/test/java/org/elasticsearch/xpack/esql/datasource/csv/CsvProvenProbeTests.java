@@ -261,6 +261,35 @@ public class CsvProvenProbeTests extends ESTestCase {
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, walk);
     }
 
+    /**
+     * The record cap is charged for every byte the walk consumes, including the ones it takes inside a branch to
+     * settle a lookahead rather than at the top of the loop. Each of the three cases below puts the cap exactly on
+     * such a byte, so a missing check there is the difference between a rejected record and an accepted one.
+     */
+    public void testRecordCapCountsTheSecondByteOfACrLf() throws IOException {
+        // Record two is "abcdefghi\r\n": nine bytes plus the \r reach the cap, and the \n is the byte that breaks it.
+        byte[] buf = bytes("h\nabcdefghi\r\ntail\n");
+        RecordSplitter splitter = new CsvRecordSplitter(quoted(), 10);
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
+    }
+
+    public void testRecordCapCountsTheSecondQuoteOfADoubledPair() throws IOException {
+        // The first quote of the doubled pair reaches the cap and the second breaks it, and the stream ends there -
+        // so that byte is the only one that can break it. With any content after it, the next byte trips the cap at
+        // the top of the loop instead and the case stops discriminating.
+        byte[] buf = bytes("h\n\"abcdefg\"\"");
+        RecordSplitter splitter = new CsvRecordSplitter(quoted(), 9);
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
+    }
+
+    public void testEscapeAtEndOfStreamConsumesOnlyItself() throws IOException {
+        // A lone escape char at end of stream carries nothing, so it must not be charged for a byte that is not
+        // there. The record is exactly at the cap: charging a phantom byte would reject it instead of reporting EOF.
+        byte[] buf = bytes("h\nabc\\");
+        RecordSplitter splitter = new CsvRecordSplitter(both(), 4);
+        assertEquals(-1L, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
+    }
+
     public void testExactWalkAbortsOnCancellation() {
         // A long quote-free stretch (no boundary before minSkip) so the walk runs past the cancel-check interval;
         // an always-cancelled supplier must abort promptly with TaskCancelledException rather than scan to EOF.

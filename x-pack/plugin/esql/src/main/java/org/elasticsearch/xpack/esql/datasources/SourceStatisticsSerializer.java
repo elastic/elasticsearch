@@ -866,9 +866,7 @@ public final class SourceStatisticsSerializer {
         boolean sawUnboundedSplit = false;
         boolean first = true;
         for (Map<String, Object> stats : splitStats) {
-            String fingerprint = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false
-                ? s
-                : null;
+            String fingerprint = readConfigFingerprint(stats);
             if (first) {
                 agreed = fingerprint;
                 first = false;
@@ -884,6 +882,31 @@ public final class SourceStatisticsSerializer {
                 sawUnboundedSplit = true;
             }
         }
+        attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, sawUnboundedSplit ? null : widthBound, merged);
+    }
+
+    /** One file's stamped read configuration, or null when this harvest did not record one. */
+    @Nullable
+    static String readConfigFingerprint(@Nullable Map<String, Object> stats) {
+        if (stats == null) {
+            return null;
+        }
+        return stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false ? s : null;
+    }
+
+    /**
+     * Writes the folded serve-identity onto {@code merged}. {@code mixed} means the inputs did not share one
+     * fingerprint; {@code agreed} is that fingerprint when they did (null when none of them stamped one).
+     * {@code allLicensed} is the AND of the per-file count licence, and {@code widthBound} the loosest row-width
+     * bound any input enforced — null when an input stamped none, which refuses the crossing rather than guessing it.
+     */
+    static void attachFoldedReadConfigIdentity(
+        boolean mixed,
+        @Nullable String agreed,
+        boolean allLicensed,
+        @Nullable Integer widthBound,
+        Map<String, Object> merged
+    ) {
         if (mixed) {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
         } else if (agreed != null) {
@@ -891,9 +914,9 @@ public final class SourceStatisticsSerializer {
         }
         if (allLicensed) {
             merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            // A split that stamped no bound leaves the merged count unable to say what it enforced, so it stamps
+            // An input that stamped no bound leaves the merged count unable to say what it enforced, so it stamps
             // nothing and the crossing is refused rather than guessed.
-            if (sawUnboundedSplit == false && widthBound != null) {
+            if (widthBound != null) {
                 merged.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, widthBound);
             }
         }

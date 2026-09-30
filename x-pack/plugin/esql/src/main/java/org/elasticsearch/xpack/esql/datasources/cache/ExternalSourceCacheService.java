@@ -356,6 +356,11 @@ public class ExternalSourceCacheService implements Closeable {
         putSchemaIfWithinCeiling(key, entry);
     }
 
+    /** Byte budget of the per-file schema cache (one fifth of the external cache). */
+    public long schemaBudget() {
+        return schemaBudget;
+    }
+
     /**
      * Inserts into {@link #schemaCache} only when {@code entry} fits under {@link #schemaMaxEntryBytes}.
      * Every schema write site must go through this (or an equivalent check) — admit-then-invalidate would

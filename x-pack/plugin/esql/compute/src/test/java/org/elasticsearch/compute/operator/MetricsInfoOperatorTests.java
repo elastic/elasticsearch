@@ -37,12 +37,24 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         default -> null;
     };
 
+    static final Map<String, String> DATA_STREAMS_BY_INDEX = Map.ofEntries(
+        Map.entry(".ds-k8s-2024.01.15-000001", "k8s"),
+        Map.entry(".ds-k8s-2024.01.15-000002", "k8s"),
+        Map.entry(".ds-other-2024.01.15-000001", "other"),
+        Map.entry(".ds-metrics-system.cpu-2024.01.15-000002", "metrics-system.cpu"),
+        Map.entry("partial-.ds-metrics-system.cpu-2024.01.15-000001", "metrics-system.cpu"),
+        Map.entry(".ds-histograms-2026.02.16-000001", "histograms"),
+        Map.entry(".ds-mixed-2026.02.16-000001", "mixed"),
+        Map.entry("remote_cluster:.ds-k8s-2024.01.15-000001", "remote_cluster:k8s"),
+        Map.entry("remote_cluster:.ds-k8s-2024.01.15-000002", "remote_cluster:k8s")
+    );
+
     private static final int METADATA_CHANNEL = 0;
     private static final int INDEX_CHANNEL = 1;
 
     @Override
     protected MetricsInfoOperator.Factory simple(SimpleOptions options) {
-        return new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        return new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL);
     }
 
     @Override
@@ -127,7 +139,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createInitialOperator(MetricsInfoOperator.MetricFieldLookup lookup) {
-        return new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+        return new MetricsInfoOperator.Factory(lookup, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
     }
 
     private Operator createFinalOperator() {
@@ -553,7 +565,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFactoryDescribe() {
-        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, 3, 7);
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, 3, 7);
         assertThat(factory.describe(), equalTo("MetricsInfoOperator[mode=INITIAL, metadataSourceChannel=3, indexChannel=7]"));
     }
 
@@ -561,57 +573,6 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         try (Operator op = createInitialOperator()) {
             assertThat(op.toString(), equalTo("MetricsInfoOperator[mode=INITIAL]"));
         }
-    }
-
-    public void testResolveDataStreamName() {
-        // Standard backing index format
-        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-k8s-2024.01.15-000001"), equalTo("k8s"));
-        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-my-stream-2024.01.15-000001"), equalTo("my-stream"));
-        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-logs-2024-2024.06.30-000003"), equalTo("logs-2024"));
-        // Failure store prefix
-        assertThat(MetricsInfoOperator.resolveDataStreamName(".fs-my-stream-2024.01.15-000001"), equalTo("my-stream"));
-        // Non-backing index → returned as-is
-        assertThat(MetricsInfoOperator.resolveDataStreamName("my-index"), equalTo("my-index"));
-        assertThat(MetricsInfoOperator.resolveDataStreamName("index-a"), equalTo("index-a"));
-        // Malformed → returned as-is
-        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-incomplete"), equalTo(".ds-incomplete"));
-        // Cluster-prefixed backing index → prefix preserved
-        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.ds-k8s-2024.01.15-000001"), equalTo("remote:k8s"));
-        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.fs-my-stream-2024.01.15-000001"), equalTo("remote:my-stream"));
-        // Cluster-prefixed non-backing index → returned as-is
-        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:my-index"), equalTo("remote:my-index"));
-    }
-
-    /**
-     * Backing indices mounted or rewritten by index management carry dash-terminated prefixes
-     * (searchable snapshots: partial-/restored-, shrink, downsample). These must resolve to the
-     * same data-stream name as the un-prefixed backing index so the two are not reported as
-     * separate data streams.
-     */
-    public void testResolveDataStreamNameWithBackingIndexPrefixes() {
-        // Searchable-snapshot mounts
-        assertThat(
-            MetricsInfoOperator.resolveDataStreamName("partial-.ds-metrics-system.cpu-2024.01.15-000001"),
-            equalTo("metrics-system.cpu")
-        );
-        assertThat(
-            MetricsInfoOperator.resolveDataStreamName("restored-.ds-metrics-system.cpu-2024.01.15-000001"),
-            equalTo("metrics-system.cpu")
-        );
-        // Shrink and downsample rewrites
-        assertThat(MetricsInfoOperator.resolveDataStreamName("shrink-abc123-.ds-k8s-2024.01.15-000001"), equalTo("k8s"));
-        assertThat(MetricsInfoOperator.resolveDataStreamName("downsample-1h-.ds-k8s-2024.01.15-000001"), equalTo("k8s"));
-        // Chained prefixes
-        assertThat(
-            MetricsInfoOperator.resolveDataStreamName("partial-restored-shrink-abc123-downsample-1h-.ds-k8s-2024.01.15-000001"),
-            equalTo("k8s")
-        );
-        // Failure store with a prefix
-        assertThat(MetricsInfoOperator.resolveDataStreamName("restored-.fs-my-stream-2024.01.15-000001"), equalTo("my-stream"));
-        // Cluster-prefixed, mounted backing index → cluster prefix preserved, data-stream name resolved
-        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:partial-.ds-k8s-2024.01.15-000001"), equalTo("remote:k8s"));
-        // A plain index whose name embeds ".ds" without the dash boundary is not a backing index
-        assertThat(MetricsInfoOperator.resolveDataStreamName("my.ds-index-2024.01.15-000001"), equalTo("my.ds-index-2024.01.15-000001"));
     }
 
     /**
@@ -748,7 +709,9 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             }
             return null;
         };
-        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
+        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL).get(
+            ctx
+        );
     }
 
     /**
@@ -799,7 +762,9 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             }
             return null;
         };
-        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
+        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL).get(
+            ctx
+        );
     }
 
     /**
@@ -1490,8 +1455,12 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
         try (
-            MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)
-                .get(ctx)
+            MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(
+                SIMPLE_LOOKUP,
+                DATA_STREAMS_BY_INDEX,
+                METADATA_CHANNEL,
+                INDEX_CHANNEL
+            ).get(ctx)
         ) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
@@ -1610,9 +1579,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     /**
      * When the _index block contains a cluster-prefixed backing index name
-     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
-     * strips the backing-index suffix but preserves the cluster prefix, producing
-     * "remote_cluster:k8s".
+     * the supplied data-stream lookup preserves the cluster qualifier in the output.
      */
     public void testRemoteClusterPrefixPreservedForBackingIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
@@ -1634,9 +1601,34 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Local index names (no cluster prefix) pass through unchanged.
-     */
+    /** Membership overrides naming conventions, while unattached indices retain their names. */
+    public void testDataStreamMembershipLookup() {
+        String clusterPrefix = randomBoolean() ? "remote_cluster:" : "";
+        String customIndex = clusterPrefix + "custom-backing-index";
+        String backingIndex = clusterPrefix + ".ds-misleading-name-2024.01.15-000001";
+        String standaloneIndex = clusterPrefix + "partial-.ds-metrics-2024.01.15-000002";
+        String dataStream = clusterPrefix + "metrics";
+        Map<String, String> dataStreams = Map.of(customIndex, dataStream, backingIndex, dataStream);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (
+            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, dataStreams, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext())
+        ) {
+            for (String index : List.of(customIndex, backingIndex, standaloneIndex)) {
+                op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", index));
+            }
+            op.finish();
+            Page output = op.getOutput();
+            assertNotNull(output);
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of(dataStream, standaloneIndex)));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Local index names without a parent data stream pass through unchanged. */
     public void testLocalIndexNameUnchanged() {
         BlockFactory blockFactory = driverContext().blockFactory();
         try (Operator op = createInitialOperator()) {
@@ -1660,9 +1652,12 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(
-            ctx
-        );
+        MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            DATA_STREAMS_BY_INDEX,
+            METADATA_CHANNEL,
+            INDEX_CHANNEL
+        ).get(ctx);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
         assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));

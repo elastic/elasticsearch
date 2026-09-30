@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,8 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
@@ -142,16 +139,23 @@ public class MetricsInfoOperator implements Operator {
      * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
      *
      * @param fieldLookup          on-demand lookup for metric field metadata
+     * @param dataStreamsByIndex   concrete index names mapped to their parent data streams, including cluster qualifiers
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel         channel index for {@code _index} block
      */
-    public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
+    public record Factory(
+        MetricFieldLookup fieldLookup,
+        Map<String, String> dataStreamsByIndex,
+        int metadataSourceChannel,
+        int indexChannel
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
                 Mode.INITIAL,
                 driverContext.blockFactory(),
                 fieldLookup,
+                dataStreamsByIndex,
                 metadataSourceChannel,
                 indexChannel,
                 null
@@ -177,7 +181,7 @@ public class MetricsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
         }
 
         @Override
@@ -202,8 +206,9 @@ public class MetricsInfoOperator implements Operator {
     private final CircuitBreaker breaker;
     private long trackedBytes;
 
-    /** INITIAL-mode fields (null in FINAL mode). */
+    /** Fields used only in INITIAL mode. */
     private final MetricFieldLookup fieldLookup;
+    private final Map<String, String> dataStreamsByIndex;
     private final int metadataSourceChannel;
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
@@ -220,6 +225,7 @@ public class MetricsInfoOperator implements Operator {
         Mode mode,
         BlockFactory blockFactory,
         MetricFieldLookup fieldLookup,
+        Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
         int indexChannel,
         int[] channels
@@ -228,6 +234,7 @@ public class MetricsInfoOperator implements Operator {
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
+        this.dataStreamsByIndex = dataStreamsByIndex;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
@@ -267,7 +274,7 @@ public class MetricsInfoOperator implements Operator {
                 }
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = resolveDataStreamName(indexName);
+                String dataStreamName = dataStreamsByIndex.getOrDefault(indexName, indexName);
                 Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
@@ -409,42 +416,6 @@ public class MetricsInfoOperator implements Operator {
         trackSetAdd(info.units, fieldInfo.unit());
         trackSetAdd(info.fieldTypes, fieldInfo.fieldType());
         trackSetAdd(info.metricTypes, fieldInfo.metricType());
-    }
-
-    /**
-     * Matches the default backing-index / failure-store naming convention produced by
-     * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
-     * (or the {@code .fs-} variant).
-     * <p>
-     * Index management can prepend dash-terminated prefixes to a backing index when it is
-     * mounted or rewritten in place, for example {@code partial-} and {@code restored-}
-     * (searchable snapshots), {@code shrink-{uuid}-}, and {@code downsample-{interval}-}.
-     * These prefixes can also be chained, e.g. {@code partial-restored-shrink-{uuid}-.ds-...}.
-     * The optional {@code (?:.*-)?} group ignores any such prefix while still requiring the
-     * {@code .ds-}/{@code .fs-} marker, so the captured data-stream name is unaffected.
-     * <p>
-     * Group 1 captures the data-stream name.
-     */
-    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
-
-    /**
-     * Resolves the data-stream name from a concrete backing-index name.
-     * <p>
-     * If the name matches the standard format produced by
-     * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
-     * including any dash-terminated prefixes added when a backing index is mounted or
-     * rewritten (e.g. {@code partial-}, {@code restored-}, {@code shrink-{uuid}-},
-     * {@code downsample-{interval}-}), the data-stream name is extracted. Otherwise the
-     * raw index name is returned unchanged.
-     * <p>
-     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
-     * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
-     */
-    static String resolveDataStreamName(String indexName) {
-        var split = RemoteClusterAware.splitIndexName(indexName);
-        Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
-        String resolved = m.matches() ? m.group(1) : split.indexExpression();
-        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {

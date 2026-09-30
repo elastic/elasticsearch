@@ -129,15 +129,27 @@ public class TsInfoOperator implements Operator {
      * Factory for INITIAL mode (data nodes).
      *
      * @param fieldLookup          on-demand lookup for metric field metadata
+     * @param dataStreamsByIndex   concrete index names mapped to their parent data streams, including cluster qualifiers
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel          channel index for {@code _index} block
      */
-    public record Factory(MetricsInfoOperator.MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel)
-        implements
-            OperatorFactory {
+    public record Factory(
+        MetricsInfoOperator.MetricFieldLookup fieldLookup,
+        Map<String, String> dataStreamsByIndex,
+        int metadataSourceChannel,
+        int indexChannel
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(Mode.INITIAL, driverContext.blockFactory(), fieldLookup, metadataSourceChannel, indexChannel, null);
+            return new TsInfoOperator(
+                Mode.INITIAL,
+                driverContext.blockFactory(),
+                fieldLookup,
+                dataStreamsByIndex,
+                metadataSourceChannel,
+                indexChannel,
+                null
+            );
         }
 
         @Override
@@ -155,7 +167,7 @@ public class TsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
+            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
         }
 
         @Override
@@ -180,8 +192,9 @@ public class TsInfoOperator implements Operator {
     private final CircuitBreaker breaker;
     private long trackedBytes;
 
-    /** INITIAL-mode fields (null in FINAL mode). */
+    /** Fields used only in INITIAL mode. */
     private final MetricsInfoOperator.MetricFieldLookup fieldLookup;
+    private final Map<String, String> dataStreamsByIndex;
     private final int metadataSourceChannel;
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 7 output columns. Null in INITIAL mode. */
@@ -198,6 +211,7 @@ public class TsInfoOperator implements Operator {
         Mode mode,
         BlockFactory blockFactory,
         MetricsInfoOperator.MetricFieldLookup fieldLookup,
+        Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
         int indexChannel,
         int[] channels
@@ -206,6 +220,7 @@ public class TsInfoOperator implements Operator {
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
+        this.dataStreamsByIndex = dataStreamsByIndex;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
@@ -245,7 +260,7 @@ public class TsInfoOperator implements Operator {
                 }
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = MetricsInfoOperator.resolveDataStreamName(indexName);
+                String dataStreamName = dataStreamsByIndex.getOrDefault(indexName, indexName);
                 Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;

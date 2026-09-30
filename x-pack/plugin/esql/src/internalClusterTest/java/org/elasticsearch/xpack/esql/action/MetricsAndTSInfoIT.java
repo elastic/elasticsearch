@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -22,10 +30,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+    }
 
     record Doc(
         Collection<String> project,
@@ -149,6 +164,67 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
                     .get();
             }
             client().admin().indices().prepareRefresh(index).get();
+        }
+    }
+
+    /** Both commands must observe backing indices being attached to and removed from a data stream. */
+    public void testCustomBackingIndexNames() {
+        String dataStream = "metrics-custom";
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("metrics-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dataStream))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+            )
+        );
+        assertAcked(
+            client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(
+                        DataStreamAction.addBackingIndex(dataStream, "index-1"),
+                        DataStreamAction.addBackingIndex(dataStream, "index-2")
+                    )
+                )
+            )
+        );
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            for (String source : List.of(dataStream, "index-1,index-2")) {
+                try (
+                    var response = run(
+                        "TS " + source + " | " + command + " | KEEP data_stream | MV_EXPAND data_stream | STATS BY data_stream"
+                    )
+                ) {
+                    assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(dataStream))));
+                }
+            }
+        }
+        assertAcked(
+            client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(DataStreamAction.removeBackingIndex(dataStream, "index-1"))
+                )
+            )
+        );
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            try (var response = run("TS index-1 | " + command + " | KEEP data_stream | MV_EXPAND data_stream | STATS BY data_stream")) {
+                assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of("index-1"))));
+            }
         }
     }
 

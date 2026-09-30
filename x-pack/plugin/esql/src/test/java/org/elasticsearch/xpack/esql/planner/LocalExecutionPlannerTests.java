@@ -21,6 +21,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +58,9 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -1264,6 +1269,51 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(rows, equalTo(expectedRows));
     }
 
+    /** Only membership in the selected project determines the parent data stream, regardless of the index name. */
+    public void testResolveDataStreamName() {
+        List<String> backingNames = List.of(
+            "custom-backing-index",
+            ".ds-misleading-name-2024.01.15-000001",
+            "partial-.ds-metrics-2024.01.15-000002",
+            "restored-.ds-metrics-2024.01.15-000003",
+            "shrink-abc123-.ds-metrics-2024.01.15-000004",
+            "downsample-1h-.ds-metrics-2024.01.15-000005",
+            "partial-restored-shrink-abc123-downsample-1h-.ds-metrics-2024.01.15-000006"
+        );
+        List<Index> backingIndices = new ArrayList<>();
+        var builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (String name : backingNames) {
+            var index = IndexMetadata.builder(name)
+                .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            builder.put(index, false);
+            backingIndices.add(index.getIndex());
+        }
+        String standaloneIndex = "partial-.ds-metrics-2024.01.15-000007";
+        builder.put(
+            IndexMetadata.builder(standaloneIndex).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+        );
+        builder.put(DataStreamTestHelper.newInstance("metrics", backingIndices));
+        ProjectMetadata metadata = builder.build();
+        for (String prefix : List.of("", "remote:")) {
+            for (String name : backingNames) {
+                assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + name), equalTo(prefix + "metrics"));
+            }
+            assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + standaloneIndex), equalTo(prefix + standaloneIndex));
+            String missingIndex = prefix + ".ds-deleted-2024.01.15-000001";
+            assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, missingIndex), equalTo(missingIndex));
+            assertThat(
+                LocalExecutionPlanner.resolveDataStreamName(
+                    ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+                    prefix + backingNames.getFirst()
+                ),
+                equalTo(prefix + backingNames.getFirst())
+            );
+        }
+    }
+
     public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForEisJina() throws IOException {
         assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, null, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
     }
@@ -1416,6 +1466,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
             null, // RemoteFetchService - not needed for these tests

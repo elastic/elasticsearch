@@ -13,10 +13,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -100,6 +103,80 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
     private void resetSkipUnavailableDefaults() {
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
+    }
+
+    /** Identical index names on different clusters must resolve using each cluster's own data-stream membership. */
+    public void testMetricsInfoWithCustomBackingIndex() {
+        String indexName = "custom-backing-index";
+        for (String clusterAlias : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1)) {
+            Client client = client(clusterAlias);
+            String dataStream = clusterAlias.equals(LOCAL_CLUSTER) ? "metrics-local" : "metrics-remote";
+            assertAcked(
+                client.admin()
+                    .indices()
+                    .prepareCreate(indexName)
+                    .setSettings(Settings.builder().put("index.mode", "time_series").putList("index.routing_path", "host"))
+                    .setMapping(
+                        "@timestamp",
+                        "type=date",
+                        "host",
+                        "type=keyword,time_series_dimension=true",
+                        "cpu",
+                        "type=double,time_series_metric=gauge"
+                    )
+            );
+            client.prepareIndex(indexName).setSource("@timestamp", "2024-04-15T00:00:00Z", "host", "a", "cpu", 0.5).get();
+            client.admin().indices().prepareRefresh(indexName).get();
+            assertAcked(
+                client.execute(
+                    TransportPutComposableIndexTemplateAction.TYPE,
+                    new TransportPutComposableIndexTemplateAction.Request("metrics-template").indexTemplate(
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStream))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
+                    )
+                )
+            );
+            assertAcked(
+                client.execute(
+                    CreateDataStreamAction.INSTANCE,
+                    new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+                )
+            );
+            assertAcked(
+                client.execute(
+                    ModifyDataStreamsAction.INSTANCE,
+                    new ModifyDataStreamsAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        TEST_REQUEST_TIMEOUT,
+                        List.of(DataStreamAction.addBackingIndex(dataStream, indexName))
+                    )
+                )
+            );
+        }
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            for (String source : List.of(
+                indexName + "," + REMOTE_CLUSTER_1 + ":" + indexName,
+                "metrics-local," + REMOTE_CLUSTER_1 + ":metrics-remote"
+            )) {
+                try (
+                    var response = runQuery(
+                        "TS "
+                            + source
+                            + " | "
+                            + command
+                            + " | KEEP data_stream | MV_EXPAND data_stream | STATS BY data_stream | SORT data_stream",
+                        false
+                    )
+                ) {
+                    assertThat(
+                        getValuesList(response),
+                        equalTo(List.of(List.of(REMOTE_CLUSTER_1 + ":metrics-remote"), List.of("metrics-local")))
+                    );
+                }
+            }
+        }
     }
 
     public void testSuccessfulPathways() throws Exception {

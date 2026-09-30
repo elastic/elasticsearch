@@ -702,8 +702,7 @@ public class ExternalSourceCacheService implements Closeable {
             delta.mtimeMillis(),
             delta.fingerprint(),
             delta.readConfig(),
-            delta.rowCountReadConfigIndependent(),
-            delta.rowCountWidthBound()
+            delta.rowCountReadConfigIndependent()
         );
     }
 
@@ -721,8 +720,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         String fingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent,
-        @Nullable Integer rowCountWidthBound
+        boolean rowCountReadConfigIndependent
     ) {
         if (lastOrdinal < 0) {
             return null;
@@ -735,7 +733,7 @@ public class ExternalSourceCacheService implements Closeable {
             }
             stripes.add(stripe);
         }
-        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readConfig, rowCountReadConfigIndependent, rowCountWidthBound);
+        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readConfig, rowCountReadConfigIndependent);
     }
 
     /**
@@ -754,8 +752,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         String fingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent,
-        @Nullable Integer rowCountWidthBound
+        boolean rowCountReadConfigIndependent
     ) {
         Map<String, Object> whole = stripes.size() == 1
             ? new HashMap<>(stripes.get(0))
@@ -778,7 +775,7 @@ public class ExternalSourceCacheService implements Closeable {
             // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
             // unchunked one can — a safe-miss, but one with no reason behind it.
             if (rowCountReadConfigIndependent) {
-                ExternalStats.putRowCountLicence(whole, rowCountWidthBound);
+                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
         }
         return whole;
@@ -953,58 +950,10 @@ public class ExternalSourceCacheService implements Closeable {
             return contribution;
         }
         if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
-            && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount
-            && crossingIsWidthSafe(entry, contribution)) {
+            && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
             return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
         }
         return null;
-    }
-
-    /**
-     * True when the contribution's read would have aborted anywhere this entry's read would: the producer's row-width
-     * bound is no looser than the consumer's, so a producer that ran to completion proves the consumer would too.
-     * <p>
-     * This is what stops the licence masking an abort. Reads do not bound a row's width alike — a positional read is
-     * bounded by the pinned schema's width, a declared read by the bound file's own header, a headerless declared read
-     * not at all — so on a file whose later rows are wider than the pinned width the declared read completes and
-     * commits the physical count where the positional read errors. Serving that count to the positional reader makes
-     * the query answer where its own scan fails, and flap with cache state.
-     * <p>
-     * A bound of {@link ExternalStats#NO_WIDTH_BOUND} is a format that cannot fail on width and crosses to anything.
-     * An ABSENT bound refuses the crossing: it means the producer did not say, and the safe reading of silence here is
-     * a re-scan rather than an answer. That direction costs a cold read; the other serves where it should error.
-     */
-    private static boolean crossingIsWidthSafe(SchemaCacheEntry entry, Map<String, Object> contribution) {
-        Integer producer = widthBound(contribution);
-        if (producer == null) {
-            return false;
-        }
-        if (producer == ExternalStats.NO_WIDTH_BOUND) {
-            return true;
-        }
-        Integer consumer = widthBound(entry.safeMetadata());
-        return consumer != null && producer <= consumer;
-    }
-
-    /**
-     * The loosest bound in a set, or {@code null} when any member stated none. A merged count crosses only as safely as
-     * its least-bounded input, and an input that said nothing leaves the merge unable to say what it enforced.
-     */
-    @Nullable
-    private static Integer loosestBound(List<Integer> bounds) {
-        Integer loosest = null;
-        for (Integer bound : bounds) {
-            if (bound == null) {
-                return null;
-            }
-            loosest = loosest == null ? bound : Math.max(loosest, bound);
-        }
-        return loosest;
-    }
-
-    @Nullable
-    private static Integer widthBound(Map<String, Object> metadata) {
-        return metadata != null && metadata.get(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY) instanceof Number n ? n.intValue() : null;
     }
 
     /**
@@ -1041,8 +990,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         String configFingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent,
-        @Nullable Integer rowCountWidthBound
+        boolean rowCountReadConfigIndependent
     ) {
         Map<String, Object> base = new HashMap<>();
         if (mtimeMillis >= 0) {
@@ -1055,9 +1003,7 @@ public class ExternalSourceCacheService implements Closeable {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
         if (rowCountReadConfigIndependent) {
-            // Re-attached together: dropped here, the crossing check sees no bound and refuses every crossing — the
-            // safe direction, but it stops a strict dataset warming without saying so.
-            ExternalStats.putRowCountLicence(base, rowCountWidthBound);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }
@@ -1076,7 +1022,6 @@ public class ExternalSourceCacheService implements Closeable {
         String fingerprint,
         String readConfig,
         boolean rowCountReadConfigIndependent,
-        @Nullable Integer rowCountWidthBound,
         long stripeSize
     ) {}
 
@@ -1158,10 +1103,7 @@ public class ExternalSourceCacheService implements Closeable {
         // carried it — one unlicensed fragment means part of this cover came from a policy that can drop rows.
         boolean licensed = fragments.isEmpty() == false
             && fragments.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
-        Integer widthBound = licensed
-            ? loosestBound(fragments.stream().map(SourceStatsContribution.StripeFragment::rowCountWidthBound).toList())
-            : null;
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, widthBound, stripeSize);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, stripeSize);
     }
 
     /**
@@ -1239,16 +1181,7 @@ public class ExternalSourceCacheService implements Closeable {
             // so any one of them carries the chain's — and the licence rides the same way. Hardcoding it off here
             // would leave a chunked FAIL_FAST read unable to license the crossing a whole-file FAIL_FAST read can,
             // an asymmetry with no reason behind it.
-            maps.add(
-                toFlatMap(
-                    f.stats(),
-                    f.mtimeMillis(),
-                    f.configFingerprint(),
-                    f.readConfig(),
-                    f.rowCountReadConfigIndependent(),
-                    f.rowCountWidthBound()
-                )
-            );
+            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readConfig(), f.rowCountReadConfigIndependent()));
         }
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
@@ -1257,14 +1190,7 @@ public class ExternalSourceCacheService implements Closeable {
         // policy, so it holds only if EVERY fragment carried it.
         boolean licensed = chain.isEmpty() == false
             && chain.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
-        return mergeStripesAndRekey(
-            maps,
-            mtimeMillis,
-            fingerprint,
-            chain.isEmpty() ? null : chain.get(0).readConfig(),
-            licensed,
-            licensed ? loosestBound(chain.stream().map(SourceStatsContribution.StripeFragment::rowCountWidthBound).toList()) : null
-        );
+        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readConfig(), licensed);
     }
 
     /**
@@ -1530,7 +1456,7 @@ public class ExternalSourceCacheService implements Closeable {
                 return stripeMap;
             }
             return null; // ordinal missing — knowledge incomplete, keep accumulating
-        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig(), delta.rowCountReadConfigIndependent(), delta.rowCountWidthBound());
+        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig(), delta.rowCountReadConfigIndependent());
     }
 
     /**
@@ -1567,16 +1493,7 @@ public class ExternalSourceCacheService implements Closeable {
         // typed contributions to the wire map at this boundary (mirrors foldFragments).
         List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
         for (SourceStatsContribution.WholeFile wf : wholeFile) {
-            maps.add(
-                toFlatMap(
-                    wf.stats(),
-                    wf.mtimeMillis(),
-                    wf.configFingerprint(),
-                    wf.readConfig(),
-                    wf.rowCountReadConfigIndependent(),
-                    wf.rowCountWidthBound()
-                )
-            );
+            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint(), wf.readConfig(), wf.rowCountReadConfigIndependent()));
         }
         if (maps.size() == 1) {
             return maps.get(0);

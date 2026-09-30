@@ -862,8 +862,6 @@ public final class SourceStatisticsSerializer {
         String agreed = null;
         boolean mixed = false;
         boolean allLicensed = true;
-        Integer widthBound = null;
-        boolean sawUnboundedSplit = false;
         boolean first = true;
         for (Map<String, Object> stats : splitStats) {
             String fingerprint = readConfigFingerprint(stats);
@@ -874,15 +872,8 @@ public final class SourceStatisticsSerializer {
                 mixed = true;
             }
             allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
-            // The loosest bound any split enforced governs the merged count: the merged number is only as safe to
-            // cross as the least-bounded read that contributed to it.
-            if (stats.get(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY) instanceof Number n) {
-                widthBound = widthBound == null ? n.intValue() : Math.max(widthBound, n.intValue());
-            } else {
-                sawUnboundedSplit = true;
-            }
         }
-        attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, sawUnboundedSplit ? null : widthBound, merged);
+        attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, merged);
     }
 
     /** One file's stamped read configuration, or null when this harvest did not record one. */
@@ -897,25 +888,16 @@ public final class SourceStatisticsSerializer {
     /**
      * Writes the folded serve-identity onto {@code merged}. {@code mixed} means the inputs did not share one
      * fingerprint; {@code agreed} is that fingerprint when they did (null when none of them stamped one).
-     * {@code allLicensed} is the AND of the per-file count licence, and {@code widthBound} the loosest row-width
-     * bound any input enforced — null when an input stamped none, which refuses the crossing rather than guessing it.
+     * {@code allLicensed} is the AND of the per-file count licence.
      */
-    static void attachFoldedReadConfigIdentity(
-        boolean mixed,
-        @Nullable String agreed,
-        boolean allLicensed,
-        @Nullable Integer widthBound,
-        Map<String, Object> merged
-    ) {
+    static void attachFoldedReadConfigIdentity(boolean mixed, @Nullable String agreed, boolean allLicensed, Map<String, Object> merged) {
         if (mixed) {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
         } else if (agreed != null) {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
         }
         if (allLicensed) {
-            // An input that stamped no bound leaves the merged count unable to say what it enforced, so the licence
-            // goes out without one and the crossing is refused rather than guessed.
-            ExternalStats.putRowCountLicence(merged, widthBound);
+            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
     }
 

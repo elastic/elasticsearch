@@ -87,10 +87,7 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.STRIPE_GRID_KEY,
         // A licence attached to the row count, not a measurement of its own: it records that the producing policy
         // makes the count read-config-independent. Invalidated with the entry that carries it.
-        ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY,
-        // The bound that licence was granted under. Bookkeeping about the count rather than a measurement of the
-        // source, and invalidated with the entry that carries it, exactly as the licence is.
-        ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY
+        ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
     );
 
     /**
@@ -159,13 +156,7 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         /** Re-attached by the CALLER after the merge, because its correct fold is caller-specific. */
         CALLER_REATTACHED,
         /** Per-column families and cache-internal bookkeeping, folded or dropped by the compact model's own rules. */
-        MODEL_INTERNAL,
-        /**
-         * The loosest value across every input, and absent when any input is silent. For a bound that decides whether a
-         * count may cross, the merged count is only as safe as the least-bounded read behind it, and an input that
-         * stated no bound leaves the merge unable to say what it enforced.
-         */
-        LOOSEST
+        MODEL_INTERNAL
     }
 
     private static final Map<String, FoldBehaviour> FOLD_BEHAVIOUR = Map.ofEntries(
@@ -176,7 +167,6 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         Map.entry(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, FoldBehaviour.MODEL_INTERNAL),
         Map.entry(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, FoldBehaviour.CARRIED_IF_UNANIMOUS),
         Map.entry(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, FoldBehaviour.AND),
-        Map.entry(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, FoldBehaviour.LOOSEST),
         // The cache-identity pair: stripes within one entry share an mtime, files in a glob do not, so the right
         // fold depends on who is calling. mergeStripesAndRekey re-attaches them from the entry it is committing to.
         Map.entry(ExternalStats.MTIME_MILLIS_KEY, FoldBehaviour.CALLER_REATTACHED),

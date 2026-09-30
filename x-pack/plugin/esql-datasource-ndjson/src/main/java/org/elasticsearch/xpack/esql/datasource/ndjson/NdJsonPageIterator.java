@@ -715,9 +715,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
                                 rowCountReadConfigIndependent,
-                                // NDJSON binds by key and has no row-width concept, so its count cannot be masking a
-                                // width abort and crosses to any read.
-                                ExternalStats.NO_WIDTH_BOUND,
                                 fullSchema
                             );
                         }
@@ -755,9 +752,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
         if (rowCountReadConfigIndependent) {
-            // NDJSON binds by key with no row-width concept, so its count cannot be masking a width abort and
-            // crosses to any read.
-            ExternalStats.putRowCountLicence(base, ExternalStats.NO_WIDTH_BOUND);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

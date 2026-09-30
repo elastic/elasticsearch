@@ -58,12 +58,6 @@ final class RunningFileStatsFold {
     private boolean fingerprintSeen;
     private boolean mixedFingerprint;
     private boolean allLicensed = true;
-    /**
-     * The loosest row-width bound any accepted file enforced, and whether one stamped none. A merged count is only as
-     * safe to cross as its least-bounded input, and an input that said nothing leaves the merge unable to say.
-     */
-    private Integer loosestWidthBound;
-    private boolean sawUnboundedFile;
 
     private final Set<String> invalidCountColumns = new HashSet<>();
     private final Set<String> unsignedForeignDomainColumns = new HashSet<>();
@@ -146,13 +140,7 @@ final class RunningFileStatsFold {
             return finishSingle(single);
         }
         Map<String, Object> merged = new HashMap<>(accumulator.toMap());
-        SourceStatisticsSerializer.attachFoldedReadConfigIdentity(
-            mixedFingerprint,
-            agreedFingerprint,
-            allLicensed,
-            sawUnboundedFile ? null : loosestWidthBound,
-            merged
-        );
+        SourceStatisticsSerializer.attachFoldedReadConfigIdentity(mixedFingerprint, agreedFingerprint, allLicensed, merged);
         return finishMerged(merged);
     }
 
@@ -301,11 +289,6 @@ final class RunningFileStatsFold {
             mixedFingerprint = true;
         }
         allLicensed &= Boolean.TRUE.equals(flat.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
-        if (flat.get(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY) instanceof Number widthBound) {
-            loosestWidthBound = loosestWidthBound == null ? widthBound.intValue() : Math.max(loosestWidthBound, widthBound.intValue());
-        } else {
-            sawUnboundedFile = true;
-        }
     }
 
     private void fail(String location, String reason) {

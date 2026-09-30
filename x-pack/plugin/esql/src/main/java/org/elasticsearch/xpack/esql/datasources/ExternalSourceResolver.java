@@ -4057,20 +4057,18 @@ public class ExternalSourceResolver {
      * concept. So a narrower strict declaration's own {@code COUNT(*)} commits the physical record count — the same
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
-     * The direction that used to be open ran the other way. A read bound POSITIONALLY — a pinned-inferred read —
+     * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
+     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
      * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
      * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
      * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
-     * matches on path, mtime and config fingerprint, so the licence carried that count back to the positional reader,
-     * which then answered where its own scan errors — a masked abort rather than a wrong number, flapping with cache
-     * state.
-     * <p>
-     * That is closed. The producer stamps the row-width bound it enforced beside the licence
-     * ({@link ExternalStats#ROW_COUNT_WIDTH_BOUND_KEY}), and {@code ExternalSourceCacheService} lets a count cross
-     * only toward a read that is at least as tolerant: completing under a tighter bound proves completion under a
-     * looser one, so that direction is safe and the reverse is refused. Withdrawing the licence would have closed it
-     * too and stopped every strict dataset warming; scoping it keeps every safe crossing, including two
-     * differently-declared reads of one file whose bounds agree.
+     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
+     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
+     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
+     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
+     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
+     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
+     * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the

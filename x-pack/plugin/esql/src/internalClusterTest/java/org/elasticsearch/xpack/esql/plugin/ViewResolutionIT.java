@@ -59,9 +59,25 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
             }
+        }
+    }
 
-            // in combination with index
+    public void testWildcardsMatchViewsWithMixedViewIndexResolution() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
+
+        indexRandom(
+            true,
+            false,
+            prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")),
+            prepareIndex("test-index").setSource(Map.of("id", randomIdentifier(), "source", "test-index"))
+        );
+        try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-index"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }
@@ -69,7 +85,15 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
             try (var response = run(syncEsqlQueryRequest("FROM test-view,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }

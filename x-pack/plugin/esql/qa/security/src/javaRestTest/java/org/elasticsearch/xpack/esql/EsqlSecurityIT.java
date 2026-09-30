@@ -756,7 +756,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
 
-        resp = runESQLCommand("view_dls_user", "SET wildcards_match_views=false; FROM view-user*");
+        resp = runESQLCommand("user1", "SET wildcards_match_views=false; FROM view-user*");
         // matches no views, returns empty result
         assertThat(entityAsMap(resp).get("columns"), equalTo(List.of(Map.of("name", "<no-fields>", "type", "null"))));
     }

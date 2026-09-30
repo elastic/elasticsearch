@@ -262,7 +262,7 @@ final class PlainValues {
                 return null;
             }
             long first = from;
-            while (first < to && source.code(first) == REPEAT) {
+            while (first < to && repeatCode(source, first) == REPEAT) {
                 first++;
             }
             if (first == to) {
@@ -291,7 +291,7 @@ final class PlainValues {
             final long base = chunks.uncompressedLength();
             long nulls = 0;
             for (long v = first; v < to; v++) {
-                final long code = source.code(v);
+                final long code = repeatCode(source, v);
                 final int length = source.length(v);
                 // A repeat starts where the value it repeats did, which lies inside the run: no repeat follows a
                 // null, and the run's first slot is not one. So every start maps by the same offset.
@@ -344,6 +344,22 @@ final class PlainValues {
                 lastChunk - firstChunk,
                 sourceChunks.chunkStart(lastChunk) - sourceChunks.chunkStart(firstChunk)
             );
+        }
+
+        /**
+         * The code of the slot at {@code v} as a repeat or not, whichever way the source stored it. A source written
+         * by a copy may hold a repeat at the start of a block of lengths as the length of the value it repeats,
+         * starting over bytes already behind it; here that is a repeat all the same, since this stream lays out
+         * its own blocks and would otherwise read those bytes from where the value before ends.
+         */
+        private static long repeatCode(Reader source, long v) throws IOException {
+            final long code = source.code(v);
+            if (code > LENGTH_BASE && v > 0 && source.constantLength() < 0 && source.code(v - 1) != NULL_CODE) {
+                if (source.start(v) < source.start(v - 1) + source.length(v - 1)) {
+                    return REPEAT;
+                }
+            }
+            return code;
         }
 
         /** Appends the source's bytes in {@code [begin, end)} as they are read, a bounded piece at a time. */

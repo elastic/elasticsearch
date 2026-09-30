@@ -107,6 +107,64 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
         assertEquals(1, written.copies());
     }
 
+    /**
+     * A column written by a copy records a repeat that lands on a block start as the value it repeats, starting over
+     * bytes already written. Copying from such a column in turn has to keep reading those slots as they were.
+     */
+    public void testCopyingFromAColumnThatWasCopied() throws IOException {
+        for (int iter = 0; iter < 60; iter++) {
+            final boolean nulls = randomBoolean();
+            final int maxSlots = randomBoolean() ? 1 : 3;
+            final BytesRef[][] source = randomSlots(between(1500, 4000), maxSlots, nulls, -1);
+            final ChunkCodec codec = randomChunkCodec();
+            final StringColumnOptions options = options(codec);
+            final BytesRef[][] prefix = randomSlots(between(1, 127), maxSlots, nulls, -1);
+            final BytesRef[][] middle = concat(prefix, source);
+            final byte[] segmentId = new byte[16];
+            random().nextBytes(segmentId);
+            try (Directory dir = newDirectory()) {
+                final StringColumnMetadata sourceMeta;
+                try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "src", segmentId)) {
+                    sourceMeta = StringColumnWriter.write(
+                        source.length,
+                        totals(source),
+                        () -> cursor(source),
+                        options,
+                        null,
+                        dir,
+                        IOContext.DEFAULT,
+                        out.outputs()
+                    );
+                }
+                final StringColumnMetadata.Plain midMeta;
+                try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, "src", segmentId)) {
+                    final PlainStringColumnReader reader = (PlainStringColumnReader) StringColumnReader.open(
+                        plainOf(sourceMeta),
+                        in.inputs()
+                    );
+                    final PlainRun run = new PlainRun(reader.plainValues(), 0, reader.numValues(), reader.valuesSorted());
+                    midMeta = writeAndCheck(dir, "mid", segmentId, middle, options, prefix.length, run, null);
+                }
+                // Now the copied column is itself the source of a run, placed off its blocks of lengths.
+                final BytesRef[][] prefix2 = randomSlots(between(1, 127), maxSlots, nulls, -1);
+                final int from = between(0, 200);
+                final int to = between(middle.length - 200, middle.length);
+                assertTrue(from < to);
+                final BytesRef[][] target = concat(prefix2, Arrays.copyOfRange(middle, from, to));
+                try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, "mid", segmentId)) {
+                    final PlainStringColumnReader reader = (PlainStringColumnReader) StringColumnReader.open(midMeta, in.inputs());
+                    final PlainRun run = new PlainRun(
+                        reader.plainValues(),
+                        reader.firstValueAddress(from),
+                        reader.firstValueAddress(to),
+                        reader.valuesSorted()
+                    );
+                    writeAndCheck(dir, "dst", segmentId, target, options(codec), prefix2.length, run, null);
+                }
+            }
+        }
+    }
+
     /** Chunks are only copied into a stream under the codec they were stored with; anything else is written value by value. */
     public void testAnotherCodecIsNotCopied() throws IOException {
         final BytesRef[][] source = randomSlots(2000, 3, true, -1);

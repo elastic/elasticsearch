@@ -73,6 +73,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             prepareIndex("test-index").setSource(Map.of("id", randomIdentifier(), "source", "test-index"))
         );
         try (var view = createView("test-view", "FROM view-index")) {
+            // concrete index and view
             try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
@@ -81,6 +82,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }
+            // concrete index and view and common pattern
             try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index,test-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
@@ -89,6 +91,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }
+            // concrete view and index pattern
             try (var response = run(syncEsqlQueryRequest("FROM test-view,test-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
@@ -97,6 +100,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index");
             }
+            // concrete index and view pattern
             try (var response = run(syncEsqlQueryRequest("FROM test-index,test-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index");

@@ -566,9 +566,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/159842
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values}"
   issue: https://github.com/elastic/elasticsearch/issues/159560
@@ -616,9 +613,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
   method: testWhereAndRequestFilterPruneIdentically
   issue: https://github.com/elastic/elasticsearch/issues/160084
-- class: org.elasticsearch.indices.IndicesLifecycleListenerIT
-  method: testRelocationFailureNotRetriedForever
-  issue: https://github.com/elastic/elasticsearch/issues/160100
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testStopNestedSubquery
   issue: https://github.com/elastic/elasticsearch/issues/160115

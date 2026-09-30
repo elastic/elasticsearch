@@ -2092,6 +2092,72 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(left.get(FileMetadataColumns.MODIFIED));
     }
 
+    /** A hive-only retain set has an empty overlay, so siblings in one directory are the same map. */
+    public void testHiveOnlyRetainSetSharesDirectoryTuple() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=01/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(2, splits.size());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertSame(left, right);
+        assertEquals(Map.of("year", 2024, "month", 1), left);
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
+    /** Each parent directory publishes one tuple. Files in that directory share it; the other directory does not. */
+    public void testTwoDirectoriesPublishTwoSharedTuples() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/c.parquet"), 30, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/d.parquet"), 40, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=*/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(4, splits.size());
+        Map<String, Object> january = ((FileSplit) splits.get(0)).partitionValues();
+        assertSame(january, ((FileSplit) splits.get(1)).partitionValues());
+        Map<String, Object> february = ((FileSplit) splits.get(2)).partitionValues();
+        assertSame(february, ((FileSplit) splits.get(3)).partitionValues());
+        assertNotSame(january, february);
+        assertEquals(1, january.get("month"));
+        assertEquals(2, february.get("month"));
+    }
+
+    /** Hive values stay on the shared tuple. {@code _file.name} is an overlay, so the maps differ but compare equal to one flat map. */
+    public void testHivePlusFileNameUsesOverlay() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/*.parquet");
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        List<ExternalSplit> splits = provider.discoverSplits(
+            retainedContext(fileList, meta, Set.of("year", FileMetadataColumns.NAME), List.of())
+        ).splits();
+
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertNotSame(left, right);
+        assertSame(left.get("year"), right.get("year"));
+        assertEquals(2024, left.get("year"));
+        assertEquals(new BytesRef("a.parquet"), left.get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef("b.parquet"), right.get(FileMetadataColumns.NAME));
+        assertEquals(Map.of("year", 2024, FileMetadataColumns.NAME, new BytesRef("a.parquet")), left);
+        assertEquals(List.of("year", FileMetadataColumns.NAME), new ArrayList<>(left.keySet()));
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
     /**
      * A directory-grouped listing stores one partition row per directory and maps files to it by position.
      * Every split must still carry its own directory's values on the filter path, the unfiltered path and
@@ -6238,8 +6304,8 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals("the second query was served the listing from the cache", 1, listings.get());
             assertEquals("and reserved for it exactly what the first did", cold.get(), warm.get());
             assertEquals(
-                "which is one listing allowance per entry plus one phase-2 allowance per file",
-                2 * (FileList.LISTING_BYTES_PER_ENTRY + FileList.PHASE2_BYTES_PER_FILE),
+                "which is one listing allowance per entry plus what phase 2 will hold for the two files",
+                2 * FileList.LISTING_BYTES_PER_ENTRY + phase2For(everyFile, 2),
                 cold.get()
             );
         }
@@ -6288,9 +6354,13 @@ public class FileSplitProviderTests extends ESTestCase {
             SplitDiscoveryResult result = provider.discoverSplits(handed);
 
             assertEquals("a demand of 11 over ten-row files needs both", 2, result.splits().size());
-            long oneFile = FileList.LISTING_BYTES_PER_ENTRY + FileList.PHASE2_BYTES_PER_FILE;
-            long twoFiles = 2 * oneFile;
-            assertEquals("the discarded one-file attempt is still held alongside the two-file one", oneFile + twoFiles, reserved.get());
+            long firstAttempt = FileList.LISTING_BYTES_PER_ENTRY + phase2For(everyFile, 1);
+            long secondAttempt = 2 * FileList.LISTING_BYTES_PER_ENTRY + phase2For(everyFile, 2);
+            assertEquals(
+                "the discarded one-file attempt is still held alongside the two-file one",
+                firstAttempt + secondAttempt,
+                reserved.get()
+            );
         }
     }
 
@@ -6424,6 +6494,20 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    /**
+     * What phase 2 will hold for {@code files} of this fixture, read from the same function the charge uses. Stating
+     * the arithmetic here instead would let the test and the charge drift, which is the thing the shared function
+     * exists to prevent.
+     */
+    private static long phase2For(List<StorageEntry> everyFile, int files) {
+        return Phase2Reservation.bytesForDiscovered(
+            new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG))),
+            Set.of(),
+            GlobExpander.fileListOf(everyFile.subList(0, files), "s3://b/*.parquet"),
+            files
+        );
+    }
+
     private static final Settings ONE_FILE_FIRST = Settings.builder()
         .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1)
         .build();
@@ -6464,9 +6548,11 @@ public class FileSplitProviderTests extends ESTestCase {
             SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfCharging(everyFile, reserved::addAndGet));
 
             assertEquals("both files were discovered from a one-file prefix", 2, result.splits().size());
-            long listingBytes = 2 * FileList.LISTING_BYTES_PER_ENTRY;
-            long phase2Bytes = 2 * FileList.PHASE2_BYTES_PER_FILE;
-            assertEquals("the walk's entries plus one phase-2 allowance per discovered file", listingBytes + phase2Bytes, reserved.get());
+            assertEquals(
+                "the walk's entries plus what phase 2 will hold for the files it discovered",
+                2 * FileList.LISTING_BYTES_PER_ENTRY + phase2For(everyFile, 2),
+                reserved.get()
+            );
         }
     }
 

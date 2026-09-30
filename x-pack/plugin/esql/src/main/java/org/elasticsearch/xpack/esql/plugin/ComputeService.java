@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
@@ -113,6 +114,8 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -282,34 +285,26 @@ public class ComputeService {
 
     /**
      * Reserves survivor-map and split-shell memory for every resolved {@link ExternalSourceExec} before local
-     * split discovery. Unresolved lists are omitted. A breaker trip is not recorded on the run.
-     * <p>
-     * A truncated list is omitted too, and that is not a gap. Discovery replaces a prefix with the file set it
-     * lists for itself before anything is built over it, so the prefix's structures are never allocated and a
-     * charge for them would be a charge for nothing. The provider charges the count it discovered instead - see
-     * {@link FileList#PHASE2_BYTES_PER_FILE}. Exactly one of the two runs per relation.
+     * split discovery. Each source is billed from its own retained keys and shared row count. Unresolved lists
+     * are omitted. A breaker trip is not recorded on the run.
      */
     private void chargeResolvedExternalSources(PhysicalPlan plan, ExternalPlanningReservation.Run run) {
-        long[] files = { 0L };
-        plan.forEachDown(ExternalSourceExec.class, exec -> {
-            FileList list = exec.fileList();
-            if (list != null && list.isResolved() && list.isTruncated() == false) {
-                files[0] += list.fileCount();
-            }
-        });
-        chargePhase2(files[0], run);
+        plan.forEachDown(ExternalSourceExec.class, exec -> chargePhase2(exec.output(), exec.fileList(), run));
     }
 
-    /**
-     * Reserves phase-2 memory from the fragment relation's file count, before that relation is lowered. Stands
-     * down on a truncated list for the reason {@link #chargeResolvedExternalSources} gives.
-     */
+    /** Reserves phase-2 memory from the fragment relation, before that relation is lowered. */
     private static void chargeRelationFileCount(ExternalRelation relation, ExternalPlanningReservation.Run run) {
-        FileList list = relation.fileList();
-        if (list == null || list.isResolved() == false || list.isTruncated()) {
+        chargePhase2(relation.output(), relation.fileList(), run);
+    }
+
+    private static void chargePhase2(List<Attribute> output, @Nullable FileList list, ExternalPlanningReservation.Run run) {
+        if (run == null) {
             return;
         }
-        chargePhase2(list.fileCount(), run);
+        long bytes = Phase2Reservation.bytesFor(output, list);
+        if (bytes > 0L) {
+            run.charge(bytes);
+        }
     }
 
     /**
@@ -317,8 +312,8 @@ public class ComputeService {
      * was a prefix lists the dataset again during discovery and then builds per-file structures over what it
      * found, and neither was charged before: {@code GlobExpander} reserves the entries in batches as the walk
      * grows, so a dataset larger than the node can hold trips partway through its own listing rather than after
-     * the list exists, and the provider reserves {@link FileList#PHASE2_BYTES_PER_FILE} per discovered file
-     * before the first structure is built over it.
+     * the list exists, and the provider reserves what {@link Phase2Reservation} says those structures cost,
+     * for the file set it discovered, before the first of them is built.
      * <p>
      * The run rather than the query is the right budget, and the listing's lifetime is why: a discovered listing
      * does not outlive the execution that listed it, because the plan carrying it does not - the run closes when
@@ -333,13 +328,6 @@ public class ComputeService {
      */
     private static PlanningMemory discoveryMemory(ExternalPlanningReservation.Run run) {
         return run == null ? PlanningMemory.NONE : run::charge;
-    }
-
-    private static void chargePhase2(long fileCount, ExternalPlanningReservation.Run run) {
-        if (fileCount <= 0 || run == null) {
-            return;
-        }
-        run.charge(fileCount * FileList.PHASE2_BYTES_PER_FILE);
     }
 
     /**

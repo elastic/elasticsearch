@@ -182,20 +182,6 @@ public interface FileList {
     long LISTING_BYTES_PER_ENTRY = 700L;
 
     /**
-     * Fixed per-file allowance for phase 2: 1000 for the frozen survivor map and 160 for one split shell.
-     * Not a measured deep size. Counted per file, not per split - a text or compressed file can become many
-     * splits, and that count is only known after the discovery this reserves for, so those files are
-     * under-charged. {@link #planningBytes()} adds the columnar partition-value allowance
-     * {@code estimatedBytes()} leaves out.
-     * <p>
-     * Here rather than with either charger because two of them count over the same files and must not drift:
-     * the coordinator charges it before discovery from the list the plan carries, and the provider charges it
-     * for the file set it discovered itself when that list was only a prefix. Exactly one of the two runs, and
-     * {@link #isTruncated()} is what decides which.
-     */
-    long PHASE2_BYTES_PER_FILE = 1160L;
-
-    /**
      * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight
      * (paths / sizes / mtimes) and does not include partition value arrays. When
      * {@link #partitionMetadata()} is present and non-empty, this adds {@link PartitionMetadata#planningBytes()}

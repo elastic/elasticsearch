@@ -213,6 +213,7 @@ import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -3888,12 +3889,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         assert currentRecoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (currentRecoveryState.getRecoverySource().getType()) {
-            case EMPTY_STORE, EXISTING_STORE, RESHARD_SPLIT -> executeRecovery(
+            case EMPTY_STORE, EXISTING_STORE -> executeRecovery(
                 "from store",
                 currentRecoveryState,
                 recoveryListener,
-                this::recoverFromStore
+                this::recoverFromStore,
+                true
             );
+            case RESHARD_SPLIT -> executeRecovery("from store", currentRecoveryState, recoveryListener, this::recoverFromStore, false);
             case PEER -> {
                 try {
                     markAsRecovering("from " + currentRecoveryState.getSourceNode());
@@ -3911,7 +3914,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "from snapshot",
                     currentRecoveryState,
                     recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
+                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l),
+                    true
                 );
             }
             case LOCAL_SHARDS -> {
@@ -3947,7 +3951,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             mappingUpdateConsumer,
                             startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
                             l
-                        )
+                        ),
+                        true
                     );
                 } else {
                     final RuntimeException e;
@@ -3976,15 +3981,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         RecoveryListener recoveryListener,
-        CheckedConsumer<ActionListener<Void>, Exception> action
+        CheckedConsumer<ActionListener<Void>, Exception> action,
+        boolean allowLocalRetry
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
-                final FailureStrategy result = ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null ? ABORT : FAIL_SEND;
-                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), result);
+                final FailureStrategy failureStrategy;
+                if (ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null) {
+                    failureStrategy = ABORT;
+                } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
+                    failureStrategy = FAIL_SEND;
+                } else if (allowLocalRetry) {
+                    failureStrategy = RETRY;
+                } else {
+                    failureStrategy = FAIL_SEND;
+                }
+                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }
         );
         ActionListener.run(actionListener, action);

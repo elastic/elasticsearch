@@ -28,4 +28,8 @@ public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory impl
         return new CJKWidthFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -3317,7 +3319,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
     }
@@ -3347,7 +3350,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3390,7 +3394,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             try {
@@ -3446,7 +3451,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("decompress failed", thrown.getMessage());
@@ -3528,7 +3534,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
@@ -3560,7 +3567,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3613,7 +3621,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertTrue(
@@ -3749,6 +3758,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static StorageObject bytesStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -3785,7 +3799,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * argument implements {@link Abortable}. Wrappers such as {@code DecompressedStream} miss
      * that cast and fall back to a draining {@code close()}.
      */
-    private static final class S3ShapedAbortableStorageObject implements StorageObject {
+    private static final class S3ShapedAbortableStorageObject extends AbstractTestStorageObject {
         interface Abortable {
             void abort();
         }
@@ -4390,7 +4404,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class ByteArrayStorageObject implements StorageObject {
+    private static class ByteArrayStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] bytes;
 
@@ -4518,7 +4532,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubMultiFileStorageObject implements StorageObject {
+    private static class StubMultiFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubMultiFileStorageObject(StoragePath path) {
@@ -4799,7 +4813,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class LargeStorageObject implements StorageObject {
+    private static class LargeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long size;
 

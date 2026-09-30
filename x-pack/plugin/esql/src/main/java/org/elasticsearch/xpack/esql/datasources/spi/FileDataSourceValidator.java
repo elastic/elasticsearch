@@ -381,6 +381,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
     /**
      * Runs {@code check} against the parsed configuration on a PUT. The same rule in {@code validateSettings}
      * would run inside the constructor and so refuse a stored configuration on every read.
+     *
+     * <p>Connectors that must also enforce the same rule at read time (for example, to honour an operator
+     * allowlist that was narrowed after registration) should apply the same check directly in their
+     * {@link StorageProviderFactory} implementation.
      */
     public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
         return new FileDataSourceValidator(
@@ -910,7 +914,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * is sorted for a deterministic message.
      */
     public static String cannotDetermineFormatError(String resource, Set<String> formatSpecificKeys) {
-        return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
+        return "cannot determine the format of ["
+            + resource
+            + "] from its extension; set [format] to use "
+            + new TreeSet<>(formatSpecificKeys);
     }
 
     /**

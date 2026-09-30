@@ -6246,6 +6246,55 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * What a retry holds, stated rather than discovered. The first attempt reserves for the prefix it listed and for
+     * the structures it built over it, and none of that is released when the attempt is discarded - a Run releases at
+     * close, not per attempt. So a retried query holds both attempts until its execution finishes.
+     * <p>
+     * Over-reserved, deliberately: the alternative is releasing mid-query, which would let a second query take the
+     * bytes this one is about to need again. Bounded by the first attempt's size, which is the setting, not the
+     * dataset. Pinned here so the figure is a decision rather than a surprise, and so a change to it has to be
+     * deliberate.
+     */
+    public void testARetryHoldsBothAttempts() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicLong reserved = new AtomicLong();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                countingRowCountReader(new AtomicInteger(), 10),
+                null,
+                ONE_FILE_FIRST,
+                createMultiFileStorageRegistry(payloads, null, everyFile, new AtomicInteger()),
+                new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null)
+            );
+            SplitDiscoveryContext handed = new SplitDiscoveryContext(
+                overAPrefixOfDemanding(everyFile, 11).metadata(),
+                overAPrefixOfDemanding(everyFile, 11).fileList(),
+                overAPrefixOfDemanding(everyFile, 11).schemaMap(),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                ExternalSchema.EMPTY,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE,
+                Set.of(),
+                null,
+                11,
+                reserved::addAndGet
+            );
+
+            SplitDiscoveryResult result = provider.discoverSplits(handed);
+
+            assertEquals("a demand of 11 over ten-row files needs both", 2, result.splits().size());
+            long oneFile = FileList.LISTING_BYTES_PER_ENTRY + FileList.PHASE2_BYTES_PER_FILE;
+            long twoFiles = 2 * oneFile;
+            assertEquals("the discarded one-file attempt is still held alongside the two-file one", oneFile + twoFiles, reserved.get());
+        }
+    }
+
+    /**
      * A dataset whose error policy may drop rows declines the prefix. Under skip_row or null_field a unit's record
      * count is what will be decoded, not what will be emitted, so rows the budget counted may never arrive: a prefix
      * the budget called covered could still answer short. The policy is known before anything is listed.

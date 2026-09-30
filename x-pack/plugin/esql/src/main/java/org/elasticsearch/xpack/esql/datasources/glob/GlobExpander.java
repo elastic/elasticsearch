@@ -345,7 +345,6 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 effectiveBound,
-                1,
                 () -> false
             );
     }
@@ -453,7 +452,6 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         int listingBound,
-        int concurrency,
         BooleanSupplier isCancelled
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
@@ -470,7 +468,6 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 Integer.MAX_VALUE,
-                concurrency,
                 isCancelled
             );
         }
@@ -491,7 +488,6 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 listingBound,
-                concurrency,
                 isCancelled
             );
         } catch (IOException e) {
@@ -614,7 +610,6 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             Integer.MAX_VALUE,
-            1,
             () -> false
         );
     }
@@ -652,7 +647,6 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             Integer.MAX_VALUE,
-            1,
             () -> false
         );
     }
@@ -680,7 +674,6 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             listingBound,
-            1,
             () -> false
         );
     }
@@ -696,7 +689,6 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         int listingBound,
-        int concurrency,
         BooleanSupplier isCancelled
     ) throws IOException {
         return doExpandGlob(
@@ -1203,7 +1195,6 @@ public final class GlobExpander {
                         nameFilter,
                         fileOrder,
                         listingBound,
-                        concurrency,
                         isCancelled
                     )
                 );
@@ -1240,7 +1231,6 @@ public final class GlobExpander {
                         nameFilter,
                         fileOrder,
                         listingBound,
-                        concurrency,
                         isCancelled
                     )
                 );
@@ -1266,7 +1256,6 @@ public final class GlobExpander {
                         nameFilter,
                         fileOrder,
                         listingBound,
-                        concurrency,
                         isCancelled
                     )
                 );
@@ -1294,7 +1283,6 @@ public final class GlobExpander {
                         nameFilter,
                         fileOrder,
                         listingBound,
-                        concurrency,
                         isCancelled
                     )
                 );
@@ -1354,7 +1342,6 @@ public final class GlobExpander {
                         nameFilter,
                         fileOrder,
                         listingBound,
-                        concurrency,
                         isCancelled
                     )
                 );
@@ -2084,7 +2071,6 @@ public final class GlobExpander {
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
                     Integer.MAX_VALUE,
-                    1,
                     () -> false
                 );
                 listingWarnings.addAll(expanded.listingWarnings());

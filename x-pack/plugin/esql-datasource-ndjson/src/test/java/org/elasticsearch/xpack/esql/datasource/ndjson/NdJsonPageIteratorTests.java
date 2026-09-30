@@ -41,10 +41,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
@@ -115,6 +117,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
     private static StorageObject fixedLengthObject(long length) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -1167,14 +1174,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    public void testDeclaredNumericCoercesStringTokensLikeCastEngine() throws IOException {
-        // A JSON string in a declared numeric column is coerced through the :: cast engine and rounds
-        // (matching CSV and the columnar readers), where it was formerly a policy-blind silent null.
-        String ndjson = """
-            {"n": "42", "m": "1.9"}
-            {"n": "7", "m": "2.5"}
+    public void testDeclaredNumericStringTokensRequireExactWholeNumber() throws IOException {
+        // A JSON string in a declared numeric column must name a whole number exactly. Whole tokens
+        // ("42", "2.0") succeed; a non-whole fraction fails under STRICT (matching CSV / columnar).
+        String ok = """
+            {"n": "42", "m": "2.0"}
+            {"n": "7", "m": "1e3"}
             """;
-        var object = new BytesStorageObject("file:///nums.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("file:///nums.ndjson", ok.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG),
@@ -1197,9 +1204,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             LongBlock m = page.getBlock(1);
             assertEquals(42L, n.getLong(0));
             assertEquals(7L, n.getLong(1));
-            assertEquals(2L, m.getLong(0)); // "1.9" -> 2 (round, == ::long)
-            assertEquals(3L, m.getLong(1)); // "2.5" -> 3 (round)
+            assertEquals(2L, m.getLong(0));
+            assertEquals(1000L, m.getLong(1));
         }
+        String fraction = "{\"m\": \"1.9\"}\n";
+        var bad = new BytesStorageObject("file:///frac.ndjson", fraction.getBytes(StandardCharsets.UTF_8));
+        List<Attribute> mOnly = List.of(new ReferenceAttribute(Source.EMPTY, null, "m", DataType.LONG));
+        expectThrows(Exception.class, () -> {
+            try (
+                var iterator = reader.read(
+                    bad,
+                    FormatReadContext.builder()
+                        .projectedColumns(List.of("m"))
+                        .batchSize(100)
+                        .errorPolicy(ErrorPolicy.STRICT)
+                        .readSchema(mOnly)
+                        .build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
     }
 
     public void testDeclaredNumericBadStringFailsUnderStrict() throws IOException {
@@ -3068,6 +3095,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
         StorageObject lengthUnsupported = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
             }
@@ -3117,6 +3149,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testLargeObjectFallsBackToStreaming() throws IOException {
         byte[] payload = "{\"id\":42}\n".getBytes(StandardCharsets.UTF_8);
         StorageObject oversized = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(payload);
@@ -3200,6 +3237,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int start = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8).length;
         int length = all.length - start;
         StorageObject tailAlignedStart = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(all, start, length);
@@ -3494,6 +3536,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */
     private static StorageObject streamOnlyObject(String path, byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

@@ -245,9 +245,9 @@ Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly hea
 ::::
 
 
-Only parts of the analysis chain that operate at the character level are applied. So for instance, if the analyzer performs both lowercasing and stemming, only the lowercasing will be applied: it would be wrong to perform stemming on a word that is missing some of its letters.
+By default, wildcard terms are only normalized. Character-level transformations such as lowercasing are applied, but not stemming.
 
-By setting `analyze_wildcard` to true, queries that end with a `*` will be analyzed and a boolean query will be built out of the different tokens, by ensuring exact matches on the first N-1 tokens, and prefix match on the last token.
+By setting `analyze_wildcard` to true, queries that end with a `*` are fully analyzed using the field's search analyzer, including stemming. For example, `running*` with an English analyzer becomes a prefix query for `run*`, matching terms indexed as "run" (such as "running" or "runs"). A boolean query is built from the resulting tokens, with exact matches on the first N-1 tokens and a prefix match on the last. Wildcard terms that do not end with `*`, such as `*running` or `run*ning`, are only normalized even when `analyze_wildcard` is true, since the wildcard falls mid-word where stemming is not meaningful.
 
 
 #### Regular expressions [_regular_expressions]

@@ -44,6 +44,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_K;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_TARGET_RECALL;
 
 /**
  * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled: reuses
@@ -66,16 +68,8 @@ public class IvfAutoCalibration {
     public static final float DEFAULT_CALIBRATED_OVERSAMPLE = 3f;
 
     /**
-     * Default target recall for calibration sweeps. Calibration selects the cheapest
-     * (encoding, rerank-depth) pair whose predicted recall meets or exceeds this value.
+     * Minimum number of vectors in a segment required for calibration.
      */
-    static final double DEFAULT_TARGET_RECALL = 0.9;
-
-    /**
-     * Default number of nearest neighbors {@code k} used in recall estimation during calibration.
-     */
-    static final int DEFAULT_K = 10;
-
     public static final int MIN_VECTORS_FOR_CALIBRATION = 10_000;
 
     /**
@@ -181,15 +175,27 @@ public class IvfAutoCalibration {
     private final double targetRecall;
     private final int k;
 
+    public static IvfAutoCalibration fromProfile(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
+        IvfAutoCalibrationOsqParams params = IvfAutoCalibrationOsqParams.fromProfile(profile);
+        // TODO: Wire up maxDocBits
+        return new IvfAutoCalibration(
+            vectorsPerCluster,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            params.targetRecall(),
+            params.k()
+        );
+    }
+
+    // TODO: Remove?
     public IvfAutoCalibration(int vectorsPerCluster) {
         this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
     }
 
-    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {
+    private IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {
         this(vectorsPerCluster, blockDimension, DEFAULT_TARGET_RECALL, DEFAULT_K);
     }
 
-    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
+    private IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
         this.vectorsPerCluster = vectorsPerCluster;
         this.blockDimension = blockDimension;
         this.targetRecall = targetRecall;
@@ -199,8 +205,17 @@ public class IvfAutoCalibration {
     /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
+    // TODO: Remove
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
         return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(vectorsPerCluster).resolve(
+            fieldInfo,
+            mergeState,
+            codecDefault
+        );
+    }
+
+    public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
+        return (fieldInfo, mergeState, codecDefault) -> fromProfile(vectorsPerCluster, profile).resolve(
             fieldInfo,
             mergeState,
             codecDefault

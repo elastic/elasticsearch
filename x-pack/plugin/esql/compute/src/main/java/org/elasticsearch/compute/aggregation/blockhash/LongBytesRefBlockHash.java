@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -131,48 +130,6 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                 }
             }
             return builder.build();
-        }
-    }
-
-    @Override
-    public void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
-        BytesRefVector bytesVector = bytesBlock.asVector();
-        LongBlock longBlock = page.getBlock(longChannel);
-        LongVector longVector = longBlock.asVector();
-        if (bytesVector == null || longVector == null) {
-            add(page, addInput);
-            return;
-        }
-        try (var intVector = lookupBytesVector(bytesVector)) {
-            int position = longVector.getPositionCount();
-            int offset = 0;
-            LongLongHashTable hash = longIntHash.hash;
-            while (offset < position) {
-                int[] batchIds = longIntHash.batchIds;
-                final int batchSize = Math.min(batchIds.length, position - offset);
-                try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
-                    for (int i = 0; i < batchSize; i++) {
-                        int bytesOrd = intVector.getInt(offset + i);
-                        if (bytesOrd < 0) {
-                            groupIdsBuilder.appendNull();
-                            continue;
-                        }
-                        long intValue = bytesOrd & LongIntBlockHash.WIDEN;
-                        long longKey = longVector.getLong(offset + i);
-                        long ord = hash.find(longKey, intValue);
-                        if (ord < 0) {
-                            groupIdsBuilder.appendNull();
-                        } else {
-                            groupIdsBuilder.appendInt(Math.toIntExact(ord));
-                        }
-                    }
-                    try (var groupIds = groupIdsBuilder.build()) {
-                        addInput.add(offset, groupIds);
-                    }
-                }
-                offset += batchSize;
-            }
         }
     }
 

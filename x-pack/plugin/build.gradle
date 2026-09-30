@@ -195,6 +195,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("esql/120_profile/documents found", "Skip empty node_reduce driver")
     // Malformed values are now stored in binary doc values (sorted) instead of stored fields (insertion order).
     task.skipTest(
       "analytics/histogram/histogram with synthetic source and ignore_malformed",

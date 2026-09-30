@@ -1697,6 +1697,12 @@ public class EsqlCapabilities {
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
+
+        /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
          * fields - null values are injected instead.
          */
@@ -4207,6 +4213,12 @@ public class EsqlCapabilities {
          * of failing the whole query.
          */
         GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * Full-text functions ({@code :}, {@code MATCH}, {@code MATCH_PHRASE}, {@code KNN}) can search fields of a
+         * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
+         */
+        FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

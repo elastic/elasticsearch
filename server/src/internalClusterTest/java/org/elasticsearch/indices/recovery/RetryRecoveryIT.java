@@ -59,6 +59,7 @@ import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.B
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.STATE_CHANGED_POST_RECOVERY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
@@ -91,7 +92,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -118,7 +119,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             assertAcked(indicesAdmin().prepareOpen(indexName).execute());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -149,7 +150,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(targetIndexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -185,7 +186,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -362,7 +363,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -393,7 +394,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(targetIndexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -433,7 +434,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -842,10 +843,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             }
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             masterTransport.clearAllRules();
         }
+    }
+
+    private void assertLocalRetries(String indexName, int expected) {
+        final var recoveryInfos = indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName);
+        assertThat(recoveryInfos, hasSize(1));
+        assertThat(recoveryInfos.get(0).recoveryState().getLocalRetries(), equalTo(expected));
     }
 
     private static boolean hasPending(ClusterApplierService applier, Priority priority, String sourceSubstring) {

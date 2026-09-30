@@ -7,29 +7,28 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.util.EntityUtils;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import org.elasticsearch.xcontent.XContentType;
-
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthApiKeyHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.jsonEntity;
 import static org.hamcrest.Matchers.containsString;
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
 import static org.hamcrest.Matchers.is;
 
 public class RequestUtilsTests extends ESTestCase {

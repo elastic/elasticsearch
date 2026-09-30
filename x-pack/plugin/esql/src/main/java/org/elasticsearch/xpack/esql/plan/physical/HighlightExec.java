@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.plan.logical.Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS;
 
 // TODO: decide whether HIGHLIGHT should always run on the coordinator. For now we do not force a location in the planner.
 // TODO: carry the resolved analyzer name once the "analyzer" option is supported.
@@ -82,9 +81,9 @@ public class HighlightExec extends UnaryExec {
         // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
         MapExpression options = (MapExpression) in.readOptionalNamedWriteable(Expression.class);
         List<Attribute> generatedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        boolean supportsImplicit = in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
-        Attribute indexKey = supportsImplicit ? in.readOptionalNamedWriteable(Attribute.class) : null;
-        Map<String, TextEsField> fieldMappings = supportsImplicit ? in.readImmutableMap(EsField::readFrom) : Map.of();
+        boolean supportsFieldAnalyzers = in.getTransportVersion().supports(TextEsField.TEXT_FIELD_ANALYZER);
+        Attribute indexKey = supportsFieldAnalyzers ? in.readOptionalNamedWriteable(Attribute.class) : null;
+        Map<String, TextEsField> fieldMappings = supportsFieldAnalyzers ? in.readImmutableMap(EsField::readFrom) : Map.of();
         return new HighlightExec(source, child, prefix, query, fields, options, generatedFields, indexKey, fieldMappings);
     }
 
@@ -97,7 +96,7 @@ public class HighlightExec extends UnaryExec {
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
-        if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
+        if (out.getTransportVersion().supports(TextEsField.TEXT_FIELD_ANALYZER)) {
             // The analyzer only sets the key and the mappings when every node supports this version.
             out.writeOptionalNamedWriteable(indexKey);
             out.writeMap(fieldMappings, (o, mapping) -> mapping.writeTo(o));

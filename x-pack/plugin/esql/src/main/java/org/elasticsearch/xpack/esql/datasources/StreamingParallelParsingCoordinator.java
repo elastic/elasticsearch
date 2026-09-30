@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -1638,6 +1639,11 @@ public final class StreamingParallelParsingCoordinator {
      */
     private static final class InputStreamStorageObject implements StorageObject {
         private final InputStream stream;
+        /**
+         * Equal only to itself: every instance reports the same synthetic path, so an identity shared with
+         * the source object would make all decompressed streams under one credential collide on one key.
+         */
+        private final StorageIdentity identity = StorageIdentity.unique();
         private final AtomicBoolean handedOut = new AtomicBoolean(false);
 
         InputStreamStorageObject(InputStream stream) {
@@ -1677,6 +1683,11 @@ public final class StreamingParallelParsingCoordinator {
         @Override
         public org.elasticsearch.xpack.esql.datasources.spi.StoragePath path() {
             return StoragePath.of("stream://decompressed");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return identity;
         }
     }
 }

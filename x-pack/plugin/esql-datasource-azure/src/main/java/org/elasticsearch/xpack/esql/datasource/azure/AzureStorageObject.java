@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -57,6 +58,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private final String container;
     private final String blobName;
     private final StoragePath path;
+    private final StorageIdentity storageIdentity;
 
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
@@ -68,7 +70,25 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this(blobClient, null, container, blobName, path);
     }
 
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     */
     public AzureStorageObject(BlobClient blobClient, BlobAsyncClient blobAsyncClient, String container, String blobName, StoragePath path) {
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (blobClient == null) {
             throw new IllegalArgumentException("blobClient cannot be null");
         }
@@ -86,6 +106,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this.container = container;
         this.blobName = blobName;
         this.path = path;
+        this.storageIdentity = storageIdentity;
     }
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path, long length) {
@@ -100,7 +121,19 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         StoragePath path,
         long length
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path);
         this.cachedLength = length;
     }
 
@@ -124,7 +157,20 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long length,
         Instant lastModified
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path, length);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length, lastModified);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -247,6 +293,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     @Override

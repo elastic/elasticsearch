@@ -14,6 +14,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -67,7 +69,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * configured payload. Other {@link StorageObject} methods throw — they're not exercised by the
      * metrics tests below and a real failure beats a silent mocked default.
      */
-    private static final class FakeStorageObject implements StorageObject {
+    private static final class FakeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final StorageObjectMetrics metrics;
         private final IOException failure;
@@ -159,6 +161,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger attempts = new AtomicInteger();
         StorageObject flaky = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
             }
@@ -248,6 +255,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicBoolean attempt0Closed = new AtomicBoolean();
         AtomicBoolean attempt1Closed = new AtomicBoolean();
         StorageObject flaky = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -502,6 +514,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         // A native-async delegate whose read fails with a non-storage, non-transient fault, so the async driver
         // gives up on the first attempt and records the terminal failure.
         StorageObject delegate = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -1409,6 +1426,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger opens = new AtomicInteger();
         StorageObject delegate = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream(long position, long length) {
                 int pos = Math.toIntExact(position);
                 int len = length == READ_TO_END ? payload.length - pos : Math.toIntExact(Math.min(length, payload.length - pos));
@@ -1513,7 +1535,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * transport {@link IOException} or the unchecked {@link ExternalUnavailableException} a provider raises; it is
      * rethrown preserving its concrete type so the retry layer classifies it exactly as in production.
      */
-    private static final class AlwaysFailingStorageObject implements StorageObject {
+    private static final class AlwaysFailingStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Exception failure;
 
@@ -1576,7 +1598,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * {@code exists()} returns {@code true}). The read paths are unsupported — the test drives only metadata ops, and a
      * real fault beats a silently-mocked default.
      */
-    private static final class MetadataFailingStorageObject implements StorageObject {
+    private static final class MetadataFailingStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final IOException failure;
         private final int failuresBeforeSuccess;
@@ -1643,7 +1665,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * of the payload, but the first open (or every open, if {@code alwaysFail}) delivers only
      * {@code failAfterBytes} bytes before throwing the configured fault.
      */
-    private static final class MidReadFailingStorageObject implements StorageObject {
+    private static final class MidReadFailingStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] payload;
         private final int failAfterBytes;
@@ -1721,7 +1743,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * Delivers {@code chunkBytes} of progress then drops, for the first {@code faults} opens; the next open
      * succeeds with the remaining slice. Models several stacked mid-read resets that each make progress.
      */
-    private static final class ChunkedFaultingStorageObject implements StorageObject {
+    private static final class ChunkedFaultingStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] payload;
         private final int chunkBytes;
@@ -1837,7 +1859,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * body that ended cleanly short of the object. The re-open (unless {@code alwaysEof}) delivers the
      * remaining slice.
      */
-    private static final class EarlyEofStorageObject implements StorageObject {
+    private static final class EarlyEofStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] payload;
         private final int eofAfter;
@@ -1924,7 +1946,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * First open delivers {@code failAfter} bytes then a transient fault. The re-open reports a
      * different generation and/or known length so the resume layer can refuse to splice.
      */
-    private static final class GenerationChangingStorageObject implements StorageObject {
+    private static final class GenerationChangingStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] payload;
         private final int failAfter;
@@ -2015,7 +2037,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * Parks the first {@code read} until {@link #abortStream} releases it, then throws a transient
      * {@link ExternalUnavailableException} so resume would fire unless the abort flag holds.
      */
-    private static final class ParkingAbortableStorageObject implements StorageObject {
+    private static final class ParkingAbortableStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final CountDownLatch inRead = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);
@@ -2117,7 +2139,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
      * First open fails on {@code read} with a transient EUE. The resume {@code newStream} parks
      * until {@link #abortStream} so {@code adoptResume} can abort the raced GET.
      */
-    private static final class FailThenParkOnResumeStorageObject implements StorageObject {
+    private static final class FailThenParkOnResumeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final CountDownLatch resumeParked = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -63,6 +64,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    private final StorageIdentity storageIdentity;
     /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
     private final ScheduledExecutorService idleScheduler;
 
@@ -77,10 +79,22 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
-        this(client, path, config, null);
+        this(HttpConfigIdentity.of(config), client, path, config, null);
     }
 
-    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, ScheduledExecutorService idleScheduler) {
+    /**
+     * Provider constructor: {@code storageIdentity} is computed once per provider rather than per object.
+     */
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        ScheduledExecutorService idleScheduler
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -94,6 +108,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.storageIdentity = storageIdentity;
         this.idleScheduler = idleScheduler;
     }
 
@@ -101,11 +116,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config, length, (ScheduledExecutorService) null);
+        this(HttpConfigIdentity.of(config), client, path, config, length, null);
     }
 
-    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, ScheduledExecutorService idleScheduler) {
-        this(client, path, config, idleScheduler);
+    HttpStorageObject(
+        StorageIdentity storageIdentity,
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        ScheduledExecutorService idleScheduler
+    ) {
+        this(storageIdentity, client, path, config, idleScheduler);
         this.cachedLength = length;
     }
 
@@ -113,10 +135,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length, lastModified, null);
+        this(HttpConfigIdentity.of(config), client, path, config, length, lastModified, null);
     }
 
     HttpStorageObject(
+        StorageIdentity storageIdentity,
         HttpClient client,
         StoragePath path,
         HttpConfiguration config,
@@ -124,7 +147,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         Instant lastModified,
         ScheduledExecutorService idleScheduler
     ) {
-        this(client, path, config, length, idleScheduler);
+        this(storageIdentity, client, path, config, length, idleScheduler);
         this.cachedLastModified = lastModified;
     }
 
@@ -314,6 +337,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     @Override

@@ -87,6 +87,7 @@ import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.compute.operator.topn.TopNPreFilterOperator;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -166,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -211,6 +213,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
@@ -366,7 +369,6 @@ public class LocalExecutionPlanner {
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
             new Holder<>(),
-            new Holder<>(),
             singleNodeOptimizations
         );
 
@@ -417,6 +419,8 @@ public class LocalExecutionPlanner {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
             return planTopN(topNExec, context);
+        } else if (node instanceof TopNPreFilterExec preFilterExec) {
+            return planTopNPreFilter(preFilterExec, context);
         } else if (node instanceof TopNByExec topNByExec) {
             return planTopNBy(topNByExec, context);
         } else if (node instanceof EvalExec eval) {
@@ -1631,7 +1635,7 @@ public class LocalExecutionPlanner {
         // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
-        String analyzerName = options.analyzerName();
+        String analyzerName = HighlightSupport.executionAnalyzerName(options.analyzerName(), highlight.fields());
 
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,
@@ -2466,7 +2470,6 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
-        context.lastVisitedLimit.set(limit);
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
@@ -2537,6 +2540,17 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planTopNPreFilter(TopNPreFilterExec preFilter, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(preFilter.child(), context);
+        ElementType keyType = PlannerUtils.toElementType(preFilter.key().dataType());
+        int channel = getAttributeChannel(preFilter.key(), source.layout, "TOP N PRE-FILTER key must be an attribute");
+        int limit = Math.toIntExact(((Number) Foldables.valueOf(context.foldCtx(), preFilter.limit())).longValue());
+        return source.with(
+            new TopNPreFilterOperator.Factory(keyType, channel, preFilter.asc(), preFilter.nullsFirst(), limit),
+            source.layout
+        );
     }
 
     private PhysicalOperation planSparklineGenerateEmptyBuckets(
@@ -2712,7 +2726,6 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
-        Holder<LimitExec> lastVisitedLimit,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
         boolean singleNodeOptimizations
     ) {

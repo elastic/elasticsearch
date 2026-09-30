@@ -34,7 +34,9 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -87,6 +89,22 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
+        for (Batch scenario : scenarios) {
+            assertScenario(mapperService, scenario);
+        }
+    }
+
+    /**
+     * Like {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} but with an explicit index version,
+     * for testing pre-gate BWC behaviour.
+     */
+    protected final void assertColumnarMatchesXContent(
+        IndexVersion indexVersion,
+        XContentBuilder mapping,
+        Settings indexSettings,
+        Batch... scenarios
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario);
         }
@@ -252,7 +270,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     // SourceToParse so the row-path DocumentParser reads the same tsid bytes via
                     // SourceToParse#tsid() rather than re-building it from source dimensions.
                     final SourceToParse sourceToParse = doc.tsid() != null
-                        ? new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing(), Map.of(), doc.tsid())
+                        ? new SourceToParse(
+                            doc.id(),
+                            new BytesSource(sourceBytesArray[i], XContentType.JSON, true),
+                            doc.routing(),
+                            Map.of(),
+                            Map.of(),
+                            XContentMeteringParserDecorator.NOOP,
+                            doc.tsid()
+                        )
                         : new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
                     final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
                     // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).

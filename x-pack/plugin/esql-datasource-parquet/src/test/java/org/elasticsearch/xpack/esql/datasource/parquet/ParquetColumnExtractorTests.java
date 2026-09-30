@@ -39,10 +39,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -1362,6 +1364,11 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     private static StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -1402,7 +1409,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * position. The {@code newStream()} (no-arg, full-file) call is also recorded so the test
      * can detect a "scan the whole file" regression even if it sneaks in via that path.
      */
-    private static final class TrackingStorageObject implements StorageObject {
+    private static final class TrackingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         final List<long[]> reads = new ArrayList<>();
 
@@ -1454,7 +1461,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * {@link #testExtractDispatchesPrefetchesInParallel} to assert per-row-group prefetches
      * are dispatched concurrently.
      */
-    private static final class BlockingChunkStorageObject implements StorageObject {
+    private static final class BlockingChunkStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final Executor executor;
         private final long[][] chunkWindows;

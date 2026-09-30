@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -137,6 +139,38 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
         assertThat(r.validate(), nullValue());
         // Constructor defaults null rawSettings to Map.of() — downstream reads see an empty map.
         assertThat(r.rawSettings(), notNullValue());
+    }
+
+    public void testValidateRejectsDescriptionTooLong() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + 1);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(v.validationErrors(), contains("data source description is too large: 1001 characters, the maximum allowed is 1000"));
+    }
+
+    public void testValidateAcceptsDescriptionAtLimit() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of());
+        assertThat(r.validate(), nullValue());
+    }
+
+    /** The length check accumulates with the other field checks rather than short-circuiting them. */
+    public void testValidateReportsDescriptionTooLongAlongsideOtherErrors() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + between(1, 100));
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "data source type is missing or empty",
+                "data source description is too large: "
+                    + description.length()
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
     }
 
     private static String randomName() {

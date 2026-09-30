@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,7 +55,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamLifecycleErrorStore errorStore;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final FrozenTransitionInfoProvider frozenTransitionInfoProvider;
     private final LongSupplier nowSupplier;
 
@@ -68,7 +68,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         FrozenTransitionInfoProvider frozenTransitionInfoProvider
     ) {
         super(
@@ -84,7 +84,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.frozenTransitionInfoProvider = frozenTransitionInfoProvider;
         this.nowSupplier = threadPool::absoluteTimeInMillis;
     }
@@ -128,7 +128,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
                 lifecycle,
-                errorStore.getError(state.projectId(), index),
+                errorStore.getError(state.projectId(), idxMetadata.getIndex()),
                 computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
@@ -139,8 +139,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get(false),
-                globalRetentionSettings.get(true)
+                dataStreamLifecycleSettings.getGlobalRetention(false),
+                dataStreamLifecycleSettings.getGlobalRetention(true)
             )
         );
     }

@@ -66,6 +66,10 @@ public class AshPostingsListWriter {
 
     /**
      * Trains ASH, encodes vectors, and writes posting lists to the given output.
+     *
+     * @param skipDocIds when {@code true}, per-block doc IDs are not written into the posting lists.
+     *        Used for sliced flush segments where vectors are in ordinal order and the reader
+     *        translates ordinals to doc IDs via {@code KnnVectorValues.ordToDoc()}.
      */
     public PostingsOffsetAndLength buildAndWrite(
         FieldInfo fieldInfo,
@@ -76,7 +80,8 @@ public class AshPostingsListWriter {
         int[] assignments,
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig.AshConfig ashConfig,
-        VectorSimilarityFunction similarityFunction
+        VectorSimilarityFunction similarityFunction,
+        boolean skipDocIds
     ) throws IOException {
         int nVectors = assignments.length;
         int originalDim = fieldInfo.getVectorDimension();
@@ -104,14 +109,11 @@ public class AshPostingsListWriter {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
 
         // Train W using primary assignments only.
-        float[] w = ashQuantizer.train(vectors, centroidGetter);
-
-        // Transpose W once for SIMD-friendly dot products during encoding
+        float[] wT = ashQuantizer.train(vectors, centroidGetter);
         int nDims = ashQuantizer.nDims(originalDim);
-        float[] wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
 
         // Store the projection matrix for later serialization
-        this.ashProjectionMatrix = new AshProjectionMatrix(w, originalDim, nDims);
+        this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims);
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);
@@ -128,7 +130,8 @@ public class AshPostingsListWriter {
             postingsOutput,
             fileOffset,
             ashConfig,
-            similarityFunction
+            similarityFunction,
+            skipDocIds
         );
     }
 
@@ -147,7 +150,8 @@ public class AshPostingsListWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         IvfSegmentConfig.AshConfig ashConfig,
-        VectorSimilarityFunction similarityFunction
+        VectorSimilarityFunction similarityFunction,
+        boolean skipDocIds
     ) throws IOException {
         int nClusters = assignmentsByCluster.length;
         int nDims = wT.length / originalDim;
@@ -191,17 +195,22 @@ public class AshPostingsListWriter {
             }
 
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
+            // The encoding byte is always written for header consistency, even when skipDocIds is true.
+            // In the sliced flush path the reader consumes it in resetPostingsScorer but never uses it.
             postingsOutput.writeByte(encoding);
 
             // Write vectors in bulk blocks:
             // [docIds][packed_codes × blockSize]
             // [scales × blockSize][offsets × blockSize][docSums × blockSize]
             // [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
+            // When skipDocIds is true (sliced flush), doc IDs are omitted -- the reader uses ordToDoc().
             int written = 0;
             while (written < size) {
                 int blockSize = Math.min(BULK_SIZE, size - written);
                 final int blockStart = written;
-                idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
+                if (skipDocIds == false) {
+                    idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
+                }
 
                 // Encode all vectors in this block into pre-allocated buffers.
                 // Corrections are packed in SoA order: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]

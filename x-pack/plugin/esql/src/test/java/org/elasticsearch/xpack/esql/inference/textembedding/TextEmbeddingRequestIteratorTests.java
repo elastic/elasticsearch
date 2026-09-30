@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -26,8 +28,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestIteratorTestCase {
 
     @Override
-    protected AbstractEmbeddingRequestIterator newRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize) {
-        return new TextEmbeddingRequestIterator(inferenceId, textBlock, batchSize, null);
+    protected AbstractEmbeddingRequestIterator newRequestIterator(
+        String inferenceId,
+        BytesRefBlock textBlock,
+        int batchSize,
+        Warnings warnings
+    ) {
+        return new TextEmbeddingRequestIterator(inferenceId, textBlock, InputType.INTERNAL_INGEST, batchSize, null, warnings);
     }
 
     @Override
@@ -59,8 +66,10 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
                 inputBlock,
+                InputType.INTERNAL_INGEST,
                 1,
-                randomTimeoutOrNull()
+                randomTimeoutOrNull(),
+                Warnings.NOOP_WARNINGS
             )
         ) {
             // Empty page should have no iterations
@@ -79,7 +88,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
         final BytesRefBlock inputBlock = randomInputBlockWithNulls(size);
 
         final TimeValue timeout = randomTimeoutOrNull();
-        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+        try (
+            TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                inferenceId,
+                inputBlock,
+                InputType.INTERNAL_INGEST,
+                1,
+                timeout,
+                Warnings.NOOP_WARNINGS
+            )
+        ) {
             int totalPositionsProcessed = 0;
 
             while (requestIterator.hasNext()) {
@@ -112,6 +130,7 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
                     InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+                    assertThat(request.getInputType(), equalTo(InputType.INTERNAL_INGEST));
                     assertThat(request.getInput().size(), equalTo(1));
                     assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
                 }
@@ -137,7 +156,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             BytesRefBlock inputBlock = blockBuilder.build();
             final TimeValue timeout = randomTimeoutOrNull();
 
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    InputType.INTERNAL_INGEST,
+                    1,
+                    timeout,
+                    Warnings.NOOP_WARNINGS
+                )
+            ) {
                 // First batch: skips leading nulls and processes first non-null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
@@ -185,7 +213,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             BytesRefBlock inputBlock = blockBuilder.build();
 
             final TimeValue timeout = randomTimeoutOrNull();
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    InputType.INTERNAL_INGEST,
+                    1,
+                    timeout,
+                    Warnings.NOOP_WARNINGS
+                )
+            ) {
                 // Single batch should bundle the text with trailing nulls
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
@@ -224,8 +261,10 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
                     inputBlock,
+                    InputType.INTERNAL_INGEST,
                     1,
-                    randomTimeoutOrNull()
+                    randomTimeoutOrNull(),
+                    Warnings.NOOP_WARNINGS
                 )
             ) {
                 // Should produce one batch with all nulls
@@ -263,7 +302,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             BytesRefBlock inputBlock = blockBuilder.build();
 
             final TimeValue timeout = randomTimeoutOrNull();
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    InputType.INTERNAL_INGEST,
+                    1,
+                    timeout,
+                    Warnings.NOOP_WARNINGS
+                )
+            ) {
                 // First batch: "text1" with trailing null
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem1 = requestIterator.next();
@@ -316,8 +364,10 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
                 inputBlock,
+                InputType.INTERNAL_INGEST,
                 1,
-                randomTimeoutOrNull()
+                randomTimeoutOrNull(),
+                Warnings.NOOP_WARNINGS
             )
         ) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
@@ -348,7 +398,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             BytesRefBlock inputBlock = blockBuilder.build();
 
             final TimeValue timeout = randomTimeoutOrNull();
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    InputType.INTERNAL_INGEST,
+                    1,
+                    timeout,
+                    Warnings.NOOP_WARNINGS
+                )
+            ) {
                 BytesRef scratch = new BytesRef();
                 int iterationCount = 0;
 
@@ -375,7 +434,7 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
         allBreakersEmpty();
     }
 
-    public void testTaskTypeIsPassedThrough() throws Exception {
+    public void testTaskTypeAndInputTypeArePassedThrough() throws Exception {
         final String inferenceId = randomIdentifier();
 
         try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(1)) {
@@ -383,10 +442,20 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
             BytesRefBlock inputBlock = blockBuilder.build();
 
             final TimeValue timeout = randomTimeoutOrNull();
-            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+            try (
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    InputType.UNSPECIFIED,
+                    1,
+                    timeout,
+                    Warnings.NOOP_WARNINGS
+                )
+            ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
                 assertThat(requestItem.inferenceRequest().getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+                assertThat(((InferenceAction.Request) requestItem.inferenceRequest()).getInputType(), equalTo(InputType.UNSPECIFIED));
                 assertThat(
                     ((InferenceAction.Request) requestItem.inferenceRequest()).getInferenceTimeout(),
                     equalTo(expectedTimeout(timeout))
@@ -402,7 +471,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
         final BytesRefBlock inputBlock = randomInputBlock(size);
         final TimeValue timeout = randomTimeoutOrNull();
 
-        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, timeout)) {
+        try (
+            TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                inferenceId,
+                inputBlock,
+                InputType.INTERNAL_INGEST,
+                1,
+                timeout,
+                Warnings.NOOP_WARNINGS
+            )
+        ) {
             BytesRef scratch = new BytesRef();
             int iterationCount = 0;
 
@@ -434,7 +512,16 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(1);
 
-        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, 1, null)) {
+        try (
+            TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
+                inferenceId,
+                inputBlock,
+                InputType.INTERNAL_INGEST,
+                1,
+                null,
+                Warnings.NOOP_WARNINGS
+            )
+        ) {
             assertTrue(requestIterator.hasNext());
             InferenceAction.Request request = (InferenceAction.Request) requestIterator.next().inferenceRequest();
             assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));

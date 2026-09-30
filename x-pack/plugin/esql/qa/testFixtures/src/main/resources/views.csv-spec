@@ -138,7 +138,9 @@ count:long | country:keyword
 countryAirportsAddressesWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
 
+SET wildcards_match_views=true\;
 FROM country_a*
 | STATS count=SUM(count) BY country
 | WHERE count > 11
@@ -267,8 +269,10 @@ count:long | country:keyword
 countryAirportsAddressesLanguagesWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
 
 // tag::views_country_wildcard_sum[]
+SET wildcards_match_views=true\;
 FROM country_*
 | STATS count=SUM(count) BY country
 | WHERE count > 11
@@ -353,6 +357,27 @@ LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           |
 LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | null
 ;
 
+classAndNameOnAViewAlongsideAnIndex
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: metadata_class_and_name
+
+// A view has no relation left to ask by execution, so its rows answer NULL for both columns --
+// the same disposition _index already has above. The index row answers for itself.
+FROM airports_mp_filtered, airports METADATA _class, _name
+| WHERE abbrev == "LUH"
+| KEEP abbrev, _class, _name
+| SORT _name
+;
+
+abbrev:keyword | _class:keyword | _name:keyword
+LUH            | index          | airports
+LUH            | null           | null
+;
+
 airportsLookupJoinViewAirportsStats
 skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
@@ -434,7 +459,9 @@ rehired_count:long
 multiValueWarningsWithBranchedView
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
 
+SET wildcards_match_views=true\;
 FROM employees_*rehired
 | STATS rehired_count = COUNT() by is_rehired
 | SORT is_rehired DESC
@@ -771,11 +798,13 @@ concreteViewIncludeAndWildcardExcludeAlongsideIndex
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_explicit_include_exclude_fix
+required_capability: views_match_wildcards
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/147863 (wildcard-exclusion variant).
 // FROM airports, employees_rehired, -employees_* should return only airports data.
 // The wildcard -employees_* matched and excluded the view employees_rehired, but before the fix
 // the positive view-name literal stayed in the pattern and caused the same IndexNotFoundException.
+SET wildcards_match_views=true\;
 FROM airports, employees_rehired, -employees_*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
@@ -1134,7 +1163,9 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: ts_command_v0
 required_capability: subquery_with_ts
+required_capability: views_match_wildcards
 
+SET wildcards_match_views=true\;
 FROM view_k8s_max_*
 | SORT cluster NULLS FIRST
 | KEEP cluster, max_bytes, max_rate

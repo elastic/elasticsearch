@@ -20,12 +20,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /** Pins {@link NdJsonFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
@@ -131,6 +134,76 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
                 NdJsonDataSourcePlugin.FORMAT_CONFIG_KEYS,
                 spec.configKeys()
             );
+        }
+    }
+
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeNdJsonFormat() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec spec = plugin.formatSpecs().iterator().next();
+        FormatSpec.FormatConfigValidator validator = spec.configValidator();
+        assertNotNull("ndjson FormatSpec must have a configValidator", validator);
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : List.of(
+            Map.entry("segment_size", (Object) "2mb"),
+            Map.entry("datetime_format", (Object) "yyyy-MM-dd")
+        )) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);
+            newReader().withConfigTrackingConsumedKeys(config);
+        }
+
+        // Bad values — both must throw with identical messages.
+        for (Map.Entry<String, Object> bad : badNdJsonValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Bad NdJson config values that both validator and reader must reject with the same message.
+     * {@code schema_sample_size} is deliberately absent: it is a base dataset field that
+     * {@code FileDataSourceValidator} bounds itself and never forwards to the format validator,
+     * so validator/reader parity does not apply to it (see
+     * {@link #testSchemaSampleSizeIgnoredByValidatorButRejectedByReader()}).
+     */
+    private static List<Map.Entry<String, Object>> badNdJsonValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("segment_size", (Object) "1kb"));              // below MIN_SEGMENT_SIZE (64kb)
+        list.add(Map.entry("datetime_format", (Object) "not-a-format"));  // unrecognized pattern
+        return list;
+    }
+
+    /**
+     * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
+     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * ignore it rather than duplicate the check with a second message. The reader still rejects a
+     * non-positive value on the query path, where the WITH config arrives unfiltered.
+     */
+    public void testSchemaSampleSizeIgnoredByValidatorButRejectedByReader() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec.FormatConfigValidator validator = plugin.formatSpecs().iterator().next().configValidator();
+        for (Object bad : List.of(0, -1)) {
+            Map<String, Object> config = Map.of("schema_sample_size", bad);
+            validator.validate(config); // no throw: base field, never forwarded here at PUT
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
         }
     }
 

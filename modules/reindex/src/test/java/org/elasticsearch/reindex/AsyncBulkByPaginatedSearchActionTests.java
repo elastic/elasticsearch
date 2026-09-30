@@ -1417,8 +1417,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
-        testRequest.getSearchRequest().searchSlice("slice-1");
 
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice("slice-1");
         IndexRequest indexRequest = new IndexRequest().index("test").id("1");
         DeleteRequest deleteRequest = new DeleteRequest("test", "1");
         action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
@@ -1428,12 +1433,6 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertTrue(indexRequest.isRoutingFromSlice());
         assertThat(deleteRequest.routing(), equalTo("slice-1"));
         assertTrue(deleteRequest.isRoutingFromSlice());
-
-        testRequest.getSearchRequest().searchSlice(null);
-        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
-        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
-        assertThat(routingRequest.routing(), equalTo("routing-value"));
-        assertFalse(routingRequest.isRoutingFromSlice());
     }
 
     /**

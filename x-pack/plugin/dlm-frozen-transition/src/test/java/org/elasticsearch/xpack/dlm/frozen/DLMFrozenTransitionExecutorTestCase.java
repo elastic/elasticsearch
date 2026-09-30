@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -119,20 +120,20 @@ abstract class DLMFrozenTransitionExecutorTestCase extends ESTestCase {
      * to hold the task, or leave it at the default (already released) for tasks that complete immediately.
      */
     static class TestDLMFrozenTransitionRunnable implements DLMFrozenTransitionRunnable {
-        private final String indexName;
+        private final Index index;
         private final ProjectId projectId;
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch blockUntil = new CountDownLatch(0);
         Throwable throwOnRun;
 
         TestDLMFrozenTransitionRunnable(String indexName, ProjectId projectId) {
-            this.indexName = indexName;
+            this.index = new Index(indexName, indexName);
             this.projectId = projectId;
         }
 
         @Override
-        public String getIndexName() {
-            return indexName;
+        public Index getIndex() {
+            return index;
         }
 
         @Override

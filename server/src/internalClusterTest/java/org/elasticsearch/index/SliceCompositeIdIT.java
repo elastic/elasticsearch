@@ -12,6 +12,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -408,9 +409,10 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
     private RecoveryState replicaRecoveryState(String index) {
         return indicesAdmin().prepareRecoveries(index)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(index)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(rs -> rs.getPrimary() == false)
             .findFirst()
             .orElseThrow();

@@ -83,13 +83,9 @@ public interface UserRoleMapper {
                 // null dn fields get the default NULL_PREDICATE
                 model.defineField("dn", dn, new DistinguishedNamePredicate(dn, dnNormalizer));
             }
-            model.defineField(
-                "groups",
-                groups,
-                groups.stream().<Predicate<FieldExpression.FieldValue>>map(g -> new DistinguishedNamePredicate(g, dnNormalizer))
-                    .reduce(Predicate::or)
-                    .orElse(Predicates.never())
-            );
+            var groupPredicates = groups.stream().map(group -> new DistinguishedNamePredicate(group, dnNormalizer)).toList();
+
+            model.defineField("groups", groups, Predicates.any(groupPredicates));
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
             model.defineField("realm.name", realm.name());
             return model;

@@ -23,7 +23,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MaxBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MaxBytesRefGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {

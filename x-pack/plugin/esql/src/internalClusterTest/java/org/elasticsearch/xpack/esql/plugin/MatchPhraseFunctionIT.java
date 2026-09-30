@@ -365,6 +365,43 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testRuntimeMatchPhraseAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match_phrase(summary, "brown fox")
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3; id 6 also contains the phrase but is cut, so it must not come back.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testRuntimeMatchPhraseAfterLimitWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match_phrase(summary, "brown fox")
+            | KEEP id, _score
+            """;
+
+        // The LIMIT is a pipeline breaker, so this filter runs on the coordinator. A matched phrase scores its boost
+        // there too, since runtime scoring needs no shard context.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
+        }
+    }
+
     public void testMatchPhraseAfterMvExpand() {
         // After MV_EXPAND on the searched field, the expanded attribute is no longer a direct index field, so
         // runtime search takes over: the MV_EXPAND restriction is bypassed and the phrase is evaluated per row.
@@ -544,6 +581,68 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToTextOverIndexedKeywordField() {
+        var query = """
+            FROM test_keyword
+            | WHERE match_phrase(to_text(content), "BROWN FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias() {
+        var query = """
+            FROM test_keyword
+            | EVAL c = to_text(content)
+            | WHERE match_phrase(c, "BROWN FOX")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextField() {
+        var query = """
+            FROM test
+            | WHERE match_phrase(to_string(content), "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextFieldViaEvalAlias() {
+        var query = """
+            FROM test
+            | EVAL c = to_string(content)
+            | WHERE match_phrase(c, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
         }
     }
 

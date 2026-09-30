@@ -82,7 +82,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -125,7 +126,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openshift_ai",
                     "text_embedding_test_service",
                     "voyageai",
-                    "watsonxai"
+                    "watsonxai",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -154,7 +156,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "watsonxai",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "elastic"
+                    "elastic",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -186,7 +189,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "mistral",
                     "watsonxai",
-                    "nvidia"
+                    "nvidia",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -214,7 +218,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "mistral",
                     "nvidia",
                     "watsonxai",
-                    "amazonbedrock"
+                    "amazonbedrock",
+                    "tencentcloud"
                 ).toArray()
             )
         );

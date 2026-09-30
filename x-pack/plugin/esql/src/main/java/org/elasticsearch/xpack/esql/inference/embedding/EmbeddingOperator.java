@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -40,6 +42,7 @@ public class EmbeddingOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
         DataType dataType,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Source source,
@@ -48,7 +51,16 @@ public class EmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, batchSize, timeout),
+            new EmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.EMBEDDING,
+                inputEvaluator,
+                dataType,
+                inputType,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
             new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures
@@ -73,6 +85,7 @@ public class EmbeddingOperator extends InferenceOperator {
     /**
      * Factory for creating {@link EmbeddingOperator} instances.
      *
+     * @param inputType The inference request's document/query mode.
      * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
      * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
      * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
@@ -83,6 +96,7 @@ public class EmbeddingOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
         DataType dataType,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Source source,
@@ -102,6 +116,7 @@ public class EmbeddingOperator extends InferenceOperator {
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
                 dataType,
+                inputType,
                 batchSize,
                 timeout,
                 source,

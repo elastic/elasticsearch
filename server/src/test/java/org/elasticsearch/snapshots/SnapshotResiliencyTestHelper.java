@@ -61,7 +61,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -91,6 +91,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -419,6 +420,39 @@ public class SnapshotResiliencyTestHelper {
             TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return runnableWrapper.apply(runnable);
+                }
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (deterministicTaskQueue.hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return runnable.toString();
+                    }
+                };
+            };
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         public class TestClusterNode {
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
@@ -501,7 +535,9 @@ public class SnapshotResiliencyTestHelper {
                 this.environment = createEnvironment(node.getName(), tempDir, nodeSettings(node));
                 this.settings = environment.settings();
                 this.pluginsService = createPluginsService(settings, environment);
-                this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
+                this.threadPool = deterministicTaskQueue.getThreadPool(
+                    deferProcessPendingDeletes(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable))
+                );
                 this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 this.client = new NodeClient(settings, threadPool, projectResolver);
                 this.usageService = new UsageService();
@@ -660,7 +696,8 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings()),
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -894,7 +931,7 @@ public class SnapshotResiliencyTestHelper {
                             }
                         },
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

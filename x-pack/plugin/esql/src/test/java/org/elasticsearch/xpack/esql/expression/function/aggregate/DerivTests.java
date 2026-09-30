@@ -57,7 +57,7 @@ public class DerivTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Deriv(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1));
+        return new Deriv(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 
     @SuppressWarnings("unchecked")

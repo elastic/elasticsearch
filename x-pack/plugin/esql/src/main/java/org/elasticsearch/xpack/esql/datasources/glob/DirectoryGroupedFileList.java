@@ -48,7 +48,7 @@ final class DirectoryGroupedFileList implements FileList {
      */
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
-    private final List<String> exclusionWarnings;
+    private final List<String> listingWarnings;
 
     DirectoryGroupedFileList(
         String basePath,
@@ -63,8 +63,10 @@ final class DirectoryGroupedFileList implements FileList {
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
         @Nullable FileSetFingerprint fileSetFingerprint,
-        List<String> exclusionWarnings
+        List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.groupDirs = groupDirs;
         this.fileGroups = fileGroups;
@@ -77,7 +79,7 @@ final class DirectoryGroupedFileList implements FileList {
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
-        this.exclusionWarnings = exclusionWarnings == null || exclusionWarnings.isEmpty() ? List.of() : List.copyOf(exclusionWarnings);
+        this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
     }
 
     @Override
@@ -163,11 +165,11 @@ final class DirectoryGroupedFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes + exclusionWarningBytes();
+        return bytes + listingWarningBytes();
     }
 
     @Override
-    public List<String> exclusionWarnings() {
-        return exclusionWarnings;
+    public List<String> listingWarnings() {
+        return listingWarnings;
     }
 }

@@ -36,9 +36,12 @@
       "enabled": true
     },
     {
-      "description": "Explicitly enable selected Gradle plugin updates managed by the built-in Gradle manager.",
+      "description": "Explicitly enable selected Gradle plugin updates managed by the built-in Gradle manager on main only, with automatic backports to all active release branches.",
       "matchManagers": [
         "gradle"
+      ],
+      "matchBaseBranches": [
+        "main"
       ],
       "matchPackageNames": [
         "/^com\\.google\\.protobuf:(com\\.google\\.protobuf\\.gradle\\.plugin|protobuf-gradle-plugin)$/",
@@ -48,7 +51,11 @@
       "automerge": false,
       "labels": [
         ":Delivery/Build",
-        ">non-issue"
+        ">non-issue",
+        "auto-backport",
+        "branch:9.5",
+        "branch:9.4",
+        "branch:8.19"
       ]
     },
     {

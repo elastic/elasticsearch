@@ -77,7 +77,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
+            RetryRecoveryTestPlugin.armRandomFailure();
 
             // Recover from empty store
             createIndex(indexName, indexSettings(1, 0).build());

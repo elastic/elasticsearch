@@ -517,6 +517,12 @@ public final class Case extends EsqlScalarFunction {
     /**
      * Evaluates {@code CASE} lazily, one <strong>arm</strong> at a time rather than one position at a time.
      * <p>
+     *     An arm is one {@code condition, value} pair of the {@code CASE}, the branch that is taken when
+     *     that condition is the first one to be {@code true}. The trailing else value is the final arm,
+     *     taken when no condition matched. So {@code CASE(a, x, b, y, z)} has three arms: {@code a -> x},
+     *     {@code b -> y} and the else arm {@code z}.
+     * </p>
+     * <p>
      *     Laziness is required for correctness: a condition may only be evaluated for the positions
      *     where all previous conditions were not {@code true}, and a value may only be evaluated for
      *     the positions where its condition is the first {@code true} one. Otherwise we’d emit

@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -94,7 +94,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedBinaryDocValues dv = ifd.load(context).getBytesValues();
+                        SortableBinaryDocValues dv = ifd.load(context).getBytesValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}

@@ -62,7 +62,7 @@ import java.util.Map;
  *
  * <h2>Encoding</h2>
  * Every variable-length piece is length-prefixed ({@code len:bytes}). Column names are open vocabulary — an
- * {@code _id.path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
+ * {@code path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
  * let two different read configurations render identically and collide onto one cache entry. Equal encodings must genuinely mean
  * equal read configurations.
  * <p>

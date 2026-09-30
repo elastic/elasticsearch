@@ -1175,7 +1175,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
      */
     public void testTryIncRecoveryFastPath() throws Exception {
         updateClusterSettings(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final String blockingIndex = randomIndexName();
         final String closedIndex = randomIndexName();
@@ -1224,7 +1226,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             TestPlugin.removeIndexEventListener(blockingListener);
             assertAcked(indicesAdmin().prepareDelete(blockingIndex, closedIndex));
             updateClusterSettings(
-                Settings.builder().putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey()).build()
+                Settings.builder()
+                    .putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
+                    .build()
             );
         }
     }

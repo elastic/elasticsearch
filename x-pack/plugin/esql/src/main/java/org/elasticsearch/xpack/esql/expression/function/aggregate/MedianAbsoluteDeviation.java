@@ -102,11 +102,6 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     }
 
     @Override
-    public MedianAbsoluteDeviation withFilter(Expression filter) {
-        return new MedianAbsoluteDeviation(source(), field(), filter, window());
-    }
-
-    @Override
     protected AggregatorFunctionSupplier longSupplier() {
         return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier();
     }

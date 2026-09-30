@@ -82,7 +82,7 @@ public final class SourceFilter {
             return false;
         }
         if (includeAut == null) {
-            includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+            includeAut = compileFilterAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()), "include field");
         }
         int state = step(includeAut, fullPath, 0);
         return state != -1 && includeAut.isAccept(state);
@@ -99,7 +99,7 @@ public final class SourceFilter {
         final boolean included;
         if (includes.length > 0) {
             if (includeAut == null) {
-                includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+                includeAut = compileFilterAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()), "include field");
             }
             int state = step(includeAut, fullPath, 0);
             included = state != -1 && (isObject || includeAut.isAccept(state));
@@ -109,7 +109,7 @@ public final class SourceFilter {
 
         if (excludes.length > 0) {
             if (excludeAut == null) {
-                excludeAut = XContentMapValues.compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
+                excludeAut = compileFilterAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()), "exclude field");
             }
             int state = step(excludeAut, fullPath, 0);
             if (state != -1 && excludeAut.isAccept(state)) {
@@ -138,9 +138,25 @@ public final class SourceFilter {
             return in;
         }
         if (mapFilter == null) {
-            mapFilter = XContentMapValues.filter(includes, excludes);
+            try {
+                mapFilter = XContentMapValues.filter(includes, excludes);
+            } catch (IllegalArgumentException e) {
+                throw unableToFilterSource(e);
+            }
         }
         return Source.fromMap(mapFilter.apply(in.source()), in.sourceContentType());
+    }
+
+    private static CharacterRunAutomaton compileFilterAutomaton(String[] patterns, CharacterRunAutomaton defaultValue, String kind) {
+        try {
+            return XContentMapValues.compileAutomaton(patterns, defaultValue, kind);
+        } catch (IllegalArgumentException e) {
+            throw unableToFilterSource(e);
+        }
+    }
+
+    private static IllegalArgumentException unableToFilterSource(IllegalArgumentException e) {
+        return new IllegalArgumentException("Unable to filter _source: " + e.getMessage(), e.getCause());
     }
 
     /**

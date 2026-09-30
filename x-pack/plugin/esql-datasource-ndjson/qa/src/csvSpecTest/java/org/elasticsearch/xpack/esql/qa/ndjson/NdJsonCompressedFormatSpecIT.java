@@ -88,6 +88,7 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
             COMPRESSED_FORMATS,
             "/datasources/external-basic.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
+            "/datasources/external-metadata-collision.csv-spec",
             "/datasources/external-multifile.csv-spec",
             "/datasources/external-multifile-resolution.csv-spec",
             "/datasources/external-multivalue.csv-spec",

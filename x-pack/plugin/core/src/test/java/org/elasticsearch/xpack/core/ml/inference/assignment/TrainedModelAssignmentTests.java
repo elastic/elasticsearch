@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskParamsTests;
@@ -36,6 +38,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TrainedModelAssignmentTests extends AbstractXContentSerializingTestCase<TrainedModelAssignment> {
 
@@ -48,6 +52,9 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.setAssignmentState(randomFrom(AssignmentState.values()));
         if (randomBoolean()) {
             builder.setReason(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.setObservedPerAllocationMemoryBytes(randomNonNegativeLong());
         }
         return builder.build();
     }
@@ -93,6 +100,17 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
     @Override
     protected TrainedModelAssignment mutateInstance(TrainedModelAssignment instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public void testObservedPerAllocationMemoryBytesIsDroppedForOldTransportVersions() throws IOException {
+        TrainedModelAssignment original = randomInstanceBuilder(randomParams(), randomFrom(AssignmentState.values()))
+            .setObservedPerAllocationMemoryBytes(randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+        assertThat(original.getObservedPerAllocationMemoryBytes(), is(notNullValue()));
+
+        TransportVersion beforeGate = TransportVersionUtils.getPreviousVersion(TrainedModelAssignment.RUNTIME_NATIVE_MEMORY_STATS);
+        TrainedModelAssignment deserialized = copyInstance(original, beforeGate);
+        assertThat(deserialized.getObservedPerAllocationMemoryBytes(), is(nullValue()));
     }
 
     public void testBuilderAddingExistingRoute() {

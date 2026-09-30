@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
@@ -236,6 +237,87 @@ public class EnrichCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that byte arrays in enrich source documents are independently deep-copied on each cache access. Uses SMILE-encoded
+     * source documents so that binary fields survive the SearchHit#getSourceAsMap() round-trip as byte[], exercising the byte[]
+     * branch in EnrichCache#deepCopy through the full computeIfAbsent → toCacheValue pipeline.
+     */
+    public void testByteArraySourceIsolation() throws InterruptedException {
+        EnrichCache enrichCache = new EnrichCache(10);
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        final byte[] originalBytes = { 1, 2, 3, 4, 5 };
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("key1", "value1");
+        sourceMap.put("binary_field", originalBytes);
+
+        List<List<Map<?, ?>>> capturedResults = new ArrayList<>();
+
+        // First call: cache miss — source document is fetched and cached
+        {
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                SearchResponse searchResponse = convertToSearchResponseWithSmile(sourceMap);
+                listener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        // Second call: cache hit — result must be a fresh deep copy, not shared with the first
+        {
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                fail("Expected no call to the database because item should have been in the cache");
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        assertThat(capturedResults.size(), equalTo(2));
+        byte[] resultBytes1 = (byte[]) capturedResults.get(0).get(0).get("binary_field");
+        byte[] resultBytes2 = (byte[]) capturedResults.get(1).get(0).get("binary_field");
+
+        // Both results must have the correct values
+        assertArrayEquals(originalBytes, resultBytes1);
+        assertArrayEquals(originalBytes, resultBytes2);
+
+        // Each call returns a distinct copy; no result shares an instance with the original or each other
+        assertThat(resultBytes1, not(sameInstance(originalBytes)));
+        assertThat(resultBytes2, not(sameInstance(originalBytes)));
+        assertThat(resultBytes1, not(sameInstance(resultBytes2)));
+
+        // Mutating the first result must not corrupt the second
+        resultBytes1[0] = 99;
+        assertArrayEquals(originalBytes, resultBytes2);
+    }
+
+    private SearchResponse convertToSearchResponseWithSmile(Map<String, Object> sourceMap) {
+        try {
+            SearchHit hit = new SearchHit(0, "id").sourceRef(convertMapToSmile(sourceMap));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+            SearchResponse response = SearchResponseUtils.response(hits).shards(5, 4, 0).build();
+            hits.decRef();
+            return response;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private BytesReference convertMapToSmile(Map<String, ?> simpleMap) throws IOException {
+        try (XContentBuilder builder = SmileXContent.contentBuilder().map(simpleMap)) {
+            return BytesReference.bytes(builder);
+        }
+    }
+
     private SearchResponse convertToSearchResponse(List<Map<String, ?>> searchResponseList) {
         SearchHit[] hitArray = searchResponseList.stream().map(map -> {
             try {
@@ -254,53 +336,6 @@ public class EnrichCacheTests extends ESTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder().map(simpleMap)) {
             return BytesReference.bytes(builder);
         }
-    }
-
-    public void testDeepCopy() {
-        Map<String, Object> original = new HashMap<>();
-        {
-            original.put("foo", "bar");
-            original.put("int", 123);
-            original.put("double", 123.0D);
-            Map<String, Object> innerObject = new HashMap<>();
-            innerObject.put("buzz", "hello world");
-            innerObject.put("foo_null", null);
-            innerObject.put("1", "bar");
-            innerObject.put("long", 123L);
-            List<String> innerInnerList = new ArrayList<>();
-            innerInnerList.add("item1");
-            List<Object> innerList = new ArrayList<>();
-            innerList.add(innerInnerList);
-            innerObject.put("list", innerList);
-            original.put("fizz", innerObject);
-            List<Map<String, Object>> list = new ArrayList<>();
-            Map<String, Object> value = new HashMap<>();
-            value.put("field", "value");
-            list.add(value);
-            list.add(null);
-            original.put("list", list);
-            List<String> list2 = new ArrayList<>();
-            list2.add("foo");
-            list2.add("bar");
-            list2.add("baz");
-            original.put("list2", list2);
-        }
-
-        Map<?, ?> result = EnrichCache.deepCopy(original, false);
-        assertThat(result, equalTo(original));
-        assertThat(result, not(sameInstance(original)));
-
-        result = EnrichCache.deepCopy(original, true);
-        assertThat(result, equalTo(original));
-        assertThat(result, not(sameInstance(original)));
-        Map<?, ?> innerMap = (Map<?, ?>) result.get("fizz");
-        expectThrows(UnsupportedOperationException.class, () -> innerMap.remove("x"));
-        List<?> innerList = (List<?>) result.get("list");
-        expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
-
-        original.put("embedded_object", new byte[] { 1, 2, 3 });
-        result = EnrichCache.deepCopy(original, false);
-        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 
 }

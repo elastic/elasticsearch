@@ -168,9 +168,16 @@ public class CsvProvenProbeTests extends ESTestCase {
                 throw new AssertionError("the walk must not ask for single bytes");
             }
 
+            private int zeroAnswers;
+
             @Override
             public int read(byte[] b, int off, int len) {
                 if (stalled) {
+                    // A reader that retried on zero would spin here forever and the case would fail by hanging
+                    // rather than by asserting, so refuse after a few turns and fail with something readable.
+                    if (++zeroAnswers > 4) {
+                        throw new AssertionError("the walk retried a zero-length read instead of ending the scan");
+                    }
                     return 0;
                 }
                 stalled = true;

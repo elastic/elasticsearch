@@ -3705,10 +3705,11 @@ public class FileSplitProviderTests extends ESTestCase {
      * in-quote reading, so every probe returns AMBIGUOUS and every macro-split boundary comes from the exact walk
      * instead - the path the quoted payload above barely touches.
      *
-     * <p>Boundaries being true record starts is necessary but not sufficient: a walk could return a true record
-     * start that is not the right one and silently drop or duplicate whole records between two splits. So this
-     * also reads the record starts back out of each span and requires their union to be exactly the whole-file
-     * set, which is the property a query over a macro-split file actually depends on.
+     * <p>It also reads the record starts back out of each span and requires their union to be exactly the
+     * whole-file set. Because the spans are contiguous that cannot catch a boundary landing on a later record
+     * start than it should - the following span simply begins earlier and the union is still complete - so what
+     * it does catch is a boundary that is not a record start at all, from the other direction than the
+     * true-start assertion above, plus any span the walk fails to emit.
      */
     public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
@@ -3765,8 +3766,8 @@ public class FileSplitProviderTests extends ESTestCase {
         }
 
         // trueRecordStarts carries the post-final-terminator offset as well; the spans never start a record there.
-        Set<Long> expected = new TreeSet<>(trueStarts);
-        expected.remove(((TreeSet<Long>) expected).last());
+        TreeSet<Long> expected = new TreeSet<>(trueStarts);
+        expected.remove(expected.last());
         Set<Long> reconstructed = new TreeSet<>();
         RecordSplitter splitter = csvReader.recordSplitter(maxRecordBytes);
         for (int i = 0; i < starts.size(); i++) {

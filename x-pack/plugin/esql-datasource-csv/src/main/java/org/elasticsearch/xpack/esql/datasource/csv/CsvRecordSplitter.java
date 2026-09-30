@@ -119,7 +119,11 @@ final class CsvRecordSplitter implements RecordSplitter {
     /** Poll the cancellation supplier this often (in bytes) during the exact walk. */
     private static final long CANCEL_CHECK_INTERVAL_BYTES = 64 * 1024;
 
-    /** No byte is waiting to be re-read; distinct from every byte value and from the end-of-stream {@code -1}. */
+    /**
+     * No byte is waiting to be re-read. Distinct from the end-of-stream {@code -1} so that a held end-of-stream
+     * is taken from the slot rather than read again; both spellings end the walk on the same turn, so this is one
+     * fewer read rather than a correctness condition.
+     */
     private static final int NO_PENDING = -2;
 
     /**
@@ -363,8 +367,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         boolean fieldHasNonWhitespace = false;
         long sinceCancelCheck = 0;
         // A byte that was read to settle a lookahead and turned out not to belong to it, waiting to be read as
-        // itself. NO_PENDING cannot collide with a byte value or with the end-of-stream -1, which is held here
-        // like any other answer and ends the walk on the next turn.
+        // itself. End of stream is held here like any other answer and ends the walk on the next turn.
         int pending = NO_PENDING;
 
         while (true) {
@@ -783,20 +786,15 @@ final class CsvRecordSplitter implements RecordSplitter {
      * <p>
      * Both step a byte at a time, and {@link BufferedInputStream#read()} is {@code synchronized}, so taking the
      * bytes from one costs a monitor enter and exit per byte of the span - on a stream the scanner is the only
-     * reader of, so the lock guards nothing. Removing it is the whole win: with the monitor gone, a sweep over
-     * five CSV shapes found the block size makes no difference from 1kb to 128kb, so this stays at the size
-     * {@link BufferedInputStream} defaults to, which is also the figure {@code RecordBoundaryProbe} quotes when
-     * it reasons about how much a probe pulls past a boundary.
+     * reader of, so the lock guards nothing. The block size is the size {@link BufferedInputStream} defaults to,
+     * which keeps the read-ahead a scan may hold to what it was before.
      * <p>
-     * Read-ahead keeps the bound it had, one block, so a scan still pulls less than a block past the boundary it
-     * returns. Not the same bytes: a {@link BufferedInputStream} refilling under a {@code mark} stops at the end
-     * of its buffer, so the old refills were not block-aligned. Only the bound is owed - {@code provenBoundaries}
-     * aborts both streams whatever they read.
+     * Read-ahead is bounded by one block, and {@code RecordBoundaryProbe.provenBoundaries} aborts both streams
+     * whatever they read, so the position a scan leaves the stream in is not observable.
      * <p>
-     * {@code read()} is the whole surface on purpose. A caller settling a lookahead reads the next byte and, if it
-     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. The alternative
-     * was a {@code peek()} here, which measured the same but owed callers a rule about when a peeked byte stays
-     * valid across a refill - a rule whose only purpose was to be obeyed.
+     * {@code read()} is the whole surface on purpose: a caller settling a lookahead reads the next byte and, if it
+     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. Offering a
+     * {@code peek()} instead would owe every caller a rule about when a peeked byte stays valid across a refill.
      */
     private static final class BlockCursor {
 

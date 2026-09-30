@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -244,6 +246,33 @@ public class ExternalFailuresTests extends ESTestCase {
 
         assertEquals(annotated.getMessage(), detached.getMessage());
         assertNull(detached.getCause());
+    }
+
+    /**
+     * The user never sees a client failure's detail, so the first one of a read is logged at WARN. The failures
+     * that only get suppressed under it are logged at DEBUG, or a read over many objects floods the log.
+     */
+    public void testOnlyTheFirstClientFailureIsLoggedAtWarn() {
+        for (Throwable clientFailure : new Throwable[] { new IOException("truncated"), new IllegalArgumentException("bad page") }) {
+            MockLog.assertThatLogger(
+                () -> ExternalFailures.classify(clientFailure),
+                ExternalFailures.class,
+                new MockLog.SeenEventExpectation("first", ExternalFailures.class.getCanonicalName(), Level.WARN, "External read failed*")
+            );
+            MockLog.assertThatLogger(
+                () -> ExternalFailures.classifySuppressed(clientFailure),
+                ExternalFailures.class,
+                new MockLog.UnseenEventExpectation("suppressed", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+            );
+        }
+    }
+
+    public void testSuppressedServerFailureIsStillLoggedAtWarn() {
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.classifySuppressed(new IllegalStateException("broken invariant")),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation("server", ExternalFailures.class.getCanonicalName(), Level.WARN, "Unexpected failure*")
+        );
     }
 
     public void testClassifyFallsBackToClassNameWhenMessageIsNull() {

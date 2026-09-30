@@ -468,7 +468,7 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
-                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classify(t));
+                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }

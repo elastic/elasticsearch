@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -179,8 +180,23 @@ public final class ExternalFailures {
      * contains a known storage-URI scheme — a debug guard that fires immediately if a new throw site
      * embeds a full path instead of using the structured constructors on {@link ExternalException}.
      * See {@link #noStoragePathLeaked}.
+     * <p>
+     * A client-caused failure is logged at WARN: its detail is not forwarded to the user, so this node's log is
+     * the only place it survives.
      */
     public static RuntimeException classify(Throwable t) {
+        return classify(t, Level.WARN);
+    }
+
+    /**
+     * {@link #classify} for a failure that only gets attached as suppressed to one already classified for the
+     * same read. Logs client-caused failures at DEBUG, since the first failure was already logged at WARN.
+     */
+    public static RuntimeException classifySuppressed(Throwable t) {
+        return classify(t, Level.DEBUG);
+    }
+
+    private static RuntimeException classify(Throwable t, Level clientFailureLevel) {
         if (t instanceof Error error) {
             throw error;
         }
@@ -197,9 +213,9 @@ public final class ExternalFailures {
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            // IAE from format readers may embed storage URIs in the message. Log at WARN on this node for
+            // IAE from format readers may embed storage URIs in the message. Log on this node for
             // debugging; do not chain it into the exception so its message never crosses the wire.
-            logger.warn("External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
+            logger.log(clientFailureLevel, () -> "External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
             ExternalClientException iaeResult = new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
             // Include the IAE detail only when it is free of storage-URI schemes; a Parquet reader may surface
             // a column name or file basename that is useful for diagnosis without leaking the full object path.
@@ -210,10 +226,10 @@ public final class ExternalFailures {
         }
         RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            // IOException messages from storage clients may embed full storage URIs. Log at WARN on
-            // this node for debugging; do not chain t into the exception so its message and cause
-            // chain never cross the wire.
-            logger.warn("External read failed with IO exception (cause logged, not forwarded)", t);
+            // IOException messages from storage clients may embed full storage URIs. Log on this node
+            // for debugging; do not chain t into the exception so its message and cause chain never
+            // cross the wire.
+            logger.log(clientFailureLevel, () -> "External read failed with IO exception (cause logged, not forwarded)", t);
             ExternalClientException ioResult = new ExternalClientException(
                 "Failed to read external source: {}",
                 t.getClass().getSimpleName()

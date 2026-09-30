@@ -1,5 +1,7 @@
 area: Search
 issues: []
 pr: 160627
-summary: Account for fetch hits held on the coordinating node
+summary: |-
+  Account for fetch hits held on the coordinating node in the request circuit breaker.
+  A search whose hits it can't hold now fails with a circuit breaking exception.
 type: enhancement

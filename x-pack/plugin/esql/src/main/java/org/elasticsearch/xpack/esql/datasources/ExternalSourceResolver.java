@@ -1355,9 +1355,7 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(
-                    finishFirstFileWins(listing, markStatsAsPartial(base), storageIdentity, config, Map.of(), Map.of())
-                );
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), storageIdentity, config, Map.of(), Map.of()));
             } else {
                 listener.onResponse(finishFirstFileWins(listing, base, storageIdentity, config, Map.of(), Map.of()));
             }

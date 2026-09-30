@@ -70,8 +70,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueLayout;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
@@ -185,14 +189,20 @@ public class ComputeService {
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     /**
-     * Fixed per-file allowance for phase 2: 1000 for the frozen survivor map and 160 for one split shell.
-     * Not a measured deep size. Counted per file, not per split — a text or compressed file can become many
-     * splits, and that count is only known after the discovery this reservation precedes, so those files are
-     * under-charged. {@link org.elasticsearch.xpack.esql.datasources.spi.FileList#planningBytes()} adds the
-     * columnar partition-value allowance {@code estimatedBytes()} leaves out, and 760 is the per-file
-     * schema-map allowance charged with the listing.
+     * Phase-2 survivor maps. Not a measured deep size. {@link #SHELL_BYTES} is one split shell per file.
+     * A map of {@code k} keys is {@link #MAP_OVERHEAD_BYTES} {@code +} {@link #ENTRY_BYTES} {@code * k}
+     * ({@code 552 + 64 * k}). An empty map is free: the real hold is
+     * {@link java.util.Map#of()}. {@link #VIEW_BYTES} is the overlay wrapper, billed only when both layers are
+     * non-empty. The wrapper walks the shared tuple instead of copying its entries, so 64 bytes bounds it.
+     * Counted per file, not per split — a text or compressed file can become many splits, and that
+     * count is only known after the discovery this reservation precedes, so those files are under-charged.
+     * Directory-constant keys are billed once per shared partition row, or once per file when the listing has
+     * no metadata or one row per file.
      */
-    private static final long PHASE2_BYTES_PER_FILE = 1160L;
+    static final long SHELL_BYTES = 160L;
+    static final long ENTRY_BYTES = 64L;
+    static final long MAP_OVERHEAD_BYTES = 552L;
+    static final long VIEW_BYTES = 64L;
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -287,33 +297,73 @@ public class ComputeService {
 
     /**
      * Reserves survivor-map and split-shell memory for every resolved {@link ExternalSourceExec} before local
-     * split discovery. Unresolved lists are omitted. A breaker trip is not recorded on the run.
+     * split discovery. Each source is billed from its own retained keys and shared row count. Unresolved lists
+     * are omitted. A breaker trip is not recorded on the run.
      */
     private void chargeResolvedExternalSources(PhysicalPlan plan, ExternalPlanningReservation.Run run) {
-        long[] files = { 0L };
-        plan.forEachDown(ExternalSourceExec.class, exec -> {
-            FileList list = exec.fileList();
-            if (list != null && list.isResolved()) {
-                files[0] += list.fileCount();
-            }
-        });
-        chargePhase2(files[0], run);
+        plan.forEachDown(ExternalSourceExec.class, exec -> chargePhase2(exec.output(), exec.fileList(), run));
     }
 
-    /** Reserves phase-2 memory from the fragment relation's file count, before that relation is lowered. */
+    /** Reserves phase-2 memory from the fragment relation, before that relation is lowered. */
     private static void chargeRelationFileCount(ExternalRelation relation, ExternalPlanningReservation.Run run) {
-        FileList list = relation.fileList();
-        if (list == null || list.isResolved() == false) {
-            return;
-        }
-        chargePhase2(list.fileCount(), run);
+        chargePhase2(relation.output(), relation.fileList(), run);
     }
 
-    private static void chargePhase2(long fileCount, ExternalPlanningReservation.Run run) {
-        if (fileCount <= 0 || run == null) {
+    private static void chargePhase2(List<Attribute> output, @Nullable FileList list, ExternalPlanningReservation.Run run) {
+        if (run == null) {
             return;
         }
-        run.charge(fileCount * PHASE2_BYTES_PER_FILE);
+        long bytes = phase2Bytes(output, list);
+        if (bytes > 0L) {
+            run.charge(bytes);
+        }
+    }
+
+    /**
+     * Survivor-map bytes plus one shell per file. Directory-constant keys are billed once per shared partition
+     * row. No metadata, or one row per file, bills those keys per file (an upper bound: filters may drop files
+     * after this charge). A source that retains nothing bills shells only.
+     */
+    static long phase2Bytes(List<Attribute> output, @Nullable FileList list) {
+        if (list == null || list.isResolved() == false) {
+            return 0L;
+        }
+        int files = list.fileCount();
+        if (files <= 0) {
+            return 0L;
+        }
+        PartitionMetadata metadata = list.partitionMetadata();
+        Set<String> retained = PartitionValueLayout.retainedKeys(
+            ExternalSchema.dataAttributesOf(output),
+            metadata,
+            ExternalMetadataColumns.metadataNames(output)
+        );
+        PartitionValueLayout layout = PartitionValueLayout.of(retained, metadata);
+        int directories = files;
+        if (metadata != null
+            && metadata.isEmpty() == false
+            && metadata.fileCount() == files
+            && metadata.rowCount() > 0
+            && metadata.rowCount() < files) {
+            directories = metadata.rowCount();
+        }
+        return phase2MapAndShell(files, directories, layout.directoryKeys().size(), layout.perFileKeys().size());
+    }
+
+    /** {@code 0} keys is an empty map. Otherwise {@code 552 + 64 * keys}. */
+    static long perMap(int keys) {
+        if (keys <= 0) {
+            return 0L;
+        }
+        return MAP_OVERHEAD_BYTES + ENTRY_BYTES * (long) keys;
+    }
+
+    private static long phase2MapAndShell(int files, int directories, int directoryKeys, int perFileKeys) {
+        long mapBytes = perMap(directoryKeys) * directories + perMap(perFileKeys) * files;
+        if (directoryKeys > 0 && perFileKeys > 0) {
+            mapBytes += VIEW_BYTES * files;
+        }
+        return mapBytes + SHELL_BYTES * files;
     }
 
     PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {

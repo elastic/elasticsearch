@@ -6129,7 +6129,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // A storage provider identifies itself by the settings that name the store it reads, never by
                 // the coordinator's. Claiming every key here put schema_resolution and file_sort_by into the
                 // storage identity and fragmented the listing cache, which no real configuration can do.
-                return new Configured<>(provider, Set.copyOf(config.keySet()), Configured.identityOf(config, Set.of("endpoint", "region")));
+                return new Configured<>(
+                    provider,
+                    Set.copyOf(config.keySet()),
+                    Configured.identityOf(config, Set.of("endpoint", "region")),
+                    ""
+                );
             }
         };
     }
@@ -7734,21 +7739,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The resolver-level test ({@link #testDatasetAggregateKeyIsolatedByEndpointInDatasource}) pins the
      * end-to-end contract through {@link ExternalSourceResolver#datasetAggregateKey}.
      */
-    public void testListingCacheKeyDifferentiatesByDatasetCredentials() {
+    /**
+     * A listing is isolated by credential, and the value that isolates it comes from the provider rather than from
+     * this key reading the config. Both halves are asserted, because the second is the behavioural change: a key
+     * that scans a config for credential names is guessing which names those are, and the list it guessed with
+     * carried {@code access_key} but not {@code session_token}.
+     */
+    public void testListingCacheKeyDifferentiatesByTheCredentialIdentityTheProviderReports() {
         Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
         Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → credential difference visible even from raw config.
-        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", "", configA, "");
-        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", "", configB, "");
-        assertNotEquals("key builder walks _datasource directly → distinct credential hashes from raw config", rawA, rawB);
+        String secretsA = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configA), Set.of("access_key"));
+        String secretsB = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configB), Set.of("access_key"));
+        assertNotEquals("two credentials must not derive one secret identity", secretsA, secretsB);
+        assertNotEquals(
+            "distinct credential identities must address distinct listings",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsA, configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsB, configB, "")
+        );
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", "", ExternalSourceResolver.storageConfig(configA), "");
-        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", "", ExternalSourceResolver.storageConfig(configB), "");
-        assertNotEquals("flattened config also exposes credentials → listing keys must differ", flatA, flatB);
+        assertEquals(
+            "this key must not derive a credential identity from the config itself: only the provider knows which "
+                + "of its fields are secret, and a list written here omitted session_token, role_arn and auth",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configB, "")
+        );
     }
 
     public void testListingCacheKeyDifferentiatesByDatasetEndpoint() {
@@ -7765,6 +7782,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "bucket",
             "prefix/",
             Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            "",
             configA,
             ""
         );
@@ -7773,6 +7791,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "bucket",
             "prefix/",
             Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            "",
             configB,
             ""
         );
@@ -7784,8 +7803,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         assertNotEquals(
             "two definitions differing in their endpoint must address distinct listings even with no provider report",
-            ListingCacheKey.build("s3", "bucket", "prefix/", "", versionedA, ""),
-            ListingCacheKey.build("s3", "bucket", "prefix/", "", versionedB, "")
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedB, "")
         );
     }
 

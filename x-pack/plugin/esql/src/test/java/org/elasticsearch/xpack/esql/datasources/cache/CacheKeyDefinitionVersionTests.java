@@ -13,10 +13,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Every cache addressing something derived from a dataset's definitions carries the version of those
@@ -70,8 +72,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         Map<String, Object> auditor = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "AUDITORTOKEN");
         assertNotEquals(
             "two identities over one prefix must not address one listing",
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config(readerVersion, reader), ""),
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config(auditorVersion, auditor), "")
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config(readerVersion, reader), ""),
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config(auditorVersion, auditor), "")
         );
     }
 
@@ -79,8 +81,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     public void testOneIdentityOverOneBucketAddressesOneListing() {
         Map<String, Object> settings = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "TOKEN");
         assertEquals(
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config("v1", settings), ""),
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", config("v1", settings), "")
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config("v1", settings), ""),
+            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config("v1", settings), "")
         );
     }
 
@@ -119,4 +121,62 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
             SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", noVersion)
         );
     }
+
+    /**
+     * The inline path, which has no dataset and therefore no definition version. Two queries carrying their own
+     * credentials over one bucket are separated by nothing else: the storage identity excludes secrets so that two
+     * users of one data source share what a file contains, and the definition version is empty here. So the secret
+     * identity the provider derives is the only thing between them, and {@code session_token} has to be in it.
+     * <p>
+     * Before this it was not. The listing key computed its own hash from seven credential names, {@code
+     * session_token} was absent from the list, and these two keys were equal.
+     */
+    public void testTwoInlineIdentitiesOverOneBucketDoNotShareAListing() {
+        Set<String> declaredSecrets = Set.of("access_key", "secret_key", "session_token");
+        Map<String, Object> reader = Map.of("access_key", "AKIAEXAMPLE", "session_token", "READERTOKEN");
+        Map<String, Object> auditor = Map.of("access_key", "AKIAEXAMPLE", "session_token", "AUDITORTOKEN");
+
+        Map<String, Object> inline = new HashMap<>();
+        inline.put("format", "csv");
+        assertEquals("an inline query carries no definition version", "", SchemaCacheKey.definitionVersionOf(inline));
+
+        assertNotEquals(
+            "two inline identities over one prefix must not address one listing",
+            ListingCacheKey.build(
+                "s3",
+                "warehouse",
+                "data/*.parquet",
+                "",
+                Configured.secretIdentityOf(reader, declaredSecrets),
+                inline,
+                ""
+            ),
+            ListingCacheKey.build(
+                "s3",
+                "warehouse",
+                "data/*.parquet",
+                "",
+                Configured.secretIdentityOf(auditor, declaredSecrets),
+                inline,
+                ""
+            )
+        );
+    }
+
+    /**
+     * The other half of the same rule: what a file <i>contains</i> does not depend on who read it, so a credential
+     * must not fragment the schema key. Two inline identities over one file share its schema entry and each pays
+     * one cold read between them rather than one each.
+     */
+    public void testTwoInlineIdentitiesOverOneFileShareItsSchema() {
+        Map<String, Object> reader = new HashMap<>();
+        reader.put("format", "csv");
+        Map<String, Object> auditor = new HashMap<>();
+        auditor.put("format", "csv");
+        assertEquals(
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", reader),
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", auditor)
+        );
+    }
+
 }

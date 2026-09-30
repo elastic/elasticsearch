@@ -93,7 +93,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         FormatReader wrapped = configured.value() == inner
             ? this
             : new CompressionDelegatingFormatReader(configured.value(), codec, maxDecompressionRatio);
-        return new Configured<>(wrapped, configured.consumedKeys(), configured.identity());
+        return new Configured<>(wrapped, configured.consumedKeys(), configured.identity(), configured.secretIdentity());
     }
 
     @Override

@@ -525,7 +525,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
                         }
                         // A storage provider identifies itself by the settings naming the store it reads, so a
                         // stub that models none reports none.
-                        return new Configured<>(storage, Set.copyOf(config.keySet()), "");
+                        return new Configured<>(storage, Set.copyOf(config.keySet()), "", "");
                     }
                 });
             }

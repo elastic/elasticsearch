@@ -185,11 +185,12 @@ public abstract class DataSourceConfiguration {
         Map<String, DataSourceConfigDefinition> fieldDefs
     ) {
         if (raw == null || raw.isEmpty()) {
-            return new Configured<>(raw, Set.of(), "");
+            return new Configured<>(raw, Set.of(), "", "");
         }
         Map<String, Object> filtered = new HashMap<>(raw.size());
         Set<String> consumed = new HashSet<>();
         Set<String> identifying = new HashSet<>();
+        Set<String> secrets = new HashSet<>();
         // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
         // is not worth tracking precisely here.
         boolean debug = logger.isDebugEnabled();
@@ -200,6 +201,8 @@ public abstract class DataSourceConfiguration {
                 consumed.add(entry.getKey());
                 if (fieldDefs.get(entry.getKey()).secret() == false) {
                     identifying.add(entry.getKey());
+                } else {
+                    secrets.add(entry.getKey());
                 }
             } else if (debug) {
                 if (dropped == null) {
@@ -211,7 +214,12 @@ public abstract class DataSourceConfiguration {
         if (dropped != null) {
             logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
         }
-        return new Configured<>(filtered, consumed, Configured.identityOf(filtered, identifying, Set.of()));
+        return new Configured<>(
+            filtered,
+            consumed,
+            Configured.identityOf(filtered, identifying, Set.of()),
+            Configured.secretIdentityOf(filtered, secrets)
+        );
     }
 
     /**
@@ -227,7 +235,7 @@ public abstract class DataSourceConfiguration {
     ) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
         T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
-        return new Configured<>(value, filtered.consumedKeys(), filtered.identity());
+        return new Configured<>(value, filtered.consumedKeys(), filtered.identity(), filtered.secretIdentity());
     }
 
     /**

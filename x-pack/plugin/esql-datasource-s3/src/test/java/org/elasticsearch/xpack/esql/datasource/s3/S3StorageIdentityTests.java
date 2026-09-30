@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 /**
  * A storage configuration says what identifies the objects it reads, and every cache key derived from those
  * objects carries that value. Two properties decide whether the cache serves a wrong answer.
@@ -147,6 +149,55 @@ public class S3StorageIdentityTests extends ESTestCase {
             .sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
             .forEach(e -> reordered.put(e.getKey(), e.getValue()));
         assertEquals(identityOf(EXPLICIT), identityOf(reordered));
+    }
+
+    /**
+     * The other identity this configuration derives, and the one the listing cache carries. A listing is what a
+     * principal can <i>see</i>, so it must be isolated by credential — the opposite of the schema identity above,
+     * which must not be.
+     * <p>
+     * Derived through {@code fromQueryConfig}, so this is the value production computes, and asserted over
+     * {@link S3Configuration#secretFieldNames()} rather than a name written here: every field the configuration
+     * declares secret must move it. The defect this closes was a list of seven credential names inside the cache
+     * that omitted {@code session_token}, so two roles over one bucket addressed one listing — and on the inline
+     * path, where there is no definition version, nothing else separated them.
+     */
+    public void testEveryDeclaredSecretMovesTheCredentialIdentity() {
+        Set<String> secrets = S3Configuration.secretFieldNames();
+        assertFalse("the configuration must declare some secrets, or this asserts nothing", secrets.isEmpty());
+        int checked = 0;
+        for (Map<String, Object> base : List.of(EXPLICIT, FEDERATED)) {
+            String identity = S3Configuration.fromQueryConfig(base).secretIdentity();
+            // Federated authentication declares no secret — a role arn and an audience are not credentials — so an
+            // empty identity there is the right answer, and asserting otherwise would assert the wrong contract.
+            boolean carriesASecret = S3Configuration.fromQueryConfig(base).consumedKeys().stream().anyMatch(secrets::contains);
+            assertEquals(
+                "a credential identity exists exactly when a declared secret is carried",
+                carriesASecret,
+                identity.isEmpty() == false
+            );
+            for (String secret : S3Configuration.fromQueryConfig(base).consumedKeys()) {
+                if (secrets.contains(secret) == false) {
+                    continue;
+                }
+                assertNotEquals(
+                    "secret [" + secret + "] must move the credential identity: a listing is isolated by credential",
+                    identity,
+                    S3Configuration.fromQueryConfig(with(base, secret, "rotated-" + secret)).secretIdentity()
+                );
+                assertFalse(
+                    "a secret's value must not survive into the credential identity",
+                    identity.contains(String.valueOf(base.get(secret)))
+                );
+                checked++;
+            }
+        }
+        assertThat("both bases together must have exercised several declared secrets", checked, greaterThanOrEqualTo(3));
+    }
+
+    /** A store reached anonymously has no credential to isolate by, and an empty identity is the right answer. */
+    public void testAnAnonymousStoreHasNoCredentialIdentity() {
+        assertEquals("", S3Configuration.fromQueryConfig(Map.of("endpoint", "https://s3.example", "auth", "anonymous")).secretIdentity());
     }
 
 }

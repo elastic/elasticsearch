@@ -102,7 +102,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testListingHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), "");
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
 
             FileList listing1 = service.getOrComputeListing(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -127,8 +127,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
 
-            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of("access_key", "userA"), "");
-            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of("access_key", "userB"), "");
+            // The provider reports what its declared secrets identify; this key no longer scans the config for
+            // credential names. Derived rather than handed two literals, so it fails if the derivation stops
+            // distinguishing them.
+            String userA = Configured.secretIdentityOf(Map.of("access_key", "userA"), Set.of("access_key"));
+            String userB = Configured.secretIdentityOf(Map.of("access_key", "userB"), Set.of("access_key"));
+            assertNotEquals("two credentials must not derive one secret identity", userA, userB);
+            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", userA, Map.of(), "");
+            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", userB, Map.of(), "");
             assertNotEquals(key1, key2);
 
             service.getOrComputeListing(key1, k -> {
@@ -154,6 +160,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "bucket",
                 "/data/*.parquet",
                 Configured.identityOf(Map.of("endpoint", "us-east-1.amazonaws.com"), Set.of("endpoint")),
+                "",
                 Map.of(),
                 ""
             );
@@ -162,6 +169,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "bucket",
                 "/data/*.parquet",
                 Configured.identityOf(Map.of("endpoint", "eu-west-1.amazonaws.com"), Set.of("endpoint")),
+                "",
                 Map.of(),
                 ""
             );
@@ -196,6 +204,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "bucket",
                 "/data/year=*/*.parquet",
                 "",
+                "",
                 Map.of(),
                 GlobExpander.listingCacheDiscriminator(glob, List.of(hint), HIVE_ON)
             );
@@ -203,6 +212,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "s3",
                 "bucket",
                 "/data/year=*/*.parquet",
+                "",
                 "",
                 Map.of(),
                 GlobExpander.listingCacheDiscriminator(glob, null, HIVE_ON)
@@ -226,8 +236,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             AtomicInteger loaderCalls = new AtomicInteger();
 
             String discriminator = GlobExpander.listingCacheDiscriminator("s3://bucket/data/*.parquet", null, HIVE_ON);
-            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), discriminator);
-            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), discriminator);
+            ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), discriminator);
+            ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), discriminator);
             assertEquals(key1, key2);
 
             service.getOrComputeListing(key1, k -> {
@@ -259,9 +269,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         String bigGlobB = bigGlobA.replace("year={2000", "year={1999");
         assertThat("the discriminator string this test hashes is genuinely large", bigGlobA.length(), greaterThan(20000));
 
-        ListingCacheKey a1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), bigGlobA);
-        ListingCacheKey a2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), bigGlobA);
-        ListingCacheKey b = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), bigGlobB);
+        ListingCacheKey a1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), bigGlobA);
+        ListingCacheKey a2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), bigGlobA);
+        ListingCacheKey b = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), bigGlobB);
 
         assertEquals("identical large discriminators hash equal", a1, a2);
         assertNotEquals("different large discriminators do not collide", a1, b);
@@ -296,7 +306,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheKey sKey = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, ".parquet", "", Map.of());
             service.getOrComputeSchema(sKey, k -> testSchemaEntry());
 
-            ListingCacheKey lKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", Map.of(), "");
+            ListingCacheKey lKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
             service.getOrComputeListing(lKey, k -> testCompactFileList());
 
             Map<String, Object> stats = service.usageStats();
@@ -566,7 +576,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testListingCacheStoresHiveFileList() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*" + "*/*.parquet", "", Map.of(), "");
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*" + "*/*.parquet", "", "", Map.of(), "");
             FileList listing = service.getOrComputeListing(key, k -> testCompactHiveFileList());
             assertNotNull(listing.partitionMetadata());
             assertFalse(listing.partitionMetadata().isEmpty());
@@ -1980,18 +1990,33 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testListingCacheKeyCredentialHash() {
-        long[] hash1 = ListingCacheKey.computeCredentialHash(Map.of("access_key", "key1", "secret_key", "sec1"));
-        long[] hash2 = ListingCacheKey.computeCredentialHash(Map.of("access_key", "key2", "secret_key", "sec1"));
-        long[] hash3 = ListingCacheKey.computeCredentialHash(Map.of("access_key", "key1", "secret_key", "sec1"));
+    /**
+     * The secret identity is a digest of what the provider declares secret, and the name that broke the old
+     * mechanism is covered by construction. {@code session_token} was absent from the seven-name list this
+     * replaced, so two roles over one bucket addressed one listing; here the set is the argument, and a field
+     * the configuration declares is in it whether or not anyone remembered to add it.
+     */
+    public void testSecretIdentityDistinguishesCredentialsAndCarriesNone() {
+        Set<String> declared = Set.of("access_key", "secret_key", "session_token");
+        String reader = Configured.secretIdentityOf(Map.of("access_key", "k1", "secret_key", "s1", "session_token", "READER"), declared);
+        String auditor = Configured.secretIdentityOf(Map.of("access_key", "k1", "secret_key", "s1", "session_token", "AUDITOR"), declared);
+        String again = Configured.secretIdentityOf(Map.of("access_key", "k1", "secret_key", "s1", "session_token", "READER"), declared);
 
-        assertFalse(hash1[0] == hash2[0] && hash1[1] == hash2[1]);
-        assertEquals(hash1[0], hash3[0]);
-        assertEquals(hash1[1], hash3[1]);
+        assertNotEquals("a session token must move the secret identity", reader, auditor);
+        assertEquals("the same credentials must derive the same secret identity", reader, again);
+        assertFalse("a secret must not survive into a cache key", reader.contains("READER"));
+        assertFalse("a secret must not survive into a cache key", reader.contains("s1"));
 
-        long[] noCredHash = ListingCacheKey.computeCredentialHash(Map.of("format", "parquet"));
-        assertEquals(0L, noCredHash[0]);
-        assertEquals(0L, noCredHash[1]);
+        assertEquals(
+            "a config carrying no declared secret has no secret identity",
+            "",
+            Configured.secretIdentityOf(Map.of("format", "parquet"), declared)
+        );
+        assertEquals(
+            "a provider that declares no secrets has no secret identity",
+            "",
+            Configured.secretIdentityOf(Map.of("access_key", "k1"), Set.of())
+        );
     }
 
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---

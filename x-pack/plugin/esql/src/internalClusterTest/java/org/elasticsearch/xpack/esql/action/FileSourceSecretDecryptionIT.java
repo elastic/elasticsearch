@@ -155,6 +155,7 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
                 new CredentialGatedLocalStorageProvider(SCHEME, capturedSecret, expectedCredentialOverride),
                 capturedSecretKeyPresent ? Set.of(SECRET_KEY) : Set.of(),
                 // The only key consumed here is a secret, and a secret never identifies a configuration.
+                "",
                 ""
             );
         }

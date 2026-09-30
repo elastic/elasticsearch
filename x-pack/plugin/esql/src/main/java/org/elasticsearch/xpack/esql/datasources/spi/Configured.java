@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+
+import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -26,15 +29,21 @@ import java.util.stream.Collectors;
  * The value is opaque and node-stable: a consumer folds it into a key and never parses it. Empty means
  * nothing was consumed, which is the correct identity for a participant that takes no configuration.
  */
-public record Configured<T>(T value, Set<String> consumedKeys, String identity) {
+public record Configured<T>(T value, Set<String> consumedKeys, String identity, String secretIdentity) {
 
     public Configured {
         consumedKeys = Set.copyOf(Objects.requireNonNullElse(consumedKeys, Set.of()));
         identity = Objects.requireNonNullElse(identity, "");
+        secretIdentity = Objects.requireNonNullElse(secretIdentity, "");
     }
 
+    // There is deliberately no three-argument convenience constructor. One existed for a few minutes and
+    // StorageProviderFactory silently dropped the secret identity through it, which is the same failure this class
+    // exists to remove: a participant that reports what it consumed and silently reports no identity. A participant
+    // with no secrets passes "" and says so.
+
     public static <T> Configured<T> empty(T value) {
-        return new Configured<>(value, Set.of(), "");
+        return new Configured<>(value, Set.of(), "", "");
     }
 
     /**
@@ -64,7 +73,7 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
         }
         // Stream straight into an unmodifiable set so the compact constructor's Set.copyOf is a no-op.
         Set<String> consumed = config.keySet().stream().filter(recognized::contains).collect(Collectors.toUnmodifiableSet());
-        return new Configured<>(value, consumed, identityOf(config, consumed, identityInert));
+        return new Configured<>(value, consumed, identityOf(config, consumed, identityInert), "");
     }
 
     /**
@@ -112,6 +121,64 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity) 
             appendLengthPrefixed(out, entry.getValue());
         }
         return out.toString();
+    }
+
+    /**
+     * The identity of the declared-secret settings this config carries, as a digest.
+     * <p>
+     * Separate from {@link #identity} because the two are consumed by different keys for opposite reasons. A
+     * schema or file-metadata entry describes what a file *contains*, which does not depend on who read it, so a
+     * credential must not fragment those addresses. A listing describes what a principal can *see*, which does,
+     * so the listing key carries this.
+     * <p>
+     * Digested rather than rendered, which is the one place this class departs from {@link #identityOf}: a cache
+     * key outlives the data source and is printed by {@code toString}, so the value that distinguishes two
+     * credentials travels as {@link StorageIdentity#digestSecret} of the same length-prefixed pre-image and never
+     * as the credential.
+     * <p>
+     * The set comes from the provider's own field definitions, never from a list written beside the cache. A
+     * hand-written list of seven credential names carried {@code access_key} and {@code secret_key} and not
+     * {@code session_token}, {@code role_arn} or {@code auth}, so two roles over one bucket addressed one listing.
+     */
+    public static String secretIdentityOf(Map<String, Object> config, Set<String> secretNames) {
+        if (config == null || config.isEmpty() || secretNames == null || secretNames.isEmpty()) {
+            return "";
+        }
+        Map<String, String> sorted = new TreeMap<>();
+        for (String name : secretNames) {
+            if (config.containsKey(name) == false) {
+                continue;
+            }
+            sorted.put(name, renderSecret(config.get(name)));
+        }
+        if (sorted.isEmpty()) {
+            return "";
+        }
+        StringBuilder preImage = new StringBuilder();
+        for (Map.Entry<String, String> entry : sorted.entrySet()) {
+            appendLengthPrefixed(preImage, entry.getKey());
+            appendLengthPrefixed(preImage, entry.getValue());
+        }
+        return StorageIdentity.digestSecret(preImage.toString());
+    }
+
+    /**
+     * A secret as something whose text changes whenever the value does. An {@link EncryptedData} carrier redacts
+     * its ciphertext in {@code toString}, so letting it render itself would fold in only the field name and the
+     * project key id and every rotation would produce one digest. A {@code byte[]} would render an identity hash,
+     * so every deserialization would mint a new one.
+     */
+    private static String renderSecret(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        if (rawValue instanceof EncryptedData encrypted) {
+            return encrypted.keyId() + ':' + Base64.getEncoder().encodeToString(encrypted.payload());
+        }
+        if (rawValue instanceof byte[] bytes) {
+            return Base64.getEncoder().encodeToString(bytes);
+        }
+        return rawValue.toString();
     }
 
     /**

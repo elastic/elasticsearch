@@ -223,7 +223,7 @@ public class StorageProviderCacheTests extends ESTestCase {
 
         Configured<StorageProvider> first = cache.getOrCreate(
             key,
-            () -> new Configured<>(new TrackingProvider(), Set.of("access_key"), "")
+            () -> new Configured<>(new TrackingProvider(), Set.of("access_key"), "", "")
         );
         Configured<StorageProvider> second = cache.getOrCreate(
             key,

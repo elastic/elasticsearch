@@ -163,7 +163,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
-                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary());
+                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
             }
         }
@@ -257,39 +257,75 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
+    /** Where a merged column's terms came from, and what they were. */
+    record MergedVocabulary(Source source, Vocabulary.Terms terms) {
+        /** The ways of knowing a merged column's terms, in the order they are tried. */
+        enum Source {
+            /** Taken from the segments' own dictionaries, which name every value between them. */
+            DICTIONARY_UNION,
+            /** Summed from what the segments recorded surveying, when their dictionaries do not cover it. */
+            COMBINED_SUMMARIES,
+            /** Ruled out by what the segments recorded, which no dictionary within the cap could better. */
+            SUMMARY_REFUSAL,
+            /** None of those settled it, so the merged values are surveyed as a flush surveys them. */
+            SURVEY
+        }
+    }
+
+    private static final MergedVocabulary SURVEYED = new MergedVocabulary(MergedVocabulary.Source.SURVEY, null);
+
     /**
-     * The terms to write the merged column against, without reading a value, or null where only the values
-     * can say and the writer has to survey them.
+     * How a merged column's vocabulary is settled, without reading a value where that is possible.
      *
-     * <p>Three ways of knowing them, tried in order: the union of the segments' own dictionaries, which
-     * names every value between them; what the segments summarised, whose summed counts can prove a
-     * dictionary worth keeping and whose best coverage can prove none is; and failing both, the values.
+     * <p>Three ways, tried in order: the union of the segments' own dictionaries, which names every value
+     * between them; what the segments summarised, whose summed counts can prove a dictionary worth keeping
+     * and whose best coverage can prove none is; and failing both, the values.
      */
-    Vocabulary.Terms mergedVocabulary(
+    MergedVocabulary mergedVocabulary(
         FieldInfo field,
         MergeState mergeState,
         DictionaryPolicy dictionaryPolicy,
         SummaryPolicy summaryPolicy
     ) throws IOException {
         if (dictionaryPolicy.enabled() == false) {
-            return null;
+            return SURVEYED;
         }
         final List<StringColumnReader> inputColumns = inputColumns(field, mergeState);
         if (inputColumns == null) {
-            return null;
+            return SURVEYED;
         }
+        return vocabularyFrom(inputColumns, hasDeletions(mergeState), dictionaryPolicy, summaryPolicy);
+    }
+
+    /**
+     * The same decision over columns already opened, so which way it went can be established without a merge
+     * in flight.
+     *
+     * @param inputColumns the columns the merge reads, each one this codec wrote
+     * @param hasDeletions whether any input still carries deleted documents
+     */
+    static MergedVocabulary vocabularyFrom(
+        List<StringColumnReader> inputColumns,
+        boolean hasDeletions,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy
+    ) throws IOException {
         final Vocabulary.Terms union = unionOfDictionaries(inputColumns, dictionaryPolicy);
         if (union != null) {
-            return union;
+            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
         }
         // NOTE: asked before the summaries are opened. A deleted value is still counted in what its segment
         // summarised, so nothing read here could be used, and reading it would allocate every term only to
         // throw the lot away.
-        if (hasDeletions(mergeState)) {
-            return null;
+        if (hasDeletions) {
+            return SURVEYED;
         }
         final SummaryMerger.Decision decision = readSummaries(inputColumns, dictionaryPolicy, summaryPolicy).decide(true);
-        return decision.outcome() == SummaryMerger.Outcome.UNDECIDED ? null : decision.vocabulary();
+        return switch (decision.outcome()) {
+            case DICTIONARY -> new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, decision.vocabulary());
+            case NO_DICTIONARY -> new MergedVocabulary(MergedVocabulary.Source.SUMMARY_REFUSAL, decision.vocabulary());
+            case UNDECIDED -> SURVEYED;
+        };
     }
 
     /**

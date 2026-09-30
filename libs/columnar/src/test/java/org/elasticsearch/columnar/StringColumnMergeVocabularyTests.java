@@ -26,6 +26,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesConsumer.MergedVocabulary;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.BestCoverage;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
@@ -45,7 +46,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -628,6 +628,11 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
                     );
                 }
             }
+            assertEquals(
+                "so the summaries settle it",
+                MergedVocabulary.Source.COMBINED_SUMMARIES,
+                settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
+            );
             forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
             withMergedColumn(dir, column -> assertTrue("and they admitted a dictionary", column.hasDictionary()));
         }
@@ -645,7 +650,16 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         }
         try (Directory dir = newDirectory()) {
             flushSegments(dir, segments, policy, StringColumnOptions.DEFAULT_SUMMARY);
+            assertEquals(
+                "neither summed counts nor the bound settle it",
+                MergedVocabulary.Source.SURVEY,
+                settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
+            );
             forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
+            withMergedColumn(
+                dir,
+                column -> assertFalse("and the values themselves say no dictionary is worth keeping", column.hasDictionary())
+            );
         }
     }
 
@@ -657,6 +671,11 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         }
         try (Directory dir = newDirectory()) {
             flushSegments(dir, List.of(unique, unique), policy, StringColumnOptions.DEFAULT_SUMMARY);
+            assertEquals(
+                "the bound rules one out without reading a value",
+                MergedVocabulary.Source.SUMMARY_REFUSAL,
+                settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
+            );
             forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
             withMergedColumn(dir, column -> {
                 assertFalse("no dictionary is worth keeping", column.hasDictionary());
@@ -871,22 +890,29 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots));
     }
 
+    /** Which way the merge settles its vocabulary for the segments flushed so far. */
+    private static MergedVocabulary.Source settledBy(Directory dir, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
+        throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            final List<StringColumnReader> columns = new ArrayList<>(reader.leaves().size());
+            boolean hasDeletions = false;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                columns.add(stringColumn(leaf.reader()));
+                hasDeletions |= leaf.reader().hasDeletions();
+            }
+            return ColumNARDocValuesConsumer.vocabularyFrom(columns, hasDeletions, dictionaryPolicy, summaryPolicy).source();
+        }
+    }
+
     private static StringColumnReader stringColumn(LeafReader leaf) throws IOException {
         final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
         assertTrue("expected a columnar column, got " + values, values instanceof ColumnarStringBinaryDocValues);
         return ((ColumnarStringBinaryDocValues) values).reader();
     }
 
-    /** How the merged column's vocabulary turned out, as far as the column itself reveals. */
-    private enum Settled {
-        UNION,
-        ADMITTED,
-        PLAIN
-    }
-
     private record Census(
         String shape,
-        Settled settled,
+        MergedVocabulary.Source settled,
         int inputSegments,
         long values,
         double summedBoundShare,
@@ -963,7 +989,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             census.summedBoundShare()
         );
         assertThat("each input recorded a bound of its own", census.summedBoundShare(), lessThan(dictionaryPolicy.minCoverage()));
-        assertEquals(Settled.PLAIN, census.settled());
+        assertEquals("so the merge refuses without reading a value", MergedVocabulary.Source.SUMMARY_REFUSAL, census.settled());
     }
 
     private static final DictionaryPolicy ROOMY_DICTIONARY = new DictionaryPolicy(64 * 1024, 0.5, 1.0);
@@ -976,7 +1002,11 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         final List<List<String>> segments = overlapSegments(SEGMENTS);
 
         final Census carried = settle("thin summary", segments, ROOMY_DICTIONARY, SummaryPolicy.sized(64 * 1024));
-        assertEquals("a summary wide enough settles it without reading a value", Settled.ADMITTED, carried.settled());
+        assertEquals(
+            "a summary wide enough settles it without reading a value",
+            MergedVocabulary.Source.COMBINED_SUMMARIES,
+            carried.settled()
+        );
         assertEquals(OVERLAP_TERMS, carried.dictionaryTerms());
 
         for (int summaryCap : new int[] { 16 * 1024, 4 * 1024, 1024 }) {
@@ -990,7 +1020,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
                 thin.escapes(),
                 thin.bytes()
             );
-            assertEquals("cap " + summaryCap + ": the column still gets its dictionary", Settled.ADMITTED, thin.settled());
+            assertEquals("cap " + summaryCap + ": only the values can show it", MergedVocabulary.Source.SURVEY, thin.settled());
             assertEquals("cap " + summaryCap + ": and they name every term", OVERLAP_TERMS, thin.dictionaryTerms());
             assertEquals("cap " + summaryCap + ": leaving nothing to escape", 0, thin.escapes());
         }
@@ -1016,7 +1046,11 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
     // either, so the column is written plain.
     public void testSharedVocabularyBeyondSurveyCapacityProducesPlainOutput() throws IOException {
         final Census carried = settle("held once", heldOncePerSegment(16_000));
-        assertEquals("a vocabulary one flush can record settles without a survey", Settled.ADMITTED, carried.settled());
+        assertEquals(
+            "a vocabulary one flush can record settles without a survey",
+            MergedVocabulary.Source.COMBINED_SUMMARIES,
+            carried.settled()
+        );
         assertEquals(16_000, carried.dictionaryTerms());
 
         final Census outgrown = settle("held once", heldOncePerSegment(24_000));
@@ -1027,29 +1061,8 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             outgrown.dictionaryTerms(),
             outgrown.bytes()
         );
-        assertEquals("past it the summaries cannot show it", Settled.PLAIN, outgrown.settled());
+        assertEquals("past it the summaries cannot show it", MergedVocabulary.Source.SURVEY, outgrown.settled());
         assertEquals("and neither can the survey", 0, outgrown.dictionaryTerms());
-    }
-
-    private void sweep(String shape, int[] scales, IntFunction<List<List<String>>> atScale, Settled... expected) throws IOException {
-        final List<Census> sweep = new ArrayList<>(scales.length);
-        for (int scale : scales) {
-            final Census point = settle(shape, atScale.apply(scale));
-            logger.info(
-                "{} scale={}: {} values -> {}, terms={}, escapes={}, bytes={}",
-                shape,
-                scale,
-                point.values(),
-                point.settled(),
-                point.dictionaryTerms(),
-                point.escapes(),
-                point.bytes()
-            );
-            sweep.add(point);
-        }
-        final List<Settled> settled = sweep.stream().map(Census::settled).toList();
-        logger.info("{}: {}", shape, settled);
-        assertEquals(shape, List.of(expected), settled);
     }
 
     private Census settle(String shape, List<List<String>> segments) throws IOException {
@@ -1060,24 +1073,17 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         throws IOException {
         try (Directory dir = newDirectory()) {
             flushSegments(dir, segments, dictionaryPolicy, summaryPolicy);
-            final boolean unionEligible = every(dir, column -> column.hasDictionary() && column.escapeCount() == 0)
-                && unionBytes(dir) <= dictionaryPolicy.maxBytes();
             final long values = sum(dir, column -> column.numValues() - column.numNullSlots());
             final long summedBound = sum(dir, column -> column.bestCoverage().namedValues());
             final int inputSegments = segmentCount(dir);
-            // NOTE: the counter is process global, and a force-merge on a directory nothing else touches is
-            // the only thing between the two reads, so the difference is what this merge surveyed.
+            // NOTE: taken from the same inputs the merge below reads, so it is the decision that merge makes
+            // rather than one inferred from the column it leaves.
+            final MergedVocabulary.Source settled = settledBy(dir, dictionaryPolicy, summaryPolicy);
             forceMerge(dir, dictionaryPolicy, summaryPolicy, inputSegments);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(shape + ": force-merged to one segment", 1, reader.leaves().size());
                 final SegmentReader segment = (SegmentReader) reader.leaves().get(0).reader();
                 final StringColumnReader column = stringColumn(segment);
-                final Settled settled;
-                if (column.hasDictionary() == false) {
-                    settled = Settled.PLAIN;
-                } else {
-                    settled = unionEligible ? Settled.UNION : Settled.ADMITTED;
-                }
                 return new Census(
                     shape,
                     settled,
@@ -1103,28 +1109,6 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             terms.add(term.utf8ToString());
         }
         return terms;
-    }
-
-    private long unionBytes(Directory dir) throws IOException {
-        final TreeSet<BytesRef> union = new TreeSet<>();
-        long bytes = 0;
-        final BytesRef term = new BytesRef();
-        try (DirectoryReader reader = DirectoryReader.open(dir)) {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                final StringColumnReader column = stringColumn(leaf.reader());
-                if (column.hasDictionary() == false) {
-                    return Long.MAX_VALUE;
-                }
-                final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) column;
-                for (int t = 0; t < dictionary.dictionarySize(); t++) {
-                    dictionary.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
-                    if (union.add(BytesRef.deepCopyOf(term))) {
-                        bytes += term.length;
-                    }
-                }
-            }
-        }
-        return bytes;
     }
 
     private static final int LONG_TERM_LENGTH = 200;

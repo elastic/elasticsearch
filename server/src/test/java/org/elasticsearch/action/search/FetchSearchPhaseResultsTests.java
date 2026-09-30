@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FetchSearchPhaseResultsTests extends ESTestCase {
-
-    @BeforeClass
-    public static void checkAccountingFeatureFlag() {
-        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
-    }
 
     public void testChargeIsHeldUntilTheResultsAreReleased() {
         CircuitBreaker breaker = requestBreaker("1gb");
@@ -89,6 +83,25 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
             first.decRef();
             second.decRef();
         }
+    }
+
+    public void testResultAlreadyChargedOnTheCoordinatorIsNotChargedAgain() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        // What the chunked path does: it charged for these hits while accumulating them, then handed the charge over.
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            results.reserve(handedOver);
+            assertThat("reserve must not estimate these hits a second time", breaker.getUsed(), equalTo(charged));
+
+            results.close();
+            assertThat("the collection holds no charge for a result that carries its own", breaker.getUsed(), equalTo(charged));
+        } finally {
+            handedOver.decRef();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testShardArrivingAfterReleaseGivesItsChargeStraightBack() {

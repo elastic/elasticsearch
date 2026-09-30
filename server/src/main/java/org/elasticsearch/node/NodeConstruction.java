@@ -256,6 +256,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
@@ -475,7 +476,6 @@ class NodeConstruction {
         Settings envSettings = initialEnvironment.settings();
         DeprecationLogger.initialize(envSettings);
 
-        JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
@@ -513,11 +513,6 @@ class NodeConstruction {
                 initialEnvironment.pluginsDir()
             );
         }
-
-        Node.deleteTemporaryApmConfig(
-            jvmInfo,
-            (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
-        );
 
         pluginsService = serviceProvider.newPluginService(initialEnvironment, pluginsLoader);
         modules.bindToInstance(PluginsService.class, pluginsService);
@@ -975,6 +970,7 @@ class NodeConstruction {
             .bigArrays(bigArrays)
             .scriptService(scriptService)
             .clusterService(clusterService)
+            .featureService(featureService)
             .projectResolver(projectResolver)
             .client(client)
             .metaStateService(metaStateService)
@@ -1218,6 +1214,7 @@ class NodeConstruction {
         final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             settings,
             clusterService,
+            featureService,
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),
@@ -1283,8 +1280,12 @@ class NodeConstruction {
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
             new CachingSnapshotAndShardByStateMetricsService(clusterService);
-        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
-        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
+        List<LongAsyncGauge> snapshotMetricsToClose = List.of(
+            snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState),
+            snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState),
+            snapshotMetrics.createLongestWaitingTimeMetric(cachingSnapshotAndShardByStateMetricsService::getLongestWaitingTimeMillis)
+        );
+        resourcesToClose.add(() -> snapshotMetricsToClose.forEach(LongAsyncGauge::close));
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());

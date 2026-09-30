@@ -3114,9 +3114,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Visit producers before consumers so chains of EVAL assignments and RENAME projections retain their provenance.
             // Only direct aliases preserve it: expressions that modify vector values may require a different similarity.
             plan.forEachExpressionUp(Alias.class, alias -> {
-                String inferenceId = alias.child() instanceof Attribute child
-                    ? attributeToInferenceId.get(child.id())
-                    : inferExpressionInferenceId(alias.child());
+                String inferenceId = expressionInferenceId(alias.child(), attributeToInferenceId);
                 if (inferenceId != null) {
                     attributeToInferenceId.put(alias.id(), inferenceId);
                 }
@@ -3128,17 +3126,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static Knn inferSimilarityForRuntimeKnn(Knn knn, Map<NameId, String> vectorSimilarities, AnalyzerContext context) {
+        private static Knn inferSimilarityForRuntimeKnn(Knn knn, Map<NameId, String> attributeToInferenceIdMap, AnalyzerContext context) {
             if (knn.isRuntimeSearch() == false) {
                 return knn;
             }
 
-            String fieldInferenceId = knn.field() instanceof Attribute attribute ? vectorSimilarities.get(attribute.id()) : null;
+            String fieldInferenceId = knn.field() instanceof Attribute attribute ? attributeToInferenceIdMap.get(attribute.id()) : null;
             SimilarityMeasure fieldSimilarity = fieldInferenceId != null ? resolveSimilarity(fieldInferenceId, context) : null;
-            String queryInferenceId = knn.query() instanceof Attribute attribute
-                ? vectorSimilarities.get(attribute.id())
-                : inferExpressionInferenceId(knn.query());
-
+            String queryInferenceId = expressionInferenceId(knn.query(), attributeToInferenceIdMap);
             SimilarityMeasure querySimilarity = queryInferenceId != null ? resolveSimilarity(queryInferenceId, context) : null;
 
             if (fieldSimilarity != null && querySimilarity != null && fieldSimilarity != querySimilarity) {
@@ -3172,7 +3167,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         @Nullable
-        private static String inferExpressionInferenceId(Expression expression) {
+        private static String expressionInferenceId(Expression expression, Map<NameId, String> attributeInferenceIds) {
+            if (expression instanceof Attribute attribute) {
+                return attributeInferenceIds.get(attribute.id());
+            }
             if (expression instanceof InferenceFunction == false) {
                 return null;
             }

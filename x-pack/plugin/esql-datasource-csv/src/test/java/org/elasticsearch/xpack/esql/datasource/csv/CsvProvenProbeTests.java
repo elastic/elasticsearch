@@ -185,6 +185,59 @@ public class CsvProvenProbeTests extends ESTestCase {
         assertEquals(-1L, splitter(quoted()).findRecordStartAtOrAfter(stalling, 10L, () -> false));
     }
 
+    /**
+     * The reported shape, which no other case here covers: quoting on, and not one quote character in the file.
+     * {@link #randomCsv} always mixes quoted fields in when quoting is on, so every other payload lets the probe
+     * converge near most offsets and the exact walk only ever runs over short spans. Here nothing can retire the
+     * in-quote reading, so every probe is AMBIGUOUS and the whole file goes through the walk one span at a time -
+     * and the reconstruction has to still return every record exactly once.
+     */
+    public void testQuoteFreeDataWithQuotingOnReconstructs() throws IOException {
+        for (CsvFormatOptions options : List.of(quoted(), both())) {
+            byte[] buf = bytes(quoteFreeCsv());
+            assertEquals("the payload must contain no quote character", 0, countOf(buf, (byte) '"'));
+            assertEveryProbeIsAmbiguous(options, buf);
+            assertExactWalkMatchesOracle(options, buf);
+            assertSplitReconstruction(options, buf);
+        }
+    }
+
+    /** Guards the premise of {@link #testQuoteFreeDataWithQuotingOnReconstructs}: without it the test proves less. */
+    private void assertEveryProbeIsAmbiguous(CsvFormatOptions options, byte[] buf) throws IOException {
+        RecordSplitter splitter = splitter(options);
+        long step = offsetStep(buf);
+        for (long t = step; t < buf.length; t += step) {
+            long probed = splitter.findProvenRecordBoundary(new ByteArrayInputStream(buf, (int) t, buf.length - (int) t));
+            assertEquals("a quote-free window cannot prove a boundary, at t=" + t, RecordSplitter.AMBIGUOUS, probed);
+        }
+    }
+
+    /**
+     * Taxi-shaped rows with no quote and no escape character in them. Row widths are deliberately uneven so record
+     * boundaries land on every offset modulo the block the walk reads in, rather than tiling it.
+     */
+    private static String quoteFreeCsv() {
+        StringBuilder sb = new StringBuilder("vendor_id,pickup_datetime,passenger_count,trip_distance,fare_amount\n");
+        int row = 0;
+        while (sb.length() < 600 * 1024) {
+            sb.append(row % 3 + 1).append(",2024-06-14 02:31:07,").append(row % 6 + 1).append(',');
+            sb.append(row % 97).append('.').append(row % 100).append(',').append(row % 53).append(".25");
+            sb.append(row % 7 == 0 ? "\r\n" : "\n");
+            row++;
+        }
+        return sb.toString();
+    }
+
+    private static int countOf(byte[] buf, byte b) {
+        int n = 0;
+        for (byte candidate : buf) {
+            if (candidate == b) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     public void testOverMaxRecordBytesProbeAmbiguousWalkTooLarge() throws IOException {
         // A quoted record whose embedded-newline body exceeds maxRecordBytes: the probe must never certify a boundary
         // inside the oversized region (CONVERGENCE_WINDOW <= maxRecordBytes), and the exact walk must report the cap.

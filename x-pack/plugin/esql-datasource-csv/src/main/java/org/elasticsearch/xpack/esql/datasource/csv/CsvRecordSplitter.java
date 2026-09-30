@@ -119,6 +119,9 @@ final class CsvRecordSplitter implements RecordSplitter {
     /** Poll the cancellation supplier this often (in bytes) during the exact walk. */
     private static final long CANCEL_CHECK_INTERVAL_BYTES = 64 * 1024;
 
+    /** No byte is waiting to be re-read; distinct from every byte value and from the end-of-stream {@code -1}. */
+    private static final int NO_PENDING = -2;
+
     /**
      * Whether {@code b} (an unsigned byte value {@code 0..255}) is a "clean symbol": non-whitespace plain content
      * under the enabled options, i.e. not a structural byte ({@code "} when quoting, the escape char when escaping,
@@ -359,9 +362,19 @@ final class CsvRecordSplitter implements RecordSplitter {
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
         long sinceCancelCheck = 0;
+        // A byte that was read to settle a lookahead and turned out not to belong to it, waiting to be read as
+        // itself. NO_PENDING cannot collide with a byte value or with the end-of-stream -1, which is held here
+        // like any other answer and ends the walk on the next turn.
+        int pending = NO_PENDING;
 
         while (true) {
-            int ib = cursor.read();
+            int ib;
+            if (pending != NO_PENDING) {
+                ib = pending;
+                pending = NO_PENDING;
+            } else {
+                ib = cursor.read();
+            }
             if (ib == -1) {
                 return -1;
             }
@@ -391,14 +404,16 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
             if (inQuotes) {
                 if (b == quoteAsByte) {
-                    if ((byte) cursor.peek() == quoteAsByte) {
-                        cursor.consumePeeked();
+                    int next = cursor.read();
+                    if ((byte) next == quoteAsByte) {
                         consumed++;
                         if (consumed - recordStart > maxRecordBytes) {
                             return RECORD_TOO_LARGE;
                         }
                         continue;
                     }
+                    // A lone quote closed the field; the byte that proved it is next to be read as itself.
+                    pending = next;
                     inQuotes = false;
                 }
                 continue;
@@ -412,12 +427,14 @@ final class CsvRecordSplitter implements RecordSplitter {
                 continue;
             }
             if (b == '\r') {
-                if (cursor.peek() == '\n') {
-                    cursor.consumePeeked();
+                int next = cursor.read();
+                if (next == '\n') {
                     consumed++;
                     if (consumed - recordStart > maxRecordBytes) {
                         return RECORD_TOO_LARGE;
                     }
+                } else {
+                    pending = next;
                 }
                 recordStart = consumed;
                 fieldHasNonWhitespace = false;
@@ -760,26 +777,26 @@ final class CsvRecordSplitter implements RecordSplitter {
     }
 
     /**
-     * Byte source for the two scanners that are driven over a whole span rather than to the end of one record:
+     * Byte source for the two scanners driven over a whole span rather than to the end of one record:
      * {@link #findProvenRecordBoundary(InputStream)} and
      * {@link #findRecordStartAtOrAfter(InputStream, long, BooleanSupplier)}.
      * <p>
-     * Both step one byte at a time, and {@link BufferedInputStream#read()} is declared {@code synchronized}, so
-     * taking the bytes from one charges a monitor enter and exit for every byte of the span. That is what a walk
-     * over a quote-free file was spending nearly all of its time on: the walk is the only reader of its own
-     * stream and there is nothing for the lock to protect. Pulling a block into a plain array instead leaves the
-     * per-byte step an array load and a field increment.
+     * Both step a byte at a time, and {@link BufferedInputStream#read()} is {@code synchronized}, so taking the
+     * bytes from one costs a monitor enter and exit per byte of the span - on a stream the scanner is the only
+     * reader of, so the lock guards nothing. Removing it is the whole win: with the monitor gone, a sweep over
+     * five CSV shapes found the block size makes no difference from 1kb to 128kb, so this stays at the size
+     * {@link BufferedInputStream} defaults to, which is also the figure {@code RecordBoundaryProbe} quotes when
+     * it reasons about how much a probe pulls past a boundary.
      * <p>
-     * Read-ahead stays bounded by one block, as it was through the {@link BufferedInputStream} this replaces, so a
-     * scan still pulls less than a block past the boundary it returns. Only that bound carries over, not the exact
-     * bytes: a {@link BufferedInputStream} refilling while a {@code mark} is set reads no further than the end of
-     * its buffer, so the old walk's refill after each {@code \r} was not block-aligned. The bound is what the
-     * caller is owed, and no more than that - {@code RecordBoundaryProbe.provenBoundaries} aborts both streams
-     * whatever they read, and the drain-or-abort choice belongs to its strided sibling, which drives
-     * {@link #findNextRecordBoundary(InputStream)} and is untouched.
+     * Read-ahead keeps the bound it had, one block, so a scan still pulls less than a block past the boundary it
+     * returns. Not the same bytes: a {@link BufferedInputStream} refilling under a {@code mark} stops at the end
+     * of its buffer, so the old refills were not block-aligned. Only the bound is owed - {@code provenBoundaries}
+     * aborts both streams whatever they read.
      * <p>
-     * A zero-length read is taken as end of stream, which is also what {@link BufferedInputStream} does with
-     * one, so a stream that answers that way ends a scan here exactly where it ended one before.
+     * {@code read()} is the whole surface on purpose. A caller settling a lookahead reads the next byte and, if it
+     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. The alternative
+     * was a {@code peek()} here, which measured the same but owed callers a rule about when a peeked byte stays
+     * valid across a refill - a rule whose only purpose was to be obeyed.
      */
     private static final class BlockCursor {
 
@@ -802,24 +819,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             return block[pos++] & 0xff;
         }
 
-        /**
-         * The next byte as an unsigned {@code 0..255} without consuming it, or {@code -1} at end of stream.
-         * A peek that returned a byte is taken by {@link #consumePeeked()}; one that returned {@code -1}
-         * leaves the cursor at end of stream, where a following {@link #read()} returns {@code -1} again.
-         */
-        int peek() throws IOException {
-            if (pos == limit && fill() == false) {
-                return -1;
-            }
-            return block[pos] & 0xff;
-        }
-
-        /** Consumes the byte the immediately preceding {@link #peek()} returned. */
-        void consumePeeked() {
-            assert pos < limit : "consumePeeked() without a peeked byte";
-            pos++;
-        }
-
+        /** A zero-length read ends the scan, which is what {@link BufferedInputStream} does with one. */
         private boolean fill() throws IOException {
             pos = 0;
             limit = 0;

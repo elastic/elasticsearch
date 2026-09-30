@@ -2871,4 +2871,98 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A poisoned contribution that also carries the count licence and a favourable width bound must still be
+     * discarded. The licence is the one statistic allowed to cross read configurations and the bound is what makes
+     * that crossing safe, so a scan that did not complete cleanly must not be able to present either as a reason to
+     * keep its numbers: {@code classify} decides poison before it reads them, and this pins that order.
+     */
+    public void testPoisonWinsOverTheLicenceAndItsWidthBound() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/torn.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            Map<String, Object> entryMeta = new LinkedHashMap<>();
+            entryMeta.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            entryMeta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-positional");
+            entryMeta.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 4);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, entryMeta, Map.of()));
+
+            Map<String, Object> poisoned = new LinkedHashMap<>();
+            poisoned.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            poisoned.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            poisoned.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
+            poisoned.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            // Tighter than the entry's, so the crossing would be allowed on width alone.
+            poisoned.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 2);
+            poisoned.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            poisoned.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(poisoned)));
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertFalse(
+                "a scan that did not complete cleanly must not commit a row count, whatever it licenses",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    /**
+     * One poisoned file among clean ones must discard only that file's contribution, and the clean files must still
+     * commit with their bound intact. The two failure directions this rules out are opposite and both bad: poison
+     * leaking across files would throw away warm work every time one file tore, and poison being confined too
+     * narrowly would let a torn file's count commit.
+     */
+    public void testPoisonInOneFileLeavesTheOthersAndTheirBoundIntact() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String clean = "s3://bucket/data/clean.csv";
+            String torn = "s3://bucket/data/torn.csv";
+            long mtime = 1000L;
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            Map<String, SchemaCacheKey> keys = new LinkedHashMap<>();
+            for (String path : List.of(clean, torn)) {
+                SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+                keys.put(path, key);
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+                meta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-positional");
+                meta.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 4);
+                service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, meta, Map.of()));
+            }
+
+            Map<String, Object> cleanStats = new LinkedHashMap<>();
+            cleanStats.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            cleanStats.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            cleanStats.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
+            cleanStats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            cleanStats.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 2);
+            cleanStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 11L);
+
+            Map<String, Object> tornStats = new LinkedHashMap<>(cleanStats);
+            tornStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            tornStats.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+
+            service.reconcileSourceStatsFromContributions(Map.of(clean, List.of(cleanStats), torn, List.of(tornStats)));
+
+            assertEquals(
+                "a clean file must still commit its count when a sibling tore",
+                11L,
+                service.getOrComputeSchema(keys.get(clean), k -> {
+                    throw new AssertionError("cached");
+                }).safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertFalse(
+                "the torn file must commit nothing",
+                service.getOrComputeSchema(keys.get(torn), k -> { throw new AssertionError("cached"); })
+                    .safeMetadata()
+                    .containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
 }

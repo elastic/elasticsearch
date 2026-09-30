@@ -454,9 +454,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/157942
-- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
-  method: testQueryPhaseIsExecutedInAnAvailableNodeWhenAllShardsCanBeSkipped
-  issue: https://github.com/elastic/elasticsearch/issues/160277
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/240_base_conversion/numeric_family, first argument, unsigned_long not a string}
   issue: https://github.com/elastic/elasticsearch/issues/160289

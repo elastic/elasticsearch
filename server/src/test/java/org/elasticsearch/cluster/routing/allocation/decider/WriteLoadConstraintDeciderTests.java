@@ -458,7 +458,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .findFirst()
             .orElseThrow();
         Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
-        assertThat(decision, isNotPreferredDecision());
+        assertThat(decision, isNotPreferredDecision(WriteLoadConstraintDecider.NAME));
         assertThat(
             decision.getExplanation(),
             equalTo(
@@ -570,7 +570,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .orElseThrow();
 
         decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
-        assertThat(decision.getExplanation(), decision, isNotPreferredDecision());
+        assertThat(decision.getExplanation(), decision, isNotPreferredDecision(WriteLoadConstraintDecider.NAME));
         assertThat(
             decision.getExplanation(),
             matchesPattern(

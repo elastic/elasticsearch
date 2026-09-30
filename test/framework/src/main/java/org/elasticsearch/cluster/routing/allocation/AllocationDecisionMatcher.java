@@ -12,37 +12,56 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
 
     private final Decision.Type expectedType;
+    private final String expectedLabel;
+    private final Matcher<String> explanationMatcher;
 
-    public AllocationDecisionMatcher(Decision.Type expectedType) {
+    public AllocationDecisionMatcher(Decision.Type expectedType, String expectedLabel, Matcher<String> explanationMatcher) {
         this.expectedType = expectedType;
+        this.expectedLabel = expectedLabel;
+        this.explanationMatcher = explanationMatcher;
     }
 
-    public static AllocationDecisionMatcher isNoDecision() {
-        return new AllocationDecisionMatcher(Decision.Type.NO);
+    public static AllocationDecisionMatcher isNoDecision(String expectedLabel) {
+        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, Matchers.any(String.class));
     }
 
-    public static AllocationDecisionMatcher isNotPreferredDecision() {
-        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED);
+    public static AllocationDecisionMatcher isNoDecisionWithNoExplanation(String expectedLabel) {
+        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, Matchers.nullValue(String.class));
+    }
+
+    public static AllocationDecisionMatcher isNoDecisionWithExplanationMatching(String expectedLabel, Matcher<String> explanationMatcher) {
+        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, explanationMatcher);
+    }
+
+    public static AllocationDecisionMatcher isNotPreferredDecision(String expectedLabel) {
+        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED, expectedLabel, Matchers.any(String.class));
     }
 
     @Override
     public boolean matches(Object actual) {
-        if (!(actual instanceof Decision)) {
+        if (!(actual instanceof Decision decision)) {
             return false;
         }
-        Decision decision = (Decision) actual;
-        return decision.type() == expectedType;
+        return decision.type() == expectedType
+            && expectedLabel.equals(decision.label())
+            && explanationMatcher.matches(decision.getExplanation());
     }
 
     @Override
     public void describeMismatch(Object actual, Description mismatchDescription) {
-        if (actual instanceof Decision) {
-            Decision decision = (Decision) actual;
-            mismatchDescription.appendText("was a Decision with type ").appendValue(decision.type());
+        if (actual instanceof Decision decision) {
+            mismatchDescription.appendText("was a Decision with type ")
+                .appendValue(decision.type())
+                .appendText(" and label ")
+                .appendValue(decision.label())
+                .appendText(" and explanation ")
+                .appendValue(decision.getExplanation());
         } else {
             mismatchDescription.appendText("was not a Decision");
         }
@@ -50,6 +69,11 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
 
     @Override
     public void describeTo(Description description) {
-        description.appendText("a Decision with type ").appendValue(expectedType);
+        description.appendText("a Decision with type ")
+            .appendValue(expectedType)
+            .appendText(" and label ")
+            .appendValue(expectedLabel)
+            .appendText(" and explanation ")
+            .appendDescriptionOf(explanationMatcher);
     }
 }

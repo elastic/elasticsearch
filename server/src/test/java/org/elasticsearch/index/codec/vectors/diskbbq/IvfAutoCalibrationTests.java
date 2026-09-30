@@ -52,6 +52,7 @@ import java.util.Random;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_K;
 import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_TARGET_RECALL;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.UNCAPPED_MAX_DOC_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_CANDIDATE_ENCODINGS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_RERANK_OVERSAMPLES;
 import static org.hamcrest.Matchers.equalTo;
@@ -502,6 +503,40 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
+    public void testCalibrateRespectsMaxDocBits() throws IOException {
+        // an unreachable target recall forces the sweep to return the highest-recall encoding allowed by maxDocBits
+        double unreachableRecall = 1.01;
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+
+        for (int maxDocBits : new int[] { UNCAPPED_MAX_DOC_BITS, 1 }) {
+            for (boolean forceMerge : new boolean[] { false, true }) {
+                TrackingSelector selector = new TrackingSelector(
+                    VPC,
+                    ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    unreachableRecall,
+                    DEFAULT_K,
+                    maxDocBits
+                );
+                try (Directory dir = newDirectory()) {
+                    SegmentInfo segmentInfo = forceMerge ? forceMergeSegmentInfo(dir) : backgroundSegmentInfo(dir);
+                    MergeState mergeState = mergeStateWithVectors(dir, fieldInfo, vectors, segmentInfo);
+
+                    IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
+
+                    String msg = "maxDocBits=" + maxDocBits + ", forceMerge=" + forceMerge;
+                    assertThat(msg, selector.calibrateInvocations, equalTo(1));
+                    assertThat(msg, config.osqEncoding().bits(), equalTo((byte) maxDocBits));
+                }
+            }
+        }
+    }
+
     public void testSelectBoundedForceMergeUsesStubCalibrateResult() throws IOException {
         TrackingSelector selector = new TrackingSelector(VPC) {
             @Override
@@ -793,6 +828,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
         TrackingSelector(int vectorsPerCluster) {
             super(vectorsPerCluster);
+        }
+
+        TrackingSelector(int vectorsPerCluster, int blockDimension, double targetRecall, int k, int maxDocBits) {
+            super(vectorsPerCluster, blockDimension, targetRecall, k, maxDocBits);
         }
 
         @Override

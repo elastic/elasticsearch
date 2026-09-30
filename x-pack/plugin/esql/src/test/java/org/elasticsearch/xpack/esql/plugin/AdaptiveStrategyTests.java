@@ -152,6 +152,57 @@ public class AdaptiveStrategyTests extends ESTestCase {
     }
 
     /**
+     * On a one-node cluster the coordinator is the only eligible node, so distributing a filtered LIMIT would
+     * only add an exchange in front of the same scan.
+     */
+    public void testFilteredLimitWithOnlyCoordinatorEligibleStaysLocal() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+        DiscoveryNode local = DiscoveryNodeUtils.builder("node-0").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(local).localNodeId(local.getId()).build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertFalse(distribution.distributed());
+    }
+
+    /**
+     * A coordinator that is not itself eligible (an index node, say) still ships a filtered LIMIT to the one
+     * eligible worker.
+     */
+    public void testFilteredLimitWithOneRemoteEligibleNodeDistributes() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+        DiscoveryNode coordinator = DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(coordinator)
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .localNodeId(coordinator.getId())
+            .build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+        assertEquals(Set.of("search-1"), assignedNodeIds(distribution));
+    }
+
+    /** The coordinator-only guard is for filtered LIMIT plans; a plain scan keeps the existing split-count rule. */
+    public void testPlainScanWithOnlyCoordinatorEligibleStillDistributes() {
+        DiscoveryNode local = DiscoveryNodeUtils.builder("node-0").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(local).localNodeId(local.getId()).build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(createExternalSourceExec(), createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+    }
+
+    /**
      * {@code FROM ds | LIMIT 100 | WHERE ...}: the filter only sees the rows the inner limit let through,
      * so the read is still bounded by that limit and stays on the coordinator.
      */

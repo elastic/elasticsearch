@@ -28,9 +28,12 @@ import java.util.List;
  * source siblings, for LIMIT-only plans that filter nothing before the limit, and for an empty
  * split list. A filter under the limit (any {@code WHERE}, including a runtime {@code MATCH})
  * can force the scan through most of the data before the limit fills, so such a plan follows
- * the same split-count rule as a plain scan instead of reading every split on one node. An
- * empty eligible-worker set, including an index-only cluster, returns {@code LOCAL} so the
- * coordinator runs the scan itself.
+ * the same split-count rule as a plain scan instead of reading every split on one node, unless
+ * the coordinator is the only eligible node. An unfiltered LIMIT-only read stops after about
+ * {@code LIMIT} rows, which is what makes one node cheapest. A UNION STATS leaf that still carries
+ * a limit is not limit-only, so the reduction check can still hop it. An empty eligible-worker
+ * set, including an index-only cluster, returns {@code LOCAL} so the coordinator runs the scan
+ * itself.
  * <p>
  * Assignment is offset by {@link SiblingPlacement#stride(int, int)} so concurrent UNION leaves
  * (and concurrent FORK branches) do not all start at eligible node 0.
@@ -61,8 +64,10 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         }
 
         PhysicalPlan plan = context.plan();
+        boolean hasPipelineBreaker = ExternalDistributionStrategy.hasReducingOperator(plan);
+        boolean limitOnly = hasPipelineBreaker == false && plan.anyMatch(n -> n instanceof LimitExec);
 
-        if (isUnfilteredLimitOnly(plan)) {
+        if (limitOnly && filtersBeforeLimit(plan) == false) {
             return ExternalDistributionPlan.LOCAL;
         }
 
@@ -70,8 +75,10 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         if (nodes.isEmpty()) {
             return ExternalDistributionPlan.LOCAL;
         }
+        if (limitOnly && hasRemoteNode(nodes, context.availableNodes().getLocalNodeId()) == false) {
+            return ExternalDistributionPlan.LOCAL;
+        }
 
-        boolean hasPipelineBreaker = ExternalDistributionStrategy.hasReducingOperator(plan);
         boolean manySplits = splits.size() > nodes.size();
 
         if (hasPipelineBreaker || manySplits || context.placement().hasSourceSiblings()) {
@@ -94,17 +101,17 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
     }
 
     /**
-     * True when a coordinator {@code LimitExec} is the only breaker (no aggregation, TopN, TopNBy, or
-     * LimitBy on the physical tree or inside a fragment) and no filter runs between the scan and the
-     * first limit above it. Only such a read stops after about {@code LIMIT} rows, which is what makes
-     * one node cheapest; a limit-only plan with a filter under the limit may have to read everything
-     * and is left to the split-count rule. A UNION STATS leaf that still carries a limit is not
-     * limit-only, so the reduction check can still hop it.
+     * Whether any eligible node is not the coordinator. A filtered LIMIT gains nothing from distribution when
+     * the coordinator is the only eligible node: the scan would run on the same node, behind an extra exchange.
+     * A {@code null} local node id (no local node known) counts every eligible node as remote.
      */
-    private static boolean isUnfilteredLimitOnly(PhysicalPlan plan) {
-        return plan.anyMatch(n -> n instanceof LimitExec)
-            && ExternalDistributionStrategy.hasReducingOperator(plan) == false
-            && filtersBeforeLimit(plan) == false;
+    private static boolean hasRemoteNode(List<DiscoveryNode> nodes, String localNodeId) {
+        for (DiscoveryNode node : nodes) {
+            if (node.getId().equals(localNodeId) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

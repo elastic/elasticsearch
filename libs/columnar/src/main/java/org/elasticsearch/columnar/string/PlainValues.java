@@ -38,7 +38,9 @@ import java.util.Arrays;
  * stores no bytes again, and otherwise two more than the value's byte count. The codes are bit-packed a block at a
  * time with runs and outliers taken out first, and a block's first slot is never a repeat, so every block decodes
  * on its own. Where a value begins is the sum of the byte counts before it: the navigation keeps that sum at the
- * start of every block, and a read adds up the ones inside its block.
+ * start of every block, and a read adds up the ones inside its block. A merge that copies another column's chunks
+ * ({@link Writer#copy}) may instead start a block at the value the block's first slot repeats, whose bytes are
+ * already behind it; the block still decodes on its own, and the starts never decrease.
  *
  * <p>A column whose values all have one length and none of them null keeps neither: a value begins at its
  * address times that length. Having no codes, it marks no repeats either, so a value equal to the one before
@@ -61,6 +63,21 @@ final class PlainValues {
     static long code(long length) {
         return length + LENGTH_BASE;
     }
+
+    /**
+     * Whole chunks a merge has to be able to copy out of a run before it copies any: copying closes the chunk
+     * being filled early, and a run holding none has nothing to copy that pays for the short chunk.
+     */
+    static final int MIN_COPIED_CHUNKS = 1;
+
+    /** The most bytes read at once around the chunks a run copies, so appending them holds no chunk-sized buffer. */
+    private static final int COPY_PIECE_BYTES = 64 * 1024;
+
+    /**
+     * What {@link Writer#copy} appended: its slots and how many of them are null, and the chunks of the source it
+     * copied as they were stored, with the bytes they decode to.
+     */
+    record Copied(long slots, long nulls, long chunks, long bytes) {}
 
     /**
      * Where a plain column's values are, and the units they were written in. {@code starts} and {@code lengths}
@@ -141,6 +158,9 @@ final class PlainValues {
         private final BytesRefBuilder previous = new BytesRefBuilder();
         private boolean previousNull;
 
+        /** Holds the bytes a copy appends around the chunks it copies, a piece at a time. */
+        private byte[] copyBuffer = new byte[0];
+
         /**
          * @param constantLength the length every value has, which the caller knows before writing any of them,
          *                       or {@code -1}; a column with one keeps no lengths
@@ -211,6 +231,145 @@ final class PlainValues {
             }
             previousNull = true;
             count++;
+        }
+
+        /**
+         * Appends the slots {@code [from, to)} of {@code source} with their chunks copied as stored rather than
+         * compressed again, and answers what was copied, or null, having written nothing, when copying does not
+         * apply or would not pay.
+         *
+         * <p>A chunk can only be copied if the bytes it holds land in this stream unchanged, and a plain column's
+         * bytes differ from one writer to the next only where they disagree on which slots are repeats. So the
+         * slots copied take the source's decisions rather than making their own: a value the source stored is
+         * stored, a repeat is a repeat. The one decision that is not the source's to make is the first slot of
+         * each block of this column's lengths, which is never a repeat. A repeat landing there is recorded as the
+         * value it repeats, with the block starting where that value's bytes begin — behind the stream's end,
+         * over bytes already written — so the block decodes on its own and no byte is written twice.
+         *
+         * <p>Leading repeats refer to a value before the run, which this stream holds under bytes of its own, so
+         * they go through {@link #add} like any value arriving from outside. The bytes before the run's first
+         * whole chunk and after its last are appended as they are read; the chunks between are copied.
+         */
+        Copied copy(Reader source, long from, long to) throws IOException {
+            assert from < to && to <= source.numValues() : "[" + from + ", " + to + ") of " + source.numValues();
+            final ChunkedBytesReader sourceChunks = source.chunks();
+            if (sourceChunks.codecId() != chunks.codecId()) {
+                return null;
+            }
+            if (constantLength >= 0 && source.constantLength() != constantLength) {
+                // This column's addresses are computed from its one length; a source with codes may hold repeats
+                // this column would have to store.
+                return null;
+            }
+            long first = from;
+            while (first < to && repeatCode(source, first) == REPEAT) {
+                first++;
+            }
+            if (first == to) {
+                return null;
+            }
+            // The run's bytes, which the source holds one after another, since a repeat or a null stores none.
+            final long begin = source.start(first);
+            final long end = source.start(to - 1) + source.length(to - 1);
+            final long firstChunk = sourceChunks.firstChunkAtOrAfter(begin);
+            long lastChunk = firstChunk;
+            while (lastChunk < sourceChunks.numChunks() && sourceChunks.chunkStart(lastChunk + 1) <= end) {
+                lastChunk++;
+            }
+            if (lastChunk - firstChunk < MIN_COPIED_CHUNKS) {
+                // Copying closes this stream's pending chunk early, which costs a short chunk; a run that holds
+                // no whole chunk has nothing to copy that is worth it.
+                return null;
+            }
+
+            final BytesRef scratch = new BytesRef();
+            for (long v = from; v < first; v++) {
+                source.get(v, scratch);
+                add(scratch);
+            }
+
+            final long base = chunks.uncompressedLength();
+            long nulls = 0;
+            for (long v = first; v < to; v++) {
+                final long code = repeatCode(source, v);
+                final int length = source.length(v);
+                // A repeat starts where the value it repeats did, which lies inside the run: no repeat follows a
+                // null, and the run's first slot is not one. So every start maps by the same offset.
+                final long start = base + source.start(v) - begin;
+                final boolean blockStart = count % lengthBlockSize == 0;
+                if (starts != null && blockStart) {
+                    starts.add(start);
+                }
+                if (lengths != null) {
+                    lengths.add(code == REPEAT && blockStart ? length + LENGTH_BASE : code);
+                }
+                if (code == NULL_CODE) {
+                    nulls++;
+                    if (count == 0 || previousNull == false) {
+                        runs++;
+                    }
+                    previousNull = true;
+                } else {
+                    // A value the source stored again at one of its own block starts is counted as a run of its
+                    // own, which is what the source's codes say; comparing it with the value before would mean
+                    // reading bytes the copy exists not to read.
+                    if (code != REPEAT) {
+                        runs++;
+                    }
+                    valueBytes += length;
+                    minLength = minLength < 0 ? length : Math.min(minLength, length);
+                    maxLength = Math.max(maxLength, length);
+                    previousNull = false;
+                }
+                count++;
+            }
+
+            appendFrom(sourceChunks, begin, sourceChunks.chunkStart(firstChunk));
+            chunks.flush();
+            for (long chunk = firstChunk; chunk < lastChunk; chunk++) {
+                sourceChunks.copyChunk(chunk, chunks);
+            }
+            appendFrom(sourceChunks, sourceChunks.chunkStart(lastChunk), end);
+            assert chunks.uncompressedLength() == base + end - begin
+                : "stream at " + chunks.uncompressedLength() + " after copying [" + begin + ", " + end + ") from " + base;
+
+            if (previousNull == false) {
+                // What the next value added is compared against to decide whether it repeats.
+                source.get(to - 1, scratch);
+                previous.copyBytes(scratch);
+            }
+            return new Copied(
+                to - from,
+                nulls,
+                lastChunk - firstChunk,
+                sourceChunks.chunkStart(lastChunk) - sourceChunks.chunkStart(firstChunk)
+            );
+        }
+
+        /**
+         * The code of the slot at {@code v} as a repeat or not, whichever way the source stored it. A source written
+         * by a copy may hold a repeat at the start of a block of lengths as the length of the value it repeats,
+         * starting over bytes already behind it; here that is a repeat all the same, since this stream lays out
+         * its own blocks and would otherwise read those bytes from where the value before ends.
+         */
+        private static long repeatCode(Reader source, long v) throws IOException {
+            final long code = source.code(v);
+            if (code > LENGTH_BASE && v > 0 && source.constantLength() < 0 && source.code(v - 1) != NULL_CODE) {
+                if (source.start(v) < source.start(v - 1) + source.length(v - 1)) {
+                    return REPEAT;
+                }
+            }
+            return code;
+        }
+
+        /** Appends the source's bytes in {@code [begin, end)} as they are read, a bounded piece at a time. */
+        private void appendFrom(ChunkedBytesReader source, long begin, long end) throws IOException {
+            for (long at = begin; at < end;) {
+                final int length = (int) Math.min(end - at, COPY_PIECE_BYTES);
+                copyBuffer = source.read(at, length, copyBuffer);
+                chunks.append(copyBuffer, 0, length);
+                at += length;
+            }
         }
 
         private void startSlot() throws IOException {
@@ -312,6 +471,40 @@ final class PlainValues {
             return numValues;
         }
 
+        /** The length every value has, or {@code -1} when the column keeps a code per slot instead. */
+        int constantLength() {
+            return constantLength;
+        }
+
+        /** The byte stream the values are stored in. */
+        ChunkedBytesReader chunks() {
+            return chunks;
+        }
+
+        /**
+         * The code stored for the slot at {@code valueAddress}: {@link #NULL_CODE}, {@link #REPEAT}, or two more
+         * than the byte count of a value stored there. A column of one length stores every value and no code.
+         */
+        long code(long valueAddress) throws IOException {
+            if (constantLength >= 0) {
+                return constantLength + LENGTH_BASE;
+            }
+            loadLengths(valueAddress >>> lengthShift);
+            return codes[(int) (valueAddress & lengthMask)];
+        }
+
+        /**
+         * Where the slot at {@code valueAddress} begins in the byte stream: a repeat begins where the value it
+         * repeats does, and a null where the next stored value will.
+         */
+        long start(long valueAddress) throws IOException {
+            if (constantLength >= 0) {
+                return valueAddress * constantLength;
+            }
+            loadLengths(valueAddress >>> lengthShift);
+            return slotStarts[(int) (valueAddress & lengthMask)];
+        }
+
         /** Whether the slot at {@code valueAddress} is null, which its code says. */
         boolean isNull(long valueAddress) throws IOException {
             if (constantLength >= 0) {
@@ -365,7 +558,7 @@ final class PlainValues {
         StringColumnReader.SlotBlocks codes() {
             if (constantLength >= 0) {
                 final long[] constant = new long[valuesPerBlock];
-                Arrays.fill(constant, code(constantLength));
+                Arrays.fill(constant, PlainValues.code(constantLength));
                 return new StringColumnReader.SlotBlocks() {
                     @Override
                     public int blockSize() {

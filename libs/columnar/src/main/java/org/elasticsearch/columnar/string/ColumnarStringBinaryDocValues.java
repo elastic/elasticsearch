@@ -178,7 +178,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
      * A streaming cursor that reads this column's slots directly off the data input — block-decoded, without
      * a payload round-trip, nulls included. Used on merge to feed one segment's slots into the writer.
      */
-    public StringColumnValues directValues() {
+    public DirectValues directValues() {
         return directValues(null);
     }
 
@@ -187,92 +187,132 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
      * so a merge can carry it over instead of resolving the value's bytes and looking them up again. A null
      * map, or a value that escaped this column's dictionary, falls back to the bytes.
      */
-    public StringColumnValues directValues(int[] ordinalMap) {
+    public DirectValues directValues(int[] ordinalMap) {
+        return new DirectValues(ordinalMap);
+    }
+
+    /** The cursor {@link #directValues} hands out, which a merge can also ask for a run of slots to copy. */
+    public final class DirectValues extends StringColumnValues {
+        private final int[] ordinalMap;
         // A map is only ever built from a dictionary, so that is the only column with ordinals to carry over.
-        final DictionaryStringColumnReader dictionary = reader instanceof DictionaryStringColumnReader typed ? typed : null;
-        return new StringColumnValues() {
-            private long first;
-            private long count;
-            private int upto;
-            private long at = -1;
+        private final DictionaryStringColumnReader dictionary;
+        private long first;
+        private long count;
+        private int upto;
+        private long at = -1;
 
-            @Override
-            public int valueCount() {
-                return (int) count;
+        private DirectValues(int[] ordinalMap) {
+            this.ordinalMap = ordinalMap;
+            this.dictionary = reader instanceof DictionaryStringColumnReader typed ? typed : null;
+        }
+
+        /**
+         * The slots of this plain column from the current document up to, not including, the first document at
+         * or after {@code endDoc}, or null when the column is not plain or holds none of them. {@code endDoc} is
+         * {@link DocIdSetIterator#NO_MORE_DOCS} for a run to the end of the column. Asked before the current
+         * document's first {@link #nextValue()}.
+         */
+        public PlainRun plainRun(int endDoc) throws IOException {
+            final PlainStringColumnReader plain = reader instanceof PlainStringColumnReader typed ? typed : null;
+            if (plain == null) {
+                return null;
             }
+            final int doc = iterator.docID();
+            if (doc == -1 || doc == NO_MORE_DOCS || endDoc <= doc) {
+                return null;
+            }
+            assert upto == 0 : "a run starts on a document's first slot";
+            final long to;
+            if (endDoc == NO_MORE_DOCS) {
+                to = reader.numValues();
+            } else if (endDoc == doc + 1) {
+                // A stretch of one document, which is every stretch a merge that interleaves segments finds: its
+                // slots are the document's own, so no cursor is opened to find where they end.
+                to = first + count;
+            } else {
+                // A cursor of its own, so the one this merge is stepping through stays where it is.
+                final ColumnIterator probe = reader.iterator();
+                to = probe.advance(endDoc) == NO_MORE_DOCS ? reader.numValues() : reader.firstValueAddress(probe.rank());
+            }
+            return to > first ? new PlainRun(plain.plainValues(), first, to, reader.valuesSorted()) : null;
+        }
 
-            @Override
-            public int nullCount() throws IOException {
-                // Whichever layout this is, only what already says which slots are null is touched: the
-                // lengths, or the ordinals. The values themselves are never decoded.
-                int nulls = 0;
-                for (long i = 0; i < count; i++) {
-                    if (reader.isNullSlot(first + i)) {
-                        nulls++;
-                    }
+        @Override
+        public int valueCount() {
+            return (int) count;
+        }
+
+        @Override
+        public int nullCount() throws IOException {
+            // Whichever layout this is, only what already says which slots are null is touched: the
+            // lengths, or the ordinals. The values themselves are never decoded.
+            int nulls = 0;
+            for (long i = 0; i < count; i++) {
+                if (reader.isNullSlot(first + i)) {
+                    nulls++;
                 }
-                return nulls;
             }
+            return nulls;
+        }
 
-            @Override
-            public void nextValue() {
-                at = first + upto++;
-            }
+        @Override
+        public void nextValue() {
+            at = first + upto++;
+        }
 
-            @Override
-            public int ordinal() throws IOException {
-                if (ordinalMap == null || dictionary == null) {
-                    return -1;
-                }
-                final int ordinal = dictionary.ordinalAt(at);
-                if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL || ordinal >= ordinalMap.length) {
-                    // Null, or escaped this column's dictionary. Neither names a term the column being
-                    // written would recognise, so value() is what settles it.
-                    return -1;
-                }
-                return ordinalMap[ordinal];
+        @Override
+        public int ordinal() throws IOException {
+            if (ordinalMap == null || dictionary == null) {
+                return -1;
             }
+            final int ordinal = dictionary.ordinalAt(at);
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL || ordinal >= ordinalMap.length) {
+                // Null, or escaped this column's dictionary. Neither names a term the column being
+                // written would recognise, so value() is what settles it.
+                return -1;
+            }
+            return ordinalMap[ordinal];
+        }
 
-            @Override
-            public BytesRef value() throws IOException {
-                return reader.valueAt(at);
-            }
+        @Override
+        public BytesRef value() throws IOException {
+            return reader.valueAt(at);
+        }
 
-            @Override
-            public int valueLength() throws IOException {
-                return reader.isNullSlot(at) ? -1 : reader.byteLengthAt(at);
-            }
+        @Override
+        public int valueLength() throws IOException {
+            return reader.isNullSlot(at) ? -1 : reader.byteLengthAt(at);
+        }
 
-            @Override
-            public int docID() {
-                return iterator.docID();
-            }
+        @Override
+        public int docID() {
+            return iterator.docID();
+        }
 
-            @Override
-            public int nextDoc() throws IOException {
-                return position(iterator.nextDoc());
-            }
+        @Override
+        public int nextDoc() throws IOException {
+            return position(iterator.nextDoc());
+        }
 
-            @Override
-            public int advance(int target) throws IOException {
-                return position(iterator.advance(target));
-            }
+        @Override
+        public int advance(int target) throws IOException {
+            return position(iterator.advance(target));
+        }
 
-            @Override
-            public long cost() {
-                return iterator.cost();
-            }
+        @Override
+        public long cost() {
+            return iterator.cost();
+        }
 
-            private int position(int doc) throws IOException {
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int rank = iterator.rank();
-                    first = reader.firstValueAddress(rank);
-                    count = reader.valueCount(rank);
-                    upto = 0;
-                }
-                return doc;
+        private int position(int doc) throws IOException {
+            if (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                int rank = iterator.rank();
+                first = reader.firstValueAddress(rank);
+                count = reader.valueCount(rank);
+                upto = 0;
             }
-        };
+            return doc;
+        }
     }
 
     /**

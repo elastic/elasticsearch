@@ -268,14 +268,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
         final Function<Index, IndexMetadata> indexMetadataProvider = project::index;
-        final boolean validateSliceRouting = true;
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
             final IndexAbstraction indexAbstraction = indicesLookup.get(concreteName);
-            if (validateSliceRouting) {
-                requireSliceRoutingWhenEnabled(request, indexAbstraction, indexMetadataProvider);
-            }
+            requireSliceRoutingWhenEnabled(request, indexAbstraction, indexMetadataProvider);
             if (request instanceof IndexRequest == false) {
                 continue;
             }

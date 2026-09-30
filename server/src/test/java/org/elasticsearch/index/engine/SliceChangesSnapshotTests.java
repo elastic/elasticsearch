@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
-import org.junit.BeforeClass;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -28,9 +27,6 @@ import static org.hamcrest.Matchers.nullValue;
  * Verifies that ops-based recovery (the changes snapshot) correctly reconstructs slice-enabled ops
  */
 public class SliceChangesSnapshotTests extends EngineTestCase {
-
-    @BeforeClass
-    public static void checkSliceFeatureFlag() {}
 
     @Override
     protected Settings indexSettings() {

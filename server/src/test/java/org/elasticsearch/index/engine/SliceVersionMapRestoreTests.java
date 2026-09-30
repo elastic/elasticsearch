@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
-import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -36,9 +35,6 @@ import static org.hamcrest.Matchers.instanceOf;
  * which is the case the plain reconstruction path would crash on.
  */
 public class SliceVersionMapRestoreTests extends EngineTestCase {
-
-    @BeforeClass
-    public static void checkSliceFeatureFlag() {}
 
     @Override
     protected Settings indexSettings() {

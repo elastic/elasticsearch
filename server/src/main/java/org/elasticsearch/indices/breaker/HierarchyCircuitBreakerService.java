@@ -650,7 +650,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         /**
          * At most one humongous allocation, followed by eden fillers under a budget derived from the estimate of free regions plus one.
-         * The fillers go through eden, so G1's own young sizing decides when to collect. As before, reaching a GC is best-effort.
+         * The fillers go through eden, so G1's own young sizing decides when to collect. Reaching a GC is best-effort: the caller falls
+         * back to a full GC if memory usage was not reduced.
          */
         static int triggerAllocationCount(long maxHeap, long baseUsage, long g1RegionSize) {
             long regions = (maxHeap - baseUsage) / g1RegionSize + 1;
@@ -661,11 +662,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         static int triggerAllocationSize(int allocationIndex, long g1RegionSize) {
-            // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-            // The first allocation stays humongous: as before, it lets G1 start a concurrent cycle, and with it a young GC, right away
-            // when occupancy is above the IHOP threshold, and it is a candidate for eager reclaim. Further humongous allocations would
-            // take free regions directly, including the ones G1 evacuates into, so the young GC they eventually force can fail
-            // evacuation. The rest are therefore regular eden allocations, which fill eden until G1 starts a young GC itself.
+            // An array of half a region or more is a humongous allocation in G1, and takes up whole regions directly from the free list.
+            // The first allocation is humongous on purpose: a humongous allocation makes G1 check the IHOP threshold, so when occupancy is
+            // above it G1 starts a concurrent cycle, and with it a young GC, right away. It is also a candidate for eager reclaim.
+            // The rest are regular eden allocations. Further humongous allocations would consume the free regions that G1 needs as
+            // evacuation targets, so the young GC they eventually force can fail evacuation. Eden fillers instead fill eden until G1
+            // decides to start a young GC itself.
             return allocationIndex == 0 ? (int) (g1RegionSize >> 1) : fillerAllocationSize(g1RegionSize);
         }
 

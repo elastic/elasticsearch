@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -343,8 +344,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
 
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
+        if (randomBoolean()) {
+            blobContainer.writeBlobAtomic(
+                randomPurpose(),
+                "write_blob_max_retries",
+                bytes.length,
+                (offset, length) -> new ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                Runnable::run
+            );
+        } else {
+            try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+                blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
+            }
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -422,8 +434,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
 
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
+        if (randomBoolean()) {
+            blobContainer.writeBlobAtomic(
+                randomPurpose(),
+                "write_large_blob",
+                data.length,
+                (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                Runnable::run
+            );
+        } else {
+            try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
+                blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
+            }
         }
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));

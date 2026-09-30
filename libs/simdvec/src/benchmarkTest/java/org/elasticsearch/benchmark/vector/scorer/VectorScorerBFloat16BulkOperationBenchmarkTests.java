@@ -27,13 +27,16 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     }
 
     private VectorScorerBFloat16BulkOperationBenchmark newBench() {
-        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+        // Seed 10% near-duplicates so the assertions also cover the bf16 x bf16 Euclidean recompute path.
+        int nearDuplicatePercent = 10;
+        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, nearDuplicatePercent, random());
         var bench = new VectorScorerBFloat16BulkOperationBenchmark();
         bench.function = function;
         bench.queryType = queryType;
         bench.dims = dims;
         bench.numVectors = 1000;
         bench.bulkSize = 200;
+        bench.nearDuplicatePercent = nearDuplicatePercent;
         bench.setup(vectorData);
         return bench;
     }

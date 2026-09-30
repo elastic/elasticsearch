@@ -38,6 +38,10 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
 
     private final InsertDefaultInnerTimeSeriesAggregate rule = new InsertDefaultInnerTimeSeriesAggregate();
 
+    public InsertDefaultInnerTimeSeriesAggregateTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testSimpleImplicitOverTime() {
         assertStatsEqual("network.bytes_in", "last_over_time(network.bytes_in)");
         assertStatsEqual("sum(network.bytes_in)", "sum(last_over_time(network.bytes_in))");

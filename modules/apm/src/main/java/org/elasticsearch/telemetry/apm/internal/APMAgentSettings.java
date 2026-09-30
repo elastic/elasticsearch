@@ -9,55 +9,33 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
- * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
+ * This class is responsible for APM settings.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
 public class APMAgentSettings {
-
-    private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
         final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
-        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
-            apmTracer.setEnabled(enabled);
-            this.setAgentSetting(
-                "recording",
-                Boolean.toString(shouldRecord(enabled, clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING)))
-            );
-        });
-        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
-            apmMeterService.setEnabled(enabled);
-            this.setAgentSetting(
-                "recording",
-                Boolean.toString(shouldRecord(clusterSettings.get(TELEMETRY_TRACING_ENABLED_SETTING), enabled))
-            );
-        });
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, apmTracer::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, apmMeterService::setEnabled);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
@@ -70,57 +48,6 @@ public class APMAgentSettings {
             OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
             apmMeterService.getMeterRegistry()::setInstrumentTimingEnabled
         );
-        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
-    }
-
-    /**
-     * Initialize APM settings from the provided settings object into the corresponding system properties.
-     * Later updates to these settings are synchronized using update consumers.
-     * @param settings the settings to apply
-     */
-    public void initAgentSystemProperties(Settings settings) {
-        boolean tracing = TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
-
-        this.setAgentSetting("recording", Boolean.toString(shouldRecord(tracing, metrics)));
-        // Apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
-    }
-
-    // Keep the agent active only when it still has work to do: tracing or metrics when OTEL does not own them.
-    private boolean shouldRecord(boolean tracingEnabled, boolean metricsEnabled) {
-        boolean tracingOwnedByAgent = tracingEnabled
-            && Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")) == false;
-        boolean metricsOwnedByAgent = metricsEnabled
-            && Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
-        return tracingOwnedByAgent || metricsOwnedByAgent;
-    }
-
-    /**
-     * Copies a setting to the APM agent's system properties under <code>elastic.apm</code>, either
-     * by setting the property if {@code value} has a value, or by deleting the property if it doesn't.
-     *
-     * All permitted agent properties must be covered by the <code>write_system_properties</code> entitlement,
-     * see the entitlement policy of this module!
-     *
-     * @param key the config key to set, without any prefix
-     * @param value the value to set, or <code>null</code>
-     */
-    @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
-    public void setAgentSetting(String key, String value) {
-        if (key.startsWith("global_labels.")) {
-            // Invalid agent setting, leftover from flattening global labels in APMJVMOptions
-            // https://github.com/elastic/elasticsearch/issues/120791
-            return;
-        }
-        final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
-        if (value == null || value.isEmpty()) {
-            LOGGER.trace("Clearing system property [{}]", completeKey);
-            System.clearProperty(completeKey);
-        } else {
-            LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
-            System.setProperty(completeKey, value);
-        }
     }
 
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";

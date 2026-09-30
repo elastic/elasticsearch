@@ -24,6 +24,8 @@ For more information and options about tuning audit logs, refer to [Configuring 
 
 ::::{note}
 Certain audit events require the `security_config_change` event type to log the related event action. The event descriptions in this document indicate whether this requirement is applicable.
+
+By default, `security_config_change` events do not include actor attribution fields (`user.name`, `user.realm`, `authentication.type`, and related fields). To include the actor who initiated the change directly in these events, enable [`xpack.security.audit.logfile.events.emit_security_config_change_actor`](./configuration-reference/auding-settings.md#xpack-sa-lf-events-emit-security-config-change-actor).
 ::::
 
 ## Audit event types [audit-event-types]
@@ -545,7 +547,7 @@ $$$event-put-user-managed-service-account$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
     action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
-    "roles":["role1","role2"],"enabled":true}}}
+    "roles":["role1","role2"],"enabled":true,"description":"Deploys my-app"}}}
     ```
     % NOTCONSOLE
 

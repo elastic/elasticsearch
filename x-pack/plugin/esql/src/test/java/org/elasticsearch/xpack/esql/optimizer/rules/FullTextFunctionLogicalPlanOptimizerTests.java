@@ -23,6 +23,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 public class FullTextFunctionLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
+    public FullTextFunctionLogicalPlanOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testFullTextFunctionQueryArgFoldedFromConcat() {
         String functionName = randomFrom("match", "match_phrase");
         var plan = optimizedPlan(String.format(Locale.ROOT, """

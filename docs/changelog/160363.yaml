@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160363
+summary: Release `top_hits` hits when CCS merge reduce fails
+type: bug

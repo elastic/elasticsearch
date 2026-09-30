@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -52,6 +51,7 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -290,7 +290,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     static Versioned<LogicalPlan> parse(String query, UnmappedResolution unmappedResolution) {
         var analyzer = analyzer().addIndex("test", "mapping-basic.json").unmappedResolution(unmappedResolution).buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
+        var logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);
     }
 

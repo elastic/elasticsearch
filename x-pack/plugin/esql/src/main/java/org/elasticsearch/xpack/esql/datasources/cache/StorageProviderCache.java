@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -365,6 +366,11 @@ public class StorageProviderCache implements Closeable {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
             return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+            return delegate.listChildren(prefix, limit);
         }
 
         @Override

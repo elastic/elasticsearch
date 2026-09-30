@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
@@ -53,6 +54,7 @@ public class ExternalDistributedClusters {
                 FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class)
             );
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);
+            spec.setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
             spec.keystore("s3.client.default.access_key", ACCESS_KEY);
             spec.keystore("s3.client.default.secret_key", SECRET_KEY);
             spec.setting("s3.client.default.protocol", "http");

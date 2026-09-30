@@ -12,7 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -184,7 +184,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("startArray(a)", "arrayElemStartObject()", "string(k=v)", "arrayElemEndObject()", "endArray()"), events);
     }
 
-    // ---- Escapes, signs, and scientific notation ----
+    // ---- Escapes ----
 
     // \\n in a string value is decoded to a real newline.
     public void testEscapedStringField() {
@@ -193,22 +193,35 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("string(a=hello\nworld)", events.get(0));
     }
 
-    public void testNegativeNumber() {
-        List<String> events = walkJson("{\"n\":-42}");
-        assertEquals(List.of("long(n=-42,fitsInt=true)"), events);
-    }
+    /**
+     * Unescaped values stay readable after later calls in the same document.
+     */
+    public void testRetainedUnescapedValuesDoNotAlias() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
 
-    public void testNegativeDouble() {
-        List<String> events = walkJson("{\"n\":-3.14}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=-3.14,"));
-    }
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
 
-    // Exponent form produces double event (not long).
-    public void testScientificNotation() {
-        List<String> events = walkJson("{\"n\":1.5e10}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
+        byte[] buffer = "{\"a\":[\"x\\ny\",\"p\\nq\"],\"b\":\"r\\ns\"}".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            walker.walkDocument(buffer, parser, handler);
+        }
+
+        List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+        assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
     // Root must be an object; top-level arrays are rejected.
@@ -273,8 +286,18 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     public void testTrailingBufferPaddingDoesNotChangeEvents() {
         for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
             List<String> tight = walkAndRecord(json, 0).events;
-            List<String> padded = walkAndRecord(json, 64).events;
-            assertEquals("padding must not change events for: " + json, tight, padded);
+            for (int padding : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("padding must not change events for: " + json, tight, walkAndRecord(json, padding).events);
+            }
+        }
+    }
+
+    public void testNonZeroStartOffsetDoesNotChangeEvents() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> expected = walkJson(json);
+            for (int offset : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("offset=" + offset + " walk for: " + json, expected, walkAndRecordAtOffset(json, offset).events);
+            }
         }
     }
 
@@ -325,21 +348,4 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         }
     }
 
-    private RecordingHandler walkAndRecord(String json, int paddingBytes) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
-
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, len);
-        parser.prepareDocumentWindow(0, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
-    }
 }

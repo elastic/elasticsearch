@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -42,7 +43,7 @@ public final class DrainSimulatingStorageObject {
     }
 
     public static StorageObject create(byte[] bytes, Tracking tracking, StoragePath path) {
-        return new StorageObject() {
+        return new AbstractTestStorageObject() {
             @Override
             public InputStream newStream() {
                 return drainTrackingStream(new ByteArrayInputStream(bytes), tracking);

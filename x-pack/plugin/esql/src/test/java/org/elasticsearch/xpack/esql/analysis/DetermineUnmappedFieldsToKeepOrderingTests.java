@@ -7,17 +7,25 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -25,6 +33,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmappedTestBase {
+
+    public DetermineUnmappedFieldsToKeepOrderingTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */
     public void testKeepOrderingHonouredForDiscoveredFields() {
@@ -166,7 +178,79 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat(analyzer.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
-    private static List<String> orderFor(String query, String... discovered) {
+    public void testSubqueryStatsInOneBranchOrderingMatchesAnalyzedOutput() {
+        assertOrderingMatchesPlanOutput(test(), """
+            FROM (FROM test), (FROM test | STATS c = COUNT(*))
+            | SORT c NULLS LAST
+            """, "unmapped_extra");
+    }
+
+    public void testSubqueryKeepWildcardAfterSortOrderingMatchesAnalyzedOutput() {
+        assertOrderingMatchesPlanOutput(test(), """
+            FROM (FROM test | WHERE emp_no == 10001), (FROM test | WHERE emp_no == 10002)
+            | SORT emp_no DESC
+            | KEEP emp*, unmapped*
+            """, "unmapped_foo");
+    }
+
+    public void testPartialMappingSubqueryStatsOrderingMatchesOptimizedOutput() {
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM (FROM partial_mapping_sample_data | STATS c = COUNT(*)),
+                 (FROM partial_mapping_sample_data | WHERE message == "42")
+            | SORT c NULLS LAST
+            """, "unmapped_message");
+    }
+
+    public void testPartialMappingSubqueryKeepWildcardInOneBranchOrderingMatchesOptimizedOutput() {
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP messag*),
+                 (FROM partial_mapping_sample_data | WHERE message == "42")
+            | SORT message
+            """, "language_code", "unmapped.nested", "unmapped_event_duration", "unmapped_message");
+    }
+
+    public void testPartialMappingSubqueryKeepWildcardAfterSortOrderingMatchesOptimizedOutput() {
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
+            | SORT unmapped_message DESC
+            | KEEP messag*, unmapped_mess*
+            """, "unmapped_message_extra");
+    }
+
+    private static void assertOrderingMatchesPlanOutput(TestAnalyzer analyzer, String query, String... discovered) {
+        LogicalPlan analyzed = analyzer.statement(setUnmappedLoadAll(query));
+        LogicalPlan optimized = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(analyzed);
+        UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();
+        assertThat("no ordering captured for [" + query + "]", ordering, notNullValue());
+        List<Attribute> leaves = Arrays.stream(discovered)
+            .map(name -> (Attribute) new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD))
+            .toList();
+        List<String> ordered = Expressions.names(ordering.order(leaves));
+        for (LogicalPlan plan : List.of(analyzed, optimized)) {
+            Set<String> expected = new HashSet<>();
+            for (String name : Expressions.names(plan.output())) {
+                if (name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
+                    expected.add(name);
+                }
+            }
+            expected.addAll(List.of(discovered));
+            assertThat(
+                Strings.format(
+                    "stage=%s ordered=%s expected=%s plan=%s",
+                    plan == analyzed ? "analyzed" : "optimized",
+                    ordered,
+                    expected,
+                    plan
+                ),
+                new HashSet<>(ordered),
+                equalTo(expected)
+            );
+        }
+    }
+
+    private List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));
         UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();

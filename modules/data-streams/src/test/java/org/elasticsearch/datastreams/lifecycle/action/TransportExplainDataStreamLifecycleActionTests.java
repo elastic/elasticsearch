@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -54,7 +54,7 @@ import static org.mockito.Mockito.when;
 public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
     private TransportExplainDataStreamLifecycleAction testAction;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
 
@@ -70,7 +70,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             TestProjectResolvers.alwaysThrow(),
             TestIndexNameExpressionResolver.newInstance(),
             mock(DataStreamLifecycleErrorStore.class),
-            globalRetentionSettings,
+            dataStreamLifecycleSettings,
             FrozenTransitionInfoProvider.noop()
         );
     }

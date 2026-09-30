@@ -17,8 +17,12 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,9 +42,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -55,13 +61,14 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -76,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -90,10 +98,15 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -105,7 +118,9 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -118,6 +133,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,9 +145,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -621,6 +638,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * The planner passes the partition stamp through and does not classify {@code _file.*} by name.
+     * Ownership of those names is decided from the attributes at the operator factory.
+     */
+    public void testExternalSourceDoesNotAddFileMetadataNamesToPartitionStamp() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                FileMetadataColumns.PATH,
+                new EsField(FileMetadataColumns.PATH, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/data/*.parquet",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(
+            List.of(new FileSplit("file", StoragePath.of("s3://test-bucket/data/f.parquet"), 0, 10, ".parquet", Map.of(), Map.of()))
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().partitionColumnNames(), equalTo(Set.of()));
+    }
+
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
         assertUnmappedFieldLoader(blockLoader.loader());
@@ -633,17 +692,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertUnmappedFieldLoader(blockLoader.loader());
     }
 
-    /**
-     * The unmapped-field loader is gated on {@link EsqlCapabilities.Cap#OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE}, so assert the
-     * contract on both sides of the gate: a release build must keep dispatching {@code KeywordFieldType}'s own loaders, exactly as it
-     * did before the fix. Without the else branch these tests fail under {@code -Dbuild.snapshot=false} (the release-tests pipeline).
-     */
     private static void assertUnmappedFieldLoader(BlockLoader loader) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()) {
-            assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
-        } else {
-            assertThat(loader, not(instanceOf(UnmappedKeywordBlockLoader.class)));
-        }
+        assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
     }
 
     public void testTimeSeries() throws IOException {
@@ -794,6 +844,38 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             sourceFactory,
             instanceOf(LocalSourceOperator.LocalSourceFactory.class)
         );
+    }
+
+    public void testStreamingOutput() throws IOException {
+        int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
+        EsQueryExec esQueryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            estimatedRowSize,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            streamingOutput,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        var physicalOperation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(physicalOperation.sourceOperatorFactory, instanceOf(LuceneSourceOperator.Factory.class));
+        var sinkFactory = (StreamingPageOperator.Factory) physicalOperation.sinkOperatorFactory;
+        assertThat(sinkFactory.stream(), sameInstance(pageStream));
+        assertThat(sinkFactory.alignment(), notNullValue());
     }
 
     private static List<Attribute> buildMetricsInfoAttributes() {
@@ -1182,6 +1264,119 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(rows, equalTo(expectedRows));
     }
 
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForEisJina() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, null, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForTheDefaultEndpoint() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.DEFAULT_INFERENCE_ID, null, DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE);
+    }
+
+    public void testUnsetDenseVectorBatchSizeResolvesToTheUnnamedSizeForAUserEndpoint() throws IOException {
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", null, DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeIsUsedForAUserEndpoint() throws IOException {
+        int configured = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", configured, configured);
+    }
+
+    /** A configured size is used even where it exceeds what {@link DenseVector#defaultBatchSizeFor} would have chosen. */
+    public void testConfiguredDenseVectorBatchSizeOverridesTheEndpointSize() throws IOException {
+        int configured = DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE + between(1, 100);
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, configured, configured);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeBelowTheEndpointSizeIsUsed() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
+    }
+
+    public void testDenseVectorEmbeddingUsesInternalIngestInputType() throws IOException {
+        EmbeddingOperator.Factory embedding = (EmbeddingOperator.Factory) denseVectorOperatorFactory(
+            "my-own-embedding-endpoint",
+            null,
+            TaskType.EMBEDDING
+        );
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    /**
+     * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
+     * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
+     */
+    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize) throws IOException {
+        TextEmbeddingOperator.Factory embedding = (TextEmbeddingOperator.Factory) denseVectorOperatorFactory(
+            inferenceId,
+            configuredBatchSize,
+            TaskType.TEXT_EMBEDDING
+        );
+        assertThat(embedding.inferenceId(), equalTo(inferenceId));
+        assertThat(embedding.batchSize(), equalTo(expectedBatchSize));
+        assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    private Operator.OperatorFactory denseVectorOperatorFactory(String inferenceId, Integer configuredBatchSize, TaskType endpointTaskType)
+        throws IOException {
+        ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
+        ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        LocalSourceExec source = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(input),
+            LocalSupplier.of(new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("a book title"), 1)))
+        );
+        DenseVectorExec denseVector = new DenseVectorExec(
+            Source.EMPTY,
+            source,
+            Literal.keyword(Source.EMPTY, inferenceId),
+            List.of(input),
+            List.of(generated),
+            null,
+            org.elasticsearch.inference.DataType.TEXT,
+            endpointTaskType
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, inferenceService(configuredBatchSize)).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            denseVector,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories;
+        Class<?> expectedFactory = endpointTaskType == TaskType.EMBEDDING
+            ? EmbeddingOperator.Factory.class
+            : TextEmbeddingOperator.Factory.class;
+        return factories.stream()
+            .filter(expectedFactory::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no embedding operator factory in " + factories));
+    }
+
+    /**
+     * An {@link InferenceService} carrying the given dense vector batch size, or none when {@code denseVectorBatchSize} is null.
+     * {@link Client} and {@link ClusterService} are mocked because planning reads nothing from them beyond
+     * {@link InferenceService#inferenceSettings()}; standing either up for real would pull in a transport and a cluster state this
+     * test never touches.
+     */
+    private InferenceService inferenceService(Integer denseVectorBatchSize) {
+        Settings.Builder builder = Settings.builder();
+        if (denseVectorBatchSize != null) {
+            builder.put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), denseVectorBatchSize);
+        }
+        Settings inferenceSettings = builder.build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(inferenceSettings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(inferenceSettings, new HashSet<>(InferenceSettings.getSettings()))
+        );
+        return new InferenceService(mock(Client.class), clusterService);
+    }
+
     private LocalExecutionPlanner planner() throws IOException {
         return planner(null);
     }
@@ -1191,6 +1386,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry, boolean federationEnabled) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1209,7 +1412,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            null,
+            inferenceService,
             null,
             null,
             null,

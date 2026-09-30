@@ -16,12 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -41,8 +41,11 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     protected abstract String fieldTypeName();
 
     protected MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false);
+        }
+        return createMapperService(settings.build(), mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
     }
 
     protected DocumentMapper columnarMapper() throws IOException {
@@ -92,15 +95,14 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     }
 
     /**
-     * A scalar {@code null} (written via {@code b.nullField("field")}) must produce the same result as a
-     * single-element null array — both write one null slot via
-     * {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull}, so synthetic source renders
-     * the field as {@code [null]}, not as absent.
+     * A scalar {@code null} (written via {@code b.nullField("field")}) is the field being absent, the same as
+     * {@link #testEmptyArray()}. In a strictly columnar index a null counts only where it is an element of the field's own array,
+     * which is the position synthetic source has to put it back into; a null standing on its own has no such position and writes
+     * no slot. See {@link MultiValuedBinaryDocValuesField#keepsNullSlot}.
      */
-    public void testScalarNullRendersAsArray() throws IOException {
+    public void testScalarNullIsAbsent() throws IOException {
         var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[null]}""", syntheticSource(mapper, b -> b.nullField("field")));
+        assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
     }
 
     public void testEmptyArray() throws IOException {

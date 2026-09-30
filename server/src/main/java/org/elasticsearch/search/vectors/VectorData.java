@@ -14,7 +14,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.mapper.vectors.DecodedVector;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -23,10 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -258,107 +256,8 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
      * @throws IllegalArgumentException if the string cannot be decoded or doesn't match expected dimensions
      */
     public static VectorData decodeQueryVector(String encoded, ElementType elementType, int dims) {
-        byte[] hexBytes = tryParseHex(encoded);
-
-        // Prefer hex if it matches expected dimensions (hex always produces byte[])
-        if (hexBytes != null && hexBytes.length == dims) {
-            return VectorData.fromBytes(hexBytes);
-        }
-
-        // For BIT element type, check hex with bit dimensions
-        if (elementType == ElementType.BIT && hexBytes != null && hexBytes.length == dims / Byte.SIZE) {
-            return VectorData.fromBytes(hexBytes);
-        }
-
-        byte[] base64Bytes = tryParseBase64(encoded);
-
-        if (hexBytes == null && base64Bytes == null) {
-            throw new IllegalArgumentException("failed to parse field [query_vector]: [query_vector] must be a valid base64 or hex string");
-        }
-
-        // Try base64 if it matches expected dimensions for the element type
-        if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length, elementType, dims)) {
-            return decodeBase64Vector(base64Bytes, elementType, dims);
-        }
-
-        // Fall back to hex if available (downstream will handle dimension mismatch)
-        if (hexBytes != null) {
-            throw new IllegalArgumentException(
-                "The query vector has a different number of dimensions [" + hexBytes.length + "] than the document vectors [" + dims + "]."
-            );
-        }
-
-        // base64 was parsed but doesn't match dimensions
-        throw invalidBase64Length(base64Bytes.length, elementType);
-    }
-
-    private static byte[] tryParseHex(String encoded) {
-        try {
-            return HexFormat.of().parseHex(encoded);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static byte[] tryParseBase64(String encoded) {
-        try {
-            return Base64.getDecoder().decode(encoded);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
-        return switch (elementType) {
-            case BYTE -> length == dims;
-            case BIT -> length == dims / Byte.SIZE;
-            case FLOAT -> length == dims * Float.BYTES;
-            case BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
-        };
-    }
-
-    private static VectorData decodeBase64Vector(byte[] base64Bytes, ElementType elementType, int dims) {
-        return switch (elementType) {
-            case BYTE, BIT -> VectorData.fromBytes(base64Bytes);
-            case FLOAT -> decodeFloatVector(base64Bytes);
-            case BFLOAT16 -> decodeBase64BFloat16Vector(base64Bytes, dims);
-        };
-    }
-
-    private static VectorData decodeBase64BFloat16Vector(byte[] base64Bytes, int dims) {
-        // Prefer bfloat16 if it matches exactly, otherwise float
-        return base64Bytes.length == dims * BFloat16.BYTES ? decodeBFloat16Vector(base64Bytes) : decodeFloatVector(base64Bytes);
-    }
-
-    private static IllegalArgumentException invalidBase64Length(int length, ElementType elementType) {
-        String expectedType = switch (elementType) {
-            case BYTE, BIT -> "byte";
-            case FLOAT -> "float";
-            case BFLOAT16 -> "float or bfloat16";
-        };
-        return new IllegalArgumentException(
-            "failed to parse field [query_vector]: "
-                + "[query_vector] must contain a valid Base64-encoded "
-                + expectedType
-                + " vector, but the decoded bytes length ["
-                + length
-                + "] is not compatible with the expected vector length"
-        );
-    }
-
-    private static VectorData decodeFloatVector(byte[] bytes) {
-        int numFloats = bytes.length / Float.BYTES;
-        float[] floats = new float[numFloats];
-        ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().get(floats);
-        return VectorData.fromFloats(floats);
-    }
-
-    private static VectorData decodeBFloat16Vector(byte[] bytes) {
-        int numFloats = bytes.length / BFloat16.BYTES;
-        float[] floats = new float[numFloats];
-        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-        BFloat16.bFloat16ToFloat(buffer, floats);
-        return VectorData.fromFloats(floats);
+        DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
+        return decoded.isByteVector() ? VectorData.fromBytes(decoded.bytes()) : VectorData.fromFloats(decoded.toFloatArray());
     }
 
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -456,7 +457,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen("test-idx");
 
         Set<Integer> reusedShards = new HashSet<>();
-        List<RecoveryState> recoveryStates = indicesAdmin().prepareRecoveries("test-idx").get().shardRecoveryStates().get("test-idx");
+        List<RecoveryState> recoveryStates = indicesAdmin().prepareRecoveries("test-idx")
+            .get()
+            .shardRecoveryInfos()
+            .get("test-idx")
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         for (RecoveryState recoveryState : recoveryStates) {
             if (recoveryState.getIndex().reusedBytes() > 0) {
                 reusedShards.add(recoveryState.getShardId().getId());

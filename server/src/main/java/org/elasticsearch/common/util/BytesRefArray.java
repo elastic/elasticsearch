@@ -191,6 +191,24 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         ++size;
     }
 
+    /**
+     * Appends two {@link BytesRef} values as one entry, allowing callers to avoid an intermediate copy.
+     */
+    public void append(BytesRef v1, BytesRef v2) {
+        final int length = Math.toIntExact(v1.length + v2.length);
+        final long newOffset = lastOffset + length;
+        try {
+            bytes.append(v1.bytes, v1.offset, v1.length);
+            bytes.append(v2.bytes, v2.offset, v2.length);
+            appendOffset(newOffset, length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
+        ++size;
+    }
+
     public void append(PagedBytesCursor cursor) {
         final int length = cursor.remaining();
         final long newOffset = lastOffset + length;

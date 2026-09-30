@@ -22,12 +22,14 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -383,6 +385,11 @@ public class ExternalSourceParallelismTests extends ESTestCase {
 
     private static class TrackingStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return new StubStorageObject(path);
         }
@@ -416,7 +423,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubStorageObject(StoragePath path) {

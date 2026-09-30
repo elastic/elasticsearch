@@ -49,7 +49,7 @@ import java.util.function.Consumer;
  * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
  *                         Text readers add the bytes they consume to this anchor to emit a file-global,
  *                         split-invariant start byte per record for the {@code _rowPosition} channel
- *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         (the substrate of {@code _file.record_ref}). {@code 0} for the
  *                         whole-file (non-split) case and for columnar formats, which derive a file-global
  *                         row index from their own footer/stripe metadata rather than from a byte anchor.
  *                         <p>Note: this carries the SAME VALUE as {@code statsBaseOffset} at every current call
@@ -121,7 +121,8 @@ public record FormatReadContext(
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
-    @Nullable SharedErrorBudget sharedErrorBudget
+    @Nullable SharedErrorBudget sharedErrorBudget,
+    @Nullable FormatReadCounters readCounters
 ) {
 
     public FormatReadContext {
@@ -169,7 +170,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -195,7 +197,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -221,7 +224,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -256,6 +260,8 @@ public record FormatReadContext(
         private CircuitBreaker breaker = null;
         @Nullable
         private SharedErrorBudget sharedErrorBudget = null;
+        @Nullable
+        private FormatReadCounters readCounters = null;
 
         private Builder() {}
 
@@ -376,6 +382,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder readCounters(@Nullable FormatReadCounters readCounters) {
+            this.readCounters = readCounters;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -398,7 +409,8 @@ public record FormatReadContext(
                 informationalWarningSink,
                 fileHeaderColumns,
                 breaker,
-                sharedErrorBudget
+                sharedErrorBudget,
+                readCounters
             );
         }
     }

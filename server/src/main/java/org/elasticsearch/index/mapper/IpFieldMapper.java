@@ -11,9 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -41,6 +43,7 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -94,6 +97,23 @@ public class IpFieldMapper extends FieldMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);
 
     public static final String CONTENT_TYPE = "ip";
+
+    /**
+     * The Lucene field type for SORTED_SET ip doc values without a skip index.
+     * Used when {@code IndexType.hasDocValuesSkipper()} is {@code false}.
+     */
+    private static final IndexableFieldType SORTED_SET_DV_FIELD_TYPE = SortedSetDocValuesField.TYPE;
+
+    /**
+     * The Lucene field type for SORTED_SET ip doc values with a RANGE skip index.
+     * Derived from a sentinel field — do <em>not</em> hand-roll a {@link org.apache.lucene.document.FieldType}
+     * here; the compatibility harness compares frozen {@link org.apache.lucene.document.FieldType} instances
+     * via {@code equals()}, which includes {@link org.apache.lucene.index.DocValuesSkipIndexType}.
+     */
+    private static final IndexableFieldType SORTED_SET_DV_SKIPPER_FIELD_TYPE = SortedSetDocValuesField.indexedField(
+        "_sentinel",
+        new BytesRef()
+    ).fieldType();
 
     private static IpFieldMapper toType(FieldMapper in) {
         return (IpFieldMapper) in;
@@ -824,37 +844,43 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires binary doc values only (no SortedSet ordinals). TIME_SERIES is accepted
-        // by the mode gate, but every ip field in a TSDB index resolves to IndexType.skippers() — SORTED_SET
-        // doc values with a RANGE skip index (see Builder#indexType) — which supportsColumnarDocValues() does
-        // not accept yet, so TSDB ip fields still fall back to the row path until SORTED_SET emission lands.
-        return supportsColumnarDocValues()
+        final IndexMode mode = indexSettings.getMode();
+        return (mode.isStrictColumnar() || mode.isTsdb())
+            && supportsColumnarDocValues(mode)
             && fieldType().indexType.hasPoints() == false
             && stored == false
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && getOffsetFieldName() == null
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     /**
      * Returns true when this ip field's doc-values encoding is supported on the columnar batch path.
-     * Accepts both the array-order (multi_value=true, ArrayOrderInlineNull blob + .counts sidecar)
-     * and single-valued binary (multi_value=false) encoding. Other combinations fall back to the row path.
+     * Accepts Lucene SORTED_SET doc values (any cardinality), inline array-order binary doc values,
+     * and single-valued (multi_value=false) binary fields. Other combinations fall back to the row path.
      */
     @Override
     protected boolean shouldEnforceSingleValueBatch() {
         return docValuesParameters.multiValue() == false;
     }
 
-    private boolean supportsColumnarDocValues() {
-        if (fieldType().usesBinaryDocValues() == false) {
-            return false;
-        }
-
+    private boolean supportsColumnarDocValues(IndexMode mode) {
         if (fieldType().usesArrayOrderBinaryDocValues()) {
             return true;
         }
 
-        // Only support single valued when not ArrayOrderBinaryDocValues
-        return docValuesParameters.multiValue() == false;
+        if (fieldType().usesBinaryDocValues()) {
+            // Binary doc values without inline array order: only single-valued is supported.
+            return docValuesParameters.multiValue() == false;
+        }
+
+        // SORTED_SET doc values: the builder sets IndexType.skippers() whenever binary doc values are
+        // disabled, which is the only path to SORTED_SET for ip fields. Reaching this branch outside
+        // TSDB mode is unexpected (though technically harmless).
+        assert mode.isTsdb() : "unexpected SORTED_SET ip field in mode " + mode;
+        return fieldType().hasDocValues();
     }
 
     private static EscfColumnBuilder mergeStringColumn(BatchMappingContext ctx) {
@@ -889,13 +915,18 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         if (fieldType().usesArrayOrderBinaryDocValues()) {
-            mapColumnBatchArrayOrder(ctx, source);
+            mapColumnBatchOrdered(ctx, source);
         } else {
-            mapColumnBatchSingleValue(ctx, source);
+            mapColumnBatchUnordered(ctx, source);
         }
     }
 
-    private void mapColumnBatchArrayOrder(BatchMappingContext ctx, EscfColumn source) {
+    /**
+     * Maps a column batch preserving the original array element order. Used when the doc-values disk
+     * format stores element positions inline (array-order binary doc values), so that round-trip
+     * retrieval returns values in insertion order.
+     */
+    private void mapColumnBatchOrdered(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
         // retainValues=false: each value is encoded and appended to the document blob before the cursor
         // advances, so no value has to outlive the nextDoc() that moves past it.
@@ -977,16 +1008,30 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source) {
+    /**
+     * Maps a column batch without preserving array element order. Used for single-valued fields and for
+     * {@code SORTED_SET} doc values (TSDB dimensions), where Lucene itself sorts and deduplicates values
+     * per document. Supports both single-value and multi-value ({@code multi_value=true}) documents.
+     */
+    private void mapColumnBatchUnordered(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        final boolean multiValue = docValuesParameters.multiValue();
+        // Select the output field type: binary doc values use BinaryDocValuesField.TYPE; SORTED_SET fields
+        // select the skipper-backed variant when the index type carries a RANGE skip index (TSDB), otherwise
+        // the plain SORTED_SET type. Do not hand-roll a FieldType — the compat harness compares frozen
+        // FieldType instances via equals(), which includes DocValuesSkipIndexType.
+        final IndexableFieldType dvFieldType = fieldType().usesBinaryDocValues()
+            ? BinaryDocValuesField.TYPE
+            : (fieldType().indexType.hasDocValuesSkipper() ? SORTED_SET_DV_SKIPPER_FIELD_TYPE : SORTED_SET_DV_FIELD_TYPE);
         // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
         try (EscfColumnBuilder values = mergeStringColumn(ctx)) {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
             int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -994,28 +1039,46 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
                 }
+
+                // Check for multi_value=false violation before applying null_value substitution,
+                // so ["1.2.3.4", null] with a null_value configured on a single-valued field is rejected.
+                if (valueSeenThisDoc && multiValue == false) {
+                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                    // which raises the correct per-doc error (on_failure=FAIL).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+
                 BytesRef utf8Value = cursor.value();
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
-                        // substitute, fall through to normal processing
+                        // substitute null with null_value; counts as a value for multi_value=false tracking
                         values.setString(currentDoc, nullValueEncoded);
+                        valueSeenThisDoc = true;
                     }
                     // else null without null_value -> absent (row-path parity)
                     continue;
                 }
+
+                valueSeenThisDoc = true;
 
                 // encodeIp throws UnsupportedOperationException on malformed input, which makes
                 // ShardBatchMapper fall back to the row path for the whole batch.
                 values.setString(currentDoc, encodeIp(utf8Value));
             }
 
-            // Emit a single plain BinaryDocValuesField column (no .counts sidecar), matching
-            // DocValuesFieldFactory.addBinaryField's isSingleValued() branch.
+            // Emit the doc-values column with the appropriate field type.
+            // For SORTED_SET, a single LuceneBinaryColumn carries all features (the frozen fieldType already
+            // encodes DocValuesType.SORTED_SET and the skip-index type). For binary doc values the column uses
+            // BinaryDocValuesField.TYPE. No .counts sidecar is emitted for either case from this path; the
+            // array-order path (mapColumnBatchOrdered) handles that for ArrayOrderInlineNull fields.
             // values allocates from ctx.recycler() — register its output for release.
             if (values.isEmpty() == false) {
                 EscfColumnData valuesData = values.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), BinaryDocValuesField.TYPE), valuesData);
+                ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), dvFieldType), valuesData);
             }
         }
     }

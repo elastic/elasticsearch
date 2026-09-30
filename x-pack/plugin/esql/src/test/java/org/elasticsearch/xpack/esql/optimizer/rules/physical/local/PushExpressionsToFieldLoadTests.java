@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -55,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -95,7 +95,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         tsPlannerOptimizer = new TestPlannerOptimizer(
             config,
             tsAnalyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }
 

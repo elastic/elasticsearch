@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
@@ -53,7 +53,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         return FieldData.toString(getDoubleValues());
     }
 

@@ -38,7 +38,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class Length extends UnaryScalarFunction implements BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Length", Length::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Length.class).unary(Length::new).name("length");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Length.class)
+        .unary(Length::new)
+        .capabilities("missing_keyword_field")  // Mapped keyword with no values used to NPE in the loader.
+        .name("length");
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

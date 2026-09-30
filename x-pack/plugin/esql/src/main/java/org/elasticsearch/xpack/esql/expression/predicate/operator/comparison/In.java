@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -313,7 +312,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     protected Expression canonicalize() {
         // order values for commutative operators
         List<Expression> canonicalValues = Expressions.canonicalize(list);
-        Collections.sort(canonicalValues, (l, r) -> Integer.compare(l.hashCode(), r.hashCode()));
+        canonicalValues.sort(Expressions::compareStable);
         return new In(source(), value, canonicalValues);
     }
 

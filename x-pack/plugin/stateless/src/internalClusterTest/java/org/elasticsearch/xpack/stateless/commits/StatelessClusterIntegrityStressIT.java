@@ -195,7 +195,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                     boolean failIfAlreadyExists
                 ) throws IOException {
                     super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                    if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                    if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                         if (TrackedCluster.this.targetUploadsCounter.decrementAndGet() == 0) {
                             stopLatch.countDown();
                         }

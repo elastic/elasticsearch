@@ -14,7 +14,7 @@ import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SortingNumericLongValues;
@@ -94,7 +94,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public final SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
+    public final SortableBinaryDocValues bytesValues(LeafReaderContext ctx) {
         throw new UnsupportedOperationException();
     }
 

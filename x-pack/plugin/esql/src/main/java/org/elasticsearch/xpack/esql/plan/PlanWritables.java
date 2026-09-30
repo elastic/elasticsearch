@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
@@ -127,6 +129,7 @@ public class PlanWritables {
             Rerank.ENTRY,
             Sample.ENTRY,
             SampledAggregate.ENTRY,
+            TopNPreFilter.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TimeSeriesCollapse.ENTRY,
@@ -169,6 +172,7 @@ public class PlanWritables {
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,
+            TopNPreFilterExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TimeSeriesAggregateExec.ENTRY,

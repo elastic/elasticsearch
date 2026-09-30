@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -361,9 +362,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         logger.info("--> request recoveries");
         final RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).get();
-        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT_1));
+        assertThat(response.shardRecoveryInfos().size(), equalTo(SHARD_COUNT_1));
 
-        final List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        final List<RecoveryState> recoveryStates = response.shardRecoveryInfos()
+            .get(INDEX_NAME)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         assertThat(recoveryStates, hasSize(1));
 
         final RecoveryState recoveryState = recoveryStates.getFirst();
@@ -395,7 +400,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> request recoveries");
         final RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).setActiveOnly(true).get();
 
-        final List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        final List<RecoveryState> recoveryStates = response.shardRecoveryInfos()
+            .get(INDEX_NAME)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         assertThat(recoveryStates, empty());  // Should not expect any responses back
     }
 
@@ -978,12 +987,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         final Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
-        for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
+        for (Map.Entry<String, List<ShardRecoveryInfo>> indexRecoveryStates : response.shardRecoveryInfos().entrySet()) {
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
-            final List<RecoveryState> recoveryStates = indexRecoveryStates.getValue();
-            assertThat(recoveryStates, hasSize(restoreSnapshotResponse.getRestoreInfo().totalShards()));
+            final List<ShardRecoveryInfo> recoveryInfos = indexRecoveryStates.getValue();
+            assertThat(recoveryInfos, hasSize(restoreSnapshotResponse.getRestoreInfo().totalShards()));
 
-            for (final RecoveryState recoveryState : recoveryStates) {
+            for (var recoveryInfo : recoveryInfos) {
+                final RecoveryState recoveryState = recoveryInfo.recoveryState();
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     ((SnapshotRecoverySource) recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
@@ -1038,12 +1048,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         final Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
-        for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
+        for (Map.Entry<String, List<ShardRecoveryInfo>> indexRecoveryStates : response.shardRecoveryInfos().entrySet()) {
             assertThat(indexRecoveryStates.getKey(), equalTo(copyIndex));
-            final List<RecoveryState> recoveryStates = indexRecoveryStates.getValue();
-            assertThat(recoveryStates, hasSize(restoreSnapshotResponse.getRestoreInfo().totalShards()));
+            final List<ShardRecoveryInfo> recoveryInfos = indexRecoveryStates.getValue();
+            assertThat(recoveryInfos, hasSize(restoreSnapshotResponse.getRestoreInfo().totalShards()));
 
-            for (final RecoveryState recoveryState : recoveryStates) {
+            for (var recoveryInfo : recoveryInfos) {
+                final RecoveryState recoveryState = recoveryInfo.recoveryState();
                 SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     ((SnapshotRecoverySource) recoveryState.getRecoverySource()).restoreUUID(),
                     new Snapshot(REPO_NAME, createSnapshotResponse.getSnapshotInfo().snapshotId()),
@@ -1190,8 +1201,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
 
         final RecoveryResponse recoveryResponse = indicesAdmin().recoveries(new RecoveryRequest(indexName)).get();
-        final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryStates().get(indexName);
-        recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
+        final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryInfos()
+            .get(indexName)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .filter(r -> r.getTimer().getStartNanoTime() > desyncNanoTime)
+            .toList();
 
         assertThat(recoveryStates, hasSize(1));
         final RecoveryState recoveryState = recoveryStates.getFirst();
@@ -1369,7 +1384,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
         assertThat((long) localRecoveredOps.get(), equalTo(lastSyncedGlobalCheckpoint - localCheckpointOfSafeCommit));
-        for (final RecoveryState recoveryState : indicesAdmin().prepareRecoveries().get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries().get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recoveryState = recoveryInfo.recoveryState();
             if (startRecoveryRequest.targetNode().equals(recoveryState.getTargetNode())) {
                 assertThat("expect an operation-based recovery", recoveryState.getIndex().fileDetails(), empty());
                 assertThat(
@@ -2360,7 +2376,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private static List<RecoveryState> getRecoveryStates(String indexName) {
-        return indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName);
+        return indicesAdmin().prepareRecoveries(indexName)
+            .get()
+            .shardRecoveryInfos()
+            .get(indexName)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
     }
 
     // Ensure that the node has high enough recovery max-bytes-per-second to avoid any throttling (setting large enough BPS)

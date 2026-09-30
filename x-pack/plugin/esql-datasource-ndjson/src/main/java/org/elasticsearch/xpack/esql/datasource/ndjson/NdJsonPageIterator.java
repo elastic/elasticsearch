@@ -215,7 +215,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Function<List<Attribute>, String> fingerprinter,
         String readConfig,
         boolean chunkMode,
-        NdJsonReaderCounters counters,
+        @Nullable NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
         DateFormatter datetimeFormatter,
@@ -227,7 +227,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
-        Check.isTrue(counters != null, "counters must not be null");
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
@@ -235,6 +234,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.rowCountReadConfigIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
+        // sourceLocation keys stats, so it stays verbatim; messages get it without an HTTP query string or user info.
+        String messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
@@ -262,7 +263,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // mutually exclusive. The fold-in is kept as a correctness invariant for any future overlap.
         this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter, warningSink);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, messageLocation, recordSplitter, warningSink);
         }
         this.rowLimit = rowLimit;
         // ALL scope harvests min/max/null for EVERY file column, not just the projected ones. The output
@@ -314,7 +315,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink
@@ -336,7 +337,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink
@@ -404,9 +405,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
                     logger.warn(
-                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded external_max_record_size; results are partial",
-                        sourceLocation,
-                        pageDecoder.truncatedAtByte()
+                        "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
+                        pageDecoder.truncatedAtByte(),
+                        sourceLocation
                     );
                 } else {
                     naturallyExhausted = true;

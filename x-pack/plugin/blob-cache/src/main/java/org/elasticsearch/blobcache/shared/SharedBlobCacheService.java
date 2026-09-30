@@ -1160,6 +1160,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // if it's unknown (temporarily or inexistent). Written at construction and then possibly backfilled away from
         // BACKFILL_IN_PROGRESS_TIMESTAMP to a real (non-sentinel) value via #backfillTimestampFromBackfillInProgress.
         private volatile long timestampMillis;
+        // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1
+        // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
+        // Written and read under the SharedBlobCacheService monitor (promote / tryEvict / tryEvictNoDecRef);
+        // no extra volatility needed.
+        private int maxReachedFreq = 1;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -1220,7 +1225,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordLfuPressureEviction();
                 decRef();
                 return true;
             }
@@ -1232,7 +1237,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordLfuPressureEviction();
                 return true;
             }
 
@@ -1249,6 +1254,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return true;
             }
             return false;
+        }
+
+        private void recordLfuPressureEviction() {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when reading peak freq";
+            blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
+        }
+
+        void maybeUpdateMaxReachedFreq(int freq) {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when updating peak freq";
+            if (freq > maxReachedFreq) {
+                maxReachedFreq = freq;
+            }
+        }
+
+        // visible for tests
+        int maxReachedFreq() {
+            return maxReachedFreq;
         }
 
         @Override
@@ -1493,7 +1516,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.blobCacheMetrics.recordRead();
+                            blobCacheService.blobCacheMetrics.recordRead(this.timestampMillis());
                             l.onResponse(read);
                         })
                     ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
@@ -1682,7 +1705,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
-                blobCacheMetrics.recordRead();
+                blobCacheMetrics.recordRead(region.timestampMillis());
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
@@ -1939,7 +1962,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 mapSubRangeToRegion(rangeToWrite, region),
                 regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
+                metricRecordingWriter(
+                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                    fileRegion
+                ),
                 ioExecutor,
                 listener
             );
@@ -1974,7 +2000,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             metricRecordingWriter(
-                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                                fileRegion
                             ),
                             ioExecutor,
                             regionListener
@@ -2064,11 +2091,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return adjustedWriter;
         }
 
-        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion) {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordMiss();
+                    blobCacheMetrics.recordMiss(fileRegion.timestampMillis());
                     return super.sharedInputStreamFactory(gaps);
                 }
             };
@@ -2663,6 +2690,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     unlink(entry);
                     // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
+                    entry.chunk.maybeUpdateMaxReachedFreq(entry.freq);
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }

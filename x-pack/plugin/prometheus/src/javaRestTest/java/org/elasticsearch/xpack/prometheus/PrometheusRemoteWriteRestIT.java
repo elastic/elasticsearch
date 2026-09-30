@@ -234,6 +234,36 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(new ObjectPath(docs.getFirst()).evaluate("metrics." + metricName), equalTo(42.5));
     }
 
+    public void testRemoteWriteV2ContentTypeRejected() throws Exception {
+        String dataStream = "metrics-prwv2reject.prometheus-default";
+        Request request = new Request("POST", "/_prometheus/metrics/prwv2reject/api/v1/write");
+        request.setEntity(
+            new ByteArrayEntity(
+                snappyEncode(simpleWriteRequest("v2_rejected_metric").toByteArray()),
+                ContentType.parse("application/x-protobuf;proto=io.prometheus.write.v2.Request")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(415));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("io.prometheus.write.v2.request"));
+        assertFalse("PRW 2.0 content type must not be ingested as a 1.0 write", dataStreamExists(dataStream));
+    }
+
+    public void testRemoteWriteV1ExplicitProtoAccepted() throws Exception {
+        String metricName = "v1_explicit_proto_metric";
+        sendAndAssertSuccess(
+            simpleWriteRequest(metricName),
+            "/_prometheus/metrics/prwv1proto/api/v1/write",
+            ContentType.parse("application/x-protobuf;proto=prometheus.WriteRequest")
+        );
+
+        ObjectPath source = searchSingleDoc("metrics-prwv1proto.prometheus-default", metricName);
+        assertThat(source.evaluate("metrics." + metricName), equalTo(1.0));
+    }
+
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
         long timestamp = System.currentTimeMillis();
 
@@ -392,8 +422,12 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
     }
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
+        sendAndAssertSuccess(writeRequest, endpoint, ContentType.create("application/x-protobuf"));
+    }
+
+    private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint, ContentType contentType) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), contentType));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
         addWriteAuth(request);
         Response response = client().performRequest(request);

@@ -148,14 +148,15 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
 | SORT id ASC
 | LIMIT 10
 ;
-warningRegex:Schema reconciliation widened columns to keyword
-warningRegex:Column \[col\].*widened to keyword
+warningRegex:Columns whose type differs between files are read as \[keyword\]
+warningRegex:column \[col\]: .*; types \[
 
 id:integer | col:keyword | note:keyword
 1          | 123         | alpha

@@ -340,7 +340,7 @@ public class MlConfigMetricsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static Supplier<LongWithAttributes> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Supplier<LongWithAttributes>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any(Supplier.class))).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
             return mock(LongAsyncGauge.class);
         });

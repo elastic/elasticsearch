@@ -84,11 +84,12 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
@@ -759,7 +760,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(new BytesRef("test value"), values.nextValue());
         });
@@ -829,15 +830,28 @@ public class TextFieldMapperTests extends MapperTestCase {
 
             // Doc-values column assertions.
             assertNotNull("multi_value=false columnar text must write a binary DV column", dvColumn);
-            assertThat(
-                "single-value DV field type must match BinaryDocValuesField.TYPE",
-                dvColumn.fieldType(),
-                sameInstance(BinaryDocValuesField.TYPE)
-            );
+            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+                assertThat(dvColumn.fieldType(), sameInstance(ColumnarBinaryDocValuesField.TYPE));
+            } else {
+                assertThat(
+                    "single-value DV field type must match BinaryDocValuesField.TYPE",
+                    dvColumn.fieldType(),
+                    sameInstance(BinaryDocValuesField.TYPE)
+                );
+            }
             assertFalse("DV column must not be stored", dvColumn.fieldType().stored());
             ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
             assertEquals(0, dvCursor.nextDoc());
-            assertEquals("multi_value=false columnar text must store the raw bytes unchanged", new BytesRef("hello"), dvCursor.value());
+            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+                assertEquals(
+                    "columnar text must encode the value in a columnar payload",
+                    new BytesRef("\u0001\u0006hello"),
+                    dvCursor.value()
+                );
+            } else {
+                assertEquals("multi_value=false columnar text must store the raw bytes unchanged", new BytesRef("hello"), dvCursor.value());
+            }
+
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
 
             // Terms (indexed) column assertions.
@@ -888,23 +902,35 @@ public class TextFieldMapperTests extends MapperTestCase {
             );
             ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
             assertEquals(0, dvCursor.nextDoc());
-            BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(
-                List.of(new BytesRef("a"), new BytesRef("b"))
-            );
-            assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, dvCursor.value());
+            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+                assertEquals(
+                    "columnar text array must encode the correct columnar payload",
+                    new BytesRef("\u0002\u0002a\u0002b"),
+                    dvCursor.value()
+                );
+            } else {
+                BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(
+                    List.of(new BytesRef("a"), new BytesRef("b"))
+                );
+                assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, dvCursor.value());
+            }
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
 
             // .counts column: slot count of 2.
-            assertNotNull("multi_value=true columnar text must write a .counts column", countsColumn);
-            assertThat(
-                ".counts column field type must match SeparateCount.COUNT_FIELD_TYPE",
-                countsColumn.fieldType(),
-                sameInstance(MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE)
-            );
-            LongTupleCursor countsCursor = countsColumn.tuples();
-            assertEquals(0, countsCursor.nextDoc());
-            assertEquals(".counts companion must carry the slot count (2)", 2L, countsCursor.longValue());
-            assertEquals(DocIdSetIterator.NO_MORE_DOCS, countsCursor.nextDoc());
+            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+                assertNull("columnar payload must not write a .counts column", countsColumn);
+            } else {
+                assertNotNull("multi_value=true columnar text must write a .counts column", countsColumn);
+                assertThat(
+                    ".counts column field type must match SeparateCount.COUNT_FIELD_TYPE",
+                    countsColumn.fieldType(),
+                    sameInstance(MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE)
+                );
+                LongTupleCursor countsCursor = countsColumn.tuples();
+                assertEquals(0, countsCursor.nextDoc());
+                assertEquals(".counts companion must carry the slot count (2)", 2L, countsCursor.longValue());
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, countsCursor.nextDoc());
+            }
 
             // Terms column: one entry per value in array order.
             assertNotNull("multi_value=true columnar text must write an indexed terms column", termsColumn);
@@ -967,7 +993,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertEquals(new BytesRef("value1"), values.nextValue());
@@ -2405,7 +2431,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
-            SortedBinaryDocValues dv = scriptDV.getInput();
+            SortableBinaryDocValues dv = scriptDV.getInput();
             assertFalse(dv.advanceExact(0));
             assertTrue(dv.advanceExact(1));
             assertTrue(dv.advanceExact(2));

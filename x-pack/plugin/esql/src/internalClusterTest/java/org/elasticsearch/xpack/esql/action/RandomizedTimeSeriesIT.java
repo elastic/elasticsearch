@@ -68,6 +68,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
+    private static final long RATE_MAX_LOOKBACK_MILLIS = 5 * 60 * 1000L;
 
     record WindowOption(String label, int seconds) {}
 
@@ -406,15 +407,19 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         double totalIncrease = computeCounterIncreaseBetween(currentWindow, temporality);
 
         if (lastInPrevWindow != null) {
-            totalIncrease += getInterpolatedIncreaseBetween(lastInPrevWindow, firstInWindow, timebucketStart, temporality, true);
-            startTs = timebucketStart;
+            long previousBucketEnd = lastInPrevWindow.timestamp().toEpochMilli() / millisInWindow * millisInWindow + millisInWindow;
+            long lowerBoundary = previousBucketEnd + (timebucketStart - previousBucketEnd) / 2;
+            totalIncrease += getInterpolatedIncreaseBetween(lastInPrevWindow, firstInWindow, lowerBoundary, temporality, true);
+            startTs = lowerBoundary;
         } else if (currentWindow.size() > 1) {
             totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, true);
             startTs = timebucketStart;
         }
         if (firstInNextWindow != null) {
-            totalIncrease += getInterpolatedIncreaseBetween(lastInWindow, firstInNextWindow, timebucketEnd, temporality, false);
-            endTs = timebucketEnd;
+            long nextBucketStart = firstInNextWindow.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+            long upperBoundary = timebucketEnd + (nextBucketStart - timebucketEnd) / 2;
+            totalIncrease += getInterpolatedIncreaseBetween(lastInWindow, firstInNextWindow, upperBoundary, temporality, false);
+            endTs = upperBoundary;
         } else if (currentWindow.size() > 1) {
             totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, false);
             endTs = timebucketEnd;
@@ -627,21 +632,25 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             long millisInWindow = secondsInWindow * 1000L;
             long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
 
-            TimestampedValue<Double> lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
-            TimestampedValue<Double> firstInNext = findFirstPoint(allWindows, offset + 1, timeseriesId);
+            TimestampedValue<Double> lastInPrev = null;
+            for (int previousOffset = offset - 1; previousOffset >= 0 && lastInPrev == null; previousOffset--) {
+                lastInPrev = findLastPoint(allWindows, previousOffset, timeseriesId);
+            }
+            TimestampedValue<Double> firstInNext = null;
+            for (int nextOffset = offset + 1; nextOffset < allWindows.size() && firstInNext == null; nextOffset++) {
+                firstInNext = findFirstPoint(allWindows, nextOffset, timeseriesId);
+            }
 
-            // The allWindows list only contains entries for non-empty buckets, so offset-1 / offset+1
-            // may point to a non-adjacent time bucket when there are gaps in the data. ES only
-            // interpolates with the immediately adjacent bucket, so discard points from distant buckets.
+            // Rate-like aggregations interpolate across empty buckets for at most the five-minute lookback.
             if (lastInPrev != null) {
-                long prevBucket = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
-                if (prevBucket != currentBucketStartMs - millisInWindow) {
+                long previousBucketEnd = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow + millisInWindow;
+                if (currentBucketStartMs - previousBucketEnd > RATE_MAX_LOOKBACK_MILLIS) {
                     lastInPrev = null;
                 }
             }
             if (firstInNext != null) {
-                long nextBucket = firstInNext.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
-                if (nextBucket != currentBucketStartMs + millisInWindow) {
+                long nextBucketStart = firstInNext.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (nextBucketStart - (currentBucketStartMs + millisInWindow) > RATE_MAX_LOOKBACK_MILLIS) {
                     firstInNext = null;
                 }
             }
@@ -1134,10 +1143,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
             long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
 
-            TimestampedValue<ExponentialHistogram> lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
+            TimestampedValue<ExponentialHistogram> lastInPrev = null;
+            for (int previousOffset = offset - 1; previousOffset >= 0 && lastInPrev == null; previousOffset--) {
+                lastInPrev = findLastPoint(allWindows, previousOffset, timeseriesId);
+            }
             if (lastInPrev != null) {
-                long prevBucket = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
-                if (prevBucket != currentBucketStartMs - millisInWindow) {
+                long previousBucketEnd = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow + millisInWindow;
+                if (currentBucketStartMs - previousBucketEnd > RATE_MAX_LOOKBACK_MILLIS) {
                     lastInPrev = null;
                 }
             }

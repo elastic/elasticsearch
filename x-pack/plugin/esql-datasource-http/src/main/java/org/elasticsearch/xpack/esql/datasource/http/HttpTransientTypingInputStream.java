@@ -56,6 +56,6 @@ final class HttpTransientTypingInputStream extends FilterInputStream {
     }
 
     private ExternalUnavailableException type(IOException e) {
-        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", HttpUrls.redact(path));
     }
 }

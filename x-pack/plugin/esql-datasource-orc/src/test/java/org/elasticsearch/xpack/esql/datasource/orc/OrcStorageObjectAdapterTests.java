@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -24,6 +25,8 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrcStorageObjectAdapterTests extends ESTestCase {
+
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
 
     /**
      * Footer byte cache handed to every adapter this test constructs. In production the owning
@@ -167,6 +170,11 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);
             }
@@ -270,6 +278,11 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger rangeReadCount) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

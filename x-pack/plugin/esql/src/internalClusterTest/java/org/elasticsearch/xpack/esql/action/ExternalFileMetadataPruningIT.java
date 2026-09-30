@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -38,7 +40,7 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(ParquetDataSourcePlugin.class);
+        return List.of(ParquetDataSourcePlugin.class, CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -173,6 +175,75 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
 
             assertSourceOperatorRowsPruned(response, ROWS_PER_FILE * 5);
         }
+    }
+
+    /**
+     * A fractional bound on {@code _file.size} must not be truncated onto a file's own size: the file whose size is
+     * the bound's integral part is below the bound and its rows match.
+     */
+    public void testFileSizeFractionalBoundKeepsMatchingFile() throws Exception {
+        Path dir = createTempDir();
+        Path a = writeCsv(dir, "a.csv", "1");
+        writeCsv(dir, "b.csv", "22");
+        writeCsv(dir, "c.csv", "333");
+        double bound = Files.size(a) + 1.5;
+
+        String dataset = registerDataset("file_meta", dirUri(dir) + "*.csv", Map.of());
+        String query = "FROM " + dataset + " METADATA _file.size | WHERE `_file.size` < " + bound + " | KEEP id | SORT id ASC";
+
+        assertThat(ids(query), equalTo(List.of(1L, 22L)));
+    }
+
+    /**
+     * A bare date is a datetime literal ES|QL accepts, but the listing receives it unresolved and cannot parse it as
+     * an instant, so it must keep the file rather than prune it. The files carry a real modification time because
+     * the listing never prunes a file whose time is unknown or the epoch.
+     */
+    public void testFileModifiedInWithBareDatesKeepsMatchingFiles() throws Exception {
+        Path dir = createTempDir();
+        FileTime time = FileTime.from(Instant.parse("2024-01-01T00:00:00Z"));
+        Files.setLastModifiedTime(writeCsv(dir, "t.csv", "7"), time);
+        Files.setLastModifiedTime(writeCsv(dir, "u.csv", "8"), time);
+
+        String dataset = registerDataset("file_meta", dirUri(dir) + "*.csv", Map.of());
+        String query = "FROM "
+            + dataset
+            + " METADATA _file.modified"
+            + " | WHERE `_file.modified` IN (\"2024-01-01\", \"2024-01-02\")"
+            + " | KEEP id | SORT id ASC";
+
+        assertThat(ids(query), equalTo(List.of(7L, 8L)));
+    }
+
+    /**
+     * ES|QL orders keywords by UTF-8 bytes, where the supplementary-plane name sorts above {@code U+E000}; UTF-16
+     * code-unit order puts its leading surrogate below it.
+     */
+    public void testFileNameRangeOrdersLikeTheEngine() throws Exception {
+        Path dir = createTempDir();
+        writeCsv(dir, "\uD83D\uDE00.csv", "9");
+        writeCsv(dir, "zz.csv", "10");
+        writeCsv(dir, "\uF000.csv", "11");
+
+        String dataset = registerDataset("file_meta", dirUri(dir) + "*.csv", Map.of());
+        String query = "FROM " + dataset + " METADATA _file.name | WHERE `_file.name` > \"\uE000\" | KEEP id | SORT id ASC";
+
+        assertThat(ids(query), equalTo(List.of(9L, 11L)));
+    }
+
+    private List<Long> ids(String query) {
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            return getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+        }
+    }
+
+    private static Path writeCsv(Path dir, String filename, String id) throws IOException {
+        return Files.writeString(dir.resolve(filename), "id\n" + id + "\n", StandardCharsets.UTF_8);
+    }
+
+    private static String dirUri(Path dir) {
+        String uri = StoragePath.fileUri(dir).toString();
+        return uri.endsWith("/") ? uri : uri + "/";
     }
 
     private Path writeParquetFile(Path dir, String filename) throws IOException {

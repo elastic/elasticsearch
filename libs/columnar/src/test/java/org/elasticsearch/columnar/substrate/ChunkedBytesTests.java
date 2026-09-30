@@ -119,15 +119,11 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    /** A chunk target of zero or less has no valid meaning and must be rejected rather than loop forever. */
-    public void testInvalidChunkTargetRejected() throws IOException {
-        try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-            final int target = randomFrom(0, -1, Integer.MIN_VALUE);
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new ChunkedBytesWriter(ChunkCodec.IDENTITY, target, dir, IOContext.DEFAULT, "chunks", out)
-            );
-        }
+    /** A bound of zero or less has no valid meaning and must be rejected rather than loop forever. */
+    public void testInvalidChunkBoundsRejected() {
+        final int invalid = randomFrom(0, -1, Integer.MIN_VALUE);
+        expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(invalid, 1024));
+        expectThrows(IllegalArgumentException.class, () -> new ChunkBounds(1024, invalid));
     }
 
     /** Ids are persisted in column metadata, so they are frozen; an unknown one must fail loudly. */
@@ -174,7 +170,10 @@ public class ChunkedBytesTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
             final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 16 * 1024, values, offsets);
-            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+            try (
+                IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+            ) {
                 final int threads = 8;
                 final CountDownLatch start = new CountDownLatch(1);
                 final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -183,7 +182,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     final int seed = t;
                     final Thread worker = new Thread(() -> {
                         try {
-                            final ChunkedBytesReader reader = index.open(in);
+                            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
                             final Random random = new Random(seed);
                             start.await();
                             byte[] scratch = new byte[0];
@@ -236,8 +235,11 @@ public class ChunkedBytesTests extends ESTestCase {
                 try (IndexOutput out = dir.createOutput("corrupt.bin", IOContext.DEFAULT)) {
                     out.writeBytes(file, 0, file.length);
                 }
-                try (IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT)) {
-                    final ChunkedBytesReader reader = index.open(in);
+                try (
+                    IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
                     byte[] scratch = new byte[0];
                     for (int i = 0; i < values.size(); i++) {
                         final int span = (int) (offsets[i + 1] - offsets[i]);
@@ -274,9 +276,12 @@ public class ChunkedBytesTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
             final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 4096, values, offsets);
-            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                final ChunkedBytesReader first = index.open(in);
-                final ChunkedBytesReader second = index.open(in);
+            try (
+                IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+            ) {
+                final ChunkedBytesReader first = index.open(new ColumnInputs(in, null, null, nav));
+                final ChunkedBytesReader second = index.open(new ColumnInputs(in, null, null, nav));
                 byte[] a = new byte[0];
                 byte[] b = new byte[0];
                 // Interleaved, and from opposite ends, so one reader's seeks would derail the other's.
@@ -293,32 +298,15 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    /** The writer stages its chunk index in a temporary file, which must not outlive the write. */
-    public void testTemporaryFilesAreRemoved() throws IOException {
+    /** The chunks go to the data and their index to the navigation as they are written; nothing else is created. */
+    public void testWritesNothingButItsTwoFiles() throws IOException {
         final List<byte[]> values = new ArrayList<>();
         for (int i = 0; i < 5000; i++) {
             values.add(bytes("value-" + i));
         }
         try (Directory dir = newDirectory()) {
             writeStream(dir, ChunkCodec.ZSTD, 1024, values, new long[values.size() + 1]);
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-chunk-index"));
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-monotonic"));
-            }
-        }
-    }
-
-    /** An aborted write must still clean up after itself. */
-    public void testTemporaryFilesAreRemovedWhenUnfinished() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-                try (ChunkedBytesWriter writer = new ChunkedBytesWriter(ChunkCodec.ZSTD, 1024, dir, IOContext.DEFAULT, "chunks", out)) {
-                    writer.append(bytes("written but never finished"), 0, 26);
-                }
-            }
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-chunk-index"));
-            }
+            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, dir.listAll());
         }
     }
 
@@ -386,17 +374,39 @@ public class ChunkedBytesTests extends ESTestCase {
      */
     private ChunkIndexMetadata writeStream(Directory dir, ChunkCodec codec, int target, List<byte[]> values, long[] offsets)
         throws IOException {
-        try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-            try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, target, dir, IOContext.DEFAULT, "chunks", out)) {
-                for (int i = 0; i < values.size(); i++) {
-                    // A value is what this stream addresses, so a chunk may only end between two of them.
-                    writer.boundary();
-                    offsets[i] = writer.uncompressedLength();
-                    writer.append(values.get(i), 0, values.get(i).length);
+        return writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+    }
+
+    private ChunkIndexMetadata writeStream(Directory dir, ChunkCodec codec, ChunkBounds bounds, List<byte[]> values, long[] offsets)
+        throws IOException {
+        return writeStream(dir, codec, bounds, values, offsets, 1);
+    }
+
+    /** As above, offering a boundary every {@code perGroup} values rather than between every two of them. */
+    private ChunkIndexMetadata writeStream(
+        Directory dir,
+        ChunkCodec codec,
+        ChunkBounds bounds,
+        List<byte[]> values,
+        long[] offsets,
+        int perGroup
+    ) throws IOException {
+        try (
+            IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT);
+            IndexOutput nav = dir.createOutput("chunks.nav", IOContext.DEFAULT)
+        ) {
+            final ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, bounds, out, nav);
+            for (int i = 0; i < values.size(); i++) {
+                if (i % perGroup == 0) {
+                    // A group is what this stream addresses, so a chunk may only end between two of them.
+                    writer.boundary(Math.min(perGroup, values.size() - i));
                 }
-                offsets[values.size()] = writer.uncompressedLength();
-                return ChunkIndexMetadata.of(writer.finish());
+                offsets[i] = writer.uncompressedLength();
+                writer.append(values.get(i), 0, values.get(i).length);
             }
+            offsets[values.size()] = writer.uncompressedLength();
+            return ChunkIndexMetadata.of(writer.finish());
+
         }
     }
 
@@ -415,8 +425,11 @@ public class ChunkedBytesTests extends ESTestCase {
                 try (Directory dir = newDirectory()) {
                     final long[] offsets = new long[values.size() + 1];
                     final ChunkIndexMetadata index = writeStream(dir, codec, target, values, offsets);
-                    try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                        final ChunkedBytesReader reader = index.open(in);
+                    try (
+                        IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                        IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                    ) {
+                        final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
                         final BytesRef span = new BytesRef();
                         final String label = "codec=" + codec + " target=" + target;
                         for (int i = 0; i < values.size(); i++) {
@@ -452,9 +465,12 @@ public class ChunkedBytesTests extends ESTestCase {
                 final List<byte[]> values = List.of(bytes("a"), bytes("b"));
                 final long[] offsets = new long[values.size() + 1];
                 final ChunkIndexMetadata index = writeStream(dir, codec, 64, values, offsets);
-                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
                     final BytesRef span = new BytesRef("untouched");
-                    index.open(in).span(0, 0, span);
+                    index.open(new ColumnInputs(in, null, null, nav)).span(0, 0, span);
                     assertEquals("codec=" + codec, 0, span.length);
                 }
             }
@@ -472,8 +488,11 @@ public class ChunkedBytesTests extends ESTestCase {
             try (Directory dir = newDirectory()) {
                 final long[] offsets = new long[values.size() + 1];
                 final ChunkIndexMetadata index = writeStream(dir, codec, 64 * 1024, values, offsets);
-                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                    final ChunkedBytesReader reader = index.open(in);
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
                     final BytesRef span = new BytesRef();
                     for (int i = 0; i < values.size(); i++) {
                         final int length = (int) (offsets[i + 1] - offsets[i]);
@@ -484,6 +503,186 @@ public class ChunkedBytesTests extends ESTestCase {
                             Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length)
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Zero-length values reach the value bound while the chunk holds no bytes, and a chunk with no bytes is
+     * nothing to decompress, so none is written however low the bound is.
+     */
+    public void testAValueBoundWritesNoEmptyChunks() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            values.add(new byte[0]);
+        }
+        for (int maxValues : new int[] { 1, 2, 128 }) {
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, maxValues), values, offsets);
+                    assertEquals("chunks at maxValues=" + maxValues, 0, index.numChunks());
+                    assertReads(dir, index, values, offsets, "empty values maxValues=" + maxValues);
+                }
+            }
+        }
+    }
+
+    /**
+     * A run of zero-length values followed by one that carries bytes: the run closes no chunk, and the chunk
+     * the value lands in is the first one written.
+     */
+    public void testEmptyValuesBeforeARealOneShareItsChunk() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            values.add(new byte[0]);
+        }
+        values.add(bytes("the only bytes in the stream"));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, 8), values, offsets);
+                assertEquals("one chunk for the one value that has bytes", 1, index.numChunks());
+                assertReads(dir, index, values, offsets, "empty values then a real one");
+            }
+        }
+    }
+
+    /** A bound of one value closes a chunk after every value, and never before the first one. */
+    public void testAValueBoundOfOne() throws IOException {
+        final List<byte[]> values = List.of(bytes("a"), bytes("bb"), bytes("ccc"));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, new ChunkBounds(1 << 20, 1), values, offsets);
+                assertEquals("one chunk a value", values.size(), index.numChunks());
+                assertReads(dir, index, values, offsets, "value bound of one");
+            }
+        }
+    }
+
+    /**
+     * Values short enough that the byte target is never reached, so the value bound is the only thing that
+     * closes a chunk and the stream is cut where it says.
+     */
+    public void testTheValueBoundClosesChunksTheByteTargetNeverWould() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            values.add(bytes("v" + i));
+        }
+        for (int maxValues : new int[] { 1, 2, 7, 128, 999, 1000, 1001 }) {
+            final ChunkBounds bounds = new ChunkBounds(1 << 20, maxValues);
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, bounds, values, offsets);
+                    final int expected = (values.size() + maxValues - 1) / maxValues;
+                    assertEquals("chunks at maxValues=" + maxValues + " codec=" + codec, expected, index.numChunks());
+                    assertReads(dir, index, values, offsets, "codec=" + codec + " maxValues=" + maxValues);
+                }
+            }
+        }
+    }
+
+    /** Whichever bound a chunk reaches first closes it, so a stream that reaches both is cut by the nearer one. */
+    public void testWhicheverBoundComesFirstCloses() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 400; i++) {
+            values.add(bytes(randomAlphaOfLength(100)));
+        }
+        // 100 bytes a value: the byte target lands every 10, well before the value bound.
+        final ChunkBounds bytesFirst = new ChunkBounds(1000, 1000);
+        // The same values under a value bound that lands every 4, well before the byte target.
+        final ChunkBounds valuesFirst = new ChunkBounds(1 << 20, 4);
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata byBytes = writeStream(dir, ChunkCodec.IDENTITY, bytesFirst, values, offsets);
+            assertEquals("cut by bytes", 40, byBytes.numChunks());
+            assertReads(dir, byBytes, values, offsets, "cut by bytes");
+        }
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata byValues = writeStream(dir, ChunkCodec.IDENTITY, valuesFirst, values, offsets);
+            assertEquals("cut by values", 100, byValues.numChunks());
+            assertReads(dir, byValues, values, offsets, "cut by values");
+        }
+    }
+
+    /** The value bound is a maximum: a chunk never covers more values than it allows. */
+    public void testAChunkNeverHoldsMoreThanTheValueBound() throws IOException {
+        final int perGroup = 8;
+        final int groups = 50;
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < perGroup * groups; i++) {
+            values.add(bytes("v" + i));
+        }
+        for (int maxValues : new int[] { 8, 12, 16, 64 }) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(
+                    dir,
+                    ChunkCodec.IDENTITY,
+                    new ChunkBounds(1 << 20, maxValues),
+                    values,
+                    offsets,
+                    perGroup
+                );
+                // Groups are taken whole, so a chunk holds as many as fit under the bound.
+                final int perChunk = (maxValues / perGroup) * perGroup;
+                assertEquals("chunks at maxValues=" + maxValues, (values.size() + perChunk - 1) / perChunk, index.numChunks());
+                assertReads(dir, index, values, offsets, "grouped maxValues=" + maxValues);
+            }
+        }
+    }
+
+    /**
+     * The byte bound is a maximum too, which it can only be if a chunk may end anywhere — including inside a
+     * value. A stream of a known size therefore takes exactly as many chunks as the bound divides it into.
+     */
+    public void testNoChunkIsLargerThanTheByteBound() throws IOException {
+        for (int valueLength : new int[] { 1, 7, 64, 1000 }) {
+            final List<byte[]> values = new ArrayList<>();
+            long total = 0;
+            for (int i = 0; i < 200; i++) {
+                values.add(bytes(randomAlphaOfLength(valueLength)));
+                total += valueLength;
+            }
+            for (int target : new int[] { 16, 64, 512, 4096 }) {
+                for (ChunkCodec codec : codecs()) {
+                    try (Directory dir = newDirectory()) {
+                        final long[] offsets = new long[values.size() + 1];
+                        final ChunkIndexMetadata index = writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+                        assertEquals(
+                            "valueLength=" + valueLength + " target=" + target + " codec=" + codec,
+                            (total + target - 1) / target,
+                            index.numChunks()
+                        );
+                        assertReads(dir, index, values, offsets, "valueLength=" + valueLength + " target=" + target);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A value larger than a whole chunk is spread over as many as it takes rather than growing one to fit,
+     * and comes back whole from the pieces.
+     */
+    public void testAValueLargerThanAChunkIsSplitAcrossThem() throws IOException {
+        final int target = 1024;
+        for (int valueLength : new int[] { 1025, 4096, 10_000 }) {
+            final List<byte[]> values = List.of(bytes("before"), bytes(randomAlphaOfLength(valueLength)), bytes("after"));
+            long total = 0;
+            for (byte[] v : values) {
+                total += v.length;
+            }
+            for (ChunkCodec codec : codecs()) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, ChunkBounds.ofBytes(target), values, offsets);
+                    assertEquals("valueLength=" + valueLength, (total + target - 1) / target, index.numChunks());
+                    assertReads(dir, index, values, offsets, "oversized value of " + valueLength);
                 }
             }
         }
@@ -500,8 +699,11 @@ public class ChunkedBytesTests extends ESTestCase {
 
     private void assertReads(Directory dir, ChunkIndexMetadata index, List<byte[]> values, long[] offsets, String label)
         throws IOException {
-        try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-            final ChunkedBytesReader reader = index.open(in);
+        try (
+            IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+            IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+        ) {
+            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
             byte[] scratch = new byte[0];
 
             // In order: the access pattern a scan uses, and the one the chunk cache is built for.

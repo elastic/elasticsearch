@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -33,7 +34,7 @@ import java.util.List;
  *       contains it, so when the whole segment is within the cap the decoder does no per-record cap work at
  *       all ({@link NdJsonPageDecoder#capEnforced()} is false). This is the streaming-parallel chunk case
  *       whose redundant traversal the issue removed.</li>
- *   <li><b>Strict:</b> an oversized record fails with a {@code external_max_record_size [N]} message.</li>
+ *   <li><b>Strict:</b> an oversized record fails with a {@code record exceeds [N]} message.</li>
  *   <li><b>Lenient byte-array:</b> the oversized record is dropped and decoding continues, without compacting
  *       the buffer (so later rows keep their file offsets — see {@code NdJsonPageIteratorTests}).</li>
  *   <li><b>Lenient streaming:</b> there is no cheap resumption point, so the read truncates at the oversized
@@ -115,7 +116,7 @@ public class NdJsonPageDecoderMaxRecordSizeTests extends ESTestCase {
         try (NdJsonPageDecoder decoder = byteArrayDecoder(data, ErrorPolicy.STRICT)) {
             decoder.setMaxRecordBytes(cap);
             IOException ex = expectThrows(IOException.class, decoder::decodePage);
-            assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [" + cap + "]"));
+            assertThat(ex.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(cap) + "]"));
         }
     }
 

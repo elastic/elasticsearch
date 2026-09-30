@@ -1,0 +1,139 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2, optional_fields_fix_unmapped_object_value ]
+      reason: >
+        For a field referenced BY NAME, LOAD_ALL is the same as LOAD. A named field is never also discovered (aka read
+        from _source forcibly by LOAD_ALL).
+
+  - do:
+      indices.create:
+        index: la_eq
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              mapped_kw:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_eq", "_id": "1" } }
+          - {
+              "id": "1",
+              "mapped_kw": "m1",
+              "scalar": "s1",
+              "number": 42,
+              "flag": true,
+              "obj": { "leaf": "o1", "deep": { "leaf": "o2" } },
+              "arr": [ "z", "a", "z" ],
+              "objarr": [ { "k": "p" }, { "k": "q" } ]
+            }
+          - { "index": { "_index": "la_eq", "_id": "2" } }
+          - { "id": "2", "mapped_kw": "m2", "scalar": "s2" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_eq
+        ignore_unavailable: true
+
+---
+'named scalars: load and LOAD_ALL agree':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_eq | KEEP id, mapped_kw, scalar, number, flag | SORT id | LIMIT 5'
+  - length: { columns: 5 }
+  - match: { columns.2.name: scalar }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.type: keyword }
+  - match: { columns.4.type: keyword }
+  - match: { values.0: [ "1", "m1", "s1", "42", "true" ] }
+  - match: { values.1: [ "2", "m2", "s2", null, null ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_eq | KEEP id, mapped_kw, scalar, number, flag | SORT id | LIMIT 5'
+  - length: { columns: 5 }
+  - match: { columns.2.name: scalar }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.type: keyword }
+  - match: { columns.4.type: keyword }
+  - match: { values.0: [ "1", "m1", "s1", "42", "true" ] }
+  - match: { values.1: [ "2", "m2", "s2", null, null ] }
+
+---
+'named object and its leaves: load and LOAD_ALL agree, including the null for the object itself':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_eq | KEEP id, obj, obj.leaf, obj.deep.leaf | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.1.name: obj }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null, "o1", "o2" ] }
+  - match: { values.1: [ "2", null, null, null ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_eq | KEEP id, obj, obj.leaf, obj.deep.leaf | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.1.name: obj }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null, "o1", "o2" ] }
+  - match: { values.1: [ "2", null, null, null ] }
+
+---
+'named arrays: load and LOAD_ALL agree on source order, duplicates and object-element flattening':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_eq | KEEP id, arr, objarr, objarr.k | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { values.0: [ "1", [ "z", "a", "z" ], null, [ "p", "q" ] ] }
+  - match: { values.1: [ "2", null, null, null ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_eq | KEEP id, arr, objarr, objarr.k | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { values.0: [ "1", [ "z", "a", "z" ], null, [ "p", "q" ] ] }
+  - match: { values.1: [ "2", null, null, null ] }
+
+---
+'the one divergence: only LOAD_ALL adds columns nobody named':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_eq | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: mapped_kw }
+  - match: { values.0: [ "1", "m1" ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_eq | SORT id | LIMIT 5'
+  - length: { columns: 9 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: mapped_kw }
+  - match: { columns.2.name: arr }
+  - match: { columns.3.name: flag }
+  - match: { columns.4.name: number }
+  - match: { columns.5.name: obj.deep.leaf }
+  - match: { columns.6.name: obj.leaf }
+  - match: { columns.7.name: objarr.k }
+  - match: { columns.8.name: scalar }
+  - match: { values.0: [ "1", "m1", [ "z", "a", "z" ], "true", "42", "o2", "o1", [ "p", "q" ], "s1" ] }
+  - match: { values.1: [ "2", "m2", null, null, null, null, null, null, "s2" ] }

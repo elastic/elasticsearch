@@ -15,6 +15,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -26,6 +27,7 @@ import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -35,30 +37,30 @@ import java.util.List;
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
  * a {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which this module implements via
- * {@link APMTracer}. We use the OpenTelemetry API to capture "spans", and attach the
- * Elastic APM Java to ship those spans to an APM server. Although it is possible to
- * programmatically attach the agent, the Security Manager permissions required for this
- * make this approach difficult to the point of impossibility.
+ * {@link APMTracer}. We use the OpenTelemetry API to capture telemetry, and the OpenTelemetry SDK
+ * to ship it to an APM server using OTLP/gRPC.
  * <p>
- * All settings are found under the <code>telemetry.</code> prefix. Any setting under
- * the <code>telemetry.agent.</code> prefix will be forwarded on to the APM Java agent
- * by setting appropriate system properties. Some settings can only be set once, and must be
- * set when the agent starts. We therefore also create and configure a config file in
- * the {@code APMJvmOptions} class, which we then delete when Elasticsearch starts, so that
- * sensitive settings such as <code>secret_token</code> or <code>api_key</code> are not
- * left on disk.
- * <p>
- * When settings are reconfigured using the settings REST API, the new values will again
- * be passed via system properties to the Java agent, which periodically checks for changes
- * and applies the new settings values, provided those settings can be dynamically updated.
+ * All settings are found under the <code>telemetry.</code> prefix.
  */
-public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
+public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(APM.class);
+
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
+    private final SetOnce<MetricReaderProvider> metricReaderProvider = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MetricReaderProvider> metricReaderProviders = loader.loadExtensions(MetricReaderProvider.class);
+        assert metricReaderProviders.size() <= 1 : "There must be at most 1 MetricReaderProvider instance provided";
+
+        if (metricReaderProviders.isEmpty() == false) {
+            metricReaderProvider.set(metricReaderProviders.getFirst());
+        }
     }
 
     @Override
@@ -73,7 +75,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             diskBufferPath,
             environment.configDir(),
             filterProviders,
-            logResourceProvider
+            logResourceProvider,
+            metricReaderProvider.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
@@ -87,9 +90,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         apmTracer.setClusterName(services.clusterService().getClusterName().value());
         apmTracer.setNodeName(services.clusterService().getNodeName());
 
-        final APMAgentSettings apmAgentSettings = new APMAgentSettings();
-        apmAgentSettings.initAgentSystemProperties(settings);
-        apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get());
+        new APMAgentSettings().addClusterSettingsListeners(services.clusterService(), telemetryProvider.get());
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 

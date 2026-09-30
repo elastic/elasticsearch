@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.assertDocIDRunEndContract;
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
 /**
@@ -43,6 +44,365 @@ public class StringMatchTests extends ColumnarStringTestCase {
     /** Nothing to bisect and no ordinals: the values are compared. */
     public void testUnsortedPlain() throws IOException {
         assertMatches(repeated(between(400, 2000)), DictionaryPolicy.NONE, Path.SCAN);
+    }
+
+    /**
+     * A term on a plain column is answered in two phases, and its approximation offers only documents of
+     * the term's length. A wider approximation still returns correct results, so this counts it directly.
+     */
+    public void testATermIsApproximatedByItsLength() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(800, 2000)];
+        int empties = 0;
+        int ofThree = 0;
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = switch (d % 20) {
+                case 0 -> new BytesRef("");
+                case 1 -> new BytesRef("abc");
+                case 2 -> new BytesRef("xyz");
+                default -> new BytesRef("a-much-longer-value-" + d);
+            };
+            if (docValues[d].length == 0) {
+                empties++;
+            } else if (docValues[d].length == 3) {
+                ofThree++;
+            }
+        }
+        final int expectedEmpty = empties;
+        final int expectedOfThree = ofThree;
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            DictionaryPolicy.NONE,
+            (metadata, reader) -> {
+                assertFalse("a plain column, not a dictionary", reader.hasDictionary());
+                assertFalse("unsorted, so nothing bisects the term", reader.valuesSorted());
+
+                final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+                assertNotNull("the empty term is answered in two phases", empty);
+                assertEquals("the approximation offers only the empty values", expectedEmpty, count(empty.approximation()));
+
+                final TwoPhaseIterator three = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("abc")));
+                assertNotNull("any term is answered in two phases", three);
+                assertEquals("the approximation offers only values of the term's length", expectedOfThree, count(three.approximation()));
+            }
+        );
+    }
+
+    /**
+     * A term on a dictionary column is approximated by the ordinals: a term the dictionary holds offers only the
+     * documents naming it, and one it does not hold only the documents whose value escaped it.
+     */
+    public void testADictionaryTermIsApproximatedByItsOrdinals() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(800, 2000)];
+        int empties = 0;
+        int escaped = 0;
+        for (int d = 0; d < docValues.length; d++) {
+            if (d % 40 == 3) {
+                docValues[d] = new BytesRef("rare-alpine-" + d);
+                escaped++;
+            } else if (d % 20 == 0) {
+                docValues[d] = new BytesRef("");
+                empties++;
+            } else {
+                docValues[d] = new BytesRef(TERMS[d % (TERMS.length - 1)]);
+            }
+        }
+        final int expectedEmpty = empties;
+        final int expectedEscaped = escaped;
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("a dictionary column", reader.hasDictionary());
+            assertEquals("the rare values escaped", expectedEscaped, reader.escapeCount());
+
+            final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+            assertNotNull("the empty term is answered in two phases", empty);
+            assertEquals("the approximation offers only the empty values", expectedEmpty, count(empty.approximation()));
+
+            final TwoPhaseIterator absent = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("rare-alpine-3")));
+            assertNotNull("a term only an escape can carry is answered in two phases", absent);
+            assertEquals("the approximation offers only the escaped values", expectedEscaped, count(absent.approximation()));
+            assertEquals("and the bytes pick the one", List.of(3), matched(reader.matchTerm(new BytesRef("rare-alpine-3"))));
+        });
+    }
+
+    /**
+     * A term the window settles reports the run of matching documents it is on, so a scorer excluding the
+     * term can step over the run at once. Runs cross window boundaries, and a run's end is exact.
+     */
+    public void testASettledTermReportsItsRun() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(9000, 20000)];
+        int d = 0;
+        while (d < docValues.length) {
+            final int run = between(1, 3000);
+            for (int i = 0; i < run && d < docValues.length; i++) {
+                docValues[d++] = new BytesRef("");
+            }
+            final int gap = between(1, 5);
+            for (int i = 0; i < gap && d < docValues.length; i++) {
+                docValues[d] = new BytesRef(TERMS[d % (TERMS.length - 1)]);
+                d++;
+            }
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+                assertNotNull(empty);
+                final DocIdSetIterator approximation = empty.approximation();
+                int runs = 0;
+                int doc = approximation.nextDoc();
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue(empty.matches());
+                    int end = doc;
+                    while (end < docValues.length && docValues[end].length == 0) {
+                        end++;
+                    }
+                    assertEquals("run from " + doc + " with a dictionary: " + reader.hasDictionary(), end, empty.docIDRunEnd());
+                    runs++;
+                    doc = end < docValues.length ? approximation.advance(end) : DocIdSetIterator.NO_MORE_DOCS;
+                }
+                assertTrue("expected several runs, saw " + runs, runs > 2);
+            });
+        }
+    }
+
+    /**
+     * A plain column stores a repeat without its length and a null as a code below every length, so the window
+     * over lengths has to give a repeat the answer of the value before it and never offer a null, and a column
+     * of one length stores no lengths at all. Runs of equal values, nulls among a document's slots and columns
+     * of one length are checked against every term, prefix and substring asked of them.
+     */
+    public void testLengthWindowOverRepeatsNullsAndOneLength() throws IOException {
+        final boolean oneLength = randomBoolean();
+        final String[] vocabulary = oneLength
+            ? new String[] { "abcd", "abce", "xbcd", "dcba", "aaaa" }
+            : new String[] { "", "a", "ab", "abc", "abd", "xyz", "abcdef", "a-longer-value", "zz" };
+        final BytesRef[][] docSlots = new BytesRef[between(600, 3000)][];
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (random().nextInt(8) == 0) {
+                current = randomFrom(vocabulary);
+            }
+            final boolean multi = oneLength == false && random().nextInt(6) == 0;
+            docSlots[d] = new BytesRef[multi ? between(1, 4) : 1];
+            for (int s = 0; s < docSlots[d].length; s++) {
+                docSlots[d][s] = multi && random().nextInt(4) == 0 ? null : new BytesRef(multi ? randomFrom(vocabulary) : current);
+            }
+        }
+        final List<String> probes = new ArrayList<>(List.of(vocabulary));
+        probes.add(oneLength ? "qqqq" : "abx");
+        probes.add("b");
+        withColumn(
+            docSlots,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            DictionaryPolicy.NONE,
+            (metadata, reader) -> {
+                assertFalse(reader.hasDictionary());
+                assertEquals(
+                    "a column of one length stores no lengths",
+                    oneLength,
+                    ((StringColumnMetadata.Plain) metadata).values().constant()
+                );
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertEquals("term [" + probe + "]", expected(docSlots, v -> v.equals(probe)), matched(reader.matchTerm(term)));
+                    assertEquals("prefix [" + probe + "]", expected(docSlots, v -> v.startsWith(probe)), matched(reader.matchPrefix(term)));
+                    assertEquals(
+                        "contains [" + probe + "]",
+                        expected(docSlots, v -> v.contains(probe)),
+                        matched(reader.matchContains(term))
+                    );
+                    assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(term));
+                    assertWindowedAgrees("prefix [" + probe + "]", docSlots.length, () -> reader.matchPrefix(term));
+                    final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchTerm(term));
+                    if (twoPhase != null) {
+                        assertEquals(
+                            "the approximation of [" + probe + "] offers only documents holding a value of its length",
+                            expected(docSlots, v -> v.length() == probe.length()),
+                            matched(twoPhase.approximation())
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    /**
+     * Every pushdown holds on a sparse column, not only a dense one. The column spans several presence blocks —
+     * one with every document present, one missing a few, one holding few — and each filter is checked against
+     * the values, collected in windows of every size, and asked for its runs, which must never pass a document
+     * that does not match.
+     */
+    public void testPushdownsOnSparseColumns() throws IOException {
+        final int blockDocs = 1 << 16;
+        final BytesRef[] docValues = new BytesRef[blockDocs * 2 + between(1000, 20000)];
+        final String[] vocabulary = { "", "a", "ab", "abc", "abd", "xyz", "a-longer-value" };
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docValues.length; d++) {
+            if (random().nextInt(16) == 0) {
+                current = random().nextInt(10) == 0 ? "rare-" + d : randomFrom(vocabulary);
+            }
+            // All present, then missing a few, then holding few.
+            final boolean present = d < blockDocs || (d < 2 * blockDocs ? random().nextInt(50) != 0 : random().nextInt(20) == 0);
+            docValues[d] = present ? new BytesRef(current) : null;
+        }
+        final boolean sorted = randomBoolean();
+        if (sorted) {
+            // Values in term order, as an index sort on the field puts them, so a term is a run of ranks.
+            final List<BytesRef> present = new ArrayList<>();
+            for (BytesRef v : docValues) {
+                if (v != null) {
+                    present.add(v);
+                }
+            }
+            present.sort(BytesRef::compareTo);
+            int next = 0;
+            for (int d = 0; d < docValues.length; d++) {
+                if (docValues[d] != null) {
+                    docValues[d] = present.get(next++);
+                }
+            }
+        }
+        final String[] probes = { "", "a", "ab", "abc", "xyz", "zz", "rare-" + between(0, docValues.length) };
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String layout = (reader.hasDictionary() ? "dictionary" : "plain") + (sorted ? " sorted" : "");
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertSparse(layout + " term [" + probe + "]", docValues, v -> v.equals(probe), () -> reader.matchTerm(term));
+                    assertSparse(layout + " prefix [" + probe + "]", docValues, v -> v.startsWith(probe), () -> reader.matchPrefix(term));
+                    assertSparse(layout + " contains [" + probe + "]", docValues, v -> v.contains(probe), () -> reader.matchContains(term));
+                    assertSparse(
+                        layout + " any of [" + probe + ", xyz]",
+                        docValues,
+                        v -> v.equals(probe) || v.equals("xyz"),
+                        () -> reader.match(v -> v.bytesEquals(term) || v.utf8ToString().equals("xyz"))
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * Every pushdown holds on a multi-valued column too: documents holding several values, some null, some none at
+     * all, across presence blocks with every document present, a few missing, and few present.
+     */
+    public void testPushdownsOnMultiValuedColumns() throws IOException {
+        final int blockDocs = 1 << 16;
+        final BytesRef[][] docSlots = new BytesRef[blockDocs * 2 + between(1000, 20000)][];
+        final String[] vocabulary = { "", "a", "ab", "abc", "abd", "xyz", "a-longer-value" };
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (random().nextInt(16) == 0) {
+                current = random().nextInt(10) == 0 ? "rare-" + d : randomFrom(vocabulary);
+            }
+            final boolean present = d < blockDocs || (d < 2 * blockDocs ? random().nextInt(50) != 0 : random().nextInt(20) == 0);
+            if (present == false) {
+                continue;
+            }
+            // Mostly one value, sometimes several, a null among them, or none at all.
+            final int slots = random().nextInt(4) != 0 ? 1 : between(0, 3);
+            docSlots[d] = new BytesRef[slots];
+            for (int s = 0; s < slots; s++) {
+                docSlots[d][s] = s > 0 && random().nextInt(4) == 0 ? null : new BytesRef(s == 0 ? current : randomFrom(vocabulary));
+            }
+        }
+        final String[] probes = { "", "a", "ab", "abc", "xyz", "zz", "rare-" + between(0, docSlots.length) };
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String layout = reader.hasDictionary() ? "multi-valued dictionary" : "multi-valued plain";
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertMatchesAndRuns(
+                        layout + " term [" + probe + "]",
+                        anySlot(docSlots, v -> v.equals(probe)),
+                        () -> reader.matchTerm(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " prefix [" + probe + "]",
+                        anySlot(docSlots, v -> v.startsWith(probe)),
+                        () -> reader.matchPrefix(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " contains [" + probe + "]",
+                        anySlot(docSlots, v -> v.contains(probe)),
+                        () -> reader.matchContains(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " any of [" + probe + ", xyz]",
+                        anySlot(docSlots, v -> v.equals(probe) || v.equals("xyz")),
+                        () -> reader.match(v -> v.bytesEquals(term) || v.utf8ToString().equals("xyz"))
+                    );
+                }
+            });
+        }
+    }
+
+    /** The documents holding a non-null slot {@code test} accepts; an absent document holds none. */
+    private static FixedBitSet anySlot(BytesRef[][] docSlots, Predicate<String> test) {
+        final FixedBitSet matching = new FixedBitSet(docSlots.length);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (docSlots[d] == null) {
+                continue;
+            }
+            for (BytesRef slot : docSlots[d]) {
+                if (slot != null && test.test(slot.utf8ToString())) {
+                    matching.set(d);
+                    break;
+                }
+            }
+        }
+        return matching;
+    }
+
+    /** One document at a time, a window at a time, and run by run, all against {@code expected}. */
+    private void assertMatchesAndRuns(String label, FixedBitSet expected, Match match) throws IOException {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = expected.nextSetBit(0); d != DocIdSetIterator.NO_MORE_DOCS; d = d + 1 < expected.length()
+            ? expected.nextSetBit(d + 1)
+            : DocIdSetIterator.NO_MORE_DOCS) {
+            docs.add(d);
+        }
+        assertEquals(label, docs, matched(match.get()));
+        assertWindowedAgrees(label, expected.length(), match);
+        assertDocIDRunEndContract(label, match::get, expected, expected.length());
+    }
+
+    private void assertSparse(String label, BytesRef[] docValues, Predicate<String> test, Match match) throws IOException {
+        final List<Integer> expected = new ArrayList<>();
+        final FixedBitSet matching = new FixedBitSet(docValues.length);
+        for (int d = 0; d < docValues.length; d++) {
+            if (docValues[d] != null && test.test(docValues[d].utf8ToString())) {
+                expected.add(d);
+                matching.set(d);
+            }
+        }
+        assertEquals(label, expected, matched(match.get()));
+        assertWindowedAgrees(label, docValues.length, match);
+        assertDocIDRunEndContract(label, match::get, matching, docValues.length);
+    }
+
+    private static List<Integer> expected(BytesRef[][] docSlots, Predicate<String> test) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < docSlots.length; d++) {
+            for (BytesRef slot : docSlots[d]) {
+                if (slot != null && test.test(slot.utf8ToString())) {
+                    docs.add(d);
+                    break;
+                }
+            }
+        }
+        return docs;
+    }
+
+    private static int count(DocIdSetIterator iterator) throws IOException {
+        int n = 0;
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            n++;
+        }
+        return n;
     }
 
     /** A dictionary, so a term is one ordinal and the values are never touched. */

@@ -223,10 +223,21 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     }
 
     public void testValidateDatasetErrorBudget() {
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100"))
+        );
+        // Budget with an explicit mode is accepted.
         assertEquals(
             "100",
-            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100")).get("max_errors")
+            validator.validateDataset(
+                Map.of(),
+                "wasbs://c@a.blob.core.windows.net/p",
+                Map.of("max_errors", "100", "error_mode", "skip_row")
+            ).get("max_errors")
         );
+        // fail_fast combined with a budget is still refused.
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(

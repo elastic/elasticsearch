@@ -13,6 +13,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Geometry;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -47,16 +49,10 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  */
 public abstract class SpatialGridFunction extends SpatialDocValuesFunction implements OptionalArgument, LicenseAware {
     /**
-     * Maximum number of grid cells that a single geo_shape value may intersect. If a shape would produce more
-     * cells than this limit the function returns {@code null} and registers an ES|QL warning. Mirrors the
+     * Maximum number of grid cells that a single geo_shape value may intersect. When a shape intersects more
+     * cells than this limit the result is silently truncated to a partial list; the evaluator additionally
+     * emits an ES|QL warning so the user knows the output is incomplete. Mirrors the
      * 10 000-document convention used elsewhere in Elasticsearch to give operators a familiar threshold.
-     * <p>
-     * TODO: returning the truncated partial list would be better UX than null. Implementing this cleanly
-     *       requires a small architecture change: either extend {@link GeoShapeCellsComputer} to convey a
-     *       truncation flag alongside the cells so the call-site in {@code fromFieldAndLiteral} can emit
-     *       the warning before writing results, or modify the {@code EvaluatorImplementer} code-generator
-     *       to support a "truncate-not-nullify" exception handling mode.
-     * </p>
      * <p>
      * TODO: for the common pattern {@code BY ST_GEOHEX(shape, precision)} the query planner could rewrite
      *       the scalar function to a dedicated geo-grid aggregator (like the spatial plugin's
@@ -231,6 +227,18 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
             }
             results.endPositionEntry();
         }
+    }
+
+    /**
+     * Creates a {@link Consumer}{@code <String>} for use in the constant-folding path that emits
+     * truncation warnings to HTTP response headers (the plan-time warning channel). This produces
+     * the same formatted string as
+     * {@link org.elasticsearch.compute.operator.Warnings#registerWarning(String)} so that test
+     * assertions expressed as {@code withWarning(...)} cover both the fold and the evaluator paths.
+     */
+    protected Consumer<String> foldWarningConsumer() {
+        Source src = source();
+        return msg -> HeaderWarning.addWarning("Line " + src.lineNumber() + ":" + src.columnNumber() + " [" + src.text() + "]: " + msg);
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +34,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Median extends AggregateFunction implements SurrogateExpression {
+public class Median extends UnaryAggregateFunction implements SurrogateExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Median", Median::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Median.class).unary(Median::new).name("median");
 
@@ -123,11 +124,6 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     @Override
     public Median replaceChildren(List<Expression> newChildren) {
         return new Median(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Median(source(), field(), filter, window());
     }
 
     @Override

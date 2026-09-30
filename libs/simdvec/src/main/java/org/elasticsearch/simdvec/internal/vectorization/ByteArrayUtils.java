@@ -50,6 +50,56 @@ final class ByteArrayUtils {
         return -1;
     }
 
+    // See ESVectorUtil#indexOfLineTerminatorLeadByte's javadoc for where these 4 bytes come from and
+    // why there are exactly 4 of them.
+    private static final byte LT_NL = '\n';
+    private static final byte LT_CR = '\r';
+    private static final byte LT_C2 = (byte) 0xC2;
+    private static final byte LT_E2 = (byte) 0xE2;
+    // see PanamaESVectorUtilSupport#LT_HIGH_MASK for the full bit-trick rationale.
+    private static final byte LT_HIGH_MASK = (byte) 0xDF; // ~0x20
+
+    /**
+     * Implementation of {@link ESVectorUtilSupport#indexOfLineTerminatorLeadByte}: a SWAR (SIMD
+     * Within A Register) word scan for all four (fixed) marker bytes at once -- reject a whole 8-byte
+     * word in one go via the classic "has a zero byte" trick, and only fall to a per-byte scan within
+     * that word (to pin down the exact offset) on the rare word that contains a match.
+     */
+    static int indexOfLineTerminatorLeadByte(final byte[] bytes, final int offset, final int len) {
+        final int end = offset + len;
+        int i = offset;
+        final long pNL = compilePattern(LT_NL);
+        final long pCR = compilePattern(LT_CR);
+        final long pC2 = compilePattern(LT_C2);
+        final long pHighMask = compilePattern(LT_HIGH_MASK);
+        final int longCount = len >>> 3;
+        for (int j = 0; j < longCount; j++) {
+            long word = readLongLE(bytes, i);
+            if (hasZeroByte(word ^ pNL) || hasZeroByte(word ^ pCR) || hasZeroByte((word & pHighMask) ^ pC2)) {
+                for (int k = 0; k < Long.BYTES; k++) {
+                    byte c = bytes[i + k];
+                    if (c == LT_NL || c == LT_CR || c == LT_C2 || c == LT_E2) {
+                        return i + k - offset;
+                    }
+                }
+            }
+            i += Long.BYTES;
+        }
+        for (; i < end; i++) {
+            byte c = bytes[i];
+            if (c == LT_NL || c == LT_CR || c == LT_C2 || c == LT_E2) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    /** Classic "has a zero byte" trick: true iff any byte lane of {@code v} is exactly {@code 0x00}. */
+    private static boolean hasZeroByte(long v) {
+        long tmp = (v & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
+        return (~(tmp | v | 0x7F7F7F7F7F7F7F7FL)) != 0;
+    }
+
     static int codePointCount(byte[] bytes, int offset, int length) {
         int pos = offset;
         int limit = offset + length;

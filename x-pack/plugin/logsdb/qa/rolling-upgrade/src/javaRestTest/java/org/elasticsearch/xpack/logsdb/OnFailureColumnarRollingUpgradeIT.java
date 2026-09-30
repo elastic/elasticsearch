@@ -142,14 +142,15 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
         );
 
         // doc 4: nullability violation — explicit null accepted, marked in _ignored.
-        // Synthetic source preserves the null slot written by the inline-null array-order binary doc-values column,
-        // so _source.required_kw is [null] (an array), not absent. _ignored contains "required_kw".
+        // A bare null is the field being absent, so nothing is written for it and _source.required_kw is absent. A node from
+        // before that rule wrote a null slot into the inline-null array-order column, which synthetic source reads back as [null],
+        // and the document keeps whichever answer the node that indexed it gave.
         expectedDocs.add(
             new ExpectedDoc(
                 "4",
                 "{\"@timestamp\":\"" + ts + "\",\"single_kw\":\"kept4\",\"required_kw\":null}",
                 "kept4",
-                Collections.singletonList(null),
+                oldClusterHasFeature(MapperFeatures.COLUMNAR_BARE_NULL_IS_ABSENCE) ? null : Collections.singletonList(null),
                 List.of("required_kw"),
                 "kept4",
                 List.of()

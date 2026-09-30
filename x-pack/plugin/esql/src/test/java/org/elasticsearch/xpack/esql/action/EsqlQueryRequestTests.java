@@ -758,7 +758,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(query, request.query());
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
-        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+        // null means "use the async_search.default_keep_alive cluster setting"
+        assertNull(request.keepAlive());
     }
 
     public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {

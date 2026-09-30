@@ -5,6 +5,7 @@ import { execSync } from "child_process";
 
 import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions.ts";
+import { getLaterBranches } from "./later-branches.ts";
 
 // Auto-retry configuration for PR pipelines.
 // - exit_status "-1": Agent/infrastructure failures (2 retries)
@@ -63,6 +64,16 @@ const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[])
   if (pipeline.config?.["included-regions"]) {
     return changedFiles.every((file) =>
       getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region)),
+    );
+  }
+  return true;
+};
+
+// Include the pipeline if any of the changed files in the PR is in at least one included region
+const changedFilesAnyIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
+  if (pipeline.config?.["any-included-regions"]) {
+    return changedFiles.some((file) =>
+      getArray(pipeline.config?.["any-included-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -146,6 +157,17 @@ export const generatePipelines = (
 
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
     yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
+
+    if (yaml.includes("$LATER_BRANCHES")) {
+      const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
+      if (laterBranches.length === 0) {
+        // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
+        // Also guards against an empty matrix dimension, which buildkite rejects.
+        continue;
+      }
+      yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
+    }
+
     const pipeline: EsPipeline = parse(yaml) || {};
 
     pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
@@ -191,6 +213,7 @@ export const generatePipelines = (
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+    (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
   ];
 
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc

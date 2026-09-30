@@ -786,7 +786,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
     public void testUnrelatedClusterStateUpdateAfterQueuedCancellation() throws Exception {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var clusterService = internalCluster().getInstance(ClusterService.class, dataNode);
 

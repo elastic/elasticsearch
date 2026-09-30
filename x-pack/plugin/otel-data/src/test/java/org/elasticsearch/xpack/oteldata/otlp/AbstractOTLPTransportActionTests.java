@@ -16,8 +16,11 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -135,6 +138,71 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         assertThat(errorMessage, containsString("internal server error"));
     }
 
+    public void testFailureStoreRedirectAllItems() throws Exception {
+        OTLPActionResponse response = executeRequest(
+            createRequestWithData(),
+            new BulkResponse(new BulkItemResponse[] { failureStoreUsedResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
+        assertThat(parseRejectedCount(responseBytes), equalTo(1L));
+        assertThat(parseErrorMessage(responseBytes), equalTo("Redirected 1 documents to the failure store.\n"));
+    }
+
+    public void testFailureStoreRedirectMixedWithSuccess() throws Exception {
+        OTLPActionResponse response = executeRequest(
+            createRequestWithData(),
+            new BulkResponse(new BulkItemResponse[] { successResponse(), failureStoreUsedResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
+        assertThat(parseRejectedCount(responseBytes), equalTo(1L));
+        assertThat(parseErrorMessage(responseBytes), equalTo("Redirected 1 documents to the failure store.\n"));
+    }
+
+    public void testFailureStoreRedirectMixedWithFailure() throws Exception {
+        String dataStream = dataStreamName();
+        // Include a successful item so the rejected count is not replaced with totalItems()
+        // (that happens when every bulk item is treated as a failure).
+        OTLPActionResponse response = executeRequest(
+            createRequestWithData(),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    successResponse(),
+                    failureStoreUsedResponse(),
+                    bulkItemFailure(dataStream, RestStatus.BAD_REQUEST, "bad request") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
+        assertThat(parseRejectedCount(responseBytes), equalTo(2L));
+        String errorMessage = parseErrorMessage(responseBytes);
+        assertThat(errorMessage, containsString("Redirected 1 documents to the failure store.\n"));
+        assertThat(errorMessage, containsString("Index [" + dataStream + "] returned status [BAD_REQUEST]"));
+        assertThat(errorMessage, containsString("bad request"));
+    }
+
+    public void testFailureStoreRedirectDoesNotOverride429() {
+        String dataStream = dataStreamName();
+        Exception e = executeRequestExpectingFailure(
+            createRequestWithData(),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure(dataStream, RestStatus.TOO_MANY_REQUESTS, "too many requests"),
+                    failureStoreUsedResponse() },
+                0
+            )
+        );
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(e.getMessage(), containsString("too many requests"));
+        assertThat(e.getMessage(), containsString("Redirected 1 documents to the failure store.\n"));
+    }
+
     public void testBulkError() {
         assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
         assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);
@@ -208,11 +276,29 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         return BulkItemResponse.success(-1, DocWriteRequest.OpType.CREATE, mock(DocWriteResponse.class));
     }
 
+    protected static BulkItemResponse failureStoreUsedResponse() {
+        IndexResponse indexResponse = new IndexResponse(
+            new ShardId("index", "uuid", 0),
+            "id",
+            1L,
+            1L,
+            1L,
+            true,
+            null,
+            IndexDocFailureStoreStatus.USED
+        );
+        return BulkItemResponse.success(-1, DocWriteRequest.OpType.CREATE, indexResponse);
+    }
+
     protected static BulkItemResponse bulkItemFailure(String index, RestStatus restStatus, String failureMessage) {
         return BulkItemResponse.failure(
             -1,
             DocWriteRequest.OpType.CREATE,
             new BulkItemResponse.Failure(index, "id", new RuntimeException(failureMessage), restStatus)
         );
+    }
+
+    private String dataStreamName() {
+        return dataStreamType() + "-generic.otel-default";
     }
 }

@@ -975,18 +975,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
 
         @Override
-        public float getOversampleFactor(FieldInfo fieldInfo) {
-            return oversample;
-        }
-
-        @Override
-        public boolean shouldPrecondition(FieldInfo fieldInfo) {
-            return precondition;
-        }
-
-        @Override
-        public QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
-            return encoding;
+        public SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo) {
+            if (encoding == null) {
+                return null;
+            }
+            return new SegmentCalibrationParameters.Osq(encoding, precondition, oversample);
         }
 
         @Override

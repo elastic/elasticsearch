@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,25 +18,47 @@ import java.io.IOException;
 
 /**
  * Tracks a shard's heap usage, as well as any index-level heap usage overhead that should be deduplicated per node.
+ *
+ * @param shardHeapUsageBytes The shard-level heap usage, in bytes
+ * @param indexHeapUsageBytes The index-level heap usage, in bytes
+ * @param postingsHeapUsageBytes The postings heap usage for the shard, this is included in {@code shardHeapUsageBytes}. We provide
+ *                               this separately to accommodate the way autoscaler node heap requirements are calculated
+ *                               (see EstimatedHeapUsageBuilder.EstimatedHeapUsageBuilder for details)
  */
-public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes) implements Writeable {
+public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long postingsHeapUsageBytes) implements Writeable {
+
+    public static final TransportVersion INCLUDE_POSTINGS_IN_SHARD_AND_INDEX_HEAP = TransportVersion.fromName(
+        "include_postings_in_shard_and_index_heap"
+    );
 
     /** Used when no collector-specific default is available. */
-    public static final ShardAndIndexHeapUsage ZERO = new ShardAndIndexHeapUsage(0, 0);
+    public static final ShardAndIndexHeapUsage ZERO = new ShardAndIndexHeapUsage(0, 0, 0);
 
     public ShardAndIndexHeapUsage {
         assert shardHeapUsageBytes >= 0;
         assert indexHeapUsageBytes >= 0;
+        assert postingsHeapUsageBytes >= 0;
+        assert shardHeapUsageBytes >= postingsHeapUsageBytes;
     }
 
     public ShardAndIndexHeapUsage(StreamInput in) throws IOException {
-        this(in.readLong(), in.readLong());
+        this(in.readLong(), in.readLong(), in.getTransportVersion().supports(INCLUDE_POSTINGS_IN_SHARD_AND_INDEX_HEAP) ? in.readLong() : 0);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(this.shardHeapUsageBytes);
         out.writeLong(this.indexHeapUsageBytes);
+        if (out.getTransportVersion().supports(INCLUDE_POSTINGS_IN_SHARD_AND_INDEX_HEAP)) {
+            out.writeLong(this.postingsHeapUsageBytes);
+        }
+    }
+
+    /**
+     * Returns the shard-level heap usage excluding postings heap usage.
+     */
+    public long shardHeapUsageBytesExcludingPostings() {
+        return shardHeapUsageBytes - postingsHeapUsageBytes;
     }
 
     @Override
@@ -45,6 +68,8 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
             + shardHeapUsageBytes
             + ", indexHeapUsageBytes="
             + indexHeapUsageBytes
+            + ", postingsHeapUsageBytes="
+            + postingsHeapUsageBytes
             + "}";
     }
 }

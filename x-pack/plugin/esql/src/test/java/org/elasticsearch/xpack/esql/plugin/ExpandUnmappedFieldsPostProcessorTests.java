@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -33,6 +34,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.contains;
@@ -606,10 +608,102 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testCancellationDuringExpansionThrowsAndReleasesPages() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
+        );
+        assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        // Stands in for a task cancelled mid-expansion: the checker reports cancelled as soon as the expansion polls it.
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> true)
+        );
+
+        // expand must release the input pages on the cancellation path, just as it does for any other failure.
+        assertThat("expand leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The manual "graceful termination" test on esql-planning#1778 flagged both expansion loops - {@code collectFieldNames} and
+     * {@code rewritePages} - as running to completion without checking for cancellation. {@link
+     * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
+     * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every
+     * row first and only then does {@code rewritePage}, so with a single-row page the checker is polled once while collecting names and
+     * again while rewriting. Reporting cancelled only from the second poll lets collection finish and lands the cancellation inside
+     * {@code rewritePage}, proving that loop's checkpoint both throws and releases the input page together with the half-built expansion.
+     */
+    public void testCancellationDuringPageRewriteThrowsAndReleasesPages() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'pet':'Rex'}")));
+        assertThat("input page should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        assertThat("cancellation should have been observed during rewritePage, not name collection", polls.get(), greaterThan(1));
+        assertThat("expand leaked pages when cancelled during rewrite", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Every other test uses a handful of rows, so the {@code (row & mask) == 0} cadence only ever fires on row 0 and the bit-mask
+     * arithmetic past the first row is never exercised. This scans a page wide enough to cross the 1024-row threshold several times and
+     * pins the exact number of polls: {@code collectFieldNames} and {@code rewritePage} each scan the page once, polling at rows
+     * {@code 0, 1024, 2048, ...}, i.e. {@code ceil(rows / 1024)} times apiece. It would catch a regression that polled every row (far
+     * too often) or only once per scan (defeating the point of a mid-scan checkpoint).
+     */
+    public void testCancellationPollCadenceMatchesRowThreshold() {
+        BlockFactory bf = blockFactory();
+        int rows = 3000;
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonObject("{'pet':'Rex'}")));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+            polls.incrementAndGet();
+            return false;
+        });
+        try {
+            // 1024 mirrors the production ROWS_PER_CANCELLATION_CHECK, which is private to the post-processor.
+            int perScan = (rows + 1023) / 1024;
+            assertThat(polls.get(), equalTo(2 * perScan));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExpansionPollsForCancellation() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
+        );
+
+        // Guards the wiring: collectFieldNames and rewritePage both poll at least once per page, so expansion must poll the checker.
+        AtomicInteger checks = new AtomicInteger();
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+            checks.incrementAndGet();
+            return false;
+        });
+        try {
+            assertThat(checks.get(), greaterThan(0));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
     // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS);
+        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS, () -> false);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {

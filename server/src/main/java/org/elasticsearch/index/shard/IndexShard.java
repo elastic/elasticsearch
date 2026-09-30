@@ -154,6 +154,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -210,6 +211,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
@@ -2158,8 +2160,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
                 }
-                if (state == IndexShardState.STARTED) {
-                    throw new IndexShardStartedException(shardId);
+                if (state != IndexShardState.RECOVERING) {
+                    logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
+                    assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                    throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
@@ -2171,8 +2175,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(shardId);
                     }
-                    if (state == IndexShardState.STARTED) {
-                        throw new IndexShardStartedException(shardId);
+                    if (state != IndexShardState.RECOVERING) {
+                        logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
+                        assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                        throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                     }
                     // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
                     recoveryCancellationRequested = false;
@@ -2886,13 +2892,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void recoverFromLocalShards(
         BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         List<IndexShard> localShards,
-        ActionListener<Boolean> listener
+        ActionListener<Void> listener
     ) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
             : "invalid recovery type: " + recoveryState.getRecoverySource();
         final List<LocalShardSnapshot> snapshots = new ArrayList<>();
-        final ActionListener<Boolean> recoveryListener = ActionListener.runBefore(listener, () -> IOUtils.close(snapshots));
+        final ActionListener<Void> recoveryListener = ActionListener.runBefore(listener, () -> IOUtils.close(snapshots));
         boolean success = false;
         try {
             for (IndexShard shard : localShards) {
@@ -2911,7 +2917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void recoverFromStore(ActionListener<Boolean> listener) {
+    public void recoverFromStore(ActionListener<Void> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -2920,7 +2926,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromStore(this, listener);
     }
 
-    public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
+    public void restoreFromRepository(Repository repository, ActionListener<Void> listener) {
         try {
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -3970,17 +3976,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         RecoveryListener recoveryListener,
-        CheckedConsumer<ActionListener<Boolean>, Exception> action
+        CheckedConsumer<ActionListener<Void>, Exception> action
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
-        ActionListener<Boolean> actionListener = ActionListener.wrap(recoveryDone -> {
-            if (recoveryDone) {
-                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
-            } else {
-                recoveryListener.onRecoveryAborted();
+        ActionListener<Void> actionListener = ActionListener.wrap(
+            ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
+            e -> {
+                final FailureStrategy result = ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null ? ABORT : FAIL_SEND;
+                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), result);
             }
-        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND));
+        );
         ActionListener.run(actionListener, action);
     }
 
@@ -4802,9 +4808,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (location == pendingRefreshLocation.get()) {
                 // This method may be called from many different threads including transport_worker threads and
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
-                    if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<>());
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        // the shard can close while this task sits in the refresh queue, leaving nothing to refresh
+                        handleRefreshException(e);
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        assert false : "refresh thread pool uses an unbounded queue";
+                        // safe to drop: the registered listener still fires on the next refresh or on shard close
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        if (location == pendingRefreshLocation.get()) {
+                            getEngine().maybeRefresh("ensure-shard-search-active", ActionListener.noop());
+                        }
                     }
                 });
             }

@@ -1048,6 +1048,35 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
+    private int findPreviousGroupWithSamples(int group, TimeSeriesGroupingAggregatorEvaluationContext context) {
+        int candidate = context.previousGroupId(group);
+        // the previous group for this TSID is not guaranteed to have values for our metric
+        // It might exist due to another metric which is part of the same query
+        // so we have to look back further in case it has no values
+        // This is an edge case though, typically this loop exits in the first iteration
+        while (AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, candidate, group)) {
+            ReducedState state = candidate < reducedStates.size() ? reducedStates.get(candidate) : null;
+            if (state != null && state.samples > 0) {
+                return candidate;
+            }
+            candidate = context.previousGroupId(candidate);
+        }
+        return -1;
+    }
+
+    private int findNextGroupWithSamples(int group, TimeSeriesGroupingAggregatorEvaluationContext context) {
+        int candidate = context.nextGroupId(group);
+        // See findPreviousGroupWithSamples for why the loop is needed
+        while (AbstractRateGroupingFunction.isNextGroupWithinLookback(context, group, candidate)) {
+            ReducedState state = candidate < reducedStates.size() ? reducedStates.get(candidate) : null;
+            if (state != null && state.samples > 0) {
+                return candidate;
+            }
+            candidate = context.nextGroupId(candidate);
+        }
+        return -1;
+    }
+
     /**
      * Computes the rate for a given group by interpolating boundary values with adjacent groups,
      * or extrapolating values at the time bucket boundaries.
@@ -1066,9 +1095,9 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         double firstTsSec = tbucketStart;
         double lastTsSec = tbucketEnd;
 
-        int previousGroupId = tsContext.previousGroupId(group);
-        var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
-        if (previousState == null || previousState.samples == 0) {
+        int previousGroupId = findPreviousGroupWithSamples(group, tsContext);
+        ReducedState previousState = previousGroupId >= 0 ? reducedStates.get(previousGroupId) : null;
+        if (previousState == null) {
             if (state.samples == 1) {
                 firstTsSec = state.firstTs() / dateFactor;
                 firstValue = state.firstValue();
@@ -1076,12 +1105,15 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
         } else {
-            firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
+            long previousBucketEnd = tsContext.rangeEndInMillis(previousGroupId);
+            long currentBucketStart = tsContext.rangeStartInMillis(group);
+            firstTsSec = AbstractRateGroupingFunction.interpolationBoundaryInSeconds(previousBucketEnd, currentBucketStart);
+            firstValue = interpolateBetweenStates(previousState, state, firstTsSec, dateFactor, true);
         }
 
-        int nextGroupId = tsContext.nextGroupId(group);
-        var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
-        if (nextState == null || nextState.samples == 0) {
+        int nextGroupId = findNextGroupWithSamples(group, tsContext);
+        ReducedState nextState = nextGroupId >= 0 ? reducedStates.get(nextGroupId) : null;
+        if (nextState == null) {
             if (state.samples == 1) {
                 lastTsSec = state.lastTs() / dateFactor;
                 lastValue = state.lastValue() + state.resets;
@@ -1089,7 +1121,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
         } else {
-            lastValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false) + state.resets;
+            long currentBucketEnd = tsContext.rangeEndInMillis(group);
+            long nextBucketStart = tsContext.rangeStartInMillis(nextGroupId);
+            lastTsSec = AbstractRateGroupingFunction.interpolationBoundaryInSeconds(currentBucketEnd, nextBucketStart);
+            lastValue = interpolateBetweenStates(state, nextState, lastTsSec, dateFactor, false) + state.resets;
         }
 
         if (lastTsSec == firstTsSec) {
@@ -1163,11 +1198,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     /**
-     * Interpolates the value at the time bucket boundary between two states.
-     *
-     * For the lower boundary (tbucketStart), interpolation is applied between the last sample of the lower state
-     * and the first sample of the upper state. Conversely, for the upper boundary (tbucketEnd), interpolation
-     * is applied between the first sample of the lower state and the last sample of the upper state.
+     * Interpolates the value at {@code boundary} between two states.
      *
      * The logic detects counter resets across the boundary, with interpolation using the last value instead of the
      * value delta to produce correct results.
@@ -1175,8 +1206,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private double interpolateBetweenStates(
         ReducedState lowerState,
         ReducedState upperState,
-        double tbucketStart,
-        double tbucketEnd,
+        double boundary,
         double dateFactor,
         boolean isLowerBoundary
     ) {
@@ -1185,18 +1215,12 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         final double endValue = upperState.firstValue();
         final double endTs = upperState.firstTs() / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
+        assert startTs <= boundary : startTs + " <= " + boundary;
+        assert boundary <= endTs : boundary + " <= " + endTs;
         final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
-        if (isLowerBoundary) {
-            assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
-            final double baseValue = (endValue >= startValue) ? startValue : 0;
-            double timeDelta = tbucketStart - startTs;
-            return baseValue + slope * timeDelta;
-        } else {
-            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
-            double timeDelta = tbucketEnd - startTs;
-            return startValue + slope * timeDelta;
-        }
+        final double baseValue = isLowerBoundary && endValue < startValue ? 0 : startValue;
+        return baseValue + slope * (boundary - startTs);
     }
 
     private double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {

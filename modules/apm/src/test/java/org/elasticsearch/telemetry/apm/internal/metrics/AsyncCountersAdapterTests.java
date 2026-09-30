@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncCountersAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -140,26 +141,24 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
 
-    public void testNullRecord() throws Exception {
-        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<DoubleWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dcounter);
-        assertThat(metrics, hasSize(0));
+    public void testNullRecord() {
+        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dcounter.close();
 
-        LongAsyncCounter lcounter = registry.registerLongAsyncCounter(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<LongWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        metrics = otelMeter.getRecorder().getMeasurements(lcounter);
-        assertThat(metrics, hasSize(0));
+        LongAsyncCounter lcounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lcounter.close();
+    }
+
+    public void testNullRecords() {
+        DoubleAsyncCounter dcounter = registry.registerDoublesAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dcounter.close();
+
+        LongAsyncCounter lcounter = registry.registerLongsAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lcounter.close();
     }
 
     public void testLongAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {

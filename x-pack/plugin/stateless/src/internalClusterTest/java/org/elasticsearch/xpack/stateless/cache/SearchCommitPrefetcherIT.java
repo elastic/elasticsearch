@@ -1033,8 +1033,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         var bytesRead = super.read(b, off, len);
-                        if (bytesRead > 0 && StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
-                            prefetchedGenerations.add(StatelessCompoundCommit.parseGenerationFromBlobName(blobName));
+                        if (bytesRead > 0 && BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+                            prefetchedGenerations.add(BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
                         }
                         return bytesRead;
                     }

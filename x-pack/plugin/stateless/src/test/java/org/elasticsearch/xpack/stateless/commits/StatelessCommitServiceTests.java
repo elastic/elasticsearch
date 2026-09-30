@@ -109,10 +109,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -771,7 +771,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Verify the blob names returned match the actually uploaded BCC blobs
             Set<String> uploadedBlobNames = trackedUploadedBlobFiles.stream().map(BlobFile::blobName).collect(Collectors.toSet());
             Set<String> capturedBccBlobs = actuallyUploadedBccBlobs.stream()
-                .filter(StatelessCompoundCommit::startsWithBlobPrefix)
+                .filter(BatchedCompoundCommit::startsWithBlobPrefix)
                 .collect(Collectors.toSet());
             assertThat(uploadedBlobNames, equalTo(capturedBccBlobs));
 
@@ -1787,7 +1787,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 Map.of(
                     "segments_2",
                     new BlobLocation(
-                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
+                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
                         12,
                         12
                     )
@@ -1801,7 +1801,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
+                .mapToObj(i -> new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
@@ -2586,7 +2586,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 final List<BatchedCompoundCommit> allBatchedCompoundCommits = blobContainer.listBlobs(OperationPurpose.INDICES)
                     .values()
                     .stream()
-                    .filter(blobMetadata -> StatelessCompoundCommit.startsWithBlobPrefix(blobMetadata.name()))
+                    .filter(blobMetadata -> BatchedCompoundCommit.startsWithBlobPrefix(blobMetadata.name()))
                     .map(blobMetadata -> {
                         try {
                             return BatchedCompoundCommit.readFromStore(
@@ -2632,7 +2632,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertBusy(
                     () -> assertTrue(
                         testHarness.getShardContainer()
-                            .blobExists(OperationPurpose.INDICES, StatelessCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
+                            .blobExists(OperationPurpose.INDICES, BatchedCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
                     )
                 );
             }
@@ -3035,7 +3035,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         long blobSize,
                         boolean failIfAlreadyExists
                     ) throws IOException {
-                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        assertTrue(blobName, BatchedCompoundCommit.startsWithBlobPrefix(blobName));
                         safeAwait(commitUploadStarted);
                         safeAwait(commitUploadBlocked);
                         super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
@@ -3416,7 +3416,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         long blobSize,
                         boolean failIfAlreadyExists
                     ) throws IOException {
-                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        assertTrue(blobName, BatchedCompoundCommit.startsWithBlobPrefix(blobName));
                         compoundCommitFileConsumer.accept(
                             blobName,
                             () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists)

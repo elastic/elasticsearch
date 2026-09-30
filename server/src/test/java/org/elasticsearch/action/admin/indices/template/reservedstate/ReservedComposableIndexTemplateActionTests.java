@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -82,7 +82,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     private MetadataIndexTemplateService templateService;
     private IndexScopedSettings indexScopedSettings;
     private IndicesService indicesService;
-    private DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private ProjectId projectId;
     private NamedXContentRegistry xContentRegistry;
 
@@ -99,7 +99,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         doReturn(mapperService).when(indexService).mapperService();
         doReturn(indexService).when(indicesService).createIndex(any(), any(), anyBoolean());
 
-        globalRetentionSettings = DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
         xContentRegistry = Mockito.mock(NamedXContentRegistry.class);
         templateService = new MetadataIndexTemplateService(
             mock(ClusterService.class),
@@ -109,7 +109,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             xContentRegistry,
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            dataStreamLifecycleSettings
         );
     }
 
@@ -900,7 +900,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             xContentRegistry,
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            dataStreamLifecycleSettings
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))

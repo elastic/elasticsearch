@@ -64,6 +64,8 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     protected final DataGenerationHelper dataGenerationHelper;
+    private int baselineBulkBatches = 0;
+    private int contenderBulkBatches = 0;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         this(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30)));
@@ -93,6 +95,13 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             builder.put("index.number_of_replicas", numReplicas);
         }
         builder.put("index.mapping.total_fields.limit", 5000);
+        // These tests time out in CI on bulk and search requests. The slowlog names the exact shard, document and query that were
+        // slow, which the client-side request timing in AbstractChallengeRestTest cannot see. It is written to the cluster's
+        // <cluster>_index_indexing_slowlog.json and <cluster>_index_search_slowlog.json files, not to the main cluster log.
+        builder.put("index.indexing.slowlog.threshold.index.warn", "5s");
+        builder.put("index.indexing.slowlog.source", 2000);
+        builder.put("index.search.slowlog.threshold.query.warn", "5s");
+        builder.put("index.search.slowlog.threshold.fetch.warn", "5s");
     }
 
     @Override
@@ -114,6 +123,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     @Override
     public void beforeStart() throws Exception {
         waitForLogs(client());
+    }
+
+    /**
+     * Logs the randomized shape of this test run. Shard and replica counts, sort configuration and the generated field types
+     * are all decided by the seed, but none of them are visible in CI output otherwise. When a request times out this is what
+     * tells us whether the run was unusually heavy.
+     */
+    @Override
+    public void beforeEnd() {
+        logger.info("--> Test configuration:");
+        logger.info("---> baseline settings: {}", getBaselineSettings().build());
+        logger.info("---> contender settings: {}", getContenderSettings().build());
+        logger.info("---> data generation: {}", dataGenerationHelper.describe());
     }
 
     protected boolean autoGenerateId() {
@@ -413,7 +435,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
         request.setEntity(getHttpEntity(json));
         request.addParameter("refresh", "true");
-        var response = client.performRequest(request);
+        final int batch = isBaseline ? ++baselineBulkBatches : ++contenderBulkBatches;
+        // Each document takes two lines: the action line and the source line.
+        final long documentCount = json.chars().filter(c -> c == '\n').count() / 2;
+        var response = performRequestLogged(
+            request,
+            Strings.format(
+                "bulk %s batch [%d] with [%d] documents, [%d] chars",
+                isBaseline ? "baseline" : "contender",
+                batch,
+                documentCount,
+                json.length()
+            )
+        );
         assertOK(response);
         var responseBody = entityAsMap(response);
         assertThat(

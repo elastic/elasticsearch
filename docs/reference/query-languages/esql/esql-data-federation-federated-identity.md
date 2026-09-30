@@ -187,7 +187,6 @@ PUT /_query/data_source/prod_s3_federated
 {
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "federated_identity",
     "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role", <1>
     "jwt_audience": "sts.amazonaws.com" <2>
@@ -207,7 +206,6 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "federated_identity",
     "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role",
     "jwt_audience": "sts.amazonaws.com"
@@ -219,6 +217,10 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 ::::
 
 **Step 2.** **Create a dataset.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
+
+:::{note}
+`region` is a dataset-level setting, not a data source setting. Set it on the dataset when your bucket is not in the default commercial AWS partition. For `auth: federated_identity`, `region` also determines the AWS region used for the STS role-assumption request. If omitted, {{es}} auto-detects the bucket region for S3 calls, and STS defaults to `us-east-1` — which works for standard commercial AWS. See [`sts_region`](esql-data-federation-sources.md) on the data source to override the STS region independently.
+:::
 
 You can now query the remote data with {{esql}}.
 ::::::

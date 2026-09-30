@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -291,7 +292,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
     // -- helpers --
 
-    private static class BytesObject implements StorageObject {
+    private static class BytesObject extends AbstractTestStorageObject {
         protected final byte[] bytes;
 
         BytesObject(byte[] bytes) {

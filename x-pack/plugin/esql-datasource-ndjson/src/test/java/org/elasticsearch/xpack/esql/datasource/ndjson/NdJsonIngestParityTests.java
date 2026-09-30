@@ -214,14 +214,15 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
      * has no such dial. Parity of the outcome is asserted rather than parity of the leaves, as there are none.
      * <p>
      * Merging the two occurrences instead, the way the two dotted spellings of one leaf merge, would answer over a
-     * record that could never have been indexed. That both messages name the same field is what pins the two
-     * checks to one cause.
+     * record that could never have been indexed. That the reader's cause and the ingest failure name the same field
+     * is what pins the two checks to one cause; the reader's own message names only the row and the kind.
      */
     public void testRepeatedFlatKeyIsRejectedByBoth() {
         String json = """
             {"a.b":1,"a.b":2}""";
         ParsingException readerFailure = expectThrows(ParsingException.class, () -> readerLeaves(json));
-        assertThat(readerFailure.getMessage(), containsString("Duplicate field 'a.b'"));
+        assertThat(readerFailure.getMessage(), containsString("row [1]: duplicate field name"));
+        assertThat(readerFailure.getCause().getMessage(), containsString("Duplicate field 'a.b'"));
         DocumentParsingException ingestFailure = expectThrows(DocumentParsingException.class, () -> ingestLeaves(json));
         assertThat(ingestFailure.getMessage(), containsString("Duplicate field 'a.b'"));
     }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { TestSummary } from "./analyze.ts";
+import type { TestSummary } from "./junit-reports-analyzer.ts";
 import { renderMarkdown, severity } from "./render.ts";
 
 describe("renderMarkdown / severity", () => {

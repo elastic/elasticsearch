@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -40,6 +41,7 @@ import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -55,14 +57,18 @@ import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -78,6 +84,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -108,15 +115,38 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     protected static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 128 * 1024;
     protected static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 1024;
 
+    /**
+     * Returns a codec guaranteed to have optimized merge enabled. Used by
+     * {@code testForceMergeWithOversizedBinaryValues} so the verbatim-copy assertion always fires.
+     * Subclasses whose main codec randomizes this flag must override to return a codec with the flag
+     * forced on.
+     */
+    protected Codec getCodecWithOptimizedMerge() {
+        return getCodec();
+    }
+
     static {
         LogConfigurator.configureESLogging();
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
-        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, codec);
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, multiValued, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(
+        String hostnameField,
+        boolean multiValued,
+        String timestampField,
+        Codec codec
+    ) {
         var config = new IndexWriterConfig();
         if (hostnameField != null) {
             config.setIndexSort(
@@ -130,7 +160,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        config.setCodec(getCodec());
+        config.setCodec(codec);
         return config;
     }
 
@@ -2827,6 +2857,406 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         assertEquals(expectedBitSet, bitSet);
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Tests that the raw-block probe ({@link TSDBBinaryDocValues#rawSingleValueBlock}) correctly
+     * identifies single-doc blocks for oversized values, returns {@code null} for small values in
+     * multi-doc blocks, and does not disturb the decode state when interleaved with
+     * {@link org.apache.lucene.index.BinaryDocValues#binaryValue()} calls.
+     *
+     * <p>The interleave assertion is the key regression test for the probe/decode cursor isolation:
+     * if anyone routes the probe through {@code findAndUpdateBlock} (which mutates
+     * {@code startDocNumForBlock}/{@code limitDocNumForBlock} without advancing {@code lastBlockId}),
+     * a subsequent {@code binaryValue()} would return bytes from the wrong block.
+     */
+    public void testRawSingleDocBlockHandoff() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_field";
+        final boolean sparse = randomBoolean();
+
+        // Build a value list: small | oversized | small | oversized | small (tail)
+        // The two oversized values should each land in a single-doc block (after the write-side
+        // pre-flush added by this change). Small values share a block.
+        List<String> values = new ArrayList<>();
+        int smallCount = randomIntBetween(3, 10);
+        for (int i = 0; i < smallCount; i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // First oversized value: just above the threshold so it is a single-doc block.
+        values.add(randomAlphaOfLength(threshold + 1024));
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // Second oversized value.
+        values.add(randomAlphaOfLength(threshold + 2048));
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            values.add(randomAlphaOfLengthBetween(1, 20));
+        }
+
+        // Map timestamp → expected value so we can verify exact bytes after the index sort
+        // has reordered docs within the segment (all docs share one hostname, so the secondary
+        // sort by timestamp DESC is what determines physical order).
+        Map<Long, String> expectedByTimestamp = new HashMap<>();
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) != null) {
+                expectedByTimestamp.put(BASE_TIMESTAMP + i * 1000L, values.get(i));
+            }
+        }
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Write everything in a single segment so we test the read-side probe on a flushed seg.
+            for (int i = 0; i < values.size(); i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i * 1000L));
+                if (values.get(i) != null) {
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(values.get(i))));
+                }
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+                // Read timestamp alongside binary DV to map back to expected values after sort.
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                assertNotNull(timestampDV);
+
+                // Iterate in doc order, probing each doc and asserting exact bytes.
+                Set<Integer> oversizedDocIds = new HashSet<>();
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    assertTrue(timestampDV.advanceExact(doc));
+                    long ts = timestampDV.longValue();
+                    String expectedStr = expectedByTimestamp.get(ts);
+                    assertNotNull("every doc with a binary value must have a timestamp mapping", expectedStr);
+
+                    // First probe — before calling binaryValue(). Pass the format threshold so
+                    // that small values do not return a raw block and trigger the size assertion.
+                    RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
+
+                    if (raw != null) {
+                        // This is an oversized value in its own block.
+                        assertThat("raw block must have positive uncompressed length", raw.uncompressedLength(), greaterThan(0));
+                        assertThat("raw block must meet minimum size", raw.uncompressedLength(), greaterThan(threshold - 1));
+                        oversizedDocIds.add(doc);
+                    }
+
+                    // Call binaryValue() — must work regardless of whether we probed.
+                    BytesRef actualValue = tsdb.binaryValue();
+                    assertNotNull(actualValue);
+                    assertEquals("bytes must round-trip through write and read", new BytesRef(expectedStr), actualValue);
+                    // If we got a raw block, verify the decoded length matches.
+                    if (raw != null) {
+                        assertEquals(
+                            "rawSingleValueBlock uncompressedLength must match binaryValue().length",
+                            actualValue.length,
+                            raw.uncompressedLength()
+                        );
+                    }
+
+                    // Probe again after binaryValue() — must still work and return the same answer.
+                    // This is the regression test for §1's decoder-state isolation: if rawSingleValueBlock
+                    // corrupted the decode cursor, the second probe would return stale state.
+                    RawBinaryBlock rawAgain = tsdb.rawSingleValueBlock(threshold);
+                    if (raw != null) {
+                        assertNotNull("second probe must also return non-null for the same oversized doc", rawAgain);
+                        assertEquals(raw.uncompressedLength(), rawAgain.uncompressedLength());
+                    } else {
+                        assertNull("second probe must also return null for a small/multi-doc value", rawAgain);
+                    }
+                }
+
+                // The two oversized values are threshold+1024 and threshold+2048 bytes, always above
+                // the gate; at least one must have been detected.
+                assertFalse("at least one oversized value should have been detected", oversizedDocIds.isEmpty());
+            }
+        }
+    }
+
+    /**
+     * Verifies that a force merge of multiple index-sorted segments containing oversized binary
+     * values produces correct results (exact byte equality), and that the verbatim-copy fast path
+     * actually fired.
+     *
+     * <p>The InfoStream assertion is the key observability check: zstd is deterministic at a fixed
+     * level, so a verbatim-copied and a re-compressed segment are byte-identical — we cannot observe
+     * the optimization from output bytes alone. The byte-equality check after merge is therefore not
+     * redundant with the InfoStream assertion: it catches wrong-doc copies (the failure mode of a
+     * probe that corrupted its cursor) that would also produce the InfoStream message.
+     */
+    public void testForceMergeWithOversizedBinaryValues() throws IOException {
+        final int threshold = 512 * 1024;
+        final String denseField = "binary_dense";
+        final String sparseField = "binary_sparse";
+        // Oversized values are just above the threshold to keep CI heap sane.
+        final int oversizedLen = threshold + 1024;
+        final int numSmall = randomIntBetween(5, 20);
+        final int numSegments = randomIntBetween(2, 4);
+
+        // Pre-generate all document values so we can verify exact bytes after the force merge
+        // has reordered docs across segments under the index sort.
+        // Segment seg uses timestamps BASE + seg, BASE + seg + numSegments, ...,
+        // BASE + seg + numSmall * numSegments. All segments share the same hostname so their
+        // timestamps interleave, which forces needsIndexSort=true during the merge.
+        final Map<Long, String> expectedDense = new HashMap<>();
+        final Map<Long, String> expectedSparse = new HashMap<>();
+        for (int seg = 0; seg < numSegments; seg++) {
+            for (int i = 0; i < numSmall; i++) {
+                long ts = BASE_TIMESTAMP + seg + (long) i * numSegments;
+                expectedDense.put(ts, randomAlphaOfLengthBetween(1, 20));
+                if (randomBoolean()) {
+                    expectedSparse.put(ts, randomAlphaOfLengthBetween(1, 20));
+                }
+            }
+            // The oversized value — must land in its own single-doc block after the write-side
+            // pre-flush. Highest timestamp per segment so it sorts to physical doc 0 (timestamp DESC).
+            long oversizedTs = BASE_TIMESTAMP + seg + (long) numSmall * numSegments;
+            expectedDense.put(oversizedTs, randomAlphaOfLength(oversizedLen));
+            expectedSparse.put(oversizedTs, randomAlphaOfLength(oversizedLen));
+        }
+
+        // Use a codec with optimized merge always enabled so the InfoStream assertion fires
+        // unconditionally, regardless of how the subclass's main codec randomizes that flag.
+        var baos = new ByteArrayOutputStream();
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
+        config.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int seg = 0; seg < numSegments; seg++) {
+                for (int i = 0; i < numSmall; i++) {
+                    long ts = BASE_TIMESTAMP + seg + (long) i * numSegments;
+                    var d = new Document();
+                    d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                    d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, ts));
+                    d.add(new BinaryDocValuesField(denseField, new BytesRef(expectedDense.get(ts))));
+                    if (expectedSparse.containsKey(ts)) {
+                        d.add(new BinaryDocValuesField(sparseField, new BytesRef(expectedSparse.get(ts))));
+                    }
+                    iw.addDocument(d);
+                }
+                long oversizedTs = BASE_TIMESTAMP + seg + (long) numSmall * numSegments;
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, oversizedTs));
+                d.add(new BinaryDocValuesField(denseField, new BytesRef(expectedDense.get(oversizedTs))));
+                d.add(new BinaryDocValuesField(sparseField, new BytesRef(expectedSparse.get(oversizedTs))));
+                iw.addDocument(d);
+                iw.commit();
+            }
+
+            iw.forceMerge(1);
+
+            // Check values round-trip with exact byte equality.
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().getFirst().reader();
+
+                // Dense field: every doc has a value; verify exact bytes via timestamp lookup.
+                {
+                    var denseDV = leaf.getBinaryDocValues(denseField);
+                    assertNotNull(denseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    while (denseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = denseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        assertEquals(
+                            "dense value must round-trip for doc " + doc,
+                            new BytesRef(expectedDense.get(ts)),
+                            denseDV.binaryValue()
+                        );
+                    }
+                }
+
+                // Dense field again: verify the length-reader path (exercises decodeLength).
+                {
+                    var denseDV = getTSDBBinaryValues(leaf, denseField);
+                    assertNotNull(denseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    var lengthReader = denseDV.toLengthValues();
+                    while (denseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = denseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        int expectedLen = expectedDense.get(ts).length();
+                        assertTrue(lengthReader.advanceExact(doc));
+                        assertEquals("length must match via toLengthValues for doc " + doc, expectedLen, lengthReader.longValue());
+                    }
+                }
+
+                // Sparse field: verify exact bytes via timestamp lookup.
+                {
+                    var sparseDV = leaf.getBinaryDocValues(sparseField);
+                    assertNotNull(sparseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    int sparseCount = 0;
+                    while (sparseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = sparseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        assertNotNull("sparse doc " + doc + " must have an expected value", expectedSparse.get(ts));
+                        assertEquals(
+                            "sparse value must round-trip for doc " + doc,
+                            new BytesRef(expectedSparse.get(ts)),
+                            sparseDV.binaryValue()
+                        );
+                        sparseCount++;
+                    }
+                    assertTrue("sparse field should have values", sparseCount > 0);
+                }
+            }
+        }
+
+        // The InfoStream assertion: the verbatim-copy message must have fired at least once (one
+        // oversized single-doc block per source segment per field).
+        assertTrue("verbatim-copy must have fired during merge", baos.toString(StandardCharsets.UTF_8).contains("copied binary block of"));
+    }
+
+    /**
+     * Verifies the merge path when <em>every</em> value in a field is oversized — the case that
+     * catches a missed update to the three writer bookkeeping fields ({@code totalChunks},
+     * {@code maxUncompressedBlockLength}, {@code maxNumDocsInAnyBlock}) in
+     * {@code addRawBlock}. If any of those were omitted, every block would arrive via the verbatim
+     * path and none via {@code flushData}, so the field's metadata would be wrong and reads would
+     * fail or silently return corrupt bytes.
+     */
+    public void testMergeAllOversizedBinaryValues() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_all_oversized";
+        final int oversizedLen = threshold + 1024;
+        final int numSegments = randomIntBetween(2, 4);
+        final int docsPerSegment = randomIntBetween(2, 5);
+
+        // Pre-generate all values so we can verify exact bytes after merge.
+        // Segment seg uses timestamps BASE + seg, BASE + seg + numSegments, ...,
+        // BASE + seg + (docsPerSegment-1) * numSegments. All segments share the same hostname so
+        // their timestamps interleave in sort order, forcing needsIndexSort=true during the merge.
+        final Map<Long, String> expectedByTimestamp = new HashMap<>();
+        for (int seg = 0; seg < numSegments; seg++) {
+            for (int doc = 0; doc < docsPerSegment; doc++) {
+                long ts = BASE_TIMESTAMP + seg + (long) doc * numSegments;
+                expectedByTimestamp.put(ts, randomAlphaOfLength(oversizedLen));
+            }
+        }
+
+        // Use a codec with optimized merge always enabled so the InfoStream assertion fires.
+        var baos = new ByteArrayOutputStream();
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
+        config.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int seg = 0; seg < numSegments; seg++) {
+                for (int doc = 0; doc < docsPerSegment; doc++) {
+                    long ts = BASE_TIMESTAMP + seg + (long) doc * numSegments;
+                    var d = new Document();
+                    // All segments share host-1 so that their timestamps interleave in the index sort
+                    // (hostname ASC, timestamp DESC), which forces needsIndexSort=true at merge time.
+                    d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                    d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, ts));
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(expectedByTimestamp.get(ts))));
+                    iw.addDocument(d);
+                }
+                iw.commit();
+            }
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().getFirst().reader();
+                var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                var binaryDV = leaf.getBinaryDocValues(binaryField);
+                assertNotNull(binaryDV);
+                int count = 0;
+                while (binaryDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    int doc = binaryDV.docID();
+                    assertTrue(tsDV.advanceExact(doc));
+                    long ts = tsDV.longValue();
+                    assertEquals(
+                        "all-oversized field: value must round-trip for doc " + doc,
+                        new BytesRef(expectedByTimestamp.get(ts)),
+                        binaryDV.binaryValue()
+                    );
+                    count++;
+                }
+                assertEquals("all docs must have a value", numSegments * docsPerSegment, count);
+            }
+        }
+
+        // Every value is oversized, so every source block is a single-doc block and every merge
+        // step goes through addRawBlock. The InfoStream must have fired at least once.
+        assertTrue(
+            "verbatim-copy must have fired for all-oversized field",
+            baos.toString(StandardCharsets.UTF_8).contains("copied binary block of")
+        );
+    }
+
+    /**
+     * Verifies that after the write-side pre-flush (flush pending block before an oversized value),
+     * an oversized value written to a fresh segment lands in a single-doc block — observable by
+     * {@link TSDBBinaryDocValues#rawSingleValueBlock} returning non-null for it.
+     */
+    public void testOversizedValueAlwaysLandsInSingleDocBlock() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_field";
+        final int oversizedLen = threshold + 512;
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Mix small values with an oversized value in the middle. The oversized value must land
+            // alone regardless of what preceded it.
+            int smallBefore = randomIntBetween(2, 10);
+            for (int i = 0; i < smallBefore; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            final String oversizedValue = randomAlphaOfLength(oversizedLen);
+            int oversizedDocIndex = smallBefore;
+            var od = new Document();
+            od.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+            od.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex));
+            od.add(new BinaryDocValuesField(binaryField, new BytesRef(oversizedValue)));
+            iw.addDocument(od);
+            int smallAfter = randomIntBetween(1, 5);
+            for (int i = 0; i < smallAfter; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex + 1 + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+
+                boolean foundOversized = false;
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    BytesRef val = tsdb.binaryValue();
+                    if (val.length == oversizedLen) {
+                        // This is the oversized value. It must be the sole doc in its block.
+                        RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
+                        assertNotNull(
+                            "Oversized value (length="
+                                + oversizedLen
+                                + ") must land in a single-doc block "
+                                + "and rawSingleValueBlock must return non-null",
+                            raw
+                        );
+                        assertEquals(oversizedLen, raw.uncompressedLength());
+                        foundOversized = true;
+                    }
+                }
+                assertTrue("Should have found the oversized value", foundOversized);
             }
         }
     }

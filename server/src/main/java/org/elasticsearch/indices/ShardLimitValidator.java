@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -359,6 +360,28 @@ public class ShardLimitValidator {
         public abstract int countShards(IndexMetadata indexMetadata);
 
         /**
+         * Counts open shards in this group for a single project.
+         */
+        public int countShards(ProjectMetadata project) {
+            int total = 0;
+            for (IndexMetadata indexMetadata : project) {
+                total += countShards(indexMetadata);
+            }
+            return total;
+        }
+
+        /**
+         * Counts open shards across all projects.
+         */
+        public long countShards(Metadata metadata) {
+            long total = 0;
+            for (ProjectMetadata project : metadata.projects().values()) {
+                total += countShards(project);
+            }
+            return total;
+        }
+
+        /**
          * Compute the total number of new shards including both primaries and replicas that would be created for the given
          * number of shards and replicas in this group.
          * @param shards Number of primary shards
@@ -431,12 +454,7 @@ public class ShardLimitValidator {
             }
 
             if ((currentOpenShards + newShards) > maxShardsInCluster) {
-                long currentFilteredShards = metadata.projects()
-                    .values()
-                    .stream()
-                    .flatMap(projectMetadata -> projectMetadata.indices().values().stream())
-                    .mapToInt(this::countShards)
-                    .sum();
+                long currentFilteredShards = countShards(metadata);
 
                 if ((currentFilteredShards + newShards) > maxShardsInCluster) {
                     return new Result(false, Optional.of(currentFilteredShards), newShards, maxShardsInCluster, this);

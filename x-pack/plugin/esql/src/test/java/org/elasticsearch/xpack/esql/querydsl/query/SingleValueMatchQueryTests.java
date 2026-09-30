@@ -36,7 +36,9 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -72,6 +74,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         default Settings indexSettings() {
             return Settings.EMPTY;
         }
+
+        /** Whether this setup writes the ColumNAR codec's payload, which it can only do where the codec is available. */
+        default boolean needsColumnarCodec() {
+            return false;
+        }
     }
 
     @ParametersFactory(argumentFormatting = "%s")
@@ -85,16 +92,12 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                         params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
                     }
                     if (fieldType.equals("keyword")) {
-                        params.add(
-                            new Object[] {
-                                new StandardSetup(
-                                    fieldType,
-                                    multivaluedField,
-                                    DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY,
-                                    allowEmpty,
-                                    100
-                                ) }
-                        );
+                        // Both layouts a strictly columnar index writes high-cardinality keywords in, since each has its own reader.
+                        for (DocValuesMode highCardinality : new DocValuesMode[] {
+                            DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY,
+                            DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD }) {
+                            params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, highCardinality, allowEmpty, 100) });
+                        }
                     }
                 }
             }
@@ -118,6 +121,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testQuery() throws IOException {
+        assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
@@ -132,6 +136,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testEmpty() throws IOException {
+        assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
@@ -142,6 +147,14 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
             }
         }
+    }
+
+    /** A setup that writes the codec's payload only runs where the codec can be turned on. */
+    private void assumeCodecAvailable() {
+        assumeTrue(
+            "columnar_codec feature flag must be enabled",
+            setup.needsColumnarCodec() == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+        );
     }
 
     @FunctionalInterface
@@ -201,7 +214,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
             return switch (docValuesMode) {
                 // binary doc values are used for high cardinality fields in strictly columnar index modes
-                case DOC_VALUES_ONLY_HIGH_CARDINALITY -> builder.startObject("foo").field("type", fieldType).endObject();
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD -> builder.startObject("foo")
+                    .field("type", fieldType)
+                    .endObject();
                 case DOC_VALUES_ONLY -> builder.startObject("foo").field("type", fieldType).field("doc_values", true).endObject();
                 case DEFAULT -> builder.startObject("foo").field("type", fieldType).endObject();
             };
@@ -209,10 +224,24 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public Settings indexSettings() {
-            // The HIGH-cardinality keyword setup relies on a strict-columnar index mode to default the field to binary doc values.
-            return docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY
-                ? Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
-                : Settings.EMPTY;
+            // The HIGH-cardinality keyword setups rely on a strict-columnar index mode to default the field to binary doc values.
+            // Which of the two layouts it gets follows the codec setting, and these build the doc values by hand, so the setting is
+            // named rather than left to its default.
+            return switch (docValuesMode) {
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD -> Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put(
+                        IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(),
+                        docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD
+                    )
+                    .build();
+                case DEFAULT, DOC_VALUES_ONLY -> Settings.EMPTY;
+            };
+        }
+
+        @Override
+        public boolean needsColumnarCodec() {
+            return docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD;
         }
 
         @Override
@@ -228,9 +257,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            // The columnar high-cardinality binary reader does not expose value mode / sparsity (its .counts field counts slots including
-            // nulls and empty arrays, so the skipper can't prove every doc has exactly one value), so the query never rewrites away.
-            if (docValuesMode != DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY && empty == false && multivaluedField == false) {
+            // Neither columnar high-cardinality binary reader exposes value mode / sparsity (the slot count covers nulls and empty
+            // arrays too, so the skipper can't prove every doc has exactly one value), so the query never rewrites away.
+            final boolean highCardinality = docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY
+                || docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD;
+            if (highCardinality == false && empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -259,7 +290,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     enum DocValuesMode {
         DEFAULT,
         DOC_VALUES_ONLY,
+        /** Binary doc values in the in-order column, with the slot count in a companion {@code .counts} field. */
         DOC_VALUES_ONLY_HIGH_CARDINALITY,
+        /** Binary doc values as the ColumNAR codec's payload, which carries its own slot count. */
+        DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD,
     }
 
     /**
@@ -309,9 +343,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        // High-cardinality keyword fields in strict-columnar mode write the ArrayOrderInlineNull format ([len+1][val] slots in document
-        // order), which is what the SortingArrayOrderBinaryDocValues reader selected for this field expects.
+        // High-cardinality keyword fields in a strictly columnar index write one of two binary layouts, each read by its own reader:
+        // the ArrayOrderInlineNull format ([len+1][val] slots in document order) with a companion count, or, under the ColumNAR
+        // codec, a payload carrying its own count. The setup names which one, so the bytes match the reader the field type selects.
         var mvField = new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull("foo");
+        var payloadField = new ColumnarBinaryDocValuesField("foo", MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {
@@ -320,6 +356,15 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     switch (v) {
                         case String s -> {
                             mvField.add(new BytesRef(s));
+                            count++;
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    }
+                }
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD -> {
+                    switch (v) {
+                        case String s -> {
+                            payloadField.add(new BytesRef(s));
                             count++;
                         }
                         default -> throw new UnsupportedOperationException();
@@ -347,8 +392,13 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             }
         }
         if (count > 0) {
-            fields.add(NumericDocValuesField.indexedField("foo" + COUNT_FIELD_SUFFIX, count));
-            fields.add(mvField);
+            if (docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD) {
+                // The payload states the count itself, so it travels alone.
+                fields.add(payloadField);
+            } else {
+                fields.add(NumericDocValuesField.indexedField("foo" + COUNT_FIELD_SUFFIX, count));
+                fields.add(mvField);
+            }
         }
         return fields;
     }

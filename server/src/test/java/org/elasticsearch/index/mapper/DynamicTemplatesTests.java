@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -752,7 +753,17 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
             """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), null));
+            .parse(
+                new SourceToParse(
+                    "1",
+                    new BytesSource(new BytesArray(json), XContentType.JSON, true),
+                    null,
+                    Map.of("foo", "geo_point"),
+                    Map.of(),
+                    XContentMeteringParserDecorator.NOOP,
+                    null
+                )
+            );
         assertThat(doc.rootDoc().getFields("foo"), hasSize(1));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }

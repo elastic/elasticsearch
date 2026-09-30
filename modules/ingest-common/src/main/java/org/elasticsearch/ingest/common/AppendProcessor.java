@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -72,7 +73,7 @@ public final class AppendProcessor extends AbstractProcessor {
         String path = document.renderTemplate(field);
         if (copyFrom != null) {
             Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValues);
-            document.appendFieldValue(path, IngestDocument.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
+            document.appendFieldValue(path, CollectionUtils.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
         } else {
             document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);
         }

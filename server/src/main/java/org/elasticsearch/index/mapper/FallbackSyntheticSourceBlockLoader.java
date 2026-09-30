@@ -14,7 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParser;
@@ -122,7 +122,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
          * Only set for {@link IgnoredSourceFieldMapper.IgnoredSourceFormat#DOC_VALUES_IGNORED_SOURCE}. Unlike the stored field formats,
          * this is a forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
          */
-        private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
+        private final MultiValuedSortableBinaryDocValues ignoredSourceDocValues;
         private final Thread creationThread;
         private int docId = -1;
 
@@ -143,7 +143,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             this.ignoredSourceFormat = ignoredSourceFormat;
             if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                 this.ignoredSourceDocValues = Objects.requireNonNull(
-                    MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                    MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                 );
             } else {
                 this.ignoredSourceDocValues = null;

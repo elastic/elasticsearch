@@ -15,7 +15,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
@@ -24,7 +23,8 @@ import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -212,7 +212,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            final SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            final SortableBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null
                 ? getLeafCollector(includeExclude, singleton, sub, consumer)
@@ -221,12 +221,12 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
         private LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
-            SortedBinaryDocValues values,
+            SortableBinaryDocValues values,
             LeafBucketCollector sub,
             CollectConsumer consumer
         ) {
             return new LeafBucketCollectorBase(sub, values) {
-                final BytesRefBuilder previous = new BytesRefBuilder();
+                final ValueDeduplicator duplicates = new ValueDeduplicator(values);
 
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -235,18 +235,17 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                     }
                     int valuesCount = values.docValueCount();
 
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // SortableBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
-                    previous.clear();
+                    duplicates.reset(valuesCount);
                     for (int i = 0; i < valuesCount; ++i) {
                         BytesRef bytes = values.nextValue();
                         if (includeExclude != null && false == includeExclude.accept(bytes)) {
                             continue;
                         }
-                        if (i > 0 && previous.get().equals(bytes)) {
+                        if (duplicates.seen(bytes)) {
                             continue;
                         }
-                        previous.copyBytes(bytes);
                         consumer.accept(sub, doc, owningBucketOrd, bytes);
                     }
                 }
@@ -456,7 +455,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                     final SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
                     collectZeroDocEntries(values, owningBucketOrd);
                 } else {
-                    final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+                    final SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
                     final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
                     if (singleton != null) {
                         collectZeroDocEntries(singleton, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
@@ -477,7 +476,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             }
         }
 
-        private void collectZeroDocEntries(SortedBinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd)
+        private void collectZeroDocEntries(SortableBinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd)
             throws IOException {
             // brute force
             for (int docId = 0; docId < maxDoc; ++docId) {

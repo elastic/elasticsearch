@@ -20,10 +20,10 @@ count:long
 100
 ;
 
-// The blank-gender rows group under null (inferred schema, so a blank cell has no value) and sort last.
+// The blank-gender rows group under "" (a blank string cell reads as the empty string) and sort first.
 aggregateMultiFileByGender
 required_capability: dataset_in_from_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -31,9 +31,9 @@ FROM employees_multifile_split
 | SORT gender;
 
 count:long | gender:keyword
+10         | ""
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 multiFileSalaryStats

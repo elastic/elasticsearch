@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -95,6 +96,14 @@ public final class ExceptionRootCauseFinder {
             }
             // We can safely retry SearchContextMissingException instead of failing the transform.
             if (elasticsearchException instanceof SearchContextMissingException) {
+                return false;
+            }
+            // Authentication/authorization failures can be transient in serverless: during cluster-membership
+            // churn / master failover the .security index is briefly not resolvable on the transform node, so
+            // role resolution returns empty and the write is denied with a 403. This recovers once cluster state
+            // stabilises, so retry (bounded by num_failure_retries) rather than failing permanently; a genuinely
+            // persistent auth failure still surfaces once the retry limit is exhausted.
+            if (elasticsearchException instanceof ElasticsearchSecurityException) {
                 return false;
             }
             return true;

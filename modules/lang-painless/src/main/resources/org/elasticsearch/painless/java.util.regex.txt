@@ -20,8 +20,8 @@ class java.util.regex.Pattern {
   Matcher org.elasticsearch.painless.api.Augmentation matcher(int, CharSequence) @inject_constant[1="regex_limit_factor"]
   String pattern()
   String quote(String)
-  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence) @inject_constant[1="regex_limit_factor"]
-  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence,int) @inject_constant[1="regex_limit_factor"]
+  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence) @inject_constant[1="regex_limit_factor"] @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="patternSplitBytes"]
+  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence,int) @inject_constant[1="regex_limit_factor"] @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="patternSplitBytes"]
   Stream org.elasticsearch.painless.api.Augmentation splitAsStream(int, CharSequence) @inject_constant[1="regex_limit_factor"]
 }
 

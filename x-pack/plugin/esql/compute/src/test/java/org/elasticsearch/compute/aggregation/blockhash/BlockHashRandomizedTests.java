@@ -206,7 +206,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                         int effectiveEmitBatchSize = emitBatchSize;
                         if (blockHash instanceof LongIntBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
-                        } else if (blockHash instanceof LongBytesRefAdaptiveBlockHash adaptive) {
+                        } else if (blockHash instanceof LongBytesRefBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
                         }
                         assertThat(
@@ -234,7 +234,6 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             }
 
             if (blockHash instanceof LongLongBlockHash == false
-                && blockHash instanceof BytesRefLongBlockHash == false
                 && blockHash instanceof BytesRef2BlockHash == false
                 && blockHash instanceof BytesRef3BlockHash == false) {
                 assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);

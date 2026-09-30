@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.script.IpScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -108,7 +108,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedBinaryDocValues dv = ifd.load(context).getBytesValues();
+                        SortableBinaryDocValues dv = ifd.load(context).getBytesValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}

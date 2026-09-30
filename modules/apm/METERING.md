@@ -63,22 +63,22 @@ There are 2 types of usages of an instrument depending on a type.
   longCounter.incrementBy(1, Map.of("name", "Bob"));
 ```
 
-- For asynchronous instrument (gauge/AsynchronousCounter) we register an instrument
+- For asynchronous instrument (async gauge/async counter) we register an instrument
   and have to provide a callback that will report the absolute measured value.
   This callback has to be provided upon registration and cannot be changed.
 ```java
 MeterRegistry registry;
 long someValue = 1;
-registry.registerLongGauge("es.test.cpu.temperature", "the current CPU temperature as measured by psensor", "degrees Celsius",
+registry.registerLongAsyncGauge("es.test.cpu.temperature", "the current CPU temperature as measured by psensor", "degrees Celsius",
 () -> new LongWithAttributes(someValue, Map.of("cpuNumber", 1)));
 ```
 
 If we don’t have access to ‘state’ that will be fetched on metric event (when callback is executed)
-we can use a utility LongGaugeMetric or LongGaugeMetric
+we can use synchronous gauges:
 ```java
 MeterRegistry meterRegistry ;
-LongGaugeMetric longGaugeMetric = LongGaugeMetric.create(meterRegistry, "es.test.gauge", "a test gauge", "total value");
-longGaugeMetric.set(123L);
+LongGauge longGauge = meterRegistry.registerLongGauge("es.test.gauge", "a test gauge", "total value");
+longGauge.set(123L);
 ```
 ### The use of attributes aka dimensions
 Each instrument can attach attributes to a reported value. This helps drilling down into the details

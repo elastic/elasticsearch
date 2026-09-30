@@ -31,7 +31,7 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 

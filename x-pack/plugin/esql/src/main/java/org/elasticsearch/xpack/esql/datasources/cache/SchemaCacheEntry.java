@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -153,22 +154,46 @@ public record SchemaCacheEntry(
         bytes += columnTypes.length * (long) Long.BYTES;
         bytes += columnNullabilities.length * (long) Long.BYTES;
         bytes += columnSynthetics.length;
-        bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
-        bytes += location != null ? location.length() * (long) Character.BYTES : 0;
+        bytes += estimatedStringBytes(sourceType);
+        bytes += estimatedStringBytes(location);
         for (String warning : warnings) {
             bytes += estimatedStringBytes(warning);
         }
-        // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
-        // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
-        // many-striped file doesn't under-count against the cache budget
-        for (Object value : safeMetadata.values()) {
-            bytes += 100L;
+        // ~100B per map entry (key String + value Object) plus the payload of variable-width values
+        // (keyword/text extrema as String or BytesRef). Nested maps (per-stripe stats under
+        // _stats.stripe.<k>) weigh their inner entries the same way so a many-striped file doesn't
+        // under-count against the cache budget.
+        bytes += estimatedMapBytes(safeMetadata);
+        bytes += estimatedMapBytes(connectorConfig);
+        return bytes;
+    }
+
+    /**
+     * Shape charge (~100B per entry) plus payload for {@link String} / {@link BytesRef} values. Fixed-size
+     * values (numbers, booleans) stay on the flat constant alone. Nested maps recurse one level for
+     * per-stripe statistics; deeper nesting is not expected in this metadata map.
+     */
+    private static long estimatedMapBytes(Map<String, Object> map) {
+        long bytes = 0L;
+        for (Object value : map.values()) {
+            bytes += 100L + estimatedValuePayloadBytes(value);
             if (value instanceof Map<?, ?> nested) {
-                bytes += nested.size() * 100L;
+                for (Object nestedValue : nested.values()) {
+                    bytes += 100L + estimatedValuePayloadBytes(nestedValue);
+                }
             }
         }
-        bytes += connectorConfig.size() * 100L;
         return bytes;
+    }
+
+    private static long estimatedValuePayloadBytes(@Nullable Object value) {
+        if (value instanceof String s) {
+            return HeapEstimates.stringBytes(s);
+        }
+        if (value instanceof BytesRef bytesRef) {
+            return HeapEstimates.bytesRefBytes(bytesRef);
+        }
+        return 0L;
     }
 
     static long estimatedStringBytes(@Nullable String s) {

@@ -39,10 +39,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link FetchPhaseResponseStream}.
@@ -268,6 +270,32 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
+    public void testBreakerBytesMoveToTheResultThatTakesTheHits() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        final FetchSearchResult result;
+        final long charged;
+        try {
+            writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
+            charged = breaker.getUsed();
+            assertThat(charged, greaterThan(0L));
+
+            result = buildFinalResult(stream);
+            stream.transferBreakerBytesTo(result);
+        } finally {
+            stream.decRef();
+        }
+
+        // Closing the stream gives nothing back, because the result owns the charge now.
+        assertThat(breaker.getUsed(), equalTo(charged));
+        assertThat(result.getSearchHitsSizeBytes(), equalTo(charged));
+        assertTrue(result.isChargedOnCoordinator());
+
+        result.decRef();
+        assertThat("Releasing the result gives the charge back exactly once", breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerChargesRetainedFieldGraphNotSerializedSize() throws IOException {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
@@ -372,6 +400,23 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 2048);
             expectThrows(CircuitBreakingException.class, () -> writeChunk(stream, chunk));
+        } finally {
+            stream.decRef();
+        }
+    }
+
+    public void testTripIsReportedToTheSearchBeforeItIsThrown() throws IOException {
+        long estimatedBytes = estimatedRetainedBytesForSourceSize(0, 5, 2048);
+
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(estimatedBytes - 1));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
+        AtomicReference<Exception> reported = new AtomicReference<>();
+        stream.setCoordinatorTripListener(reported::set);
+
+        try {
+            FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 2048);
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> writeChunk(stream, chunk));
+            assertThat(reported.get(), sameInstance(thrown));
         } finally {
             stream.decRef();
         }

@@ -20,6 +20,16 @@ public final class ExternalSourceCacheTestAccess {
     private ExternalSourceCacheTestAccess() {}
 
     /**
+     * Sum of {@link SchemaCacheEntry#estimatedBytes()} over every entry currently in the schema cache.
+     * Used by weight-accounting cluster tests to assert retained heap stays inside the schema budget slice.
+     */
+    public static long retainedSchemaWeightBytes(ExternalSourceCacheService service) {
+        long[] total = { 0L };
+        service.schemaCache().forEach((key, entry) -> total[0] += entry.estimatedBytes());
+        return total[0];
+    }
+
+    /**
      * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring},
      * leaving dataset-aggregate entries (marker-suffixed formatType) in place — the surgical arms of the
      * warm-fold regression tests must remove FILE entries, never the dataset aggregate under test.

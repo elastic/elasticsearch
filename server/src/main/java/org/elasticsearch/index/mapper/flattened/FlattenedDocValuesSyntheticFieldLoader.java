@@ -17,8 +17,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -134,7 +134,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         } else if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
+                SortableBinaryDocValues dv = MultiValuedSortableBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
                 docValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(docValues);
             } else {
@@ -144,7 +144,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             {
                 var offsetsBinaryDv = reader.getBinaryDocValues(offsetsFieldName);
                 if (offsetsBinaryDv != null) {
-                    SortedBinaryDocValues offsetsDv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName);
+                    SortableBinaryDocValues offsetsDv = MultiValuedSortableBinaryDocValues.from(reader, offsetsFieldName);
                     offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(offsetsDv);
                     allLoaders.add(offsetsDocValues);
                 } else {
@@ -162,7 +162,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             {
                 var binaryDv = reader.getBinaryDocValues(offsetsFieldName);
                 if (binaryDv != null) {
-                    SortedBinaryDocValues offsetsDv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName);
+                    SortableBinaryDocValues offsetsDv = MultiValuedSortableBinaryDocValues.from(reader, offsetsFieldName);
                     offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(offsetsDv);
                     allLoaders.add(offsetsDocValues);
                 } else {
@@ -182,7 +182,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (storeIgnoredFieldsInBinaryDocValues && keyedIgnoredValuesFieldFullPath != null) {
             var binaryDv = reader.getBinaryDocValues(keyedIgnoredValuesFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(
+                SortableBinaryDocValues dv = MultiValuedSortableBinaryDocValues.fromMultiValued(
                     reader,
                     keyedIgnoredValuesFieldFullPath,
                     binaryDv
@@ -324,9 +324,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     /**
-     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and {@link SortedBinaryDocValues}) that provides
-     * a uniform way to position on a document and read its keyed values. This allows the rest of the loader to work with keyed doc values
-     * without caring about the underlying storage format.
+     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and
+     * {@link SortableBinaryDocValues}) that provides a uniform way to position on a document and read its keyed
+     * values. This allows the rest of the loader to work with keyed doc values without caring about the underlying
+     * storage format.
      */
     interface FlattenedDocValues extends DocValuesLoader {
         boolean advanceToDoc(int docId) throws IOException;
@@ -396,10 +397,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     private static final class MultiValuedBinaryFlattenedDocValues implements SortedKeyedFlattenedDocValues {
-        private final SortedBinaryDocValues docValues;
+        private final SortableBinaryDocValues docValues;
         private boolean hasValue = false;
 
-        MultiValuedBinaryFlattenedDocValues(SortedBinaryDocValues docValues) {
+        MultiValuedBinaryFlattenedDocValues(SortableBinaryDocValues docValues) {
             this.docValues = docValues;
         }
 

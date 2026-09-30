@@ -550,9 +550,8 @@ You can query datasets created through [{{esql}} Data Federation](/reference/que
 {applies_to}`stack: experimental =9.5` Querying a dataset on a remote cluster returns an error, and so does a wildcard that matches one.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
-
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 You can use cross-project search (CPS) to query across multiple linked serverless projects. To learn more, refer to [Query across {{serverless-short}} projects](esql-cross-serverless-projects.md).

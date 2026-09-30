@@ -179,6 +179,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
         projectRouting = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) ? in.readOptionalString() : null;
         forceRekeying = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING) ? in.readOptionalBoolean() : null;
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // max_consecutive_extraction_failures was removed (#158426); drain the value sent by not-yet-reverted peers
+            in.readOptionalInt();
+        }
     }
 
     /**
@@ -231,6 +236,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING)) {
             out.writeOptionalBoolean(forceRekeying);
+        }
+        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && out.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            // keep the wire format aligned for not-yet-reverted peers that still read this field
+            out.writeOptionalInt(null);
         }
     }
 

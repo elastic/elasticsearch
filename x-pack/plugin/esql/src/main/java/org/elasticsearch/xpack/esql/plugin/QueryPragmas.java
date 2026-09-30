@@ -128,6 +128,31 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
+     * The total number of leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many run at
+     * once, this limits how many producer branches there are: each leaf becomes a data node query (or a coordinator-local source). Nested
+     * {@code UnionAll}s are merge segments, not leaves — they are bounded separately by {@link #MAX_BRANCH_LEVEL}. Subqueries nest,
+     * so the per-{@code FROM} limit ({@link org.elasticsearch.xpack.esql.plan.logical.Fork#MAX_BRANCHES}) alone lets the leaf total grow as
+     * a power of the nesting depth.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
+
+    /**
+     * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
+     * are checked separately because each runs through the compute service independently. Where {@link #MAX_BRANCH_COUNT} limits how many
+     * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
+     * under {@link #MAX_BRANCH_COUNT}.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_LEVEL} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_LEVEL = Setting.intSetting("max_branch_level", 5, 1);
+
+    /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
      * Defaults to allocated processors. Set to 1 to disable parallel parsing.
      */
@@ -217,6 +242,8 @@ public final class QueryPragmas implements Writeable {
         EXTERNAL_DISTRIBUTION,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
+        MAX_BRANCH_COUNT,
+        MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
@@ -383,6 +410,38 @@ public final class QueryPragmas implements Writeable {
 
     public int branchParallelDegree() {
         return BRANCH_PARALLEL_DEGREE.get(settings);
+    }
+
+    /**
+     * Effective leaf-branch cap: an explicit {@link #MAX_BRANCH_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCount(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
+     */
+    public String maxBranchCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey())
+            ? "[" + MAX_BRANCH_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective nesting-level cap: an explicit {@link #MAX_BRANCH_LEVEL} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchLevel(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey()) ? MAX_BRANCH_LEVEL.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchLevel(int)}, used in verification messages.
+     */
+    public String maxBranchLevelLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey())
+            ? "[" + MAX_BRANCH_LEVEL.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
     }
 
     /**

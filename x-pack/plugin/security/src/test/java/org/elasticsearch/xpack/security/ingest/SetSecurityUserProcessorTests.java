@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -380,7 +381,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         auth.writeToContext(threadContext);
 
         IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(
-            IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))))
+            CollectionUtils.deepCopy(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))))
         );
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",

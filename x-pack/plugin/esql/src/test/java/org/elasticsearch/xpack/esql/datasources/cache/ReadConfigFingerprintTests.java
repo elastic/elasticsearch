@@ -93,7 +93,7 @@ public class ReadConfigFingerprintTests extends ESTestCase {
     }
 
     public void testOpenVocabularyNamesCannotForgeAFieldBoundary() {
-        // Column names reach arbitrary strings through an `_id.path` rename, so they can contain whatever delimiter a
+        // Column names reach arbitrary strings through a `path` rename, so they can contain whatever delimiter a
         // naive join would use. Two genuinely different read configurations must not render identically.
         String twoColumns = ReadConfigFingerprint.of(
             List.of(attr("a", DataType.KEYWORD), attr("b", DataType.KEYWORD)),
@@ -128,6 +128,6 @@ public class ReadConfigFingerprintTests extends ESTestCase {
     }
 
     private static DeclaredReadSpec spec(Map<String, String> renames, Map<String, String> dateFormats, SchemaProvenance provenance) {
-        return new DeclaredReadSpec(renames, null, dateFormats, Set.of(), provenance);
+        return new DeclaredReadSpec(renames, dateFormats, Set.of(), provenance);
     }
 }

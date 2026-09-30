@@ -27,11 +27,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The lifecycle gate over {@link NdJsonFormatReader}'s mutable state. The format registry hands out ONE reader
- * instance per format for the life of the node, and every configured reader is a copy-on-wither descendant of it.
- * Any internally mutable state a wither passes to its copy is therefore shared for the life of the node: sharing
- * above the per-query seam mixes concurrent queries' telemetry, and forking at the per-file seam leaves the
- * instance that reads reporting into a copy nobody snapshots. Both are silent — the state is write-only telemetry.
+ * The lifecycle gate over {@link NdJsonFormatReader}'s mutable state. Counters are now passed via
+ * {@code FormatReadContext} rather than carried as reader fields, so all ordinary withers are stateless copies.
  * <p>
  * The behavioural pins in {@link NdJsonFormatReaderStatusSnapshotTests} guard each KNOWN wither. This class guards
  * the ENUMERATION: a new wither, or a new instance field, added without deciding its lifecycle fails here rather
@@ -64,37 +61,33 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
     );
 
     /**
-     * Internally mutable fields written during reads. Every wither must declare (in {@link #WITHER_LIFECYCLE})
-     * whether its copy shares or forks EACH of these, and the declaration is executed below.
+     * Internally mutable fields written during reads. Counters are now passed via context, not stored as fields.
      */
-    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
+    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of();
 
     /**
-     * What a wither's copy does with the shared-mutable state, decided by which seam the wither runs at.
+     * What a wither's copy does with the reader's state.
      */
     private enum WitherLifecycle {
-        /** Runs at (or above) the per-query seam: the copy must FORK — sharing mixes concurrent queries. */
-        PER_QUERY_FORKS,
         /**
-         * Runs at the per-file seam, below the reader the status envelope snapshots: the copy must SHARE its
-         * parent's — forking is the zero-read-time defect.
+         * Copies the reader's immutable configuration; all ordinary withers declare this.
          */
-        PER_FILE_SHARES,
-        /** SPI default that returns {@code this}: no copy, so no decision — until someone overrides it. */
+        SHARES_COUNTERS,
+        /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
         IDENTITY_NO_COPY
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.of(
         "withConfig",
-        WitherLifecycle.PER_QUERY_FORKS,
+        WitherLifecycle.SHARES_COUNTERS,
         "withConfigTrackingConsumedKeys",
-        WitherLifecycle.PER_QUERY_FORKS,
+        WitherLifecycle.SHARES_COUNTERS,
         "withSchema",
-        WitherLifecycle.PER_QUERY_FORKS,
+        WitherLifecycle.SHARES_COUNTERS,
         "withDeclaredDateFormats",
-        WitherLifecycle.PER_QUERY_FORKS,
+        WitherLifecycle.SHARES_COUNTERS,
         "withReadConfig",
-        WitherLifecycle.PER_FILE_SHARES,
+        WitherLifecycle.SHARES_COUNTERS,
         "withPushedFilter",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredTypeColumns",
@@ -157,9 +150,9 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide the seam — PER_QUERY_FORKS (copy forks the counters), "
-                + "PER_FILE_SHARES (copy shares its parent's), or IDENTITY_NO_COPY (returns this) — add it to "
-                + "WITHER_LIFECYCLE and to sampleArgsFor(), and add a behavioural pin to the status-snapshot suite",
+                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
+                + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
         );
         Set<String> stale = new TreeSet<>(WITHER_LIFECYCLE.keySet());
@@ -183,40 +176,12 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                 case IDENTITY_NO_COPY -> assertSame(
                     "wither ["
                         + m.getName()
-                        + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so its seam must be "
-                        + "decided — reclassify it PER_QUERY_FORKS or PER_FILE_SHARES",
+                        + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
+                        + " lifecycle — reclassify it SHARES_COUNTERS",
                     receiver,
                     product
                 );
-                case PER_QUERY_FORKS -> {
-                    assertNotSame(
-                        "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
-                        receiver,
-                        product
-                    );
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "wither ["
-                                + m.getName()
-                                + "] runs at the per-query seam but its copy SHARES ["
-                                + field
-                                + "] with the registry's node-lifetime reader: concurrent queries would mix",
-                            fieldOf(receiver, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                    // A second copy must not share with the first either: forking from the receiver but sharing
-                    // between siblings (e.g. through a lazily created static) mixes queries just the same.
-                    Object sibling = unwrap(m.invoke(receiver, sampleArgsFor(m.getName())));
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "two [" + m.getName() + "] copies share [" + field + "]: sibling queries would mix",
-                            fieldOf(sibling, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                }
-                case PER_FILE_SHARES -> {
+                case SHARES_COUNTERS -> {
                     assertNotSame(
                         "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
                         receiver,
@@ -224,12 +189,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                     );
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertSame(
-                            "wither ["
-                                + m.getName()
-                                + "] runs at the per-file seam, below the reader the status envelope snapshots, but its "
-                                + "copy FORKS ["
-                                + field
-                                + "]: the instance that reads would report into a copy nobody snapshots",
+                            "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
                         );

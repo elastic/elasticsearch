@@ -224,17 +224,15 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 () -> new LongWithAttributes(getTotalMappingFieldCount(cache.indicesService))
             )
         );
-        metrics.add(registry.registerLongAsyncGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+        metrics.add(registry.registerLongAsyncGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", measurement -> {
             if (clusterService.lifecycleState() != STARTED) {
-                return null;
+                return;
             }
             final var clusterState = clusterService.state();
             if (clusterState.clusterRecovered() == false || clusterState.nodes().isLocalNodeElectedMaster() == false) {
-                return null;
+                return;
             }
-            return new LongWithAttributes(
-                getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
-            );
+            measurement.record(getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next()));
         }));
         assert metrics.size() == totalMetrics : "total number of metrics has changed";
         return metrics;

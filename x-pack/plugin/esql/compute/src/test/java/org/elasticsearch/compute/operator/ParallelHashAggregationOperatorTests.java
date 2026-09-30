@@ -252,7 +252,6 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             randomDouble(),
             randomIntBetween(128, 4096),
             null,
-            null,
             driverContext,
             parallelConfig,
             randomBoolean()
@@ -291,7 +290,6 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 randomDouble(),
                 randomIntBetween(128, 4096),
                 null,
-                null,
                 driverContext,
                 parallelConfig,
                 allowPartitionedOutput
@@ -311,7 +309,6 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                     randomIntBetween(1, 1024),
                     randomDouble(),
                     randomIntBetween(128, 4096),
-                    null,
                     null,
                     finalDriveContext,
                     parallelConfig,

@@ -415,6 +415,10 @@ public class SearchTransportService {
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
 
             Transport.Connection localConnection = transportService.getConnection(transportService.getLocalNode());
+            // Chunked fetch is on by default, so without the flag a chunk trip would start failing searches on the
+            // default path, and the coordinator would start holding the charge for longer. Both are what the flag
+            // is there to hold back.
+            boolean coordinatorAccounting = FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled();
             // coordRequest is always routed to the local node. The consumers are carried as
             // non-serialized fields and applied inside doExecute when sending to the data node.
             var coordRequest = new TransportFetchPhaseCoordinationAction.Request(
@@ -422,7 +426,9 @@ public class SearchTransportService {
                 connection.getNode(),
                 headers,
                 requestBytesConsumer,
-                resultBytesConsumer
+                resultBytesConsumer,
+                coordinatorAccounting ? e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e) : e -> {},
+                coordinatorAccounting
             );
             transportService.sendChildRequest(
                 localConnection,

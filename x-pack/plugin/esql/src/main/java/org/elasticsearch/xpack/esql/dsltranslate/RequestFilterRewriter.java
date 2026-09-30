@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -31,67 +31,56 @@ import java.util.Set;
  * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>Translation is <em>fail-closed by default</em>: a construct outside the supported subset fails the whole query
- * with a 400 ({@link VerificationException}) listing every offending clause, rather than silently applying a widened
- * superset. With {@code allow_partial_dsl_filter=true} the translatable AND-conjuncts are applied and the rest are
- * dropped with a {@link HeaderWarning}. A filter that translates to a supported no-op ({@code match_all}) leaves the
- * relation read unfiltered.
+ * <p>A construct outside the supported subset never fails the query: the translatable AND-conjuncts are applied and
+ * the rest are dropped with a {@link HeaderWarning} naming each one. What that costs the caller depends on where the
+ * construct sits. In a top-level conjunct it costs that clause. Each {@code must_not} clause is its own arm, dropped
+ * whole if anything inside it fails, while separate {@code must_not} clauses stand or fall independently. A required
+ * {@code should} group is all-or-nothing across its arms, so one failure drops the whole group. In a non-required
+ * {@code should} arm it
+ * costs nothing and is not reported: those arms gate scoring rather than matching, so they are never translated and
+ * their failures are not collected. Dropping only ever widens what matches, never narrows it, which is what makes it
+ * safe. A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
- * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
- * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
- * query — so it is gated on {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}: on by default in snapshot builds (so
- * development, CI and tests exercise it) and excluded from release builds until we choose to ship it. While it is off
- * the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before this feature
- * existed — never a silent drop.
+ * <p>The strict policy — fail the query with a 400 ({@link VerificationException}) listing every offending clause —
+ * remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing selects it
+ * in production, and no request parameter exposes it.
  *
- * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: the translated filter may contain
- * {@code mv_in_range}/{@code mv_greater}/{@code mv_less}, which older nodes cannot deserialize. Below that version the
- * rewrite is skipped (unfiltered + warning).
+ * <p>There is no feature flag: applying a request filter to a dataset is ordinary behaviour, and the only gate is the
+ * transport version below.
+ *
+ * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
+ * relation, with a warning naming the datasets). It guards the rewrite's existence only; the functions a translated
+ * filter contains are gated individually by {@code QueryDslTranslator.gated}.
  */
 public final class RequestFilterRewriter {
-
-    /**
-     * Gates applying the request filter to datasets: on by default in snapshot builds, excluded from release builds
-     * unless {@code -Des.esql_request_filter_on_dataset_feature_flag_enabled=true}. Shipping this code therefore cannot
-     * change what an existing dataset query returns until we decide to turn it on.
-     */
-    public static final FeatureFlag REQUEST_FILTER_ON_DATASET_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_dataset");
 
     static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
     private RequestFilterRewriter() {}
 
     /**
-     * @param enabled               whether the feature is on (production passes
-     *                              {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}); when {@code false} the relation
-     *                              is read unfiltered with a warning. A parameter rather than a direct flag read so
-     *                              the disabled path is unit-testable.
      * @param configuration         the query configuration — anchors {@code now} date math so a request filter over
      *                              an external source resolves {@code "now-15m"} to the same instant the index path
      *                              would, and supplies the locale for case-folding.
      * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
      *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
      *                              javadoc).
-     * @param allowPartialDslFilter when {@code true}, unsupported DSL clauses are dropped with a warning rather than
-     *                              failing the query.
+     * @param dropUntranslatableWithWarning when {@code true}, unsupported DSL clauses are dropped with a warning rather
+     *                                      than failing the query. Production always passes {@code true}; the
+     *                                      {@code false} arm exists so the strict policy stays under test.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
         QueryBuilder requestFilter,
-        boolean enabled,
         Configuration configuration,
         TransportVersion minimumVersion,
-        boolean allowPartialDslFilter
+        boolean dropUntranslatableWithWarning
     ) {
         if (requestFilter == null) {
             return analyzed;
         }
-        if (enabled == false) {
-            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled in this build");
-            return analyzed;
-        }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
-            warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
+            warnNotApplied(analyzed);
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
@@ -99,16 +88,29 @@ public final class RequestFilterRewriter {
             analyzed,
             ExternalRelation.class::isInstance,
             requestFilter,
-            configuration
+            configuration,
+            minimumVersion
         );
         if (result.isComplete() == false) {
-            if (allowPartialDslFilter) {
+            if (dropUntranslatableWithWarning) {
                 warnUnsupportedClauses(result.failures());
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
+                    // Same distinction the warning draws: "unsupported" is wrong for a version-gated clause.
                     messages.add(
-                        "request filter clause uses [" + nf.clause().construct() + "], unsupported on dataset [" + name(nf.node()) + "]"
+                        nf.clause().reason() == null
+                            ? "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "], unsupported on dataset ["
+                                + name(nf.node())
+                                + "]"
+                            : "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "] on dataset ["
+                                + name(nf.node())
+                                + "], not applied because "
+                                + nf.clause().reason()
                     );
                 }
                 throw new VerificationException(String.join("\n", messages));
@@ -122,20 +124,35 @@ public final class RequestFilterRewriter {
         // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
         // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.
         Set<String> skipped = new LinkedHashSet<>();
+        Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
-            skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
+            String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
+            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence, and
+            // carries the clause's own reason rather than a constant, which would misreport a second reason.
+            if (nf.clause().reason() != null) {
+                gated.add(where + " because " + nf.clause().reason());
+            } else {
+                skipped.add(where);
+            }
         }
-        // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
-        HeaderWarning.addWarning(
-            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
-                + " are not supported and were skipped: "
-                + String.join("; ", skipped)
-                + ". Use a WHERE clause to filter rows from external datasets instead."
-        );
+        // "not fully applied" is accurate whether some conjuncts were installed or none were.
+        StringBuilder message = new StringBuilder("Request filter not fully applied to external datasets");
+        if (skipped.isEmpty() == false) {
+            message.append("; unsupported: ").append(String.join(", ", skipped));
+        }
+        if (gated.isEmpty() == false) {
+            // Distinguished from the unsupported list above, so the operator can tell a transient version constraint
+            // from a permanent limitation.
+            message.append("; not applied, ").append(String.join(", ", gated));
+        }
+        HeaderWarning.addWarning(message.append("; use WHERE instead").toString());
     }
 
-    /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */
-    private static void warnNotApplied(LogicalPlan plan, String reason) {
+    /**
+     * Warns that the filter was not applied to the plan's dataset leaves because a node is too old to evaluate it,
+     * naming them, when there are any.
+     */
+    private static void warnNotApplied(LogicalPlan plan) {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
             .map(RequestFilterRewriter::name)
@@ -143,10 +160,8 @@ public final class RequestFilterRewriter {
             .toList();
         if (datasets.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered. "
-                    + "Use a WHERE clause to filter rows from external datasets instead",
-                String.join(", ", datasets),
-                reason
+                "Request filter not applied to external datasets [{}], a node is too old to evaluate it; use WHERE instead",
+                String.join(", ", datasets)
             );
         }
     }
@@ -158,7 +173,7 @@ public final class RequestFilterRewriter {
      */
     private static String name(LogicalPlan node) {
         if (node instanceof ExternalRelation relation) {
-            return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+            return relation.datasetName() != null ? relation.datasetName() : ExternalFailures.redactHttpUrl(relation.sourcePath());
         }
         return node.nodeName();
     }

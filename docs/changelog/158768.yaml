@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158748
+pr: 158768
+summary: Fix NPE when folding regex
+type: bug

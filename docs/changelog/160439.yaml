@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 160321
+pr: 160439
+summary: Release late shard results after a phase failure
+type: bug

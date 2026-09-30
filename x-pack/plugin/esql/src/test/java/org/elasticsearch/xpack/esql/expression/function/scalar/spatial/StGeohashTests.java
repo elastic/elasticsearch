@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -58,19 +59,19 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static Object valueOf(BytesRef wkb, int precision) {
+    private static Object valueOf(BytesRef wkb, int precision, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             return StGeohash.unboundedGrid.calculateGridId(point, precision);
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, null));
+            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, null, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
         }
     }
 
-    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid.Factory(precision, bbox).get(null);
@@ -78,7 +79,7 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
             return gridId < 0 ? null : gridId;
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, bbox));
+            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, bbox, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
         }

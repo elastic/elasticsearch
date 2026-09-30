@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack: unavailable
-  serverless: preview
+  serverless: ga
 products:
   - id: elasticsearch
 description: Learn how to use the ES|QL language in Elasticsearch to query across multiple Serverless projects. Learn about index resolution, project routing, and accessing project metadata.
@@ -23,7 +23,7 @@ There are several ways to control which projects a query runs against:
 This page covers {{esql}}-specific CPS behavior. Before continuing, make sure you are familiar with the following:
 
 * [Cross-project search](docs-content://explore-analyze/cross-project-search.md)
-* [Linked projects](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md)
+* [Linked projects](docs-content://deploy-manage/cross-project-search-config/cps-config-link-and-manage.md)
 * [How search works in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md)
 * [Project routing in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md)
 * [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md)

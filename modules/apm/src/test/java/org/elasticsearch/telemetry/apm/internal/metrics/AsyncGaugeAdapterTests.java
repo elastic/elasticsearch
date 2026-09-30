@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncGaugeAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -123,25 +124,23 @@ public class AsyncGaugeAdapterTests extends ESTestCase {
     }
 
     public void testNullGaugeRecord() throws Exception {
-        DoubleAsyncGauge dgauge = registry.registerDoubleAsyncGauge(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<DoubleWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
-        assertThat(metrics, hasSize(0));
+        DoubleAsyncGauge dgauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dgauge.close();
 
-        LongAsyncGauge lgauge = registry.registerLongAsyncGauge(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<LongWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        metrics = otelMeter.getRecorder().getMeasurements(lgauge);
-        assertThat(metrics, hasSize(0));
+        LongAsyncGauge lgauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lgauge.close();
+    }
+
+    public void testNullGaugeRecords() throws Exception {
+        DoubleAsyncGauge dgauge = registry.registerDoublesAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dgauge.close();
+
+        LongAsyncGauge lgauge = registry.registerLongsAsyncGauge("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lgauge.close();
     }
 
     public void testLongGaugeWithInvalidAttribute() {

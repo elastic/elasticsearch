@@ -78,8 +78,8 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        SourceToParse.Source sourceObject = source.source();
-        if (sourceObject.isEmpty()) {
+        DocumentSource sourceObject = source.source();
+        if (sourceObject.hasContent() == false) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -665,8 +665,7 @@ public final class DocumentParser {
         }
         Mapper.Builder builderFromTemplate = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
         if (builderFromTemplate == null) {
-            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
-                && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit() && context.fieldBudgetExhausted()) {
                 try {
                     FallbackPostMapper.capture(
                         context,
@@ -1116,7 +1115,7 @@ public final class DocumentParser {
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
-                SourceToParse.Source sourceObject = source.source();
+                DocumentSource sourceObject = source.source();
                 // TODO: this can likely operate on the batch row if present opposed to materializing the original source bytes if not
                 // present.
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());

@@ -44,7 +44,7 @@ import java.util.Arrays;
  *       failures on the same row count as one dropped row).</li>
  *   <li>At the emit point: call {@link #filterBlocks(Block[], BlockFactory)} to compact the blocks and
  *       remove all failed rows; call {@link #addToTotals(int, int)} to update the cumulative budget
- *       counters; call {@link #checkBudget(SkipWarnings)} to throw a
+ *       counters; call {@link #checkBudget()} to throw a
  *       {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400) if the configured
  *       error budget is exceeded.</li>
  * </ol>
@@ -296,35 +296,10 @@ public final class ColumnarRowDropHelper {
     /**
      * Checks whether the error budget has been exceeded and throws a
      * {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400 — client-data problem)
-     * if so. Emits a budget-exceeded warning before throwing, matching
-     * {@code CsvFormatReader.checkBudget}'s contract.
-     * <p>
-     * The thrown exception is the reliable channel: it always carries the counts, the file and the
-     * configured limits. The warning is best-effort — see the {@code warnings} note below.
-     *
-     * @param warnings the reader's per-value coercion-warning collector, or {@code null} when it has
-     *                 none. The budget line goes into that same collector — as CSV does — so the
-     *                 response carries one summary header followed by the per-cell details and then
-     *                 the line saying which batch tripped the limit, rather than two competing
-     *                 summaries from two collectors. Sharing the collector also means sharing its cap
-     *                 ({@link SkipWarnings#MAX_ADDED_WARNINGS}): a budget above that many errors has, by
-     *                 definition, already spent the detail quota on per-cell warnings by the time it trips,
-     *                 so the budget line collapses into the collector's "further warnings suppressed" entry.
-     *                 That is why the exception, not the header, states the failure.
+     * if so. The exception is the only channel: a warning added just before the throw would never reach
+     * the client, since driver warnings travel only with a successful response.
      */
-    public void checkBudget(@Nullable SkipWarnings warnings) {
-        budget.checkBudget(warnings, "dropped rows");
-    }
-
-    /**
-     * The budget-exceeded warning line. Delegates to {@link SharedErrorBudget#budgetExceededWarning}
-     * and is kept for backward compatibility with call sites in columnar readers that still use this
-     * static method.
-     *
-     * @param errorKind what the count covers, in plural form: {@code "dropped rows"} for this
-     *                  helper's own trip, or a caller-specific kind when the budget is shared
-     */
-    public static String budgetExceededWarning(ErrorPolicy policy, String fileLocation, long errorCount, long rowCount, String errorKind) {
-        return SharedErrorBudget.budgetExceededWarning(policy, fileLocation, errorCount, rowCount, errorKind);
+    public void checkBudget() {
+        budget.checkBudget("dropped rows");
     }
 }

@@ -66,7 +66,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         Request getRequest = new Request("GET", "/_logstash/pipeline/test_pipeline");
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
-        assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(pipelineJson));
+        assertPipelineEquals(EntityUtils.toString(getResponse.getEntity()), pipelineJson);
 
         // update
         final String updatedJson = getPipelineJson("2020-03-09T15:42:35.229Z");
@@ -78,7 +78,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         getRequest = new Request("GET", "/_logstash/pipeline/test_pipeline");
         getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
-        assertThat(EntityUtils.toString(getResponse.getEntity()), containsString(updatedJson));
+        assertPipelineEquals(EntityUtils.toString(getResponse.getEntity()), updatedJson);
 
         // delete
         Request deleteRequest = new Request("DELETE", "/_logstash/pipeline/test_pipeline");
@@ -201,6 +201,15 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
             String responseBody = EntityUtils.toString(response.getEntity());
             assertThat(responseBody, containsString("Invalid pipeline [" + id + "] ID received"));
         }
+    }
+
+    private static void assertPipelineEquals(String actualPipelineJson, String expectedPipelineJson) throws IOException {
+        Map<String, Object> actualMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), actualPipelineJson, false);
+        assertThat(actualMap.size(), is(1));
+
+        String id = actualMap.keySet().iterator().next();
+        Map<String, Object> expectedMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedPipelineJson, false);
+        assertThat(actualMap.get(id), is(expectedMap));
     }
 
     private void createPipeline(String id, String json) throws IOException {

@@ -45,9 +45,23 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
+    private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
         this.codecRegistry = codecRegistry;
+    }
+
+    public void setMaxDecompressionRatio(int ratio) {
+        this.maxDecompressionRatio = ratio;
+    }
+
+    public void setMaxDecompressionRatioZstd(int ratio) {
+        this.maxDecompressionRatioZstd = ratio;
+    }
+
+    private int maxDecompressionRatio(DecompressionCodec codec) {
+        return "zstd".equals(codec.name()) ? maxDecompressionRatioZstd : maxDecompressionRatio;
     }
 
     public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
@@ -407,7 +421,7 @@ public class FormatReaderRegistry {
      * override), and {@link #wrapForObject(FormatReader, String)} (configured reader, per-file wrap),
      * so the three paths cannot diverge on which codecs/formats are compatible.
      */
-    private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
+    private FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
         if (inner.supportsWholeFileCompression() == false) {
             throw new IllegalArgumentException(
                 "Format ["
@@ -427,7 +441,7 @@ public class FormatReaderRegistry {
                 "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
             );
         }
-        return new CompressionDelegatingFormatReader(inner, codec);
+        return new CompressionDelegatingFormatReader(inner, codec, () -> maxDecompressionRatio(codec));
     }
 
     /**

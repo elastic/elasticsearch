@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
@@ -174,13 +173,19 @@ public final class ExternalSourceCacheSettings {
      * reader instance (the Parquet and ORC readers each own one cache), so the node-wide worst
      * case is twice this value; absolute values are accepted.
      * <p>
-     * The default is sized so that a single query's whole file set fits: one query can discover at
-     * most {@link ExternalSourceSettings#MAX_DISCOVERED_FILES} files, and 0.5% of an 8 GB heap is
-     * ~41 MiB, which holds that many footers as long as they average under ~4 KiB.
+     * This is a <em>working-set</em> LRU, not a function of
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
+     * (10k default, up to 1M allowed). The
+     * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
+     * capacity is fine; do not size this so the cache would admit on the order of a million
+     * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file
+     * tails (~8k × 5 KiB) without growing the budget with the file cap. Keep the default at 0.5%.
      * <p>
-     * Note that only files too large to be fetched whole reach this cache. A file that fits in the
-     * format reader's sliding window is filled by one whole-file read, which is deliberately not
-     * stored here so that file bodies cannot displace genuine footers.
+     * Note that only files too large to be fetched whole reach this cache via the 4 MiB adapter
+     * window. Parquet's 64 KiB footer prefetch {@code put}s {@code min(64KiB, fileLength)}, so a
+     * tiny file's whole object can live here and serve a later coalesced data read. Adapter
+     * whole-file fills are deliberately not stored so 4 MiB bodies cannot displace genuine
+     * footers.
      */
     public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.size",

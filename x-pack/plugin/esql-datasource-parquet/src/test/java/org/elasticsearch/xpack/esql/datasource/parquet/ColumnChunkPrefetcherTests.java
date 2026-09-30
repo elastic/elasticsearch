@@ -27,10 +27,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -179,6 +181,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(fileData);
             }
@@ -262,6 +269,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         byte[] fileData = new byte[10000];
         StorageObject storage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(fileData);
             }
@@ -336,6 +348,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     public void testPrefetchFailureCompletesExceptionally() {
         StorageObject failingStorage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new IOException("Simulated failure");
             }
@@ -386,6 +403,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         CountDownLatch started = new CountDownLatch(1);
         CompletableFuture<Void> backendGet = new CompletableFuture<>();
         StorageObject storage = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(new byte[1000]);
@@ -790,7 +812,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         };
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         @Override
         public InputStream newStream(long position, long length) throws IOException {
             return new ByteArrayInputStream(new byte[(int) length]);
@@ -843,6 +865,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

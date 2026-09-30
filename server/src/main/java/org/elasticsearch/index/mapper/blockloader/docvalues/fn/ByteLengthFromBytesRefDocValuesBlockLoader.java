@@ -166,6 +166,11 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
 
         @Override
+        boolean countsBytes() {
+            return true;
+        }
+
+        @Override
         public String toString() {
             return "ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload";
         }

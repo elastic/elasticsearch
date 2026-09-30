@@ -109,6 +109,9 @@ public class BufferingMetricExporter implements MetricExporter {
             EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
             new EsAbortPolicy()
         );
+
+        // calculate cachedFileCount so files present at startup are accounted for
+        refreshDiskStats();
     }
 
     @Override

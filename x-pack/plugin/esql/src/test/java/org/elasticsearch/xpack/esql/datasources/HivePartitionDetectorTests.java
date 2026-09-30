@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class HivePartitionDetectorTests extends ESTestCase {
 
@@ -36,8 +37,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
 
-        Map<String, Object> file1Partitions = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/year=2024/month=01/file1.parquet"));
+        Map<String, Object> file1Partitions = values(result, files, "s3://bucket/data/year=2024/month=01/file1.parquet");
         assertEquals(2024, file1Partitions.get("year"));
         assertEquals(1, file1Partitions.get("month"));
     }
@@ -99,8 +99,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
 
-        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=True/file1.parquet")).get("flag"));
-        assertEquals(false, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=False/file2.parquet")).get("flag"));
+        assertEquals(true, values(result, files, "s3://bucket/data/flag=True/file1.parquet").get("flag"));
+        assertEquals(false, values(result, files, "s3://bucket/data/flag=False/file2.parquet").get("flag"));
     }
 
     /**
@@ -118,10 +118,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
-        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=True/file1.parquet")).get("flag"));
-        assertNull(
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet")).get("flag")
-        );
+        assertEquals(true, values(result, files, "s3://bucket/data/flag=True/file1.parquet").get("flag"));
+        assertNull(values(result, files, "s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet").get("flag"));
     }
 
     public void testUnsignedLongPartitionFoldersInferAndCast() {
@@ -136,12 +134,10 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.UNSIGNED_LONG, result.partitionColumns().get("id"));
-        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=1/file1.parquet", "1");
-        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=9223372036854775808/file2.parquet", "9223372036854775808");
-        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=18446744073709551615/file3.parquet", "18446744073709551615");
-        assertNull(
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet")).get("id")
-        );
+        assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=1/file1.parquet", "1");
+        assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=9223372036854775808/file2.parquet", "9223372036854775808");
+        assertUnsignedLongPartitionValue(result, files, "s3://bucket/data/id=18446744073709551615/file3.parquet", "18446744073709551615");
+        assertNull(values(result, files, "s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet").get("id"));
     }
 
     public void testMixedNegativeAndUnsignedLongPartitionFoldersInferKeyword() {
@@ -154,11 +150,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("id"));
-        assertEquals("-1", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=-1/file1.parquet")).get("id"));
-        assertEquals(
-            "9223372036854775808",
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=9223372036854775808/file2.parquet")).get("id")
-        );
+        assertEquals("-1", values(result, files, "s3://bucket/data/id=-1/file1.parquet").get("id"));
+        assertEquals("9223372036854775808", values(result, files, "s3://bucket/data/id=9223372036854775808/file2.parquet").get("id"));
     }
 
     public void testMixedTypesInferKeyword() {
@@ -186,15 +179,14 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
 
-        Map<String, Object> file1 = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/_index=alpha/year=2024/file1.parquet"));
+        Map<String, Object> file1 = values(result, files, "s3://bucket/data/_index=alpha/year=2024/file1.parquet");
         assertEquals("alpha", file1.get("_partition._index"));
         assertEquals(2024, file1.get("year"));
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -217,15 +209,12 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertFalse("snapshot-gated reserved name must not surface as-is", result.partitionColumns().containsKey("_tier"));
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._tier"));
-        assertEquals(
-            "hot",
-            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/_tier=hot/file1.parquet")).get("_partition._tier")
-        );
+        assertEquals("hot", values(result, files, "s3://bucket/data/_tier=hot/file1.parquet").get("_partition._tier"));
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_tier] surfaced as [_partition._tier]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_tier] is named [_partition._tier]"
             ),
             warnings
         );
@@ -259,8 +248,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("city"));
 
-        Map<String, Object> partitions = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/city=S%C3%A3o%20Paulo/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/city=S%C3%A3o%20Paulo/file.parquet");
         assertEquals("São Paulo", partitions.get("city"));
     }
 
@@ -278,7 +266,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("tag"));
 
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+b/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=a+b/file.parquet");
         assertEquals("a+b", partitions.get("tag"));
     }
 
@@ -289,7 +277,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2Bb/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=a%2Bb/file.parquet");
         assertEquals("a+b", partitions.get("tag"));
     }
 
@@ -300,7 +288,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=ns%3Aclick/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=ns%3Aclick/file.parquet");
         assertEquals("ns:click", partitions.get("tag"));
     }
 
@@ -314,7 +302,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+b%20c/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=a+b%20c/file.parquet");
         assertEquals("a+b c", partitions.get("tag"));
     }
 
@@ -325,7 +313,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=a%2/file.parquet");
         assertEquals("a%2", partitions.get("tag"));
     }
 
@@ -339,7 +327,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
-        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+%2/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/tag=a+%2/file.parquet");
         assertEquals("a+%2", partitions.get("tag"));
     }
 
@@ -435,7 +423,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     }
 
     public void testFileWithEqualsInFilename() {
-        // file.parquet contains '=' but is not a partition segment (has a dot)
+        // The object-name cut drops a=b.parquet. year is the only partition; the dot in b.parquet is not what excludes a.
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/a=b.parquet"));
 
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
@@ -479,8 +467,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         // and the per-file value should be null, not the literal sentinel string.
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
 
-        Map<String, Object> partitions = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
+        Map<String, Object> partitions = values(result, files, "s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet");
         assertEquals(2024, partitions.get("year"));
         assertNull(partitions.get("month"));
     }
@@ -496,11 +483,10 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
 
-        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/month=06/f1.parquet"));
+        Map<String, Object> p1 = values(result, files, "s3://bucket/data/year=2024/month=06/f1.parquet");
         assertEquals(6, p1.get("month"));
 
-        Map<String, Object> p2 = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        Map<String, Object> p2 = values(result, files, "s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet");
         assertNull(p2.get("month"));
     }
 
@@ -515,11 +501,10 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
 
-        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/region=us-east/f1.parquet"));
+        Map<String, Object> p1 = values(result, files, "s3://bucket/data/region=us-east/f1.parquet");
         assertEquals("us-east", p1.get("region"));
 
-        Map<String, Object> p2 = result.filePartitionValues()
-            .get(StoragePath.of("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        Map<String, Object> p2 = values(result, files, "s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet");
         assertNull(p2.get("region"));
     }
 
@@ -563,8 +548,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
         );
     }
 
-    private static void assertUnsignedLongPartitionValue(PartitionMetadata result, String path, String expected) {
-        Object value = result.filePartitionValues().get(StoragePath.of(path)).get("id");
+    private static void assertUnsignedLongPartitionValue(PartitionMetadata result, List<StorageEntry> files, String path, String expected) {
+        Object value = value(result, files, path, "id");
         assertTrue(value instanceof Long);
         Number decoded = NumericUtils.unsignedLongAsNumber((Long) value);
         assertEquals(new BigInteger(expected), new BigInteger(decoded.toString()));
@@ -584,11 +569,276 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             sink
         );
+    }
+
+    /** {@code price=1.5} beside an integral sibling types the column double and keeps both values. */
+    public void testDecimalPartitionValueInfersDouble() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/year=2024/price=1.5/f1.parquet"),
+            entry("s3://bucket/year=2024/price=2/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+        assertEquals(DataType.DOUBLE, result.partitionColumns().get("price"));
+        assertEquals(1.5, values(result, files, "s3://bucket/year=2024/price=1.5/f1.parquet").get("price"));
+        assertEquals(2.0, values(result, files, "s3://bucket/year=2024/price=2/f2.parquet").get("price"));
+    }
+
+    /** An empty folder {@code k=} is the value {@code ""}, not a rejected segment. */
+    public void testEmptyPartitionValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/k=/f.csv"), entry("s3://bucket/k=x/f.csv"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertFalse(result.isEmpty());
+        assertEquals(Set.of("k"), result.partitionColumns().keySet());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("k"));
+        assertEquals("", values(result, files, "s3://bucket/k=/f.csv").get("k"));
+        assertEquals("x", values(result, files, "s3://bucket/k=x/f.csv").get("k"));
+    }
+
+    /** {@code k=} under {@code year=} is a second column, not a reason to drop the listing. */
+    public void testEmptyPartitionValueBesideYear() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/year=2024/k=/f.parquet"), entry("s3://bucket/year=2024/k=x/f.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertFalse(result.isEmpty());
+        assertEquals(Set.of("year", "k"), result.partitionColumns().keySet());
+        assertEquals("", values(result, files, "s3://bucket/year=2024/k=/f.parquet").get("k"));
+        assertEquals("x", values(result, files, "s3://bucket/year=2024/k=x/f.parquet").get("k"));
+    }
+
+    /** Dotted values that are not doubles stay keyword and keep the column. */
+    public void testDottedNonNumericValuesStayKeyword() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/v=1.2.3/f.parquet"),
+            entry("s3://bucket/v=a..b/f.parquet"),
+            entry("s3://bucket/v=../f.parquet"),
+            entry("s3://bucket/v=.../f.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("v"));
+        assertEquals("1.2.3", value(result, files, "s3://bucket/v=1.2.3/f.parquet", "v"));
+        assertEquals("a..b", value(result, files, "s3://bucket/v=a..b/f.parquet", "v"));
+        assertEquals("..", value(result, files, "s3://bucket/v=../f.parquet", "v"));
+        assertEquals("...", value(result, files, "s3://bucket/v=.../f.parquet", "v"));
+    }
+
+    /** {@code 1.} and {@code .5} are doubles, not rejected for the trailing or leading dot. */
+    public void testLeadingOrTrailingDotInfersDouble() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/n=1./f1.parquet"), entry("s3://bucket/n=.5/f2.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.DOUBLE, result.partitionColumns().get("n"));
+        assertEquals(1.0, value(result, files, "s3://bucket/n=1./f1.parquet", "n"));
+        assertEquals(0.5, value(result, files, "s3://bucket/n=.5/f2.parquet", "n"));
+    }
+
+    /** A dot in the key binds nothing. The value may contain dots; the key may not. */
+    public void testDottedKeysBindNothing() {
+        for (String folder : List.of("a.b=c", "a..b=c", ".hidden=x", "a.=x")) {
+            PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(
+                List.of(entry("s3://bucket/" + folder + "/f.parquet")),
+                WarningSinks.FAILING
+            );
+            assertTrue(folder, result.isEmpty());
+        }
+    }
+
+    /**
+     * {@code _partition._index=bar} is a dotted key and is skipped. {@code _index=foo} still surfaces, renamed.
+     * Allowing any dot would detect both keys and bail to empty.
+     */
+    public void testDottedKeySkippedBesideReservedRename() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/_index=foo/_partition._index=bar/f.parquet"));
+        List<String> sink = new ArrayList<>();
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, sink::add);
+
+        assertFalse(result.isEmpty());
+        assertEquals(Set.of("_partition._index"), result.partitionColumns().keySet());
+        assertEquals("foo", value(result, files, "s3://bucket/_index=foo/_partition._index=bar/f.parquet", "_partition._index"));
+    }
+
+    /** {@code k=} is {@code ""}. The Hive null sentinel stays null. They are not the same value. */
+    public void testEmptyValueBesideHiveDefaultPartition() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/k=/f1.parquet"),
+            entry("s3://bucket/k=__HIVE_DEFAULT_PARTITION__/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals("", value(result, files, "s3://bucket/k=/f1.parquet", "k"));
+        assertNull(value(result, files, "s3://bucket/k=__HIVE_DEFAULT_PARTITION__/f2.parquet", "k"));
+    }
+
+    /** An empty string is not skipped by integral inference, so {@code k=} beside {@code k=2024} is keyword. */
+    public void testEmptyValueBesideIntegerInfersKeyword() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/k=/f1.parquet"), entry("s3://bucket/k=2024/f2.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("k"));
+        assertEquals("", value(result, files, "s3://bucket/k=/f1.parquet", "k"));
+        assertEquals("2024", value(result, files, "s3://bucket/k=2024/f2.parquet", "k"));
+    }
+
+    /** A raw second {@code =} is not a value. Writers percent-escape it. */
+    public void testSecondEqualsBindsNothing() {
+        assertTrue(HivePartitionDetector.INSTANCE.detect(List.of(entry("s3://bucket/tag=a=b/f.parquet")), WarningSinks.FAILING).isEmpty());
+        assertTrue(HivePartitionDetector.INSTANCE.detect(List.of(entry("s3://bucket/tag==b/f.parquet")), WarningSinks.FAILING).isEmpty());
+    }
+
+    /** {@code %3D} decodes to {@code =}. {@code %2E} decodes to {@code .} and types as double. */
+    public void testPercentEncodedEqualsAndDot() {
+        PartitionMetadata equals = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/tag=a%3Db/f.parquet")),
+            WarningSinks.FAILING
+        );
+        assertEquals("a=b", equals.getValue(0, "tag"));
+
+        PartitionMetadata dot = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/price=1%2E5/f.parquet")),
+            WarningSinks.FAILING
+        );
+        assertEquals(DataType.DOUBLE, dot.partitionColumns().get("price"));
+        assertEquals(1.5, dot.getValue(0, "price"));
+    }
+
+    /** Keys are not percent-decoded. {@code a%2Eb} is the column name, not {@code a.b}. */
+    public void testPercentEncodedDotInKeyStaysRaw() {
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/a%2Eb=c/f.parquet")),
+            WarningSinks.FAILING
+        );
+
+        assertEquals(Set.of("a%2Eb"), result.partitionColumns().keySet());
+        assertEquals("c", result.getValue(0, "a%2Eb"));
+    }
+
+    /** A trailing {@code %} is a malformed escape and stays the raw keyword. */
+    public void testTrailingPercentStaysRaw() {
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/tag=100%/f.parquet")),
+            WarningSinks.FAILING
+        );
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("tag"));
+        assertEquals("100%", result.getValue(0, "tag"));
+    }
+
+    /** {@code month=06} is the object name, so only {@code year} binds. */
+    public void testExtensionlessObjectNameIsNotAPartition() {
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/year=2024/month=06")),
+            WarningSinks.FAILING
+        );
+
+        assertFalse(result.isEmpty());
+        assertEquals(Set.of("year"), result.partitionColumns().keySet());
+        assertEquals(2024, result.getValue(0, "year"));
+    }
+
+    /** The first {@code year=} wins. The later folder is the same key and is ignored. */
+    public void testDuplicateKeyFirstWins() {
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(
+            List.of(entry("s3://bucket/year=2024/year=2025/f.parquet")),
+            WarningSinks.FAILING
+        );
+
+        assertEquals(Set.of("year"), result.partitionColumns().keySet());
+        assertEquals(2024, result.getValue(0, "year"));
+    }
+
+    /** {@code 1.10} and {@code 1.1} are different folders. Typing both as double would merge them. */
+    public void testTrailingZeroDecimalStaysDistinctKeyword() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/v=1.1/f1.parquet"), entry("s3://bucket/v=1.10/f2.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("v"));
+        assertEquals("1.1", value(result, files, "s3://bucket/v=1.1/f1.parquet", "v"));
+        assertEquals("1.10", value(result, files, "s3://bucket/v=1.10/f2.parquet", "v"));
+    }
+
+    /** {@code 2024.10} must not surface as {@code 2024.1}. */
+    public void testVersionLikeDecimalsStayKeyword() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/year=2024/snapshot=2024.01/f1.parquet"),
+            entry("s3://bucket/year=2024/snapshot=2024.10/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("snapshot"));
+        assertEquals("2024.01", value(result, files, "s3://bucket/year=2024/snapshot=2024.01/f1.parquet", "snapshot"));
+        assertEquals("2024.10", value(result, files, "s3://bucket/year=2024/snapshot=2024.10/f2.parquet", "snapshot"));
+    }
+
+    /** A base64 directory ends in {@code =}. That padding is not an empty partition column, and {@code year} stays. */
+    public void testBase64PaddingDoesNotVoidYear() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/year=2024/dXNlcjE=/f1.csv"), entry("s3://bucket/year=2024/dXNlcjI=/f2.csv"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("year"), result.partitionColumns().keySet());
+        assertEquals(2024, value(result, files, "s3://bucket/year=2024/dXNlcjE=/f1.csv", "year"));
+        assertEquals(2024, value(result, files, "s3://bucket/year=2024/dXNlcjI=/f2.csv", "year"));
+    }
+
+    /** Padding keys differ per file. An empty column present on every file stays. */
+    public void testBase64PaddingKeepsSharedEmptyColumn() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/region=/year=2024/dXNlcjE=/f1.csv"),
+            entry("s3://bucket/region=/year=2025/dXNlcjI=/f2.csv")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("region", "year"), result.partitionColumns().keySet());
+        assertEquals("", value(result, files, "s3://bucket/region=/year=2024/dXNlcjE=/f1.csv", "region"));
+        assertEquals("", value(result, files, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "region"));
+        assertEquals(2024, value(result, files, "s3://bucket/region=/year=2024/dXNlcjE=/f1.csv", "year"));
+        assertEquals(2025, value(result, files, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "year"));
+    }
+
+    /** Empty pieces from {@code //} drop. The object name drops, including when a trailing slash follows it. */
+    public void testDirectorySegmentsDropsObjectNameAndEmptyPieces() {
+        assertEquals(List.of("data", "year=2024"), HivePartitionDetector.directorySegments("/data/year=2024/file.parquet"));
+        assertEquals(List.of("data", "year=2024"), HivePartitionDetector.directorySegments("/data//year=2024/file.parquet"));
+        assertEquals(List.of("data", "year=2024"), HivePartitionDetector.directorySegments("/data/year=2024/file.parquet/"));
+    }
+
+    private static Object value(PartitionMetadata result, List<StorageEntry> files, String path, String column) {
+        for (int i = 0; i < files.size(); i++) {
+            if (files.get(i).path().toString().equals(path)) {
+                return result.getValue(i, column);
+            }
+        }
+        throw new AssertionError("no file [" + path + "]");
+    }
+
+    private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
+        for (int i = 0; i < files.size(); i++) {
+            if (files.get(i).path().toString().equals(path)) {
+                return result.valuesAsMap(i);
+            }
+        }
+        throw new AssertionError("no file [" + path + "]");
     }
 
 }

@@ -129,7 +129,7 @@ public class RestCountAction extends BaseRestHandler {
      */
     static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
+        searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
     }
 
 }

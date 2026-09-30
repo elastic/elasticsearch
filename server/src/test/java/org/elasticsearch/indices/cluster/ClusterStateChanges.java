@@ -246,6 +246,7 @@ public class ClusterStateChanges {
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             SETTINGS,
             clusterService,
+            featureService,
             xContentRegistry,
             null,
             null,

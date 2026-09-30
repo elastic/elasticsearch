@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -128,6 +131,49 @@ public class CrossRegionAwareResponseTransformerTests extends ESTestCase {
 
         // F2 is the active future; it should not be done yet
         assertFalse("F2 must still be pending", f2.isDone());
+    }
+
+    /** {@code discard()} releases a buffer the current inner already parked in its result future. */
+    public void testDiscardReleasesCurrentInnerCharge() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("cross-region-discard", ByteSizeValue.ofMb(16));
+        byte[] payload = randomByteArrayOfLength(between(1, 256));
+        CrossRegionAwareResponseTransformer<GetObjectResponse> wrapper = new CrossRegionAwareResponseTransformer<>(
+            payload.length,
+            DirectBufferFactory.forBreaker(breaker),
+            PATH
+        );
+        CompletableFuture<DirectReadBuffer> future = wrapper.prepare();
+        wrapper.onResponse(response(payload.length));
+        wrapper.onStream(syncPublisher(List.of(ByteBuffer.wrap(payload))));
+
+        assertTrue(future.isDone());
+        assertEquals(payload.length, breaker.getUsed());
+        wrapper.discard();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * A cross-region second {@code prepare()} after {@code discard()} must not keep a charge, even
+     * once {@code onStream} allocates a destination for the new inner.
+     */
+    public void testDiscardThenSecondPrepareOnStreamEndsAtZeroCharge() {
+        CircuitBreaker breaker = new LimitedBreaker("discard-then-second-prepare", ByteSizeValue.ofMb(16));
+        byte[] payload = randomByteArrayOfLength(between(1, 256));
+        CrossRegionAwareResponseTransformer<GetObjectResponse> wrapper = new CrossRegionAwareResponseTransformer<>(
+            payload.length,
+            DirectBufferFactory.forBreaker(breaker),
+            PATH
+        );
+        wrapper.prepare();
+        wrapper.discard();
+        assertEquals(0L, breaker.getUsed());
+
+        CompletableFuture<DirectReadBuffer> second = wrapper.prepare();
+        wrapper.onResponse(response(payload.length));
+        wrapper.onStream(syncPublisher(List.of(ByteBuffer.wrap(payload))));
+
+        assertTrue(second.isCompletedExceptionally());
+        assertEquals(0L, breaker.getUsed());
     }
 
     /**

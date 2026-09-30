@@ -3069,6 +3069,27 @@ id:keyword | span.gte:keyword | span.lt:keyword
 2          | 10               | 20
 ;
 
+// End-to-end companion to the SearchContextStatsTests ignore_malformed case. A scalar-typed leaf can still keep an object in _source
+// when ignore_malformed is enabled: a "date" (the same holds for ip) that receives a malformed object value is accepted, the value is
+// dropped from the index but retained verbatim in _source. That object flattens to a dotted leaf column, so LOAD_ALL surfaces
+// "event_time.original" even though "event_time" itself is a mapped date - matching the scenario that makes the source-skip check
+// decline whenever a mapped leaf has ignore_malformed enabled. The second document holds a well-formed date and contributes no inner
+// column. (Numeric and boolean leaves reject object values outright even with ignore_malformed, so "date"/"ip" are the reproducible
+// scalar cases.)
+mappedIgnoreMalformedFieldStillExpandsUnderLoadAll
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM malformed_date_source_data
+| KEEP id, event_time.original
+| SORT id
+;
+
+id:keyword | event_time.original:keyword
+1          | nope
+2          | null
+;
+
 // Same data and mapping as fromNoProjection, but with synthetic source, which reconstructs the dotted key "unmapped.nested" as a
 // nested object. Flattening that object back to its leaf yields the same "unmapped.nested" column, so LOAD_ALL over a
 // synthetic-source index produces exactly the output of the non-synthetic fromNoProjection above.

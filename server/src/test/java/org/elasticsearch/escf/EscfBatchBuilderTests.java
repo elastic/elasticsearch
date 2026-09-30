@@ -204,6 +204,39 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test: with exactly 64 schema leaves the {@code touched} bitset has {@code numBits=64},
+     * so the absent-fill loop must not call {@code nextClearBit(64)} (which would trigger Lucene's
+     * bounds assertion) when column 63 is untouched.
+     */
+    public void testAbsentBackfillAt64LeafBoundary() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            // Register 64 leaves in row 0: fields f0 … f62 present, f63 absent.
+            builder.beginRow();
+            for (int i = 0; i < 63; i++) {
+                builder.longField("f" + i, i);
+            }
+            // f63 is intentionally absent — this triggers the boundary condition.
+            builder.finishRow();
+
+            // Row 1: only f63 present; all others absent.
+            builder.beginRow();
+            builder.longField("f63", 63L);
+            builder.finishRow();
+
+            try (EscfBatch batch = builder.build()) {
+                assertEquals(2, batch.docCount());
+                Map<String, Object> row0 = reconstruct(batch, 0);
+                for (int i = 0; i < 63; i++) {
+                    assertEquals((long) i, ((Number) row0.get("f" + i)).longValue());
+                }
+                assertNull(row0.get("f63"));
+                Map<String, Object> row1 = reconstruct(batch, 1);
+                assertEquals(63L, ((Number) row1.get("f63")).longValue());
+            }
+        }
+    }
+
     private static EscfBatchBuilder newBuilder() {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         return new EscfBatchBuilder(recycler);

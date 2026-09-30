@@ -234,8 +234,13 @@ public final class EscfBatchBuilder implements Releasable {
      */
     private void absentFillUntouched() {
         int leafCount = schema.leafCount();
-        for (int c = touched.nextClearBit(0); c < leafCount; c = touched.nextClearBit(c + 1)) {
+        int c = touched.nextClearBit(0);
+        while (c < leafCount) {
             ensureBuilder(c).addAbsent();
+            // nextClearBit requires index < numBits; when c+1 reaches touched.length() there are
+            // no more schema columns to check anyway, so exit early.
+            int next = c + 1;
+            c = next < touched.length() ? touched.nextClearBit(next) : leafCount;
         }
     }
 

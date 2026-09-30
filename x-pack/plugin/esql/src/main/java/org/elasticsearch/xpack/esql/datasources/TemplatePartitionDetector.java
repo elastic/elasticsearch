@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -98,8 +99,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
-        int columnCount = columnNames.size();
-
+        // Columns are known from the template, so one pass fills a String[] per column. No per-file map.
         // Every file must sit at the same directory depth. The template binds the last N directories before the
         // filename (placeholders and literals), so files at different depths bind different physical levels to the
         // same column: over data/2024/f1, data/2024/01/f2 and data/2024/01/15/f3 with template {year}, the three
@@ -107,101 +107,71 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         // Bailing to EMPTY is the same all-or-nothing stance HivePartitionDetector takes when its key sets disagree
         // across files. The cost is that a comma-separated list mixing prefixes of different depths loses template
         // detection even where the templated tail lines up; no partition columns is safe, a misbound one is not.
-        if (hasMixedDepth(files)) {
-            return PartitionMetadata.EMPTY;
-        }
-
-        List<Map<String, String>> allRawPartitions = new ArrayList<>();
-
-        for (StorageEntry entry : files) {
-            Map<String, String> partitions = extractByTemplate(entry.path());
-            if (partitions == null) {
+        int columnCount = columnNames.size();
+        int fileCount = files.size();
+        String[][] rawValues = new String[columnCount][fileCount];
+        boolean[] written = new boolean[columnCount];
+        int depth = -1;
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath path = files.get(i).path();
+            int fileDepth = pathDepth(path);
+            if (depth == -1) {
+                depth = fileDepth;
+            } else if (fileDepth != depth) {
                 return PartitionMetadata.EMPTY;
             }
-            allRawPartitions.add(partitions);
-        }
-
-        LinkedHashMap<String, List<String>> columnValues = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-        for (String col : columnNames) {
-            columnValues.put(col, new ArrayList<>());
-        }
-        for (Map<String, String> raw : allRawPartitions) {
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                columnValues.get(e.getKey()).add(e.getValue());
+            if (fillColumns(path, rawValues, i, written) == false) {
+                return PartitionMetadata.EMPTY;
             }
         }
 
         LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-        for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
-            partitionColumns.put(e.getKey(), HivePartitionDetector.inferType(e.getValue()));
-        }
-
-        LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
+        Object[][] valuesByColumn = new Object[columnCount][];
         HivePartitionDetector.CastInterner interner = new HivePartitionDetector.CastInterner();
-        for (int i = 0; i < files.size(); i++) {
-            Map<String, String> raw = allRawPartitions.get(i);
-            LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey()), interner));
+        for (int c = 0; c < columnCount; c++) {
+            DataType type = HivePartitionDetector.inferType(Arrays.asList(rawValues[c]));
+            partitionColumns.put(columnNames.get(c), type);
+            Object[] column = new Object[fileCount];
+            String[] rawColumn = rawValues[c];
+            for (int i = 0; i < fileCount; i++) {
+                column[i] = HivePartitionDetector.castValue(rawColumn[i], type, interner);
             }
-            filePartitionValues.put(files.get(i).path(), typed);
+            valuesByColumn[c] = column;
         }
 
         // Only now is the rename true: the bail-outs above surface no partition column at all, and a notice raised
         // before them would ride the cached listing into every later run.
         ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
-        return new PartitionMetadata(partitionColumns, filePartitionValues);
-    }
-
-    /** Whether the files sit at differing directory depths, which makes last-N template binding inconsistent. */
-    private static boolean hasMixedDepth(List<StorageEntry> files) {
-        int depth = -1;
-        for (StorageEntry entry : files) {
-            int d = pathDepth(entry.path());
-            if (depth == -1) {
-                depth = d;
-            } else if (d != depth) {
-                return true;
-            }
-        }
-        return false;
+        return PartitionMetadata.columnar(partitionColumns, valuesByColumn, fileCount);
     }
 
     /**
      * Non-empty directory segments of a {@link StoragePath#path()} string, filename dropped.
-     * Extract and depth use this so the skip-empty / drop-filename cut cannot drift. Rewrite
-     * repeats the same cut on a {@code path.split("/")} array so it can edit slots in place.
+     * Delegates to {@link HivePartitionDetector#directorySegments} so the skip-empty / drop-filename
+     * cut cannot drift. Rewrite repeats the same cut on a {@code path.split("/")} array so it can
+     * edit slots in place.
      */
     public static List<String> directorySegments(String path) {
-        if (path == null || path.isEmpty()) {
-            return List.of();
-        }
-        List<String> nonEmpty = new ArrayList<>();
-        for (String segment : path.split("/")) {
-            if (segment.isEmpty() == false) {
-                nonEmpty.add(segment);
-            }
-        }
-        if (nonEmpty.isEmpty()) {
-            return List.of();
-        }
-        nonEmpty.remove(nonEmpty.size() - 1);
-        return nonEmpty;
+        return HivePartitionDetector.directorySegments(path);
     }
 
-    private static int pathDepth(StoragePath storagePath) {
-        return directorySegments(storagePath.path()).size();
-    }
-
-    private Map<String, String> extractByTemplate(StoragePath storagePath) {
-        List<String> dirs = directorySegments(storagePath.path());
+    /**
+     * The directory value {@code template} binds to {@code column} on a {@link StoragePath#path()}, or {@code null}
+     * when the template does not bind that column here. Same alignment, literal check, and percent-decode as
+     * {@link #detect}, so a range filter sees the string detection will type — including a default-partition sentinel,
+     * which is text and must widen the column rather than be dropped as a number.
+     */
+    @Nullable
+    public static String columnValue(String path, String column, String template) {
+        List<TemplateSegment> segments = parseTemplate(template);
+        List<String> dirs = directorySegments(path);
         if (dirs.size() < segments.size()) {
             return null;
         }
-        int startIdx = dirs.size() - segments.size();
-        LinkedHashMap<String, String> result = Maps.newLinkedHashMapWithExpectedSize(columnNames.size());
+        int start = dirs.size() - segments.size();
+        String bound = null;
         for (int i = 0; i < segments.size(); i++) {
-            String dir = dirs.get(startIdx + i);
+            String dir = dirs.get(start + i);
             switch (segments.get(i)) {
                 case TemplateSegment.Literal(String value) -> {
                     if (value.equals(dir) == false) {
@@ -209,15 +179,70 @@ public final class TemplatePartitionDetector implements PartitionDetector {
                     }
                 }
                 case TemplateSegment.Placeholder(String name) -> {
+                    if (column.equals(ReservedPartitionNames.surface(name)) == false) {
+                        continue;
+                    }
                     String decoded = HivePartitionDetector.decodePartitionValue(dir);
-                    String previous = result.put(name, decoded);
-                    if (previous != null && previous.equals(decoded) == false) {
+                    if (bound != null && bound.equals(decoded) == false) {
                         return null;
                     }
+                    bound = decoded;
                 }
             }
         }
-        return result;
+        return bound;
+    }
+
+    private static int pathDepth(StoragePath storagePath) {
+        return directorySegments(storagePath.path()).size();
+    }
+
+    /**
+     * Writes this file's template column tokens into {@code rawValues}. A repeated placeholder must bind the
+     * same decoded value. Returns {@code false} when the path is shorter than the template, a literal does not
+     * match, or a repeated placeholder disagrees with itself.
+     */
+    private boolean fillColumns(StoragePath storagePath, String[][] rawValues, int fileIndex, boolean[] written) {
+        Arrays.fill(written, false);
+        List<String> dirs = directorySegments(storagePath.path());
+        if (dirs.size() < segments.size()) {
+            return false;
+        }
+        int startIdx = dirs.size() - segments.size();
+        for (int i = 0; i < segments.size(); i++) {
+            String dir = dirs.get(startIdx + i);
+            switch (segments.get(i)) {
+                case TemplateSegment.Literal(String value) -> {
+                    if (value.equals(dir) == false) {
+                        return false;
+                    }
+                }
+                case TemplateSegment.Placeholder(String name) -> {
+                    int col = columnIndex(name);
+                    String decoded = HivePartitionDetector.decodePartitionValue(dir);
+                    // A null token does not count as a previous binding: the map put in the old detector
+                    // overwrote it and only rejected a non-null value that disagreed.
+                    if (written[col]) {
+                        String previous = rawValues[col][fileIndex];
+                        if (previous != null && previous.equals(decoded) == false) {
+                            return false;
+                        }
+                    }
+                    rawValues[col][fileIndex] = decoded;
+                    written[col] = true;
+                }
+            }
+        }
+        return true;
+    }
+
+    private int columnIndex(String name) {
+        for (int i = 0; i < columnNames.size(); i++) {
+            if (columnNames.get(i).equals(name)) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("template column [" + name + "] missing from column list");
     }
 
     /**

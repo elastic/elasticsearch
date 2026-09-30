@@ -146,6 +146,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return Math.max(bucketState.size(), lc.maxOrd());
     }
 
+    /**
+     * Returns the number of buckets currently in HyperLogLog mode (as opposed to LinearCounting mode).
+     * Together with {@link #maxOrd()}, lets callers estimate serialized size.
+     */
+    public long hllBucketCount() {
+        return hll.totalBuckets;
+    }
+
     @Override
     public long cardinality(long bucketOrd) {
         final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;

@@ -204,7 +204,19 @@ public final class ExternalFailures {
         }
         RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            result = new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+            // IOException messages from storage clients may embed full storage URIs. Log at WARN on
+            // this node for debugging; do not chain t into the exception so its message and cause
+            // chain never cross the wire.
+            logger.warn("External read failed with IO exception (cause logged, not forwarded)", t);
+            ExternalClientException ioResult = new ExternalClientException(
+                "Failed to read external source: {}",
+                t.getClass().getSimpleName()
+            );
+            // Include the IO detail only when it is free of storage-URI schemes.
+            if (t.getMessage() != null && containsStoragePath(t.getMessage()) == false) {
+                ioResult.setDetail(t.getMessage());
+            }
+            result = ioResult;
         } else {
             result = new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
         }

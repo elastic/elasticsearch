@@ -96,16 +96,26 @@ public class ExternalFailuresTests extends ESTestCase {
             new UncheckedIOException(new IOException("wrapped")) }) {
             RuntimeException classified = ExternalFailures.classify(io);
             assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
-            assertSame(io, classified.getCause());
+            // IOException is not chained: its message may embed storage URIs which would leak via caused_by.
+            assertNull("IOException must not be chained to prevent caused_by leaks", classified.getCause());
             assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+            assertThat(classified.getMessage(), org.hamcrest.Matchers.containsString(io.getClass().getSimpleName()));
         }
+    }
+
+    public void testIoMessageWithStorageUriIsStripped() {
+        IOException io = new IOException("s3://my-bucket/path/file.parquet: read failed");
+        RuntimeException classified = ExternalFailures.classify(io);
+        assertNull("IOException with URI must not be chained", classified.getCause());
+        assertThat(classified.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("s3://")));
     }
 
     public void testInflaterPrematureEofIsMalformedInput() {
         EOFException inflater = new EOFException("Unexpected end of ZLIB input stream");
         RuntimeException classified = ExternalFailures.classify(inflater);
         assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
-        assertSame(inflater, classified.getCause());
+        // IOException is not chained: its message may embed storage URIs which would leak via caused_by.
+        assertNull("EOFException must not be chained to prevent caused_by leaks", classified.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
 
         RuntimeException surfaced = ExternalFailures.surface(inflater, "Streaming parallel parsing failed");

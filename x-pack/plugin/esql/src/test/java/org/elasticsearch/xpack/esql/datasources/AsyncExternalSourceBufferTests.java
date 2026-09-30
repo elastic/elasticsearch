@@ -311,10 +311,9 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     public void testOnFailureClassifiesLosersBeforeSuppressing() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         CircuitBreakingException first = new CircuitBreakingException("first", CircuitBreaker.Durability.TRANSIENT);
-        // A raw IOException as loser: in practice storage layers always raise ExternalClientException,
-        // but classify() must still wrap any unexpected IOException so the raw message cannot surface
-        // through the suppressed[] array in the serialised error response.
-        IOException rawIo = new IOException("connection reset by peer");
+        // A raw IOException with a storage URI in the message: classify() must strip it before the
+        // exception enters the suppressed[] array that innerToXContent serialises into the API response.
+        IOException rawIo = new IOException("s3://my-bucket/path/file.parquet: read failed");
 
         buffer.onFailure(first);
         buffer.onFailure(rawIo);

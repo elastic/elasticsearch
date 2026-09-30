@@ -1954,60 +1954,58 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testCreateConfiguration() throws Exception {
-        String content = XContentHelper.stripWhitespace(
-            """
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
-                       "features": {
-                           "non_streaming_chat": {
-                               "supported": true
-                           }
+        String content = XContentHelper.stripWhitespace("""
+            {
+                   "service": "elastic",
+                   "name": "Elastic",
+                   "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
+                   "configurations": {
+                       "model_id": {
+                           "description": "The name of the model to use for the inference task.",
+                           "label": "Model ID",
+                           "required": true,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                           "document_extraction"]
                        },
-                       "configurations": {
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
-                               "document_extraction"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
-                           },
-                           "max_batch_size": {
-                               "description": "Allows you to specify the maximum number of chunks per batch.",
-                               "label": "Maximum Batch Size",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": true,
-                               "type": "int",
-                               "supported_task_types": ["sparse_embedding"]
-                           },
-                           "output_format": {
-                               "description": "The format of the extracted document content.
-                               Can be overridden per request via task_settings.",
-                               "label": "Output Format",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": true,
-                               "type": "str",
-                               "supported_task_types": ["document_extraction"]
-                           }
+                       "max_input_tokens": {
+                           "description": "Allows you to specify the maximum number of tokens per input.",
+                           "label": "Maximum Input Tokens",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
+                       },
+                       "output_format": {
+                           "description": "The format of the extracted document content.
+                           Can be overridden per request via task_settings.",
+                           "label": "Output Format",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "str",
+                           "supported_task_types": ["document_extraction"]
                        }
                    }
-                """
-        );
+               }
+            """);
         InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
@@ -2021,60 +2019,58 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        String content = XContentHelper.stripWhitespace(
-            """
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": [],
-                       "features": {
-                           "non_streaming_chat": {
-                               "supported": true
-                           }
+        String content = XContentHelper.stripWhitespace("""
+            {
+                   "service": "elastic",
+                   "name": "Elastic",
+                   "task_types": [],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
+                   "configurations": {
+                       "model_id": {
+                           "description": "The name of the model to use for the inference task.",
+                           "label": "Model ID",
+                           "required": true,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                           "document_extraction"]
                        },
-                       "configurations": {
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
-                               "document_extraction"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
-                           },
-                           "max_batch_size": {
-                               "description": "Allows you to specify the maximum number of chunks per batch.",
-                               "label": "Maximum Batch Size",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": true,
-                               "type": "int",
-                               "supported_task_types": ["sparse_embedding"]
-                           },
-                           "output_format": {
-                               "description": "The format of the extracted document content.
-                               Can be overridden per request via task_settings.",
-                               "label": "Output Format",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": true,
-                               "type": "str",
-                               "supported_task_types": ["document_extraction"]
-                           }
+                       "max_input_tokens": {
+                           "description": "Allows you to specify the maximum number of tokens per input.",
+                           "label": "Maximum Input Tokens",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
+                       },
+                       "output_format": {
+                           "description": "The format of the extracted document content.
+                           Can be overridden per request via task_settings.",
+                           "label": "Output Format",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "str",
+                           "supported_task_types": ["document_extraction"]
                        }
                    }
-                """
-        );
+               }
+            """);
         InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON

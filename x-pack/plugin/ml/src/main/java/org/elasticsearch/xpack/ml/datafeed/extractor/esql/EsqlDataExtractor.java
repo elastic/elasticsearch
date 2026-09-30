@@ -67,6 +67,7 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
     private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
+    private static final String TIME_SORT = " | SORT ??timeField ASC";
 
     private final Client client;
     private final EsqlDataExtractorContext context;
@@ -285,9 +286,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = buildTimeFilter();
 
-        // Anomaly detection drops records that arrive out of time order
-        // We add a SORT on the time field to ensure that the data is returned in time order
-        String orderedQuery = appendGeneratedPipeline(maybeInjectLimit(context.esqlQuery()), " | SORT ??timeField ASC");
+        String orderedQuery = buildOrderedQuery(context.esqlQuery());
 
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
@@ -344,9 +343,21 @@ public class EsqlDataExtractor implements DataExtractor {
             || cause instanceof UnavailableShardsException;
     }
 
-    static String maybeInjectLimit(String query) {
-        LimitScan limitScan = scanForOuterLimit(query);
-        return limitScan.hasOuterLimit() ? query : appendGeneratedPipeline(query, DEFAULT_LIMIT);
+    /**
+     * Appends the extractor's generated pipeline to the user's query.
+     * <p>
+     * Anomaly detection drops records that arrive out of time order, so a {@code SORT} on the time field is
+     * always appended. When the user's query has no outer {@code LIMIT}, the safety cap
+     * ({@link #INJECTED_ROW_LIMIT}) is injected <em>after</em> that sort ({@code ... | SORT t ASC | LIMIT n}).
+     * ES|QL pipelines are sequential, so the opposite order ({@code LIMIT n | SORT t ASC}) would keep an
+     * arbitrary {@code n} rows and only then sort them, contradicting the chunker's assumption that a capped
+     * chunk holds the earliest rows of its interval (see {@code ChunkedDataExtractor#getIncompleteSearchInterval}).
+     * The planner rewrites {@code SORT + LIMIT} into a single top-N, so the cap does not sort the full result.
+     * A user-supplied outer {@code LIMIT} is left where the user put it, with the time sort after it.
+     */
+    static String buildOrderedQuery(String query) {
+        String sorted = appendGeneratedPipeline(query, TIME_SORT);
+        return scanForOuterLimit(query).hasOuterLimit() ? sorted : sorted + DEFAULT_LIMIT;
     }
 
     private static String appendGeneratedPipeline(String query, String pipeline) {

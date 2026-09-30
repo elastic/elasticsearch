@@ -62,7 +62,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -173,7 +175,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | LIMIT 10000 | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000"));
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "timestamp", IDENTIFIER))));
         assertThat(result.rowCount(), equalTo(1L));
         verify(timingStatsReporter).reportSearchDuration(any());
@@ -191,7 +193,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
             extractor.next();
 
-            verify(builder).query(DEFAULT_QUERY + " | LIMIT 10000 | SORT ??timeField ASC");
+            verify(builder).query(DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000");
             verify(builder).filter(any(RangeQueryBuilder.class));
             verify(builder).params(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER)));
             verify(builder).allowPartialResults(false);
@@ -216,19 +218,39 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | LIMIT 10000 | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithoutLimitCommandShouldAppendDefaultLimit() {
         String query = "FROM logs-* | KEEP @timestamp, bytes";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
+    }
+
+    public void testInjectedCapShouldFollowTimeSortSoTheEarliestRowsSurviveTruncation() {
+        // ES|QL runs pipelines sequentially: "LIMIT n | SORT t" keeps an arbitrary n rows and sorts only those,
+        // whereas "SORT t | LIMIT n" (planned as a top-N) keeps the n earliest rows. The chunker's
+        // incomplete-chunk handling relies on the latter.
+        String ordered = EsqlDataExtractor.buildOrderedQuery("FROM logs-* | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1h)");
+
+        int sortIdx = ordered.indexOf("| SORT ??timeField ASC");
+        int limitIdx = ordered.indexOf("| LIMIT 10000");
+        assertThat(sortIdx, greaterThan(-1));
+        assertThat(limitIdx, greaterThan(-1));
+        assertThat("time sort must precede the injected cap", sortIdx, lessThan(limitIdx));
+        assertThat(ordered, endsWith("| LIMIT 10000"));
+    }
+
+    public void testUserLimitShouldStayBeforeTimeSortAndNoCapIsInjected() {
+        String ordered = EsqlDataExtractor.buildOrderedQuery("FROM logs-* | SORT value DESC | LIMIT 20");
+
+        assertThat(ordered, equalTo("FROM logs-* | SORT value DESC | LIMIT 20 | SORT ??timeField ASC"));
     }
 
     public void testQueryWithLimitCommandShouldPreserveUserLimit() {
         String query = "FROM logs-* | LIMIT 20";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
     }
 
     public void testNextGivenUserLimitShouldKeepUserLimitAndAppendTimeSort() throws IOException {
@@ -254,13 +276,13 @@ public class EsqlDataExtractorTests extends ESTestCase {
     public void testQueryWithLimitInQuotedStringShouldAppendDefaultLimit() {
         String query = "FROM logs-* | WHERE message == \"LIMIT 20\"";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitInTripleQuotedStringShouldAppendDefaultLimit() {
         String query = "FROM logs-* | WHERE message == \"\"\"| LIMIT 20\"\"\"";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testNextGivenFourQuoteTripleStringAndOuterLimitShouldAppendTimeSort() throws IOException {
@@ -276,61 +298,61 @@ public class EsqlDataExtractorTests extends ESTestCase {
     public void testQueryWithFiveQuoteTripleStringAndOuterLimitShouldPreserveOuterLimit() {
         String query = "FROM logs-* | WHERE message == \"\"\"literal\"\"\"\"\" | LIMIT 20";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
     }
 
     public void testQueryWithLimitInCommentShouldAppendDefaultLimit() {
         String query = "FROM logs-* // | LIMIT 20\n| KEEP @timestamp";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitInBlockCommentShouldAppendDefaultLimit() {
         String query = "FROM logs-* /* | LIMIT 20 */ | KEEP @timestamp";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitInNestedBlockCommentShouldAppendDefaultLimit() {
         String query = "FROM logs-* /* outer /* | LIMIT 20 */ comment */ | KEEP @timestamp";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitSubstringShouldAppendDefaultLimit() {
         String query = "FROM logs-* | KEEP limit_value, `LIMIT``_value`";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitInInSubqueryShouldAppendDefaultLimit() {
         String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id)";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithLimitInForkBranchesShouldAppendDefaultLimit() {
         String query = "FROM logs-* | FORK (WHERE level == \"warn\" | LIMIT 3) (WHERE level == \"error\" | LIMIT 4)";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testQueryWithNestedAndOuterLimitShouldPreserveOuterLimit() {
         String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id) | LIMIT 20";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
     }
 
     public void testQueryEndingInLineCommentShouldAppendLimitOnNewLine() {
         String query = "FROM logs-* // no user limit";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + "\n | LIMIT 10000"));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + "\n | SORT ??timeField ASC | LIMIT 10000"));
     }
 
     public void testMultilineMixedCaseLimitCommandShouldPreserveUserLimit() {
         String query = "FROM logs-*\n| KEEP @timestamp\n| lImIt 42";
 
-        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+        assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
     }
 
     public void testHasAggregationGivenNoStatsCommandIsFalse() {
@@ -532,7 +554,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        String expectedQuery = DEFAULT_QUERY + " | LIMIT 10000 | SORT ??timeField ASC";
+        String expectedQuery = DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000";
         QueryBuilder expectedFilter = new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(2000L).format("epoch_millis");
         List<EsqlQueryParam> expectedParams = List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER));
         assertThat(extractor.capturedQueries, equalTo(List.of(expectedQuery, expectedQuery)));

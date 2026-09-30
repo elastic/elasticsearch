@@ -29,8 +29,10 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -107,6 +109,41 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         );
     }
 
+    /**
+     * When the row cap is hit, the rows that survive must be the earliest by time (the injected cap follows the time
+     * sort). Documents are indexed latest-first so that a cap applied before the sort would keep the latest rows
+     * in index order instead.
+     */
+    public void testEsqlDatafeedAtRowCapShouldKeepEarliestRowsByTime() throws Exception {
+        String index = "esql-cap-order-oracle";
+        String jobId = "esql-cap-order-job";
+        String datafeedId = jobId + "-datafeed";
+        createSourceIndex(index);
+        int totalDocs = 10_050;
+        long firstEventTime = BASE_TIME + 1_000L;
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < totalDocs; i++) {
+            long eventTime = firstEventTime + (totalDocs - 1 - i);
+            bulk.add(new IndexRequest(index).source("source_time", firstEventTime, "event_time", eventTime, "value", i));
+        }
+        BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        for (BulkItemResponse item : bulkResponse) {
+            assertFalse(item.getFailureMessage(), item.isFailed());
+        }
+
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(datafeedId, jobId, "FROM esql-cap-order-oracle | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+        );
+
+        List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, FIRST_WINDOW_END);
+
+        assertThat(rows.size(), equalTo(10_000));
+        LongSummaryStatistics eventTimes = rows.stream().mapToLong(row -> ((Number) row.get("event_time")).longValue()).summaryStatistics();
+        assertThat(eventTimes.getMin(), equalTo(firstEventTime));
+        assertThat(eventTimes.getMax(), equalTo(firstEventTime + 9_999L));
+    }
+
     private void assertLimitOracle(String index, String jobId, String query, long expectedRecords) throws Exception {
         String datafeedId = jobId + "-datafeed";
         Job.Builder job = createJob(jobId);
@@ -155,6 +192,11 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private int previewRowCount(String datafeedId, long start, long end) throws Exception {
+        return previewRows(datafeedId, start, end).size();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> previewRows(String datafeedId, long start, long end) throws Exception {
         PreviewDatafeedAction.Response response = client().execute(
             PreviewDatafeedAction.INSTANCE,
             new PreviewDatafeedAction.Request(datafeedId, Long.toString(start), Long.toString(end))
@@ -166,7 +208,11 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                 new BytesArray(org.elasticsearch.common.Strings.toString(response)).streamInput()
             )
         ) {
-            return parser.list().size();
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (Object row : parser.list()) {
+                rows.add((Map<String, Object>) row);
+            }
+            return rows;
         }
     }
 

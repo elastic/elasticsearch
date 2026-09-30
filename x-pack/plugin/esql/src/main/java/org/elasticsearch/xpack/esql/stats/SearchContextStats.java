@@ -26,9 +26,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -48,6 +51,7 @@ import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -547,15 +551,42 @@ public class SearchContextStats implements SearchStats {
         }
     }
 
+    /**
+     * The {@code typeName()}s of leaf field types whose {@code _source} value is always a plain scalar (or an array of
+     * scalars) stored under the field's own name — never an object or array-of-objects. A LOAD_ALL expansion of such a
+     * value can only ever produce a single leaf column named exactly after the field, so the field contributes an
+     * unmapped column only when the pattern wants that exact name. Every other type (ranges, {@code flattened}, geo,
+     * histograms, {@code aggregate_metric_double}, vectors, ...) can keep a structured value in {@code _source} that
+     * expands to dotted sub-columns, and so is handled conservatively. Keeping this an allow-list means an unrecognised
+     * type is treated as possibly-structured rather than silently assumed scalar.
+     */
+    private static final Set<String> SCALAR_SOURCE_TYPES = Set.of(
+        "keyword",
+        "text",
+        "match_only_text",
+        "constant_keyword",
+        "wildcard",
+        "version",
+        "byte",
+        "short",
+        "integer",
+        "long",
+        "half_float",
+        "float",
+        "double",
+        "scaled_float",
+        "unsigned_long",
+        "boolean",
+        "ip",
+        "date",
+        "date_nanos",
+        "binary"
+    );
+
     @Override
     public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
         // Safe to skip only when every shard is provably free of unmapped source fields for this pattern.
-        for (SearchExecutionContext context : contexts) {
-            if (isNoop(pattern, context.getMappingLookup(), context.getIndexSettings()) == false) {
-                return false;
-            }
-        }
-        return true;
+        return contexts.stream().allMatch(context -> isNoop(pattern, context.getMappingLookup(), context.getIndexSettings()));
     }
 
     /**
@@ -563,22 +594,30 @@ public class SearchContextStats implements SearchStats {
      * {@code _source} field — so the {@code _unmapped_fields} column would be null in every row and the {@code _source}
      * read may be skipped entirely.
      *
-     * <p>For top-level scalar fields (no dot in the full path) it applies {@link UnmappedFieldsPattern#matches}; for
-     * top-level object and nested fields it applies the looser {@link UnmappedFieldsPattern#objectSubfieldsCouldMatch}.
-     * That check is conservative: an object field whose every descendant is excluded still causes the method to return
-     * {@code false}, falling back to the full {@code _source} read. That is safe — the optimisation matters most for
-     * flat, fully-mapped indices where no object fields appear.
-     *
-     * <p>The mapping-based check is only valid when the root {@code dynamic} setting guarantees the mapping covers every
-     * {@code _source} field; under {@code dynamic:false} or {@code dynamic:flattened} the method returns {@code false},
-     * because {@code _source} may then contain fields absent from the mapping.
-     *
-     * <p>It also returns {@code false} when the shard enables either {@code index.mapping.total_fields.ignore_dynamic_beyond_limit}
-     * or {@code index.mapping.field_name_length.ignore_dynamic_beyond_limit}. With those settings a document whose dynamic
-     * fields exceed the field-count or field-name-length budget has the over-limit fields retained in {@code _source} (and
-     * therefore surfaced by {@code _unmapped_fields} / {@code LOAD_ALL}) rather than added to the mapping. The mapping then no
-     * longer proves that {@code _source} is fully covered, even under {@code dynamic:true}, so skipping the read could drop
-     * those fields.
+     * <p>A skip is sound only when the mapping proves that {@code _source} carries no key the pattern could surface as an
+     * unmapped column. This method therefore declines (returns {@code false}) in every case where {@code _source} might
+     * still hold such a key even though the top-level fields are mapped:
+     * <ul>
+     *   <li>{@code dynamic:false} / {@code dynamic:flattened} roots — {@code _source} may contain fields absent from the
+     *       mapping.</li>
+     *   <li>{@code index.mapping.total_fields.ignore_dynamic_beyond_limit} or
+     *       {@code index.mapping.field_name_length.ignore_dynamic_beyond_limit} — over-budget dynamic fields are retained in
+     *       {@code _source} instead of being mapped.</li>
+     *   <li>A leaf whose type can keep a <em>structured</em> value in {@code _source} ({@code flattened}, range types,
+     *       {@code geo_point}/{@code geo_shape}, {@code histogram}, {@code aggregate_metric_double}, vectors, ...), or any
+     *       leaf with {@code ignore_malformed} enabled (which may retain a malformed object). Such a value expands to
+     *       dotted sub-columns, so the field contributes when the pattern wants the field name or anything in its subtree.
+     *       Plain scalar leaves (see {@link #SCALAR_SOURCE_TYPES}) contribute only when the pattern wants their exact name —
+     *       which can happen for a field mapped on this shard after the coordinator built its column list (e.g. a
+     *       {@code subobjects:false} dotted key such as {@code host.name}).</li>
+     *   <li>A runtime field (including one minted by {@code dynamic:runtime}) whose name the pattern still wants — runtime
+     *       fields are stored beside the mapped fields and are read from {@code _source}.</li>
+     *   <li>A top-level object/nested field any of whose descendants the pattern could match; nested objects are covered by
+     *       their top-level ancestor. This is deliberately conservative — the optimisation targets flat, fully-mapped
+     *       indices where no object fields appear.</li>
+     * </ul>
+     * Multi-fields (e.g. {@code height.keyword}) are ignored: they share their parent's {@code _source} key and add none of
+     * their own.
      */
     static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup, IndexSettings indexSettings) {
         if (pattern.isNone()) {
@@ -591,26 +630,59 @@ public class SearchContextStats implements SearchStats {
         if (rootDynamic == ObjectMapper.Dynamic.FALSE || rootDynamic == ObjectMapper.Dynamic.FLATTENED) {
             return false;
         }
-        // Top-level scalar fields. MetadataFieldMapper instances (_id, _source, etc.) live outside the user _source
-        // document, so they must not be considered here. Dotted paths (e.g. "parent.child") are not top-level _source
-        // keys — they are covered by the object-mapper pass below.
+        return noLeafCouldContribute(pattern, mappingLookup)
+            && noRuntimeFieldCouldContribute(pattern, mappingLookup)
+            && noObjectCouldContribute(pattern, mappingLookup);
+    }
+
+    /**
+     * Whether no mapped leaf field could contribute a {@code _source} key the pattern surfaces. Metadata fields ({@code _id},
+     * {@code _source}, ...) live outside the user {@code _source} document and multi-fields reuse their parent's key, so both
+     * are skipped; an unrecognised mapper type is treated conservatively as a possible contributor.
+     */
+    private static boolean noLeafCouldContribute(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
         for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof MetadataFieldMapper) {
+            if (mapper instanceof MetadataFieldMapper || mapper instanceof FieldAliasMapper) {
                 continue;
             }
-            String fullPath = mapper.fullPath();
-            if (fullPath.indexOf('.') < 0 && pattern.matches(fullPath)) {
-                return false;
-            }
-        }
-        // Top-level object and nested fields.
-        for (ObjectMapper objectMapper : mappingLookup.objectMappers().values()) {
-            String fullPath = objectMapper.fullPath();
-            if (fullPath.indexOf('.') < 0 && pattern.objectSubfieldsCouldMatch(fullPath)) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                String fullPath = fieldMapper.fullPath();
+                if (mappingLookup.isMultiField(fullPath)) {
+                    continue;
+                }
+                if (leafCouldContribute(pattern, fullPath, fieldMapper)) {
+                    return false;
+                }
+            } else {
+                // Unrecognised mapper type: cannot prove its _source shape, so force the read.
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean leafCouldContribute(UnmappedFieldsPattern pattern, String fullPath, FieldMapper fieldMapper) {
+        if (SCALAR_SOURCE_TYPES.contains(fieldMapper.typeName()) && fieldMapper.ignoreMalformed() == false) {
+            return pattern.matches(fullPath);
+        }
+        // Structured or ignore_malformed (or unrecognised) leaf: its _source value can expand to dotted sub-columns.
+        return pattern.matches(fullPath) || pattern.objectSubfieldsCouldMatch(fullPath);
+    }
+
+    private static boolean noRuntimeFieldCouldContribute(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
+        Mapping mapping = mappingLookup.getMapping();
+        if (mapping == null) {
+            return true;
+        }
+        return mapping.getRoot().runtimeFields().stream().noneMatch(runtimeField -> pattern.matches(runtimeField.name()));
+    }
+
+    private static boolean noObjectCouldContribute(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
+        return mappingLookup.objectMappers()
+            .values()
+            .stream()
+            .filter(objectMapper -> objectMapper.fullPath().indexOf('.') < 0)
+            .noneMatch(objectMapper -> pattern.objectSubfieldsCouldMatch(objectMapper.fullPath()));
     }
 
     @Override

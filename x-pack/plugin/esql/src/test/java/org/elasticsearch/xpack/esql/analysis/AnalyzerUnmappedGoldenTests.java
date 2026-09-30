@@ -85,7 +85,21 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
             FROM employees
             | KEEP emp_no, first_name*
-            """).searchStats(new TestConfigurableSearchStats().canSkipUnmappedFieldsExtraction(true)).run();
+            """).searchStats(new TestConfigurableSearchStats().forceSkipUnmappedFieldsExtraction(true)).run();
+    }
+
+    /**
+     * A wildcard {@code KEEP} that matches no mapped column keeps the LOAD_ALL {@code $$unmapped_fields} expansion alive but leaves it
+     * as the only thing the {@code FieldExtractExec} would carry. With the skip forced on, {@code SkipUnmappedFieldsExtraction} would
+     * otherwise leave an empty field read, so it drops the extraction entirely — the {@code local_physical_optimization} golden shows a
+     * null {@code $$unmapped_fields} column directly on the query with no field read. See
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SkipUnmappedFieldsExtraction}.
+     */
+    public void testLoadAllNetZeroProjectionSkipsSourceReadEntirely() throws Exception {
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM employees
+            | KEEP does_not_exist*
+            """).searchStats(new TestConfigurableSearchStats().forceSkipUnmappedFieldsExtraction(true)).run();
     }
 
     public void testKeepRepeated() throws Exception {

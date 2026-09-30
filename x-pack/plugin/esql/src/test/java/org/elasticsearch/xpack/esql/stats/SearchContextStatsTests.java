@@ -56,6 +56,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     private List<MapperService> mapperServices;
     private List<IndexReader> readers;
     private long minMillis, maxMillis, minNanos, maxNanos;
+    /** Closeables opened by the {@code LOAD_ALL} skip helpers, released in {@link #cleanup()}. */
+    private final List<Closeable> loadAllCloseables = new ArrayList<>();
 
     @Before
     public void setup() throws IOException {
@@ -1195,70 +1197,124 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
-     * Fully-mapped, dynamic:true index whose every top-level {@code _source} field is a mapped column (and therefore an
+     * Fully-mapped, dynamic:true index whose every top-level {@code _source} field is a mapped scalar column (and therefore an
      * exact-exclude of the pattern): nothing can survive, so the {@code _source} read behind {@code LOAD_ALL} may be skipped.
      */
     public void testCanSkipUnmappedFieldsWhenFullyMappedDynamicTrue() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchStats stats = statsForMapping(toClose, """
-                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertTrue(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertTrue(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
     /** A mapped field that is not excluded by the pattern could still surface a value, so the read must not be skipped. */
     public void testCannotSkipWhenSomeMappedFieldIsNotExcluded() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchStats stats = statsForMapping(toClose, """
-                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1"));
-            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1")));
     }
 
     /** Under dynamic:false, {@code _source} may carry fields absent from the mapping, so skipping is never safe. */
     public void testCannotSkipWhenDynamicFalse() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchStats stats = statsForMapping(toClose, """
-                { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchStats stats = statsForMapping("""
+            { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
     /** Under dynamic:strict no unmapped field can exist, so a fully-excluded pattern is skippable. */
     public void testCanSkipWhenDynamicStrict() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchStats stats = statsForMapping(toClose, """
-                { "doc": { "dynamic": "strict", "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertTrue(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchStats stats = statsForMapping("""
+            { "doc": { "dynamic": "strict", "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertTrue(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
+    }
+
+    /**
+     * A mapped field whose original JSON value is an object ships whole when any name inside it might be wanted, and the coordinator
+     * flattens it into dotted columns. Excluding only the parent name ({@code attributes}) does not exclude those inner columns, so a
+     * {@code flattened} field (which keeps a structured value in {@code _source}) forces the read even when its own name is a column.
+     */
+    public void testCannotSkipWhenObjectValuedFlattenedFieldExcluded() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": { "id": { "type": "keyword" }, "attributes": { "type": "flattened" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id", "attributes")));
+    }
+
+    /**
+     * Same reasoning as the {@code flattened} case for a range type: {@code span} stored as {@code {"gte":1,"lte":5}} expands to
+     * {@code span.gte}/{@code span.lte}, which excluding only {@code span} does not cover.
+     */
+    public void testCannotSkipWhenObjectValuedRangeFieldExcluded() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": { "id": { "type": "keyword" }, "span": { "type": "integer_range" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id", "span")));
+    }
+
+    /**
+     * With {@code subobjects:false}, a dotted name such as {@code host.name} is a real {@code _source} key (not a multi-field). If it
+     * was mapped on this shard after the coordinator built its column list, the pattern still wants it, so the read must not be skipped.
+     */
+    public void testCannotSkipWhenSubobjectsFalseDottedFieldStillWanted() throws IOException {
+        // subobjects:false must be set at creation (it cannot be updated by a later merge), so build the mapping directly.
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("host.name").field("type", "keyword").endObject();
+        }));
+        SearchStats stats = SearchContextStats.from(List.of(contextFor(mapperService)));
+        // Only "id" is excluded, so the pattern still wants the dotted key "host.name".
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id")));
+    }
+
+    /**
+     * The dotted name of a multi-field ({@code message.raw}) is not a {@code _source} key — it reuses its parent's {@code message}
+     * value. When the scalar parent is excluded, the multi-field adds nothing of its own, so the skip is still allowed.
+     */
+    public void testCanSkipWhenOnlyDottedNameIsMultiFieldOfExcludedParent() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": {
+                "id": { "type": "keyword" },
+                "message": { "type": "text", "fields": { "raw": { "type": "keyword" } } }
+            } } }""");
+        assertTrue(stats.canSkipUnmappedFieldsExtraction(excludingAll("id", "message")));
+    }
+
+    /**
+     * A scalar type with {@code ignore_malformed} may keep a malformed object in {@code _source} (e.g. {@code {"original":"nope"}}
+     * under a {@code long}), which expands to inner columns. So an {@code ignore_malformed} leaf forces the read even when its own name
+     * is excluded — unlike the keyword-only {@link #testCanSkipUnmappedFieldsWhenFullyMappedDynamicTrue} index, which can still skip.
+     */
+    public void testCannotSkipWhenIgnoreMalformedScalarExcluded() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "properties": {
+                "field1": { "type": "keyword" },
+                "field2": { "type": "long", "ignore_malformed": true }
+            } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
+    }
+
+    /**
+     * Under {@code dynamic:runtime} a new {@code _source} field becomes a runtime field on the shard. Runtime fields are stored beside
+     * the mapped fields and read from {@code _source}, so one whose name the pattern still wants forces the read.
+     */
+    public void testCannotSkipWhenDynamicRuntimeFieldStillWanted() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "dynamic": "runtime", "runtime": { "status": { "type": "keyword" } },
+                       "properties": { "id": { "type": "keyword" } } } }""");
+        // Only "id" is excluded, so the pattern still wants the runtime field "status".
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id")));
+    }
+
+    /** ...but when every runtime field name is already an excluded column, the skip is still allowed. */
+    public void testCanSkipWhenDynamicRuntimeFieldsAllExcluded() throws IOException {
+        SearchStats stats = statsForMapping("""
+            { "doc": { "dynamic": "runtime", "runtime": { "status": { "type": "keyword" } },
+                       "properties": { "id": { "type": "keyword" } } } }""");
+        assertTrue(stats.canSkipUnmappedFieldsExtraction(excludingAll("id", "status")));
     }
 
     /** The {@link UnmappedFieldsPattern#NONE} sentinel keeps nothing regardless of the mapping, so it is always skippable. */
     public void testCanSkipForNonePattern() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchStats stats = statsForMapping(toClose, """
-                { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" } } } }""");
-            assertTrue(stats.canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern.NONE));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchStats stats = statsForMapping("""
+            { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" } } } }""");
+        assertTrue(stats.canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern.NONE));
     }
 
     /**
@@ -1266,18 +1322,12 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
      * cannot be skipped, even though a sibling fully-mapped dynamic:true shard on its own would allow it.
      */
     public void testCannotSkipWhenAnyShardMightHoldUnmappedField() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            SearchExecutionContext fullyMapped = contextForMapping(toClose, """
-                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            SearchExecutionContext dynamicFalse = contextForMapping(toClose, """
-                { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
-            SearchStats stats = SearchContextStats.from(List.of(fullyMapped, dynamicFalse));
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        SearchExecutionContext fullyMapped = contextForMapping("""
+            { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        SearchExecutionContext dynamicFalse = contextForMapping("""
+            { "doc": { "dynamic": false, "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(fullyMapped, dynamicFalse));
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
     /**
@@ -1287,18 +1337,10 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
      * skipped.
      */
     public void testCannotSkipWhenIgnoreDynamicFieldsBeyondLimit() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            Settings settings = Settings.builder()
-                .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
-                .build();
-            SearchStats stats = SearchContextStats.from(List.of(contextForMapping(toClose, settings, """
-                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""")));
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true).build();
+        SearchStats stats = statsForMapping(settings, """
+            { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
     /**
@@ -1306,41 +1348,45 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
      * effect: over-long dynamic field names are kept in {@code _source} without being mapped, so skipping is unsafe.
      */
     public void testCannotSkipWhenIgnoreDynamicFieldNamesBeyondLimit() throws IOException {
-        final List<Closeable> toClose = new ArrayList<>();
-        try {
-            Settings settings = Settings.builder()
-                .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING.getKey(), true)
-                .build();
-            SearchStats stats = SearchContextStats.from(List.of(contextForMapping(toClose, settings, """
-                { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""")));
-            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("field1", "field2"));
-            assertFalse(stats.canSkipUnmappedFieldsExtraction(pattern));
-        } finally {
-            IOUtils.close(toClose);
-        }
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING.getKey(), true)
+            .build();
+        SearchStats stats = statsForMapping(settings, """
+            { "doc": { "properties": { "field1": { "type": "keyword" }, "field2": { "type": "long" } } } }""");
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
-    private SearchStats statsForMapping(List<Closeable> toClose, String mappingJson) throws IOException {
-        return SearchContextStats.from(List.of(contextForMapping(toClose, mappingJson)));
+    private static UnmappedFieldsPattern excludingAll(String... names) {
+        return UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of(names));
     }
 
-    private SearchExecutionContext contextForMapping(List<Closeable> toClose, String mappingJson) throws IOException {
-        return contextForMapping(toClose, Settings.EMPTY, mappingJson);
+    private SearchStats statsForMapping(String mappingJson) throws IOException {
+        return statsForMapping(Settings.EMPTY, mappingJson);
     }
 
-    private SearchExecutionContext contextForMapping(List<Closeable> toClose, Settings settings, String mappingJson) throws IOException {
-        MapperService mapperService = settings == Settings.EMPTY
-            ? createMapperService(mappingJson)
-            : createMapperService(settings, mappingJson);
+    private SearchStats statsForMapping(Settings settings, String mappingJson) throws IOException {
+        return SearchContextStats.from(List.of(contextForMapping(settings, mappingJson)));
+    }
+
+    private SearchExecutionContext contextForMapping(String mappingJson) throws IOException {
+        return contextForMapping(Settings.EMPTY, mappingJson);
+    }
+
+    private SearchExecutionContext contextForMapping(Settings settings, String mappingJson) throws IOException {
+        return contextFor(settings == Settings.EMPTY ? createMapperService(mappingJson) : createMapperService(settings, mappingJson));
+    }
+
+    /** Indexes a single throwaway document (the {@code isNoop} decision reads the mapping only) and builds a context over it. */
+    private SearchExecutionContext contextFor(MapperService mapperService) throws IOException {
         Directory dir = newDirectory();
         IndexReader reader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(List.of(new StringField("field1", "a", Field.Store.NO)));
             reader = writer.getReader();
         }
-        toClose.add(reader);
-        toClose.add(mapperService);
-        toClose.add(dir);
+        loadAllCloseables.add(reader);
+        loadAllCloseables.add(mapperService);
+        loadAllCloseables.add(dir);
         return createSearchExecutionContext(mapperService, newSearcher(reader));
     }
 
@@ -1349,5 +1395,6 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         IOUtils.close(readers);
         IOUtils.close(mapperServices);
         IOUtils.close(directory);
+        IOUtils.close(loadAllCloseables);
     }
 }

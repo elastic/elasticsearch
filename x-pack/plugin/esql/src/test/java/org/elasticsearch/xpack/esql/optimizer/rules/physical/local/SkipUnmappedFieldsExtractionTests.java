@@ -11,11 +11,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -34,10 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -46,60 +39,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@link EvalExec}, so the {@code _source} read is skipped; otherwise the plan is left untouched.
  */
 public class SkipUnmappedFieldsExtractionTests extends ESTestCase {
-
-    public void testNullifiesUnmappedFieldsWhenSkippable() {
-        FieldAttribute mapped = fieldAttribute("mapped", DataType.LONG);
-        UnmappedFieldsAttribute unmapped = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
-        EsQueryExec leaf = esQueryExec();
-        FieldExtractExec extract = new FieldExtractExec(
-            Source.EMPTY,
-            leaf,
-            List.of(mapped, unmapped),
-            MappedFieldType.FieldExtractPreference.NONE
-        );
-
-        PhysicalPlan result = applyRule(extract, searchStats(true));
-
-        assertThat(result, instanceOf(FieldExtractExec.class));
-        FieldExtractExec optimized = (FieldExtractExec) result;
-        // The unmapped attribute is removed from the extraction, leaving only the genuinely mapped field.
-        assertThat(optimized.attributesToExtract(), contains((Attribute) mapped));
-        assertThat(optimized.child(), instanceOf(EvalExec.class));
-        EvalExec eval = (EvalExec) optimized.child();
-        assertThat(eval.fields(), contains(instanceOf(Alias.class)));
-        Alias nullified = eval.fields().getFirst();
-        // Same name and id so the coordinator's expansion still finds the (now all-null) column and drops it.
-        assertThat(nullified.name(), is(unmapped.name()));
-        assertThat(nullified.id(), is(unmapped.id()));
-        assertThat(nullified.child(), instanceOf(Literal.class));
-        Literal literal = (Literal) nullified.child();
-        assertThat(literal.value(), nullValue());
-        assertThat(literal.dataType(), is(DataType.KEYWORD));
-        assertThat(eval.child(), sameInstance(leaf));
-    }
-
-    public void testDropsFieldExtractWhenOnlyUnmappedFieldRemains() {
-        // Net-zero projection on a fully-mapped shard: every mapped column has been dropped, so the only thing left to
-        // extract is the skippable UnmappedFieldsAttribute. Removing it would leave an empty FieldExtractExec, which
-        // becomes an illegal ValuesSourceReaderOperator with no fields; the rule must drop the extraction entirely and
-        // keep only the null-producing eval.
-        UnmappedFieldsAttribute unmapped = new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
-        EsQueryExec leaf = esQueryExec();
-        FieldExtractExec extract = new FieldExtractExec(Source.EMPTY, leaf, List.of(unmapped), MappedFieldType.FieldExtractPreference.NONE);
-
-        PhysicalPlan result = applyRule(extract, searchStats(true));
-
-        assertThat(result, instanceOf(EvalExec.class));
-        EvalExec eval = (EvalExec) result;
-        assertThat(eval.fields(), contains(instanceOf(Alias.class)));
-        Alias nullified = eval.fields().getFirst();
-        assertThat(nullified.name(), is(unmapped.name()));
-        assertThat(nullified.id(), is(unmapped.id()));
-        assertThat(nullified.child(), instanceOf(Literal.class));
-        assertThat(((Literal) nullified.child()).value(), nullValue());
-        // No FieldExtractExec remains; the eval sits directly on the source, which still supplies the rows.
-        assertThat(eval.child(), sameInstance(leaf));
-    }
 
     public void testLeavesPlanUntouchedWhenNotSkippable() {
         FieldAttribute mapped = fieldAttribute("mapped", DataType.LONG);

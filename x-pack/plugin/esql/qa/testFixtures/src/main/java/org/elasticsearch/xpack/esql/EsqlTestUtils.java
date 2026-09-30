@@ -515,25 +515,35 @@ public final class EsqlTestUtils {
             return constantValues.get(name.string());
         }
 
-        private boolean canSkipUnmappedFieldsExtraction = false;
+        private boolean forceSkipUnmappedFieldsExtraction = false;
 
         /**
-         * Models a fully-mapped data node for {@code SET unmapped_fields="LOAD_ALL"}: the synthetic
-         * {@code _unmapped_fields} column can be nullified in the local physical plan instead of reading {@code _source}.
+         * Forces {@link #canSkipUnmappedFieldsExtraction} to report the shard as fully mapped for
+         * {@code SET unmapped_fields="LOAD_ALL"}, so the synthetic {@code _unmapped_fields} column is nullified in the local
+         * physical plan instead of reading {@code _source}. Unlike the real
+         * {@link org.elasticsearch.xpack.esql.stats.SearchContextStats}, this override ignores the pattern and returns the
+         * forced value directly.
          */
-        public TestConfigurableSearchStats canSkipUnmappedFieldsExtraction(boolean value) {
-            this.canSkipUnmappedFieldsExtraction = value;
+        public TestConfigurableSearchStats forceSkipUnmappedFieldsExtraction(boolean value) {
+            this.forceSkipUnmappedFieldsExtraction = value;
             return this;
         }
 
         @Override
         public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
-            return canSkipUnmappedFieldsExtraction;
+            return forceSkipUnmappedFieldsExtraction;
         }
 
         @Override
         public String toString() {
-            return "TestConfigurableSearchStats{" + "includes=" + includes + ", excludes=" + excludes + '}';
+            return "TestConfigurableSearchStats{"
+                + "includes="
+                + includes
+                + ", excludes="
+                + excludes
+                + ", forceSkipUnmappedFieldsExtraction="
+                + forceSkipUnmappedFieldsExtraction
+                + '}';
         }
     }
 

@@ -1868,6 +1868,24 @@ id:keyword | extra:keyword | extra.baz:keyword
 2          | null          | world
 ;
 
+// A mapped field whose JSON value is an object (here an "integer_range", but the same holds for geo_point, aggregate_metric_double,
+// vectors, etc.) is fully mapped, so a name-only skip check would wrongly conclude LOAD_ALL adds nothing and skip the _source read.
+// But the object flattens to dotted leaf columns ("span.gte", "span.lt"), so the read must not be skipped and the inner columns must
+// still surface. Excluding only the parent name "span" does not exclude those inner leaves.
+mappedObjectValuedFieldStillExpandsUnderLoadAll
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mapped_object_source_data
+| KEEP id, span.gte, span.lt
+| SORT id
+;
+
+id:keyword | span.gte:keyword | span.lt:keyword
+1          | 1                | 5
+2          | 10               | 20
+;
+
 // Same data and mapping as fromNoProjection, but with synthetic source, which reconstructs the dotted key "unmapped.nested" as a
 // nested object. Flattening that object back to its leaf yields the same "unmapped.nested" column, so LOAD_ALL over a
 // synthetic-source index produces exactly the output of the non-synthetic fromNoProjection above.

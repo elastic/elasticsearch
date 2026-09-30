@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
@@ -64,6 +65,10 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
         return 1;
     }
 
+    protected Settings.Builder testIndexSettings() {
+        return indexSettings(shardCount(), 0);
+    }
+
     @Before
     public void setupIndex() throws IOException {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
@@ -79,7 +84,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             mapping.endObject();
         }
         mapping.endObject();
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings(shardCount(), 0)).setMapping(mapping.endObject()).get();
+        client().admin().indices().prepareCreate("test").setSettings(testIndexSettings()).setMapping(mapping.endObject()).get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numberOfDocs(); i++) {

@@ -113,7 +113,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // to count the bytes of the actual data-node round trip.
         private final LongConsumer requestBytesConsumer;
         private final LongConsumer resultBytesConsumer;
-        // Also not serialized.
         private final Consumer<Exception> onCoordinatorTrip;
 
         public Request(
@@ -258,6 +257,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
             finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
+            responseStream.transferBreakerBytesTo(finalResult);
 
             // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
             try {

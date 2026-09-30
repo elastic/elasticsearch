@@ -28,10 +28,12 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
     public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
     private final boolean preserveOriginal;
+    private final Object sharingKey;
 
     public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
+        this.sharingKey = new Key(preserveOriginal);
     }
 
     @Override
@@ -64,4 +66,10 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
         return new ASCIIFoldingFilter(tokenStream, false);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(boolean preserveOriginal) {}
 }

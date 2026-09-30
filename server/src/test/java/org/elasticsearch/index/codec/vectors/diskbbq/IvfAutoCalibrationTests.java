@@ -514,7 +514,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             42L
         );
 
-        for (int maxDocBits : new int[] { UNCAPPED_MAX_DOC_BITS, 1 }) {
+        for (int maxDocBits : new int[] { 7, 4, 2, 1 }) {
             for (boolean forceMerge : new boolean[] { false, true }) {
                 TrackingSelector selector = new TrackingSelector(
                     VPC,
@@ -534,6 +534,61 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     assertThat(msg, config.osqEncoding().bits(), equalTo((byte) maxDocBits));
                 }
             }
+        }
+    }
+
+    public void testMaxDocBitsAtSelectedEncodingPreservesCalibration() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+
+        // these targets select a 1-bit (4-bit query), 2-bit and 4-bit encoding respectively on this corpus
+        for (double targetRecall : new double[] { 0.2, 0.5, 0.9 }) {
+            IvfAutoCalibration uncapped = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                targetRecall,
+                DEFAULT_K,
+                UNCAPPED_MAX_DOC_BITS
+            );
+            IvfSegmentConfig expected = uncapped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+
+            int ceiling = expected.osqEncoding().bits();
+            String msg = "targetRecall=" + targetRecall + ", maxDocBits=" + ceiling;
+            TrackingSelector capped = new TrackingSelector(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                targetRecall,
+                DEFAULT_K,
+                ceiling
+            );
+
+            // a background merge whose input already carries this calibration reuses it rather than recalibrating
+            int numVectors = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION;
+            StubCalibrationKnnVectorsReader calibratedSegment = new StubCalibrationKnnVectorsReader(
+                expected.osqEncoding(),
+                expected.rescoreOversample(),
+                expected.usePrecondition(),
+                numVectors
+            );
+            try (Directory dir = newDirectory()) {
+                MergeState mergeState = mergeState(
+                    dir,
+                    new KnnVectorsReader[] { calibratedSegment },
+                    new Bits[] { liveDocs(numVectors) },
+                    backgroundSegmentInfo(dir)
+                );
+                IvfSegmentConfig resolved = capped.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
+                assertThat(msg, capped.calibrateInvocations, equalTo(0));
+                assertThat(msg, resolved, equalTo(expected));
+            }
+
+            // recalibrating with the max doc bits capped to what is currently used should produce the same calibration results
+            assertThat(msg, capped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN), equalTo(expected));
         }
     }
 
@@ -676,7 +731,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testBackgroundMergeWithEncodingDisagreementCompletesSuccessfully() throws IOException, InterruptedException {
+    public void testBackgroundMergeWithEncodingDisagreementCompletesSuccessfully() throws IOException {
         Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         IvfAutoCalibration calibration = new IvfAutoCalibration(VPC);

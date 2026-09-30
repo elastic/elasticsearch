@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -15,9 +17,11 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -41,6 +45,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -329,7 +334,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown, instanceOf(ExternalUnavailableException.class));
         assertFalse(((ExternalUnavailableException) thrown).throttling());
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
-        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
         assertThat(thrown.getMessage(), not(containsString("transient read failure")));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
@@ -355,7 +360,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown, instanceOf(ExternalUnavailableException.class));
         assertFalse(((ExternalUnavailableException) thrown).throttling());
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
-        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
         assertThat(thrown.getMessage(), not(containsString("transient read failure")));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
@@ -370,14 +375,26 @@ public class HttpStorageObjectTests extends ESTestCase {
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         StoragePath path = StoragePath.of("https://example.com/file.parquet");
         ExternalUnavailableException withCause = new ExternalUnavailableException(
-            "HTTP response body shorter than expected reading [" + path + "]",
+            Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            false,
+            0L,
             new IOException("connection reset")
         );
         HttpClient direct = mock(HttpClient.class);
         doReturn(CompletableFuture.failedFuture(withCause)).when(direct).sendAsync(any(), any());
         assertSame(withCause, readAsyncFailure(new HttpStorageObject(direct, path, HttpConfiguration.defaults()), 10));
 
-        ExternalUnavailableException wrapped = new ExternalUnavailableException("HTTP response body shorter than expected");
+        ExternalUnavailableException wrapped = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
         HttpClient jdkWrapped = mock(HttpClient.class);
         doReturn(
             CompletableFuture.failedFuture(
@@ -591,58 +608,136 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * Each {@code mapReadFailure} form names the object by its URL without user info or query string; the
-     * client-error form brackets it like the other two.
+     * Each {@code mapReadFailure} form names the object by its safe name (last path segment) without the storage URI,
+     * credentials, or query parameters.
      */
     public void testReadFailureRedactsUrl() throws Exception {
         IOException clientError = expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN).newStream());
-        assertEquals("Failed to read object from [https://host:8443/a/b.csv] (HTTP 403)", clientError.getMessage());
+        assertEquals("Failed to read object from [b.csv] (HTTP 403)", clientError.getMessage());
 
         ExternalUnavailableException unavailable = expectThrows(
             ExternalUnavailableException.class,
             () -> objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE).newStream()
         );
-        HttpUrlsTests.assertRedacted(unavailable.getMessage());
+        assertSafeMessage(unavailable.getMessage());
 
         ExternalObjectChangedException changed = expectThrows(
             ExternalObjectChangedException.class,
             () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED).newStream(1, 2)
         );
-        HttpUrlsTests.assertRedacted(changed.getMessage());
+        assertSafeMessage(changed.getMessage());
     }
 
-    /** Both {@code observeEtag} failures name the object by its redacted URL. */
+    /** Both {@code observeEtag} failures name the object by its safe name (last path segment). */
     public void testEtagMismatchRedactsUrl() throws Exception {
         ExternalObjectChangedException changed = expectThrows(
             ExternalObjectChangedException.class,
             () -> readTwiceWithEtags("\"gen-1\"", "\"gen-2\"")
         );
-        assertEquals("Object changed during read of [https://host:8443/a/b.csv]", changed.getMessage());
+        assertEquals("External data object [b.csv] was modified during read", changed.getMessage());
 
         ExternalObjectChangedException unverifiable = expectThrows(
             ExternalObjectChangedException.class,
             () -> readTwiceWithEtags("\"gen-1\"", null)
         );
-        HttpUrlsTests.assertRedacted(unverifiable.getMessage());
+        assertSafeMessage(unverifiable.getMessage());
     }
 
-    /** The async send failures that are not already typed are wrapped with the redacted URL. */
+    /** The async send failures that are not already typed are wrapped with the object name, not the storage URI. */
     public void testAsyncSendFailureRedactsUrl() throws Exception {
         for (Throwable failure : List.of(new CompletionException(new IOException("closed")), new IllegalArgumentException("boom"))) {
             HttpClient mockClient = mock(HttpClient.class);
             doReturn(CompletableFuture.failedFuture(failure)).when(mockClient).sendAsync(any(), any());
             StoragePath path = StoragePath.of(HttpUrlsTests.SECRET_URL);
             HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
-            HttpUrlsTests.assertRedacted(readAsyncFailure(object, 10).getMessage());
+            assertSafeMessage(readAsyncFailure(object, 10).getMessage());
+        }
+    }
+
+    private static void assertSafeMessage(String message) {
+        assertThat(message, containsString("b.csv"));
+        assertThat(message, not(containsString("user:pass")));
+        assertThat(message, not(containsString("X-Amz-Signature")));
+        assertThat(message, not(containsString("https://")));
+    }
+
+    /**
+     * esql-planning#2119: the origin's error body is text the remote wrote — an identity, an internal host name, a
+     * token echo — and the message reaches whoever runs the query. The status stays in the message; the body goes to
+     * the node log, at {@code WARN} for a terminal status.
+     */
+    public void testReadFailureKeepsTheOriginBodyOutOfTheMessage() throws Exception {
+        String body = "denied for principal arn:aws:iam::123456789012:role/reader";
+        for (int status : new int[] { HttpStatus.SC_FORBIDDEN, HttpStatus.SC_SERVICE_UNAVAILABLE }) {
+            Exception thrown = expectThrows(Exception.class, () -> objectAnswering(status, body).newStream());
+            assertThat(thrown.getMessage(), containsString("HTTP " + status));
+            assertThat(thrown.getMessage(), not(containsString("arn:aws:")));
+            assertThat(thrown.getMessage(), not(containsString("body")));
+        }
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED, body).newStream(1, 2)
+        );
+        assertThat(changed.getMessage(), containsString("HTTP 412"));
+        assertThat(changed.getMessage(), not(containsString("arn:aws:")));
+
+        HttpStorageObject.ORIGIN_BODY_WARN.reset();
+        try (MockLog mockLog = MockLog.capture(HttpStorageObject.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "origin body logged",
+                    HttpStorageObject.class.getCanonicalName(),
+                    Level.WARN,
+                    "*HTTP 403*body: " + body
+                )
+            );
+            expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN, body).newStream());
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * The retry layer that decides a 503 is final never sees the body, so a body is logged at WARN whatever the
+     * status. Storage objects are created per file, split and resolution, so the bound is per node, not per object:
+     * reads of several objects write one WARN between them and the rest go to DEBUG.
+     */
+    public void testOriginBodyIsLoggedAtWarnAtMostOncePerInterval() throws Exception {
+        String body = "origin overloaded, shard 7";
+        AtomicInteger warnings = new AtomicInteger();
+        HttpStorageObject.ORIGIN_BODY_WARN.reset();
+        try (MockLog mockLog = MockLog.capture(HttpStorageObject.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() == Level.WARN && event.getMessage().getFormattedMessage().endsWith("body: " + body)) {
+                        warnings.incrementAndGet();
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertEquals("the origin body must reach WARN exactly once per interval", 1, warnings.get());
+                }
+            });
+            for (int i = 0; i < 3; i++) {
+                HttpStorageObject obj = objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE, body);
+                expectThrows(ExternalUnavailableException.class, obj::newStream);
+            }
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with an empty body. */
     private static HttpStorageObject objectAnswering(int statusCode) throws Exception {
+        return objectAnswering(statusCode, "");
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with {@code body}. */
+    private static HttpStorageObject objectAnswering(int statusCode, String body) throws Exception {
         HttpResponse<InputStream> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(statusCode);
         when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
-        when(response.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(response.body()).thenAnswer(inv -> new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
         HttpClient mockClient = mock(HttpClient.class);
         doReturn(response).when(mockClient).send(any(), any());
         return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());

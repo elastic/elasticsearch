@@ -149,7 +149,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.length = storageObject.length();
             this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path().objectName() + "]", e);
         }
         // Zero-length objects still need a 1-byte array; fetchWindowAt returns before any read
         // (pos >= length). For length > 0 this equals min(requested, length), so
@@ -172,14 +172,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * The object's path. parquet-mr interpolates the {@code InputFile} straight into user-facing failures — the
-     * "is not a Parquet file. Expected magic number at tail" message is built as {@code this + " is not a Parquet
-     * file..."} — so without an override the reader reports {@code ParquetStorageObjectAdapter@6b19422}, an identity
-     * hash that tells the reader nothing about which object was rejected.
+     * The object name (filename only, not the full storage path). parquet-mr interpolates the {@code InputFile}
+     * straight into user-facing failures — the "is not a Parquet file. Expected magic number at tail" message is
+     * built as {@code this + " is not a Parquet file..."} — so without an override the reader reports
+     * {@code ParquetStorageObjectAdapter@6b19422}, an identity hash. The full storage path is intentionally omitted:
+     * only the object name (last path segment) is ever shown to any caller.
      */
     @Override
     public String toString() {
-        return storageObject.path().toString();
+        return storageObject.path().objectName();
     }
 
     @Override

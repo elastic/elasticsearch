@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -35,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
@@ -51,10 +55,10 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.parquet"));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString("parquet"));
-        assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("connection reset by peer"));
+        assertThat(e.getMessage(), containsString("connection reset by peer"));
+        assertNull(e.getCause());
     }
 
     public void testRuntimeExceptionWrappedWithContext() {
@@ -66,9 +70,9 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
-        assertThat(e.getCause(), instanceOf(RuntimeException.class));
+        assertNull("an unrecognized failure's own message stays in the log, out of caused_by", e.getCause());
     }
 
     /**
@@ -88,9 +92,10 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertEquals("a user-caused split-discovery failure is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
-        assertSame("the original failure must be preserved as the cause", original, e.getCause());
+        assertThat("the original diagnosis must be kept", e.getMessage(), containsString(original.getMessage()));
+        assertNull(e.getCause());
     }
 
     /**
@@ -170,9 +175,9 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(e)
         );
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.ndjson"));
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(namedInMessage));
+        assertThat(e.getMessage(), containsString("*.ndjson"));
+        assertThat(e.getMessage(), containsString(namedInMessage));
+        assertNull(e.getCause());
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {
@@ -190,7 +195,14 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     public void testUnavailableExceptionKeepsServiceUnavailableStatus() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
-        ExternalUnavailableException original = new ExternalUnavailableException(true, "S3 store unavailable");
+        ExternalUnavailableException original = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "",
+            "",
+            true,
+            0L
+        );
         SplitProvider failingProvider = ctx -> { throw original; };
 
         ExternalUnavailableException e = expectThrows(
@@ -211,8 +223,73 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("s3://secure-bucket/private/*.parquet"));
-        assertThat(e.getCause(), instanceOf(SecurityException.class));
+        assertThat(e.getMessage(), containsString("*.parquet"));
+        assertNull("the store's own refusal text stays in the log, out of caused_by", e.getCause());
+    }
+
+    /**
+     * esql-planning#2119 on the split-discovery route, which lists and reads objects: a denied listing's SDK exception
+     * names the principal and bucket ARNs. Whether the storage layer typed the failure or left it a plain I/O error,
+     * nothing the phase hands on carries that sentence, and the status is kept.
+     */
+    public void testDiscoveryFailureDoesNotHandOnTheProviderMessage() {
+        String iam = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: "
+            + "s3:ListBucket on resource: arn:aws:s3:::secure-bucket";
+        ExternalSourceExec exec = createExternalSourceExec("s3://secure-bucket/private/*.parquet", "parquet");
+        IOException sdk = new IOException(iam);
+        RuntimeException[] failures = {
+            new ExternalClientException(Condition.ACCESS_DENIED, StoragePath.NONE, "HTTP 403 AccessDenied", "", sdk),
+            new UncheckedIOException(new IOException("Failed to list children in the configured path: HTTP 403 AccessDenied", sdk)),
+            new IllegalArgumentException("bad listing", sdk) };
+        for (RuntimeException failure : failures) {
+            SplitProvider failingProvider = ctx -> { throw failure; };
+            RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
+            );
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+                assertThat(String.valueOf(t.getMessage()), not(containsString("arn:aws:")));
+            }
+        }
+    }
+
+    /** An IAE message withheld from the response must still reach the log at a level the default configuration emits. */
+    public void testWithheldDiscoveryMessageIsLoggedAtWarn() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
+        IllegalArgumentException unsafe = new IllegalArgumentException("cannot list s3://bucket/data/");
+        SplitProvider failingProvider = ctx -> { throw unsafe; };
+        try (MockLog mockLog = MockLog.capture(SplitDiscoveryPhase.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "withheld message logged",
+                    SplitDiscoveryPhase.class.getCanonicalName(),
+                    Level.WARN,
+                    "Split discovery for [*] failed; its message is withheld from the response"
+                )
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
+            );
+            assertThat(e.getMessage(), not(containsString("s3://")));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /** A cancellation behind a wrapper must still be reported as one; the wrapper's chain does not reach the caller. */
+    public void testWrappedCancellationIsReportedAsTheCancellation() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
+        SplitProvider failingProvider = ctx -> {
+            throw new ElasticsearchException("listing aborted", new TaskCancelledException("task cancelled [by user]"));
+        };
+        RuntimeException e = expectThrows(
+            RuntimeException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
+        );
+        assertThat(e, org.hamcrest.Matchers.instanceOf(TaskCancelledException.class));
+        assertEquals("task cancelled [by user]", e.getMessage());
+        assertNull(e.getCause());
     }
 
     public void testSuccessfulDiscoveryUnaffected() {

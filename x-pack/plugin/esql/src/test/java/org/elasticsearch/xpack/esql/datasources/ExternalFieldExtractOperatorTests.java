@@ -25,13 +25,16 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,7 +86,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 /* deferredColumnNames = */ List.of("col"),
                 /* deferredColumnTypes = */ List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(input);
             op.finish();
@@ -130,7 +134,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(empty);
             op.finish();
@@ -172,7 +177,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                     List.of("colA", "colB"),
                     List.of(DataType.INTEGER, DataType.INTEGER),
                     registry,
-                    cranky
+                    cranky,
+                    null
                 );
                 op.addInput(empty);
                 op.finish();
@@ -199,27 +205,27 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
         try {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null, null)
             );
         } finally {
             registry.close();
@@ -232,7 +238,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
             List.of(),
             List.of(),
             List.of(),
-            ctx -> null
+            ctx -> null,
+            null
         );
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
@@ -250,7 +257,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             // Don't drain; close must release the pending page so we don't leak blocks.
@@ -281,7 +289,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                     List.of("col"),
                     List.of(DataType.INTEGER),
                     registry,
-                    blockFactory
+                    blockFactory,
+                    null
                 );
                 op.addInput(page);
                 try {
@@ -305,7 +314,7 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
      * before the second fails, so leak tracking also verifies cleanup of partial registry output.
      */
     public void testIoFailureDuringMaterializationIsClassified() {
-        IOException failure = new IOException("Access denied reading object s3://bucket/hits.parquet");
+        IOException failure = new IOException("Access denied reading object hits.parquet");
         try (SourceExtractors registry = new SourceExtractors()) {
             int successfulId = registry.register(new IntListExtractor(new int[] { 10 }));
             int failingId = registry.register(new ThrowingExtractor(failure));
@@ -321,7 +330,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
@@ -331,7 +341,7 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 assertEquals("external_client_exception", ElasticsearchException.getExceptionName(thrown));
                 assertTrue(thrown.getMessage().startsWith("Failed to read external source: "));
                 assertTrue(thrown.getMessage().contains(failure.getMessage()));
-                assertSame(failure, thrown.getCause());
+                assertNull(thrown.getCause());
             } finally {
                 op.close();
             }
@@ -340,10 +350,19 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
 
     /**
      * A storage-layer 503 already carries the retryable status. Classification at this operator
-     * must leave it unchanged rather than re-wrapping it as a client or server exception.
+     * must keep its type and status rather than re-wrapping it as a client or server exception,
+     * dropping only the cause chain beneath it.
      */
     public void testUnavailableExceptionDuringMaterializationStays503() {
-        ExternalUnavailableException failure = new ExternalUnavailableException("store 503", new IOException("connection reset"));
+        ExternalUnavailableException failure = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException("connection reset")
+        );
         try (SourceExtractors registry = new SourceExtractors()) {
             int id = registry.register(new ThrowingExtractor(failure));
             Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
@@ -354,13 +373,15 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
             try {
                 ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, op::getOutput);
-                assertSame(failure, thrown);
+                assertEquals(failure.getMessage(), thrown.getMessage());
+                assertNull(thrown.getCause());
                 assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
                 assertEquals("external_unavailable_exception", ElasticsearchException.getExceptionName(thrown));
             } finally {
@@ -384,7 +405,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
@@ -393,8 +415,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
                 assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
-                assertTrue(thrown.getCause() instanceof IllegalStateException);
-                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
+                assertThat(thrown.getMessage(), containsString("SourceExtractors is closed"));
+                assertNull(thrown.getCause());
             } finally {
                 op.close();
             }
@@ -420,7 +442,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             expectThrows(IllegalStateException.class, op::getOutput);

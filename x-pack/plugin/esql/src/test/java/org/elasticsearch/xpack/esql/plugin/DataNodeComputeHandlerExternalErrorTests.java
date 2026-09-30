@@ -111,9 +111,11 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of(sourceType, factory))
         );
 
-        assertThat(e.getMessage(), containsString(sourcePath));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString(sourceType));
-        assertNotNull(e.getCause());
+        assertThat(e.getMessage(), containsString("connection reset"));
+        // Split discovery is a user-facing boundary: the cause chain is logged, never rendered into caused_by.
+        assertNull(e.getCause());
     }
 
     public void testDistributionPlanWithStaleNodeAssignment() {

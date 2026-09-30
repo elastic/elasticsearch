@@ -12,18 +12,21 @@ import fixture.aws.DynamicRegionSupplier;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
@@ -48,6 +51,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Sweeps the whole user-visible error surface of external datasets — every misconfiguration we can
@@ -211,18 +216,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * Conditions whose message is knowingly still not distinguishing, with the reason. An entry here is a decision
      * on record, not a silenced failure — delete it when the underlying issue is fixed and the gate will hold the
      * new behaviour.
+     *
+     * <p>Note: "bucket does not exist", "key is a prefix, not an object", and "object key does not exist" are
+     * absent from this map even though their messages do not semantically distinguish a missing bucket from a
+     * missing prefix from a missing key. The probes avoid colliding only because they use different object names,
+     * which {@link #normalize} does not strip — not because the messages carry genuinely distinct diagnoses.
+     * Improving these messages to name the specific failure (missing bucket, prefix mismatch, missing key) is a
+     * known gap; restore these entries if that fix is reverted.
      */
-    private static final Map<String, String> KNOWN_OPEN = Map.of(
-        "bucket does not exist",
-        "reports \"Object not found\", the same as a genuinely absent key. The direct-object path asks HeadObject, "
-            + "and an HTTP HEAD response carries no body -- so S3's NoSuchBucket error code never reaches the SDK, "
-            + "which falls back to NoSuchKeyException. No fixture can change that; distinguishing it needs a second "
-            + "call (HeadBucket) on the not-found path. The listing path, which is a GET, already names it correctly",
-        "key is a prefix, not an object",
-        "reports \"Object not found\", the same as a genuinely absent key. The store can tell the two apart -- a "
-            + "prefix has children a listing would return -- so this is a defect to improve, not one condition "
-            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement"
-    );
+    private static final Map<String, String> KNOWN_OPEN = Map.of();
 
     /**
      * The status every probe is expected to return. This is the contract: a change here is a change to what
@@ -305,8 +307,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      */
     private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
         entry("tsv object does not exist", "external_client_exception"),
-        entry("tsv object is empty", "illegal_argument_exception"),
-        entry("tsv declared as parquet", "illegal_argument_exception"),
+        entry("tsv object is empty", "external_client_exception"),
+        entry("tsv declared as parquet", "external_client_exception"),
         entry("tsv under a data source with the wrong credentials", "external_client_exception"),
         entry("object key does not exist", "external_client_exception"),
         entry("bucket does not exist", "external_client_exception"),
@@ -319,11 +321,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("anonymous access against an authenticated endpoint", "external_client_exception"),
         entry("no extension and no explicit format", "validation_exception"),
         entry("unknown extension and no explicit format", "validation_exception"),
-        entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
+        entry("explicit format contradicts the bytes (parquet declared, CSV content)", "external_client_exception"),
         entry("unknown explicit format name", "validation_exception"),
-        entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
-        entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
-        entry("zero-byte object", "illegal_argument_exception"),
+        entry("parquet extension over non-parquet bytes", "external_client_exception"),
+        entry("parquet with correct magic but truncated body", "external_client_exception"),
+        entry("zero-byte object", "external_client_exception"),
         entry("unknown setting key on the dataset", "validation_exception"),
         entry("multi-character delimiter", "validation_exception"),
         entry("invalid encoding name", "validation_exception"),
@@ -342,7 +344,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
         entry("declared type not coercible from the bytes", "external_client_exception"),
-        entry("glob matches nothing", "illegal_argument_exception"),
+        entry("glob matches nothing", "external_client_exception"),
         entry("glob over incompatible schemas", "<none>"),
         entry("glob over a bucket that does not exist", "external_client_exception"),
         entry("put dataset referencing an unknown data source", "resource_not_found_exception"),
@@ -398,6 +400,41 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         logger.info("external error surface report written to {}", report.toAbsolutePath());
 
         assertMatrixInvariants();
+    }
+
+    /**
+     * esql-planning#2119: when an IAM policy refuses the read, S3's error message names the principal Elasticsearch
+     * authenticated as and the resource it was refused — account id, role, session, key id. The response must report
+     * the condition and the store's error code, and carry that sentence nowhere: not in {@code reason}, not in any
+     * {@code caused_by} level, not in {@code root_cause} or {@code suppressed}. The whole body is checked, on the
+     * literal {@code arn:aws:} rather than the sentence, so a reworded AWS message still trips it.
+     */
+    public void testIamDenialIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: kms:Decrypt on resource: "
+                + "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555 with an explicit deny in a "
+                + "resource-based policy"
+        );
+        putDataSource("iam_denied_ds", staticCredentialSettings());
+        putDataset("iam_denied", "iam_denied_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        Map<?, ?> error = (Map<?, ?>) body.get("error");
+        String reason = str(error.get("reason"));
+        assertThat(reason, containsString("HTTP 403"));
+        assertThat(reason, containsString("AccessDenied"));
+        for (String cause : flattenCauses(error)) {
+            assertThat(cause, not(containsString("arn:aws:")));
+        }
     }
 
     // -------- the reported case ------------------------------------------------------------------

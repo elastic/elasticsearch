@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.http.HttpConfiguration;
 import org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -134,9 +138,32 @@ public class ProductionResumeStackTests extends ESTestCase {
         try {
             EOFException eof = expectThrows(EOFException.class, in::readAllBytes);
             assertThat(eof.getMessage(), Matchers.containsString("Unexpected end of ZLIB input stream"));
+            assertFalse("the inflater, not Elasticsearch, composed this message", ExternalFailures.composedByElasticsearch(eof));
             RuntimeException classified = ExternalFailures.classify(eof);
             assertThat(classified, Matchers.instanceOf(ExternalClientException.class));
             assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+            assertEquals("Failed to read external source: EOFException", classified.getMessage());
+            // The response keeps only the class name, so the node log must carry the inflater's reason at default levels.
+            ExternalFailures.WITHHELD_MESSAGE_WARN.reset();
+            try (MockLog mockLog = MockLog.capture(ExternalFailures.class)) {
+                mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                    private boolean seen;
+
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getLevel() == Level.WARN && event.getThrown() == eof) {
+                            seen = true;
+                        }
+                    }
+
+                    @Override
+                    public void assertMatched() {
+                        assertTrue("the withheld EOFException must be logged at WARN", seen);
+                    }
+                });
+                ExternalFailures.logReadFailure(eof);
+                mockLog.assertAllExpectationsMatched();
+            }
         } finally {
             split.abortStream(in);
         }

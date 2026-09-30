@@ -3399,7 +3399,8 @@ public class GlobExpanderTests extends ESTestCase {
                     "exclusion",
                     GlobExpander.class.getCanonicalName(),
                     Level.DEBUG,
-                    "[2] of [4] files under [s3://bucket/data/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"
+                    "2 of 4 objects matching the resource under [data] were excluded by the [file_exclusions] dataset setting,"
+                        + " for example [_SUCCESS] which matched entry [**/_*]"
                 )
             );
             result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
@@ -3421,7 +3422,10 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(0, result.fileCount());
         assertEquals(
-            List.of("[2] of [2] files under [s3://bucket/out/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"),
+            List.of(
+                "2 of 2 objects matching the resource under [out] were excluded by the [file_exclusions] dataset setting,"
+                    + " for example [_SUCCESS] which matched entry [**/_*]"
+            ),
             result.listingWarnings()
         );
     }
@@ -3454,7 +3458,10 @@ public class GlobExpanderTests extends ESTestCase {
         FileList empty = GlobExpander.expandAndCompact(pattern, new StubProvider(markerOnly), null, HIVE_OFF, StoragePath.of(pattern));
         assertEquals(0, empty.fileCount());
         assertEquals(
-            List.of("[1] of [1] files under [s3://bucket/data/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"),
+            List.of(
+                "1 of 1 objects matching the resource under [data] was excluded by the [file_exclusions] dataset setting,"
+                    + " for example [_SUCCESS] which matched entry [**/_*]"
+            ),
             empty.listingWarnings()
         );
     }

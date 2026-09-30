@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -82,7 +83,14 @@ final class DecompressingStorageObject implements StorageObject {
             UncloseableInputStream rawToCodec = new UncloseableInputStream(raw);
             InputStream decompressed = codec.decompress(rawToCodec, breaker);
             InputStream guarded = maxDecompressionRatio > 0
-                ? new LimitGuardInputStream(decompressed, delegate.knownLength(), rawToCodec, maxDecompressionRatio, codec.name())
+                ? new LimitGuardInputStream(
+                    decompressed,
+                    delegate.knownLength(),
+                    rawToCodec,
+                    maxDecompressionRatio,
+                    codec.name(),
+                    delegate.path()
+                )
                 : decompressed;
             return new DecompressedStream(guarded, raw, delegate);
         } catch (IOException | RuntimeException e) {
@@ -266,10 +274,18 @@ final class DecompressingStorageObject implements StorageObject {
         private final UncloseableInputStream raw;
         private final int maxRatio;
         private final String settingKey;
+        private final StoragePath path;
         private long decompressedRead = 0;
         private long limit = INITIAL_LIMIT;
 
-        LimitGuardInputStream(InputStream decompressed, long compressedSize, UncloseableInputStream raw, int maxRatio, String codecName) {
+        LimitGuardInputStream(
+            InputStream decompressed,
+            long compressedSize,
+            UncloseableInputStream raw,
+            int maxRatio,
+            String codecName,
+            StoragePath path
+        ) {
             super(decompressed);
             Check.isTrue(maxRatio > 0, "LimitGuardInputStream requires a positive ratio; use the plain stream for unlimited decompression");
             this.compressedSize = compressedSize;
@@ -278,6 +294,7 @@ final class DecompressingStorageObject implements StorageObject {
             this.settingKey = "zstd".equals(codecName)
                 ? ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey()
                 : ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey();
+            this.path = path;
         }
 
         @Override
@@ -319,15 +336,24 @@ final class DecompressingStorageObject implements StorageObject {
                 }
                 limit = effective * maxRatio;
                 if (decompressedRead > limit) {
-                    throw new ExternalClientException(
-                        "decompression limit exceeded: decompressed {} bytes, limit is {} bytes "
-                            + "(ratio limit {}:1 × compressed bytes); reduce the object's compression ratio "
-                            + "or set [{}] to a higher value or 0 to disable",
-                        decompressedRead,
-                        limit,
-                        maxRatio,
-                        settingKey
+                    ExternalClientException ex = new ExternalClientException(
+                        ExternalException.Condition.MALFORMED_DATA,
+                        path,
+                        "decompression-limit",
+                        ""
                     );
+                    ex.setDetail(
+                        String.format(
+                            java.util.Locale.ROOT,
+                            "decompressed %d bytes, limit is %d bytes (ratio limit %d:1 × compressed bytes); "
+                                + "reduce the object's compression ratio or set [%s] to a higher value or 0 to disable",
+                            decompressedRead,
+                            limit,
+                            maxRatio,
+                            settingKey
+                        )
+                    );
+                    throw ex;
                 }
             }
         }

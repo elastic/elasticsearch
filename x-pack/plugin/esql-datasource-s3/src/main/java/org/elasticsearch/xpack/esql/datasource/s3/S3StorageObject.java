@@ -34,15 +34,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -78,6 +81,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     /** Scope key for the async-read retry token bucket; one bucket per {@link RetryStrategy} instance. */
     private static final String ASYNC_READ_RETRY_SCOPE = "s3-async-read";
+
+    /** Bounds the WARN lines the 403 arm of {@link #mapReadFailure} writes, across every object on the node. */
+    static final LogThrottle ACCESS_DENIED_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -264,9 +270,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * pipeline, so the SDK's retry stage wraps the trip in a status-neutral {@code SdkClientException} —
      * unwrapping it preserves the breaker's 429 so load shedding is not reported as a permanent
      * query error. Expired session tokens become {@link ExternalCredentialsExpiredException} (400)
-     * so sibling GETs and prefetch fallback can fail fast. A missing object, a 403, or any other
-     * failure becomes an {@link IOException}, which the external source operator classifies as a
-     * client-class 400.
+     * so sibling GETs and prefetch fallback can fail fast. A missing object or a 403 becomes an
+     * {@link ExternalClientException} (400) with no cause, since S3's message for a denial names the
+     * principal it read as; the SDK exception is only logged. Any other failure becomes an
+     * {@link IOException} that keeps its cause for retry classification, and which the external source
+     * operator classifies as a client-class 400.
      * Returns the exception (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
@@ -276,7 +284,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof CancellationException || cause instanceof TaskCancelledException) {
             return new TaskCancelledException("read cancelled");
         }
-        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path.toString());
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path.objectName());
         if (breakerTrip != null) {
             return breakerTrip;
         }
@@ -292,29 +300,28 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
+            logger.debug("S3 read of [{}] failed with retryable HTTP {}", path.objectName(), s3.statusCode(), cause);
             return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "S3 store unavailable reading [{}] (HTTP {})",
+                throttling
+                    ? ExternalUnavailableException.Condition.STORE_THROTTLED
+                    : ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
                 path,
-                s3.statusCode()
+                "HTTP " + s3.statusCode(),
+                "",
+                throttling,
+                retryAfterMs
             );
         }
         if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
-            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+            logger.debug("S3 precondition failed reading [{}]", path.objectName(), cause);
+            return new ExternalObjectChangedException(path);
         }
         if (cause instanceof S3Exception clockSkew
             && clockSkew.awsErrorDetails() != null
             && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
-            return new IOException(
-                "S3 request rejected due to clock skew reading ["
-                    + path
-                    + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
-                cause
-            );
+            return new ExternalClientException(ExternalClientException.Condition.CLOCK_SKEW, path, "", "");
         }
-        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading [" + path + "]");
+        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading object");
         if (expired != null) {
             return expired;
         }
@@ -322,35 +329,51 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
             // The read path cannot say which credential is wrong -- S3 answers a bad key and an anonymous request
             // against an authenticated bucket with the same 403 -- so it names both remedies.
-            return new IOException(
-                "Access denied reading ["
-                    + path
-                    + "] ("
-                    + S3FailureDetail.of(denied)
-                    + "). Verify the access_key and secret_key configured on the data source, "
-                    + "or set auth=anonymous if the bucket is public.",
-                cause
+            // Not chained: S3's own message for a policy denial names the principal and key ARNs we read as. This
+            // log is the only place that message survives, so it reaches WARN, at most once a minute per node.
+            if (ACCESS_DENIED_WARN.tryAcquire()) {
+                logger.warn("S3 access denied reading [{}]", path.objectName(), cause);
+            } else {
+                logger.debug("S3 access denied reading [{}]", path.objectName(), cause);
+            }
+            return new ExternalClientException(
+                ExternalClientException.Condition.ACCESS_DENIED,
+                path,
+                S3FailureDetail.of(denied),
+                "Verify the access_key and secret_key configured on the data source, or set auth=anonymous if the bucket is public."
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("Object not found: " + path, cause);
+            logger.debug("S3 object not found reading [{}]", path.objectName(), cause);
+            return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         if (isClosedClient(cause)) {
+            logger.debug("S3 client closed during read for [{}]", path.objectName(), cause);
             return new ExternalUnavailableException(
-                false,
-                cause,
-                "S3 client unavailable reading [{}]: {}",
+                ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
                 path,
-                S3FailureDetail.of(cause)
+                S3FailureDetail.of(cause),
+                "",
+                false,
+                0L
             );
         }
         if (isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", path, S3FailureDetail.of(cause));
+            logger.debug("S3 transport failure reading [{}]", path.objectName(), cause);
+            return new ExternalUnavailableException(
+                ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
+                path,
+                S3FailureDetail.of(cause),
+                "",
+                false,
+                0L
+            );
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
-        return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
     }
 
     /**
@@ -508,7 +531,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || isStrongEtag(etag) == false) {
             if (current != null) {
-                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
@@ -519,7 +542,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -584,7 +607,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }
@@ -647,7 +670,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (S3Exception e) {
-            if (mapReadFailure("Failed to read object metadata for", e) instanceof ExternalCredentialsExpiredException expired) {
+            if (S3FailureDetail.expired(e, "reading object") instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
             }
             if (e.statusCode() == 416) {
@@ -684,7 +707,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (Exception e) {
-            if (mapReadFailure("HeadObject request failed for", e) instanceof ExternalCredentialsExpiredException expired) {
+            if (S3FailureDetail.expired(e, "reading object") instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
@@ -703,9 +726,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cachedExists = true;
                 observeResponse(metadata, 0L, true);
                 if (cachedLength == null) {
-                    throw new IOException(
-                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
-                    );
+                    throw new IOException("Failed to determine external object size: Content-Range header missing from range GET response");
                 }
             }
         } catch (IOException e) {
@@ -1198,6 +1219,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "S3StorageObject{bucket=" + bucket + ", key=" + key + ", path=" + path + "}";
+        return "S3StorageObject[" + path.objectName() + "]";
     }
 }

@@ -81,6 +81,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
     /// throttle on relocations only.
     ///
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_incoming_recoveries",
         // Throttling handled by master allocation for now.
@@ -103,6 +106,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
     /// throttle on relocations only.
     ///
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once data node recovery throttling is ready for stateful (elasticsearch-team#2805).
+    ///
     public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
         "indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb",
         Double.MAX_VALUE,
@@ -117,6 +123,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     ///
     /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
     /// the other recovery throttle settings in [ThrottlingRecoveryService]).
+    ///
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once data node recovery throttling is ready for stateful (elasticsearch-team#2805).
     ///
     public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.incoming_recoveries_max_relocation_proportion",
@@ -179,7 +188,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
             INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
         );
-        // TODO: remove this branch once the settings are registered. Until then, fall back to the disabled defaults.
+        // These settings are currently only registered by the stateless plugin. Elsewhere, fall back to the disabled defaults.
+        // TODO: remove this branch once they are also registered in stateful.
         if (incomingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
             applyIncomingThrottleSettings(
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),

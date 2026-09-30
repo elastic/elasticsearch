@@ -13,9 +13,8 @@ import java.util.Map;
  * Key for a cached {@link FileMetadata}. Deliberately credential-INDEPENDENT — a storage identity names only
  * the fields its configuration declares non-secret — so the entry is shared across users exactly like the
  * schema cache: the same canonical path under the same storage identity resolves to the same object
- * regardless of who asks. The same canonical path under a different storage identity resolves to a
- * different object, so that identity
- * are part of the identity.
+ * regardless of who asks. The same canonical path under a different storage identity may resolve to a
+ * different object, which is why the storage identity is part of the key and the credential is not.
  */
 public record FileMetadataCacheKey(String canonicalPath, String storageIdentity, String definitionVersion) {
     /**

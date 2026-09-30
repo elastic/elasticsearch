@@ -272,11 +272,6 @@ public abstract class DataSourceConfiguration {
     }
 
     /**
-     * Returns the names of fields marked {@link DataSourceConfigDefinition#secret()} in the given definitions map.
-     * Call this from a subclass static {@code secretFieldNames()} method to derive the set from the authoritative
-     * field definitions rather than hardcoding it, so any new {@code secret(...)} field is included automatically.
-     */
-    /**
      * Every setting name this configuration recognises, secret and not.
      * <p>
      * Exposed so a test can be written against the field set a provider actually declares rather than against a
@@ -288,6 +283,11 @@ public abstract class DataSourceConfiguration {
         return Set.copyOf(fieldDefs.keySet());
     }
 
+    /**
+     * Returns the names of fields marked {@link DataSourceConfigDefinition#secret()} in the given definitions map.
+     * Call this from a subclass static {@code secretFieldNames()} method to derive the set from the authoritative
+     * field definitions rather than hardcoding it, so any new {@code secret(...)} field is included automatically.
+     */
     protected static Set<String> secretFieldNamesFrom(Map<String, DataSourceConfigDefinition> fieldDefs) {
         return fieldDefs.values()
             .stream()

@@ -581,13 +581,15 @@ public abstract class FullTextFunction extends Function
                 return;
             }
             // Full-text functions inside a HIGHLIGHT query expression are used to define highlighting
-            // terms, not as Lucene filter predicates, so the non-STANDARD restriction does not apply here.
+            // terms, not as Lucene filter predicates, so the LOOKUP JOIN restriction does not apply here.
             if (plan instanceof Highlight) {
                 return;
             }
+            // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
+            // runs against the main index shards and silently matches nothing.
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
                         failures.add(

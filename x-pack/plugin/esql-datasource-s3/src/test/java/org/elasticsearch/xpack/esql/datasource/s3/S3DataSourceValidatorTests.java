@@ -1214,7 +1214,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                     throw new IllegalArgumentException(
                         "Invalid character value for [delimiter] ["
                             + delimiter
-                            + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                            + "]: expected a single character or one of \\t, \\\\"
                     );
                 }
             }

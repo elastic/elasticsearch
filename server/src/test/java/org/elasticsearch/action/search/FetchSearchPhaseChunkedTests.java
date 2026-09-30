@@ -737,7 +737,6 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
     }
 
     public void testChunkedFetchChargesTheCoordinatorForTheHitsItHolds() throws Exception {
-        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
         CircuitBreaker breaker = requestBreaker("1gb");
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
         ThreadPool threadPool = new TestThreadPool("test");

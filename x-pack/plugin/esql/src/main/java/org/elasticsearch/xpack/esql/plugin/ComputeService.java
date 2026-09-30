@@ -342,27 +342,6 @@ public class ComputeService {
         run.charge(fileCount * FileList.PHASE2_BYTES_PER_FILE);
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
-        if (operatorFactoryRegistry == null) {
-            return plan;
-        }
-        try {
-            SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                plan,
-                operatorFactoryRegistry.sourceFactories(),
-                maxRecordBytes(configuration),
-                isCancelled
-            );
-            recordExternalScanStats(execInfo, result);
-            return coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration));
-        } catch (TaskCancelledException e) {
-            throw e;
-        } catch (Exception e) {
-            LOGGER.warn("split discovery failed for external source", e);
-            throw e;
-        }
-    }
-
     /**
      * Starts Phase-2 split discovery without joining. Completes {@code listener} with the rewritten plan.
      * The inbound thread returns immediately; object-store IO runs on {@code esql_external_io}.
@@ -636,48 +615,8 @@ public class ComputeService {
         }
     }
 
-    private CollectedSplits collectExternalSplits(
-        PhysicalPlan plan,
-        Configuration configuration,
-        EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
-    ) {
-        List<ExternalSplit> splits = new ArrayList<>();
-        // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
-        // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
-        // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
-        // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
-        // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
-        // needs to record scan stats here. On that top-level path the phase already swapped any
-        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY. A non-empty split list is the read
-        // path, so the resolved fileList and schemaMap are dropped after the splits have been copied.
-        plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
-        if (splits.isEmpty()) {
-            if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
-                // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
-                // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
-                // here, the one place it is observable — no scan operator runs for a warm relation.
-                recordExternalWarmAggregates(execInfo, plan);
-            } else {
-                PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
-                if (SplitCoalescer.shouldCoalesce(splits.size())) {
-                    // coalesce always returns a list of its own, so replacing the contents of `splits` in place
-                    // cannot clear the list being copied from.
-                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
-                    splits.clear();
-                    splits.addAll(coalesced);
-                }
-                return new CollectedSplits(rewritten, splits);
-            }
-            // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
-        } else {
-            plan = dropCopiedListingState(plan);
-        }
-        return new CollectedSplits(plan, splits);
-    }
-
     /**
-     * Async counterpart of {@link #collectExternalSplits}. Fragment-path footer/probe IO must not run on
+     * Fragment-path footer/probe IO must not run on
      * {@code SEARCH}; this returns immediately and completes {@code listener} when collection is done.
      */
     private void collectExternalSplitsAsync(
@@ -835,18 +774,15 @@ public class ComputeService {
         );
     }
 
-    private PhysicalPlan discoverSplitsFromFragments(
-        PhysicalPlan plan,
-        List<ExternalSplit> splits,
-        int maxRecordBytes,
-        EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
-    ) {
-        return discoverSplitsFromFragments(plan, splits, maxRecordBytes, execInfo, isCancelled, operatorFactoryRegistry);
-    }
-
     /**
-     * Fragment-path discovery. Package-visible so tests can run it without a full {@link ComputeService}.
+     * Fragment-path discovery, synchronously. Not a production path: every query reaches the fragments through
+     * {@link #discoverSplitsFromFragmentsAsync}, and this exists so tests can exercise what the two share -
+     * {@code guardedRelations}, {@link #settledListing}, {@link #rewriteFragmentListing} - without standing up a
+     * whole {@link ComputeService}.
+     * <p>
+     * Behaviour therefore does not belong here. A rule added to this and not to the async twin is a rule no query
+     * runs, which has already happened once on this path: the bounded first attempt was written here first and had
+     * to be threaded through the async entry before any query got faster.
      */
     static PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,

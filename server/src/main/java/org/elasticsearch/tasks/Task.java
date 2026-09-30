@@ -80,12 +80,6 @@ public class Task implements Traceable {
 
     public static final String PARENT_APM_TRACE_CONTEXT = "parent_" + Task.APM_TRACE_CONTEXT;
 
-    /**
-     * Suffix appended to the action name when an async task is registered directly on the {@link TaskManager}
-     * by {@code AsyncTaskManagementService}, bypassing the normal {@code TransportAction} filter chain.
-     */
-    public static final String ASYNC_ACTION_SUFFIX = "[a]";
-
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,

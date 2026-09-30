@@ -177,7 +177,7 @@ public class AsyncTaskManagementService<
         this.threadPool = threadPool;
     }
 
-    public static String ASYNC_ACTION_SUFFIX = Task.ASYNC_ACTION_SUFFIX;
+    public static String ASYNC_ACTION_SUFFIX = "[a]";
 
     public void asyncExecute(
         Request request,

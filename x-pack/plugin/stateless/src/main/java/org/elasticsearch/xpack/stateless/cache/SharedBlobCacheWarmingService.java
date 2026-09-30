@@ -1267,21 +1267,26 @@ public class SharedBlobCacheWarmingService {
                     return;
                 }
                 if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.reevaluationEnabled()) {
-                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
-                    final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
-                    if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
-                        totalOfflineWarmingTime.getAndUpdate(
-                            oldValue -> TimeValue.timeValueMillis(oldValue.millis() + newTimeout.millis())
-                        );
-                        latestTimeoutContext.set(newPlan.timeoutContext());
-                        currentTimeoutTask.set(threadPool.schedule(this, newTimeout, threadPool.generic()));
-                        logger.info(
-                            "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
-                            newTimeout,
-                            newPlan.timeoutContext(),
-                            indexShard.shardId(),
-                            totalOfflineWarmingTime.get()
-                        );
+                    try {
+                        final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
+                        final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
+                        if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
+                            totalOfflineWarmingTime.getAndUpdate(
+                                oldValue -> TimeValue.timeValueMillis(oldValue.millis() + newTimeout.millis())
+                            );
+                            latestTimeoutContext.set(newPlan.timeoutContext());
+                            currentTimeoutTask.set(threadPool.schedule(this, newTimeout, threadPool.generic()));
+                            logger.info(
+                                "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
+                                newTimeout,
+                                newPlan.timeoutContext(),
+                                indexShard.shardId(),
+                                totalOfflineWarmingTime.get()
+                            );
+                            return;
+                        }
+                    } catch (Exception e) {
+                        race.onFailure(e);
                         return;
                     }
                 }

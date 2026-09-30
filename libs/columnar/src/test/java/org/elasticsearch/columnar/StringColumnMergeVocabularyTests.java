@@ -43,7 +43,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.IntFunction;
@@ -733,6 +735,98 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             term.append('x');
         }
         return term.toString();
+    }
+
+    // NOTE: the shipped options size the summary off the dictionary cap, so a survey may hold no more terms
+    // than a dictionary may name, and the merge accumulator holds four times that. A survey therefore reaches
+    // no further than the summaries already did, and the shapes below are the ones where it might have: a
+    // repeated head over a distinct tail at either side of the bar, a long vocabulary crowded out of its own
+    // summary by a short tail, terms held once per segment either side of the cap, and disjoint fan-in.
+    public void testNoSurveyAtTheShippedOptionsRecoversADictionaryTheSummariesMissed() throws IOException {
+        final DictionaryPolicy policy = StringColumnOptions.DEFAULT_DICTIONARY;
+        final Map<String, List<List<String>>> shapes = new LinkedHashMap<>();
+        for (int headPercent : new int[] { 10, 30, 45, 55, 70 }) {
+            shapes.put("head " + headPercent + "% over a distinct tail", headOverDistinctTail(headPercent));
+        }
+        for (int poolTerms : new int[] { 1_000, 2_000 }) {
+            for (int tailTerms : new int[] { 1_000, 4_000 }) {
+                shapes.put("pool " + poolTerms + " long, tail " + tailTerms + " short", longPoolShortTail(poolTerms, tailTerms));
+            }
+        }
+        for (int terms : new int[] { 14_000, 16_000, 17_000, 20_000 }) {
+            shapes.put("held once, " + terms + " terms", heldOncePerSegment(terms));
+        }
+        for (int segmentCount : new int[] { 2, 3 }) {
+            shapes.put("disjoint fan-in of " + segmentCount, disjointVocabularies(segmentCount));
+        }
+
+        for (Map.Entry<String, List<List<String>>> shape : shapes.entrySet()) {
+            try (Directory dir = newDirectory()) {
+                flushSegments(dir, shape.getValue(), policy, StringColumnOptions.DEFAULT_SUMMARY);
+                final MergedVocabulary.Source source = settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
+                forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY, shape.getValue().size());
+                withMergedColumn(dir, column -> {
+                    logger.info(
+                        "{}: {} -> dictionary={} terms={}",
+                        shape.getKey(),
+                        source,
+                        column.hasDictionary(),
+                        column.hasDictionary() ? column.dictionarySize() : 0
+                    );
+                    if (source == MergedVocabulary.Source.SURVEY) {
+                        assertFalse(shape.getKey() + ": a survey found a dictionary the summaries missed", column.hasDictionary());
+                    }
+                });
+            }
+        }
+    }
+
+    /** A head of repeated terms mixed into a tail unique to the whole index, at {@code headPercent} of values. */
+    private static List<List<String>> headOverDistinctTail(int headPercent) {
+        final List<List<String>> segments = new ArrayList<>(SEGMENTS);
+        for (int segment = 0; segment < SEGMENTS; segment++) {
+            final List<String> values = new ArrayList<>(2_000);
+            for (int i = 0; i < 2_000; i++) {
+                values.add(i % 100 < headPercent ? "head-" + (i % 16) : identifier(segment * 2_000 + i));
+            }
+            segments.add(values);
+        }
+        return segments;
+    }
+
+    // NOTE: a summary fits terms by density, so within one segment, where every term is held once, the short
+    // tail is cheaper per occurrence than the long pool and crowds it out. Across segments the pool repeats,
+    // which inverts that order, and only a survey of the merged values sees it.
+    private static List<List<String>> longPoolShortTail(int poolTerms, int tailTerms) {
+        final List<List<String>> segments = new ArrayList<>(SEGMENTS);
+        for (int segment = 0; segment < SEGMENTS; segment++) {
+            final List<String> values = new ArrayList<>(poolTerms + tailTerms);
+            for (int i = 0; i < poolTerms; i++) {
+                values.add(paddedTerm(0, i));
+            }
+            for (int i = 0; i < tailTerms; i++) {
+                values.add(Integer.toString(segment * tailTerms + i, 36));
+            }
+            Collections.shuffle(values, new Random(SEED + segment));
+            segments.add(values);
+        }
+        return segments;
+    }
+
+    /** Segments sharing no term, each holding a vocabulary its own summary records whole. */
+    private static List<List<String>> disjointVocabularies(int segmentCount) {
+        final List<List<String>> segments = new ArrayList<>(segmentCount);
+        for (int segment = 0; segment < segmentCount; segment++) {
+            final List<String> values = new ArrayList<>(TERMS_PER_SEGMENT * 3);
+            for (int i = 0; i < TERMS_PER_SEGMENT; i++) {
+                final String term = paddedTerm(segment, i);
+                values.add(term);
+                values.add(term);
+                values.add(term);
+            }
+            segments.add(values);
+        }
+        return segments;
     }
 
     public void testStatisticsAreFreshOnceDeletionsAreExpunged() throws IOException {

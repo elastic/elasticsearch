@@ -113,6 +113,30 @@ public enum StringData {
     },
 
     /**
+     * A small repeated head over a tail distinct to the index, at a share just under the coverage bar. The
+     * head is all an input summary can record, since the tail outgrows it, so the summed counts fall short
+     * of the bar while the mass they lost is credited in full and the bound clears it. A merge cannot settle
+     * this from the summaries and surveys the values.
+     */
+    UNDECIDED_HEAD {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return headOverDistinctTail(45, count, random);
+        }
+    },
+
+    /**
+     * The same shape with the head above the bar, which the summed counts settle on their own. It is the
+     * control for {@link #UNDECIDED_HEAD}: same vocabulary and same bytes, without the survey.
+     */
+    SETTLED_HEAD {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return headOverDistinctTail(55, count, random);
+        }
+    },
+
+    /**
      * Textbench {@code ServiceName} on an index sorted by it: a handful of values, in runs. Clustering this
      * strong is the case a per-page dictionary exploits best.
      */
@@ -281,6 +305,21 @@ public enum StringData {
     };
 
     abstract BytesRef[] generate(int count, Random random);
+
+    /** {@code headPercent} of the values drawn from sixteen repeated paths, the rest distinct to the index. */
+    private static BytesRef[] headOverDistinctTail(int headPercent, int count, Random random) {
+        final BytesRef[] head = new BytesRef[16];
+        for (int i = 0; i < head.length; i++) {
+            head[i] = bytes("/api/v2/checkout/session/" + Integer.toString(i, 36));
+        }
+        final BytesRef[] values = new BytesRef[count];
+        for (int i = 0; i < count; i++) {
+            values[i] = random.nextInt(100) < headPercent
+                ? head[random.nextInt(head.length)]
+                : bytes("/api/v2/checkout/session/" + Integer.toString(i, 36) + "-" + Integer.toString(i * 31 + 7, 36));
+        }
+        return values;
+    }
 
     /** Draws from {@code vocabulary} with a Zipf-like skew; {@code exponent} 0 draws uniformly. */
     private static BytesRef[] skewed(String[] vocabulary, int count, Random random, double exponent) {

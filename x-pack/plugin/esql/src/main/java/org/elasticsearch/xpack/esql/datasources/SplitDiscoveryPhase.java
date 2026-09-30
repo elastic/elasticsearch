@@ -269,7 +269,8 @@ public final class SplitDiscoveryPhase {
         int seedRowLimit
     ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, sourceFactories, maxRecordBytes, stats, isCancelled);
+        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled);
+        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
         return new Result(
             resolved,
             stats.filesScanned,
@@ -323,10 +324,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled,
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled),
                 executor,
                 l.map(
                     resolved -> new Result(
@@ -342,29 +340,33 @@ public final class SplitDiscoveryPhase {
         });
     }
 
+    /**
+     * What one call to this phase holds constant across every relation in the plan. The per-node values - the
+     * plan node, the filters standing above it, the row demand reaching it - stay parameters, because those are
+     * what the recursion varies. These do not vary, and threading them one by one grew every signature in the
+     * recursion each time one was added.
+     * <p>
+     * {@code stats} is an accumulator the traversal writes as it goes, not a value: this carries the reference
+     * the whole traversal shares. The executor is deliberately absent - only the async path has one, and a
+     * nullable field here would fuse "which way we traverse" into the values being traversed with.
+     */
+    private record Traversal(
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        ScanStats stats,
+        BooleanSupplier isCancelled
+    ) {}
+
     private static void resolveRecursiveAsync(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
         int rowLimit,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            resolveExternalSourceAsync(
-                exec,
-                ancestorFilters,
-                rowLimit,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled,
-                executor,
-                listener
-            );
+            resolveExternalSourceAsync(exec, ancestorFilters, rowLimit, traversal, executor, listener);
             return;
         }
 
@@ -390,10 +392,7 @@ public final class SplitDiscoveryPhase {
             new ArrayList<>(children.size()),
             filtersForChildren,
             rowLimit,
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
+            traversal,
             executor,
             listener
         );
@@ -406,10 +405,7 @@ public final class SplitDiscoveryPhase {
         List<PhysicalPlan> newChildren,
         List<Expression> filtersForChildren,
         int rowLimit,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
@@ -436,42 +432,18 @@ public final class SplitDiscoveryPhase {
             children.get(index),
             filtersForChildren,
             rowLimit,
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
+            traversal,
             executor,
             listener.delegateFailureAndWrap((l, resolved) -> {
                 newChildren.add(resolved);
-                resolveChildrenAsync(
-                    plan,
-                    children,
-                    index + 1,
-                    newChildren,
-                    filtersForChildren,
-                    rowLimit,
-                    sourceFactories,
-                    maxRecordBytes,
-                    stats,
-                    isCancelled,
-                    executor,
-                    l
-                );
+                resolveChildrenAsync(plan, children, index + 1, newChildren, filtersForChildren, rowLimit, traversal, executor, l);
             })
         );
     }
 
-    private static PhysicalPlan resolveRecursive(
-        PhysicalPlan plan,
-        List<Expression> ancestorFilters,
-        int rowLimit,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled
-    ) {
+    private static PhysicalPlan resolveRecursive(PhysicalPlan plan, List<Expression> ancestorFilters, int rowLimit, Traversal traversal) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, rowLimit, sourceFactories, maxRecordBytes, stats, isCancelled);
+            return resolveExternalSource(exec, ancestorFilters, rowLimit, traversal);
         }
 
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
@@ -491,15 +463,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(
-                child,
-                filtersForChildren,
-                rowLimit,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled
-            );
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, rowLimit, traversal);
             if (resolved != child) {
                 changed = true;
             }
@@ -520,12 +484,9 @@ public final class SplitDiscoveryPhase {
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
         int rowLimit,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled
+        Traversal traversal
     ) {
-        ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
+        ExternalSourceFactory factory = traversal.sourceFactories().get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
         FileList fileList = exec.fileList();
@@ -560,8 +521,8 @@ public final class SplitDiscoveryPhase {
             boundFilters,
             querySchema,
             exec.unifiedSchema(),
-            maxRecordBytes,
-            isCancelled,
+            traversal.maxRecordBytes(),
+            traversal.isCancelled(),
             exec.declaredReadSpec(),
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
@@ -578,21 +539,18 @@ public final class SplitDiscoveryPhase {
         } catch (Exception e) {
             throw wrapDiscoveryFailure(exec, e);
         }
-        return applyDiscoveryResult(exec, result, stats, fileList);
+        return applyDiscoveryResult(exec, result, traversal.stats(), fileList);
     }
 
     private static void resolveExternalSourceAsync(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
         int rowLimit,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
-        ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
+        ExternalSourceFactory factory = traversal.sourceFactories().get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
         FileList fileList = exec.fileList();
@@ -620,8 +578,8 @@ public final class SplitDiscoveryPhase {
             boundFilters,
             querySchema,
             exec.unifiedSchema(),
-            maxRecordBytes,
-            isCancelled,
+            traversal.maxRecordBytes(),
+            traversal.isCancelled(),
             exec.declaredReadSpec(),
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
@@ -634,7 +592,7 @@ public final class SplitDiscoveryPhase {
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
             try {
-                listener.onResponse(applyDiscoveryResult(exec, result, stats, fileList));
+                listener.onResponse(applyDiscoveryResult(exec, result, traversal.stats(), fileList));
             } catch (Exception e) {
                 listener.onFailure(wrapDiscoveryFailure(exec, e));
             }

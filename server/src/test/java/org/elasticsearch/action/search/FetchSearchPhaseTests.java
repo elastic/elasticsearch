@@ -253,7 +253,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testShardWhoseHitsTheCoordinatorCannotHoldFailsOnlyThatShard() throws Exception {
+    public void testShardWhoseHitsTheCoordinatorCannotHoldFailsTheWholeSearch() throws Exception {
         assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
         // Room for the first shard's small hit but not for the second shard's large one.
         CircuitBreaker breaker = requestBreaker("2kb");
@@ -281,21 +281,134 @@ public class FetchSearchPhaseTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
 
-            // The trip is reported like any other failed fetch, so the search still answers with what it could hold.
-            mockSearchPhaseContext.assertNoFailure();
-            SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
-            assertNotNull(searchResponse);
-            assertEquals(1, searchResponse.getSuccessfulShards());
-            assertEquals(1, searchResponse.getFailedShards());
-            Throwable cause = searchResponse.getShardFailures()[0].getCause();
+            // No releasedSearchContexts assertion: onPhaseFailure is stubbed here, and raisePhaseFailure is what
+            // releases the contexts in production.
+            assertNull(mockSearchPhaseContext.searchResponse.get());
+            Throwable cause = mockSearchPhaseContext.phaseFailure.get();
             assertThat(cause, instanceOf(CircuitBreakingException.class));
             // The label tells an operator the coordinator ran out of room, not the data node the failure points at.
             assertThat(cause.getMessage(), containsString("fetch[coordinator]"));
-            assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
+            // The shard that did fit is given back when the failure releases the collection.
             assertThat(breaker.getUsed(), equalTo(0L));
             // Both shards did the IO, so the dropped one still reports what it read.
             DirectoryMetrics merged = mockSearchPhaseContext.getMergedDirectoryMetrics();
             assertThat(merged.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(2 * SHARD_BYTES_READ));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testOnlyTheFirstCoordinatorTripFailsThePhase() throws Exception {
+        assumeTrue("requires the coordinator fetch accounting feature flag", FetchSearchPhaseResults.ACCOUNTING_FEATURE_FLAG.isEnabled());
+        // Neither shard's hit fits, so both of them trip.
+        CircuitBreaker breaker = requestBreaker("2kb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 4096, 4096, new AtomicLong());
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
+
+            // raisePhaseFailure completes the search listener, so the second trip must not raise it again.
+            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailure.get(), instanceOf(CircuitBreakingException.class));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testCoordinatorTripOnTheChunkedRouteDoesNotAdvanceTheFailedSearch() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            // Mimics the chunked route: the charge trips while accumulating, which reports the trip to the search
+            // and then rethrows, so the same exception also arrives as this shard's fetch failure.
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+                @Override
+                public void sendExecuteFetch(
+                    Transport.Connection connection,
+                    ShardFetchSearchRequest request,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
+                ) {
+                    if (request.contextId().equals(ctx2)) {
+                        CircuitBreakingException e = new CircuitBreakingException(
+                            "[request] Data too large, label [fetch[chunk]]",
+                            1,
+                            1,
+                            CircuitBreaker.Durability.TRANSIENT
+                        );
+                        context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e);
+                        listener.onFailure(e);
+                        return;
+                    }
+                    SearchHit hit = new SearchHit(42).sourceRef(new BytesArray(randomAlphaOfLength(64)));
+                    FetchSearchResult fetchResult = new FetchSearchResult();
+                    fetchResult.setSearchShardTarget(shard1Target);
+                    fetchResult.shardResult(
+                        new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
+                        null
+                    );
+                    try {
+                        listener.onResponse(fetchResult);
+                    } finally {
+                        fetchResult.decRef();
+                    }
+                }
+            };
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
+
+            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            // Counting the tripped shard down would finish the phase and merge results the failure already released.
+            assertNull(mockSearchPhaseContext.searchResponse.get());
         } finally {
             mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();

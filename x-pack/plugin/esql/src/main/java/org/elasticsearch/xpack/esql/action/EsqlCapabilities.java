@@ -3319,6 +3319,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -3798,6 +3804,11 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command.
          */
         HIGHLIGHT_V6,
+
+        /**
+         * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
+         */
+        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

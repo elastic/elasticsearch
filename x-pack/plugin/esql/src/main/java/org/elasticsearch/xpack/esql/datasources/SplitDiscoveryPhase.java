@@ -268,6 +268,11 @@ public final class SplitDiscoveryPhase {
     /**
      * As above, and seeds the row demand the same way the filters are seeded: how many rows the query needs from the
      * relation below, as {@link #guardedRelations} recovered it from the fragment before the relation was lowered.
+     * <p>
+     * The seed reaches only a relation that is {@code plan} itself. The physical walk below never carries it into a
+     * child, because it has no rule for which nodes preserve a row count - {@link #guardedRelations} does, on the
+     * logical plan, and that is where the demand is decided. A demand carried through a filter would stop the scan
+     * once the unfiltered rows covered it and answer the filtered LIMIT short, with nothing to say so.
      */
     public static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
@@ -404,7 +409,7 @@ public final class SplitDiscoveryPhase {
             0,
             new ArrayList<>(children.size()),
             filtersForChildren,
-            rowLimit,
+            FormatReader.NO_LIMIT,
             traversal,
             executor,
             listener
@@ -476,7 +481,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, rowLimit, traversal);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, FormatReader.NO_LIMIT, traversal);
             if (resolved != child) {
                 changed = true;
             }

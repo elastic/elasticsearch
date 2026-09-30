@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
@@ -324,9 +326,10 @@ public class ComputeService {
      * charge again on a second execution, an INLINE STATS run re-listing, with nothing releasing the first.
      * <p>
      * Not because the listing is always dropped once the splits exist. Most of the time it is, but a relation
-     * whose discovery produced no splits and was not an exhaustive prune keeps it - {@code dropCopiedListingState}
-     * returns such an exec unchanged and {@code rewriteFragmentListing} is never handed it - and that relation
-     * reads its whole listing. The run still covers it; being dropped is not what makes the budget right.
+     * whose discovery produced no splits and was not an exhaustive prune keeps one - the discovered set, which
+     * {@code dropCopiedListingState} leaves on such an exec and {@code settledListing} copies back to a fragment's
+     * relation - and that relation reads its whole listing. The run still covers it; being dropped is not what makes
+     * the budget right.
      */
     private static PlanningMemory discoveryMemory(ExternalPlanningReservation.Run run) {
         return run == null ? PlanningMemory.NONE : run::charge;
@@ -857,11 +860,10 @@ public class ComputeService {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            // Relations whose listing the coordinator must drop before execution. An exhaustive prune (fileList
-            // swapped to FileList.EMPTY, no splits) scans nothing. A non-empty split list was copied above and stays
-            // the read path. Both drop fileList and schemaMap. Identity is stable because guardedRelations returns
-            // the relation instances living in the fragment tree, so the transformDown below can swap them by reference.
-            List<ExternalRelation> dropListing = new ArrayList<>();
+            // What each relation carries once discovery has run - see settledListing. Identity is stable because
+            // guardedRelations returns the relation instances living in the fragment tree, so the transformDown below
+            // can swap them by reference.
+            List<SettledListing> settled = new ArrayList<>();
             // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
             // recovered before the lowering or partition pruning never sees the predicate at all.
@@ -878,16 +880,11 @@ public class ComputeService {
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
-                    // FileList.EMPTY is the phase's exhaustive-prune verdict: no splits, scan nothing. A non-empty
-                    // split list is the other verdict: splits were copied above. Neither leaves the listing map
-                    // on the coordinator. A no-split result that is not a prune keeps the original list.
-                    if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
-                        dropListing.add(guarded.relation());
-                    }
+                    settled.add(settledListing(guarded.relation(), withSplits));
                 }
                 recordExternalScanStats(execInfo, result);
             }
-            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), dropListing);
+            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), settled);
             if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
             }
@@ -923,19 +920,19 @@ public class ComputeService {
             listener.onResponse(plan);
             return;
         }
-        Map<FragmentExec, List<ExternalRelation>> dropListing = new IdentityHashMap<>();
+        Map<FragmentExec, List<SettledListing>> settled = new IdentityHashMap<>();
         Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
         discoverFragmentWork(
             workItems,
             0,
             splits,
-            dropListing,
+            settled,
             maxRecordBytes,
             execInfo,
             isCancelled,
             run,
             ioExecutor,
-            ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, dropListing)), listener::onFailure)
+            ActionListener.wrap(ignored -> listener.onResponse(rewriteSettledFragments(plan, settled)), listener::onFailure)
         );
     }
 
@@ -943,7 +940,7 @@ public class ComputeService {
         List<FragmentWork> workItems,
         int index,
         List<ExternalSplit> splits,
-        Map<FragmentExec, List<ExternalRelation>> dropListing,
+        Map<FragmentExec, List<SettledListing>> settled,
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
@@ -975,9 +972,8 @@ public class ComputeService {
                 try {
                     if (result.plan() instanceof ExternalSourceExec withSplits) {
                         splits.addAll(withSplits.splits());
-                        if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
-                            dropListing.computeIfAbsent(work.fragment(), k -> new ArrayList<>()).add(work.guarded().relation());
-                        }
+                        settled.computeIfAbsent(work.fragment(), k -> new ArrayList<>())
+                            .add(settledListing(work.guarded().relation(), withSplits));
                     }
                     recordExternalScanStats(execInfo, result);
                 } catch (Exception e) {
@@ -988,7 +984,7 @@ public class ComputeService {
                     workItems,
                     index + 1,
                     splits,
-                    dropListing,
+                    settled,
                     maxRecordBytes,
                     execInfo,
                     isCancelled,
@@ -1005,12 +1001,12 @@ public class ComputeService {
         );
     }
 
-    private static PhysicalPlan rewritePrunedFragments(PhysicalPlan plan, Map<FragmentExec, List<ExternalRelation>> dropListing) {
-        if (dropListing.isEmpty()) {
+    private static PhysicalPlan rewriteSettledFragments(PhysicalPlan plan, Map<FragmentExec, List<SettledListing>> settled) {
+        if (settled.isEmpty()) {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            List<ExternalRelation> relations = dropListing.getOrDefault(fragment, List.of());
+            List<SettledListing> relations = settled.getOrDefault(fragment, List.of());
             LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), relations);
             if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
@@ -1033,30 +1029,51 @@ public class ComputeService {
     }
 
     /**
-     * Drops {@code fileList} and {@code schemaMap} on relations whose listing is no longer the read path.
-     * An exhaustive prune has no splits, so the operator scans nothing. A relation whose splits were copied
-     * onto the slice queue keeps those splits. No-split results that were not pruned are absent from
-     * {@code dropListing} and keep the original list.
+     * The listing a fragment relation carries once discovery has run. The top-level path gets this from
+     * {@code SplitDiscoveryPhase.applyDiscoveryResult}, which sets it on the lowered exec; the fragment path lowers a
+     * copy of the relation, so it has to carry the answer back to the relation itself.
      */
-    private static LogicalPlan rewriteFragmentListing(LogicalPlan fragment, List<ExternalRelation> dropListing) {
-        if (dropListing.isEmpty()) {
+    private record SettledListing(
+        ExternalRelation relation,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+    ) {}
+
+    /**
+     * What {@code relation} carries after discovery produced {@code discovered}.
+     * <p>
+     * Splits, when there are any, are the read path, so the listing and schema map go. Otherwise the relation carries
+     * what discovery settled on, which {@code applyDiscoveryResult} already put on the exec: {@link FileList#EMPTY} for
+     * an exhaustive prune, and for a fall-through the file set discovery listed for itself.
+     * <p>
+     * That last case is the one keeping the relation's own listing got wrong. When the schema's listing was a prefix,
+     * the relation was handed that prefix, and discovery re-listed the dataset. Keeping the original then left the
+     * fall-through reading the prefix - files the query's own listing may not contain, and fewer than it did - where
+     * the top-level path read what discovery found.
+     */
+    private static SettledListing settledListing(ExternalRelation relation, ExternalSourceExec discovered) {
+        if (discovered.splits().isEmpty() == false) {
+            return new SettledListing(relation, FileList.EMPTY, Map.of());
+        }
+        return new SettledListing(relation, discovered.fileList(), discovered.schemaMap());
+    }
+
+    private static LogicalPlan rewriteFragmentListing(LogicalPlan fragment, List<SettledListing> settled) {
+        if (settled.isEmpty()) {
             return fragment;
         }
         return fragment.transformDown(ExternalRelation.class, relation -> {
-            if (sameRelation(dropListing, relation)) {
-                return relation.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
+            for (SettledListing candidate : settled) {
+                if (candidate.relation() != relation) {
+                    continue;
+                }
+                if (candidate.fileList() == relation.fileList() && candidate.schemaMap() == relation.schemaMap()) {
+                    return relation;
+                }
+                return relation.withFileList(candidate.fileList()).withSchemaMap(candidate.schemaMap());
             }
             return relation;
         });
-    }
-
-    private static boolean sameRelation(List<ExternalRelation> relations, ExternalRelation relation) {
-        for (ExternalRelation candidate : relations) {
-            if (candidate == relation) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static int maxRecordBytes(Configuration configuration) {

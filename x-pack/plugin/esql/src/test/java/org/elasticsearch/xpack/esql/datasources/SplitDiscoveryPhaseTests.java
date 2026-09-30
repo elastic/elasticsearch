@@ -773,6 +773,64 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         recorder.lastContext.listingMemory().reserve(Long.MAX_VALUE);
     }
 
+    /**
+     * A demand seeded for the relation reaches only a relation handed in bare. Under a filter it must not arrive: the
+     * budget would stop the scan once the unfiltered rows covered it, and the filtered LIMIT would answer short with
+     * nothing to say so. Production hands the fragment path a bare relation, so this pins the walk against the day
+     * something hands it more.
+     */
+    public void testASeededDemandDoesNotSurviveAPhysicalFilter() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Expression year = new Equals(SRC, outputAttr(exec, "year"), new Literal(SRC, 2025, DataType.INTEGER));
+        FilterExec filtered = new FilterExec(SRC, exec, year);
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            filtered,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE
+        );
+        assertEquals("sync: the demand stopped at the filter", FormatReader.NO_LIMIT, recorder.lastContext.rowLimit());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            filtered,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals("async: the demand stopped at the filter", FormatReader.NO_LIMIT, recorder.lastContext.rowLimit());
+    }
+
+    /** The same seed on a bare relation does arrive, so the test above is not passing because nothing ever does. */
+    public void testASeededDemandReachesABareRelation() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            Map.of("parquet", testFactory(recorder)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            5,
+            PlanningMemory.NONE
+        );
+        assertEquals(5, recorder.lastContext.rowLimit());
+    }
+
     public void testDefaultContextIsNotCancelled() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");

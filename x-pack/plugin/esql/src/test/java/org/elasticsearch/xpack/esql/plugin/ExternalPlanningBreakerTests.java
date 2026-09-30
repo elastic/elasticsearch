@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -171,6 +172,40 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(0, discoveries.get());
         assertEquals(0L, run.held());
         assertEquals(baseline, breaker.getUsed());
+    }
+
+    /**
+     * A fragment's relation carries what discovery settled on, not the listing it was handed. Handed a one-file prefix
+     * of the schema's, discovery here lists two files for itself and plans none of them, and does not certify that as
+     * a prune - so the fall-through reads the relation's listing whole. Which listing that is decides what gets read:
+     * the prefix would read one file where discovery found two, and a matching row in the other would be missing from
+     * the answer with nothing to say so. The top-level path already reads the discovered set; this pins the fragment
+     * path to the same.
+     */
+    public void testAFragmentFallThroughReadsWhatDiscoveryFoundNotThePrefix() throws Exception {
+        FileList prefix = truncatedFiles(1);
+        FileList discovered = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("file:///f0.parquet"), 1000L, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("file:///f1.parquet"), 1000L, Instant.EPOCH)
+            ),
+            "file:///*.parquet"
+        );
+        ComputeService service = service(
+            requestBreaker("1gb"),
+            ctx -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, Map.of(), List.of())
+        );
+        EsqlExecutionInfo info = executionInfo();
+        FragmentExec fragment = new FragmentExec(relation(prefix, Map.of()));
+        PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
+
+        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, bind(info, requestBreaker("1gb")).openRun(), done);
+
+        PhysicalPlan settled = done.actionGet(30, TimeUnit.SECONDS).plan();
+        List<FileList> carried = new ArrayList<>();
+        settled.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(ExternalRelation.class, r -> carried.add(r.fileList())));
+        assertEquals(1, carried.size());
+        assertSame("the fall-through reads the set discovery found, not the schema's prefix", discovered, carried.get(0));
     }
 
     public void testFragmentWorkChargesRelationFileCount() throws Exception {
@@ -329,6 +364,13 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     private static ComputeService service(CircuitBreaker breaker, AtomicInteger discoveries) {
+        return service(breaker, ctx -> {
+            discoveries.incrementAndGet();
+            return SplitDiscoveryResult.EMPTY;
+        });
+    }
+
+    private static ComputeService service(CircuitBreaker breaker, SplitProvider splitter) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -350,10 +392,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
         FormatReaderRegistry readers = parquetRegistry();
-        SplitProvider splitter = ctx -> {
-            discoveries.incrementAndGet();
-            return SplitDiscoveryResult.EMPTY;
-        };
         ExternalSourceFactory files = new ExternalSourceFactory() {
             @Override
             public String type() {

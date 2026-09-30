@@ -225,6 +225,18 @@ public class IvfAutoCalibration {
         );
     }
 
+    double targetRecall() {
+        return targetRecall;
+    }
+
+    int k() {
+        return k;
+    }
+
+    int maxDocBits() {
+        return maxDocBits;
+    }
+
     /**
      * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
      * When reuse is not possible, runs calibration on the merged vectors. Bounded (force-merge) merges

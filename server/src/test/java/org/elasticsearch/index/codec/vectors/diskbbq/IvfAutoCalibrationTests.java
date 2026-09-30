@@ -703,6 +703,20 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
+    public void testFromProfile() {
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            if (profile == IvfAutoCalibrationProfile.DISABLED) {
+                assertThrows(IllegalStateException.class, () -> IvfAutoCalibration.fromProfile(VPC, profile));
+            } else {
+                IvfAutoCalibrationOsqParams params = IvfAutoCalibrationOsqParams.fromProfile(profile);
+                IvfAutoCalibration calibration = IvfAutoCalibration.fromProfile(VPC, profile);
+                assertThat(profile.toString(), calibration.targetRecall(), equalTo(params.targetRecall()));
+                assertThat(profile.toString(), calibration.k(), equalTo(params.k()));
+                assertThat(profile.toString(), calibration.maxDocBits(), equalTo(params.maxDocBits()));
+            }
+        }
+    }
+
     private void assertCalibrateProducesFiniteConfig(VectorSimilarityFunction similarityFunction) throws IOException {
         FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(1200, DIM, 8, similarityFunction.ordinal());
         IvfAutoCalibration selector = new IvfAutoCalibration(VPC);

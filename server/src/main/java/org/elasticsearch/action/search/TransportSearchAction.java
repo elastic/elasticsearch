@@ -793,8 +793,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
         final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
         task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
+        Rewriteable.rewriteAndFetch(original, rewriteContext, rewriteResult);
+        // subscribe after the rewrite so that a rewrite that completes synchronously continues on this thread without forking
         rewriteResult.addListener(rewriteListener, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), null);
-        Rewriteable.rewriteAndFetch(original, rewriteContext, EsExecutors.DIRECT_EXECUTOR_SERVICE, rewriteResult);
     }
 
     /**

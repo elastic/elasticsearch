@@ -22,14 +22,23 @@ public class WhitespaceTokenizerFactory extends AbstractTokenizerFactory {
 
     static final String MAX_TOKEN_LENGTH = "max_token_length";
     private Integer maxTokenLength;
+    private final Object sharingKey;
 
     WhitespaceTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        this.sharingKey = new Key(maxTokenLength);
     }
 
     @Override
     public Tokenizer create() {
         return new WhitespaceTokenizer(TokenStream.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, maxTokenLength);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int maxTokenLength) {}
 }

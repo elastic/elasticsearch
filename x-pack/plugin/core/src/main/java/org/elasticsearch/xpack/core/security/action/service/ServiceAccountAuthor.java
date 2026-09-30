@@ -35,9 +35,13 @@ import java.util.Objects;
  * key itself is recorded alongside, by id and name, so that a write made directly and one made through a key can
  * still be told apart.
  * <p>
- * The realm domain is carried whole so that the stored form matches the {@code creator} mapping of the security
- * index, which API keys already use. Responses render only its name, as an authentication response does. It is
- * absent for an author who acted through an API key, since the key's metadata does not carry the owner's domain.
+ * The realm domain is recorded whole, as API keys and service account tokens record theirs, so that the stored
+ * form matches the {@code creator} mapping of the security index. It is stored only: responses leave it out and
+ * the query API does not accept it. An owner is identified by username, realm name and realm type, while which
+ * realms share a domain is cluster configuration that can change after the write. The profile lookup for an author
+ * accordingly resolves the domain from the realm as configured now, not from the stored snapshot. The stored value
+ * is also absent for an author who acted through an API key, since the key's metadata does not carry the owner's
+ * domain.
  * <p>
  * The user is reported as {@code username}, as the authenticate and API key responses name a user. The store keeps it
  * under {@code principal}, the name the {@code creator} mapping gives it, and the query API translates between the
@@ -181,8 +185,7 @@ public record ServiceAccountAuthor(
 
     /**
      * Renders the author for a response. Absent values are left out rather than written as {@code null}, and the
-     * realm domain is reduced to its name: which realms make up the domain is cluster configuration, not something
-     * about the caller.
+     * realm domain is never written, for the reasons given on the class.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -196,9 +199,6 @@ public record ServiceAccountAuthor(
         }
         builder.field(REALM_FIELD, realm);
         builder.field(REALM_TYPE_FIELD, realmType);
-        if (realmDomain != null) {
-            builder.field(REALM_DOMAIN_FIELD, realmDomain.name());
-        }
         if (apiKey != null) {
             builder.field(API_KEY_FIELD, apiKey);
         }

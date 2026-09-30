@@ -56,8 +56,8 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
     /**
      * Query-level names whose index-level names differ, by their index-level names. The creator and the creation time
-     * are stored in the fields that API keys established, either author's username is stored as {@code principal} as
-     * an API key creator's is, and the realm domain of either author is queried by the name a response reports.
+     * are stored in the fields that API keys established, and either author's username is stored as {@code principal}
+     * as an API key creator's is.
      */
     private static final Map<String, String> TRANSLATED_FIELDS = Map.ofEntries(
         Map.entry("created_by.username", "creator.principal"),
@@ -65,12 +65,10 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         Map.entry("created_by.email", "creator.email"),
         Map.entry("created_by.realm", "creator.realm"),
         Map.entry("created_by.realm_type", "creator.realm_type"),
-        Map.entry("created_by.realm_domain", "creator.realm_domain.name"),
         Map.entry("created_by.api_key.id", "creator.api_key.id"),
         Map.entry("created_by.api_key.name", "creator.api_key.name"),
         Map.entry("created_at", "creation_time"),
         Map.entry("updated_by.username", "updated_by.principal"),
-        Map.entry("updated_by.realm_domain", "updated_by.realm_domain.name"),
         Map.entry("updated_at", "update_time")
     );
 
@@ -113,25 +111,6 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Field [" + indexField + "] is not allowed for querying or aggregation"));
     }
 
-    /**
-     * A response names the realm domain by its name alone, so the query field follows the response and is translated
-     * to the {@code name} of the stored domain object. The index-level name is not accepted as a query field.
-     */
-    public void testTheRealmDomainIsQueriedByTheNameAResponseReports() {
-        final String author = randomFrom("created_by", "updated_by");
-        final String storedAuthor = author.equals("created_by") ? "creator" : author;
-        final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(
-            QueryBuilders.termQuery(author + ".realm_domain", "corp")
-        );
-        assertThat(query.must(), contains(QueryBuilders.termQuery(storedAuthor + ".realm_domain.name", "corp")));
-
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ServiceAccountBoolQueryBuilder.build(QueryBuilders.termQuery(author + ".realm_domain.name", "corp"))
-        );
-        assertThat(e.getMessage(), containsString("Field [" + author + ".realm_domain.name] is not allowed for querying or aggregation"));
-    }
-
     public void testABoolQueryIsTranslatedClauseByClause() {
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (randomBoolean()) {
@@ -166,8 +145,9 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     public void testFieldsOutsideTheAllowlistAreRejected() {
         // Fields of other document types in the security index, and fields of the account document itself that the
         // API does not expose, are refused alike.
-        // The metadata of an API key's creator, and the realms that make up a domain, are stored under the same
-        // "creator" object but are not part of an account's attribution, under either of the object's names.
+        // The metadata of an API key's creator, and the realm domain, are stored under the same "creator" object but
+        // are not part of an account's attribution as the API reports it, under either of the object's names. The
+        // domain is stored as API keys store it, but is neither reported nor queryable.
         final String fieldName = randomFrom(
             "doc_type",
             "version",
@@ -177,7 +157,12 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
             "creator.metadata",
             "created_by.metadata",
             "created_by.metadata.foo",
+            "creator.realm_domain.name",
+            "created_by.realm_domain",
+            "created_by.realm_domain.name",
             "created_by.realm_domain.realms.name",
+            "updated_by.realm_domain",
+            "updated_by.realm_domain.name",
             "updated_by.realm_domain.realms.type"
         );
         final QueryBuilder query = randomValueOtherThanMany(q -> q instanceof MatchAllQueryBuilder, () -> randomSimpleQuery(fieldName));
@@ -225,7 +210,8 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
             // The filter's own field and the document id have to pass so the query built here can run at all.
             assertTrue(allowed.test("doc_type"));
             assertTrue(allowed.test("_id"));
-            // Query-level names that differ from the index-level ones are not index fields.
+            // Neither query-level names that differ from the index-level ones, nor stored fields outside the
+            // allowlist, are index fields.
             for (String field : List.of(
                 "version",
                 "password",
@@ -234,11 +220,13 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
                 "metadata_flattened",
                 "creator.metadata",
                 "creator.realm_domain",
+                "creator.realm_domain.name",
                 "creator.realm_domain.realms.name",
                 "created_by.username",
                 "created_at",
                 "updated_by.username",
                 "updated_by.realm_domain",
+                "updated_by.realm_domain.name",
                 "updated_at"
             )) {
                 assertFalse(field, allowed.test(field));

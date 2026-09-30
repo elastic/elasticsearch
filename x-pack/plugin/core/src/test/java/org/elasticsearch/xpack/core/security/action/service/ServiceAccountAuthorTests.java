@@ -240,31 +240,19 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
     }
 
     /**
-     * Absent fields are left out rather than written as {@code null}, the domain is reduced to its name, and the user
-     * is named {@code username} as the API key and authenticate responses name one, not {@code principal} as stored.
+     * Absent fields are left out rather than written as {@code null}, the realm domain is left out even when the
+     * author has one, since it is stored but not reported, and the user is named {@code username} as the API key and
+     * authenticate responses name one, not {@code principal} as stored.
      */
-    public void testToXContentLeavesOutAbsentFieldsAndNamesTheDomain() throws IOException {
+    public void testToXContentLeavesOutAbsentFieldsAndTheDomain() throws IOException {
         final RealmDomain domain = AuthenticationTestHelper.randomDomain(randomBoolean());
         final ServiceAccountAuthor author = new ServiceAccountAuthor("alice", "Alice", "alice@example.com", "ldap1", "ldap", domain);
+        assertThat(author.realmDomain(), equalTo(domain));
         assertThat(
             toMap(author),
-            equalTo(
-                Map.of(
-                    "username",
-                    "alice",
-                    "full_name",
-                    "Alice",
-                    "email",
-                    "alice@example.com",
-                    "realm",
-                    "ldap1",
-                    "realm_type",
-                    "ldap",
-                    "realm_domain",
-                    domain.name()
-                )
-            )
+            equalTo(Map.of("username", "alice", "full_name", "Alice", "email", "alice@example.com", "realm", "ldap1", "realm_type", "ldap"))
         );
+        assertThat(toMap(author), not(hasKey("realm_domain")));
 
         final ServiceAccountAuthor bare = new ServiceAccountAuthor("alice", null, null, "ldap1", "ldap", null);
         assertThat(toMap(bare), equalTo(Map.of("username", "alice", "realm", "ldap1", "realm_type", "ldap")));

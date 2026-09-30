@@ -282,24 +282,16 @@ teardown:
   - match: { service_accounts.1.username: "attributed/worker_1" }
   - is_true: service_accounts.0._sort.0
 
-  # The realm domain is queried by the name a response reports. No realm in this cluster is under a domain.
-  - do:
-      security.query_service_accounts:
-        body: >
-          {
-            "query": { "term": { "created_by.realm_domain": "corp" } }
-          }
-  - match: { total: 0 }
-
+  # The realm domain is stored with the author, as it is for API keys, but is neither reported nor queryable.
   - do:
       catch: bad_request
       security.query_service_accounts:
         body: >
           {
-            "query": { "term": { "created_by.realm_domain.name": "corp" } }
+            "query": { "term": { "created_by.realm_domain": "corp" } }
           }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Field [created_by.realm_domain.name] is not allowed for querying or aggregation" }
+  - match: { error.reason: "Field [created_by.realm_domain] is not allowed for querying or aggregation" }
 
   # Fields stored under the same object that are not part of the author stay outside the allowlist.
   - do:

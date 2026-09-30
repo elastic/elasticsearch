@@ -43,6 +43,15 @@ public class HttpTransientTypingInputStreamTests extends ESTestCase {
         assertFalse(e.throttling());
     }
 
+    public void testRetypedFailureRedactsUrl() throws IOException {
+        HttpTransientTypingInputStream wrapped = new HttpTransientTypingInputStream(
+            faultingStream("connection reset"),
+            StoragePath.of(HttpUrlsTests.SECRET_URL)
+        );
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        HttpUrlsTests.assertRedacted(e.getMessage());
+    }
+
     public void testCleanReadPassesThroughUntyped() throws IOException {
         byte[] payload = "hello-world".getBytes(StandardCharsets.UTF_8);
         try (HttpTransientTypingInputStream wrapped = new HttpTransientTypingInputStream(new ByteArrayInputStream(payload), PATH)) {

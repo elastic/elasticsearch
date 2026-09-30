@@ -157,6 +157,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;

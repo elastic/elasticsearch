@@ -18,9 +18,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * One request-breaker reservation for a query's external planning. Created from the session's block
  * factory so every admit and the final release use that same breaker.
  * <p>
- * Listing and schema-map bytes live until {@link #close()}, which the query listener calls once.
- * A {@link Run} holds bytes released before that: phase-2 split shells for one compute execution, and the
- * private attribute lists of one reconcile gather. Each compute execution closes its run when that execution
+ * Resolution's listing and the schema map live until {@link #close()}, which the query listener calls once,
+ * because the plan holds both for as long as the query does.
+ * A {@link Run} holds bytes released before that: phase-2 split shells for one compute execution, the listing
+ * split discovery performs for itself in that execution, and the private attribute lists of one reconcile
+ * gather. Each compute execution closes its run when that execution
  * finishes, so a later INLINE STATS run does not keep the previous run's split shells reserved. The gather
  * closes its run when its completion drops those lists. Concurrent runs (UNION siblings) each hold their own.
  */
@@ -115,8 +117,9 @@ public final class ExternalPlanningReservation implements Releasable {
     }
 
     /**
-     * Bytes released before query close: phase-2 split shells for one compute execution, or the private
-     * attribute lists of one reconcile gather. {@link #close()} is idempotent, so the owner and
+     * Bytes released before query close: phase-2 split shells for one compute execution, the listing that
+     * execution's split discovery performed for itself, or the private attribute lists of one reconcile
+     * gather. {@link #close()} is idempotent, so the owner and
      * {@link ExternalPlanningReservation#close()} can both release it.
      */
     public final class Run implements Releasable {
@@ -124,7 +127,8 @@ public final class ExternalPlanningReservation implements Releasable {
         private final AtomicBoolean released = new AtomicBoolean();
 
         /**
-         * Survivor-map, split-shell, or private schema-list bytes. A trip leaves {@link #held()} unchanged:
+         * Survivor-map, split-shell, discovered-listing, or private schema-list bytes. A trip leaves
+         * {@link #held()} unchanged:
          * the breaker throws before the add.
          */
         public void charge(long bytes) {

@@ -656,8 +656,12 @@ public final class SplitDiscoveryPhase {
             // list, or a provider that could not certify its prune) falls through to the whole read.
             // Only over a complete listing. "Every file was pruned" is a claim about the dataset, and a prefix
             // cannot make it: swapping in EMPTY there would drop matching files past the prefix and report the
-            // query as reading nothing. No listing reaching here is truncated today - split discovery lists the
-            // whole pattern - so this changes no answer now and stops being free the moment it lists less.
+            // query as reading nothing.
+            // What this guards is a provider that certifies a prune while returning no file set of its own -
+            // fileList is then still the exec's, which may be a prefix. It cannot fire for FileSplitProvider,
+            // which always names its discovered set, so fileList was reassigned above to that complete listing
+            // and the prune verdict was reached over it. An absent listing is treated as complete, which keeps
+            // the behaviour this guard was added to: it narrows the shortcut, it does not widen it.
             if (result.exhaustivelyPruned() && (fileList == null || fileList.isTruncated() == false)) {
                 return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
             }

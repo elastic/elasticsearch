@@ -759,8 +759,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     /**
-     * A caller that named no reserver gets one that refuses nothing rather than a null the provider has to interpret.
-     * Reserving through it must not throw, and must not reach any budget.
+     * The phase's own overloads name a reserver that refuses nothing rather than leaving one unset. Reserving
+     * through it must not throw and must not reach any budget. The context's convenience constructors still
+     * admit null, which {@code FileSplitProvider.scanMemory} is what reads; this pins the phase, not that.
      */
     public void testDiscoveryWithNoReserverNamedReservesNothing() {
         ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");

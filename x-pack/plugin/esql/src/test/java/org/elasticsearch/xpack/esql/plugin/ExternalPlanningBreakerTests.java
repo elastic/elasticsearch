@@ -103,7 +103,8 @@ import static org.mockito.Mockito.when;
  * Phase-2 planning reservations. Local queries enter through {@link ComputeService#startPhase2OrSkip}, the
  * same call {@code execute} makes, which charges resolved {@link ExternalSourceExec} file lists before
  * discovery. Fragment discovery charges the relation file count. A warm skip charges nothing. Phase-2 bytes
- * belong to one {@link ExternalPlanningReservation.Run}; listing bytes stay until the reservation closes.
+ * belong to one {@link ExternalPlanningReservation.Run}, and so does the listing split discovery performs for
+ * itself; resolution's own listing stays until the reservation closes.
  */
 public class ExternalPlanningBreakerTests extends ESTestCase {
 

@@ -317,11 +317,15 @@ public class ComputeService {
      * reserves them in batches as the walk grows, so a dataset larger than the node can hold trips partway through
      * its own listing rather than after the list exists.
      * <p>
-     * The run rather than the query is the right budget, and the listing's lifetime is why: the coordinator drops
-     * every discovered listing once the splits are built - {@code dropCopiedListingState} on the top-level path,
-     * {@code rewriteFragmentListing} on the fragment one - so it does not outlive the execution that listed it.
-     * Charging query scope instead would hold those bytes to query close and charge again on a second execution,
-     * an INLINE STATS run re-listing, with nothing releasing the first.
+     * The run rather than the query is the right budget, and the listing's lifetime is why: a discovered listing
+     * does not outlive the execution that listed it, because the plan carrying it does not - the run closes when
+     * that execution's result completes. Charging query scope instead would hold those bytes to query close and
+     * charge again on a second execution, an INLINE STATS run re-listing, with nothing releasing the first.
+     * <p>
+     * Not because the listing is always dropped once the splits exist. Most of the time it is, but a relation
+     * whose discovery produced no splits and was not an exhaustive prune keeps it - {@code dropCopiedListingState}
+     * returns such an exec unchanged and {@code rewriteFragmentListing} is never handed it - and that relation
+     * reads its whole listing. The run still covers it; being dropped is not what makes the budget right.
      */
     private static ListingMemory discoveryListingMemory(ExternalPlanningReservation.Run run) {
         return run == null ? ListingMemory.NONE : run::charge;

@@ -1569,6 +1569,17 @@ NaN           | 2024-05-10T01:00:00.000Z | qa
 NaN           | 2024-05-10T01:00:00.000Z | staging
 ;
 
+nonfinite_deg_overflow
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_math_v0
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(deg(vector(1e308)));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
 scalar_constant_time
 required_capability: promql_command_v0
 required_capability: promql_time

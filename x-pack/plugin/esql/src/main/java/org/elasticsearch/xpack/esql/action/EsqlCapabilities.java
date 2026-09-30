@@ -1697,6 +1697,12 @@ public class EsqlCapabilities {
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
+
+        /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
          * fields - null values are injected instead.
          */

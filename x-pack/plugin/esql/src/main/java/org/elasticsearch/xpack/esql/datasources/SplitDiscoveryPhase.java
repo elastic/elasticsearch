@@ -689,7 +689,11 @@ public final class SplitDiscoveryPhase {
             // still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an honest
             // zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty file
             // list, or a provider that could not certify its prune) falls through to the whole read.
-            if (result.exhaustivelyPruned()) {
+            // Only over a complete listing. "Every file was pruned" is a claim about the dataset, and a prefix
+            // cannot make it: swapping in EMPTY there would drop matching files past the prefix and report the
+            // query as reading nothing. No listing reaching here is truncated today - split discovery lists the
+            // whole pattern - so this changes no answer now and stops being free the moment it lists less.
+            if (result.exhaustivelyPruned() && (fileList == null || fileList.isTruncated() == false)) {
                 return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
             }
             // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say

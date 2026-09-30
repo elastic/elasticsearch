@@ -173,7 +173,12 @@ public final class DatasetListingService {
         } catch (ExecutionException e) {
             throw asListingFailure(e);
         }
-        assert listing.isTruncated() == false : "a truncated listing must never enter the shared listing cache: " + path;
+        // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
+        // this cache is served to later queries as though it were the dataset - they would answer from a prefix
+        // with nothing to tell them. Unreachable today, because this method always lists the whole pattern.
+        if (listing.isTruncated()) {
+            throw new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path);
+        }
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;
         // this re-check is for the hit path.

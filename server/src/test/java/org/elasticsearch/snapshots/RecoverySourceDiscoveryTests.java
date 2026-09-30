@@ -190,6 +190,23 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         assertThat(result, empty());
     }
 
+    public void testIndexWithoutMetadataIsExcluded() {
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(
+            "with-metadata",
+            successDetails(),
+            "missing-metadata",
+            successDetails()
+        );
+        SnapshotInfo snap = successSnap(List.of("with-metadata", "missing-metadata"), List.of(), details);
+
+        SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(
+            snap,
+            projectMeta(List.of(userIndex("with-metadata")), List.of())
+        );
+
+        assertThat(result, contains(idx("with-metadata")));
+    }
+
     public void testIncompleteIndexIsExcluded() {
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
         details.put("my-index", successDetails());

@@ -24,7 +24,7 @@ import java.util.function.Predicate;
 /**
  * Discovers eligible recovery sources from a snapshot for the data recovery API.
  * <p>
- * It filters candidates (excluding system, backing, and incomplete indices/streams),
+ * It filters candidates (excluding system, backing, and incomplete indices/streams, and indices without metadata),
  * applies a multi-target expression list, and returns a bounded result.
  */
 public final class RecoverySourceDiscovery {
@@ -75,7 +75,7 @@ public final class RecoverySourceDiscovery {
 
     /**
      * Builds the full set of eligible candidates from the snapshot, sorted by name.
-     * Excludes system indices/streams, backing and failure-store indices, and incomplete indices/streams.
+     * Excludes system indices/streams, backing and failure-store indices, incomplete indices/streams, and indices without metadata.
      */
     static SortedSet<RecoverySource> buildCandidates(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata) {
         Map<String, DataStream> dataStreams = projectMetadata.dataStreams();
@@ -93,7 +93,7 @@ public final class RecoverySourceDiscovery {
                 continue;
             }
             IndexMetadata meta = projectMetadata.index(indexName);
-            if (meta != null && meta.isSystem()) {
+            if (meta == null || meta.isSystem()) {
                 continue;
             }
             if (snapshotInfo.isIndexComplete(indexName) == false) {

@@ -395,11 +395,13 @@ public class DatafeedRunner {
                             );
                             logger.warn("[{}] {}", jobId, extractionFailureMessage);
                             // Clean stop of the datafeed, leaving the job open so it can be restarted once the
-                            // underlying extraction problem is resolved.
+                            // underlying extraction problem is resolved. The error is passed as null so the persistent
+                            // task completes normally rather than being marked as failed - the reason is already captured
+                            // in the audit message above.
                             holder.stop(
                                 "consecutive_extraction_failures",
                                 TimeValue.timeValueSeconds(20),
-                                e,
+                                null,
                                 false,
                                 extractionFailureMessage
                             );

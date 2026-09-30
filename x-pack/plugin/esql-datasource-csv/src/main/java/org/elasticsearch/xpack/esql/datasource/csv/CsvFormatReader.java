@@ -1607,6 +1607,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * {@link ExternalFailures#surface} drops the cause chain, but {@link #isRecordCapDrop} needs the
+     * {@link CsvRecordTooLargeException} in it. That exception is ours and names no storage location, so it is
+     * kept as the cause; any other failure goes through {@code surface}.
+     */
+    private static RuntimeException surfaceReadFailure(IOException e, String context) {
+        CsvRecordTooLargeException cap = (CsvRecordTooLargeException) ExceptionsHelper.unwrap(e, CsvRecordTooLargeException.class);
+        if (cap != null) {
+            return ExternalFailures.rowError(cap, context + ": " + cap.getMessage());
+        }
+        return ExternalFailures.surface(e, context);
+    }
+
+    /**
      * Bulk-path iterator: hands the raw {@link Reader} straight to Jackson's {@link CsvParser} so the
      * per-row hot loop tokenizes characters in Jackson's internal char buffer instead of re-materializing
      * each logical record into a {@link StringBuilder} for a follow-up Jackson parse. The byte-level
@@ -3254,7 +3267,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, READ_RECORD_FAILURE);
+                throw surfaceReadFailure(e, READ_RECORD_FAILURE);
             }
         }
 
@@ -3774,7 +3787,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, "Failed to read CSV batch");
+                throw surfaceReadFailure(e, "Failed to read CSV batch");
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;

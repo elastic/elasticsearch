@@ -37,6 +37,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
@@ -54,8 +55,9 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString("parquet"));
-        assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("connection reset by peer"));
+        assertNull("the storage failure must not be chained to prevent caused_by leaks", e.getCause());
+        assertThat(e.getMessage(), containsString("connection reset by peer"));
+        assertThat(e.getMessage(), not(containsString("bucket")));
     }
 
     public void testRuntimeExceptionWrappedWithContext() {

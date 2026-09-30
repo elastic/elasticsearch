@@ -135,9 +135,7 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testToString() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
-        String str = obj.toString();
-        assertTrue(str.contains("my-bucket"));
-        assertTrue(str.contains("data/file.parquet"));
+        assertEquals("GcsStorageObject[file.parquet]", obj.toString());
     }
 
     public void testNewStreamWithNegativePositionThrows() {

@@ -389,7 +389,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return reader.metadata(storageObject);
         } catch (IOException e) {
             // The wrapper exists to type a storage/reader I/O failure as client-caused (400). It keeps the cause's
-            // own diagnosis; the path is omitted here and reinstated for authorised callers by mapResolveFailure.
+            // own diagnosis and never names the path.
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
             StorageProviderCache.closeLease(provider);

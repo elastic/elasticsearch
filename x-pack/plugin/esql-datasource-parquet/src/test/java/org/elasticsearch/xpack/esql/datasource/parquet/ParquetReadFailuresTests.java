@@ -37,7 +37,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         IOException io = new IOException("truncated");
         RuntimeException wrapped = ParquetReadFailures.wrap(io, "Failed to read column [id]");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(io, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
         assertSame(wrapped, ExternalFailures.classify(wrapped));
     }
@@ -47,7 +47,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         UncheckedIOException uioe = new UncheckedIOException("wrapped", cause);
         RuntimeException wrapped = ParquetReadFailures.wrap(uioe, "Failed to parse page header");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(uioe, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
         assertSame(wrapped, ExternalFailures.classify(wrapped));
     }
@@ -92,7 +92,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         IOException io = new IOException("truncated");
         RuntimeException wrapped = ParquetReadFailures.wrap(new ExecutionException(io), "Failed to read column");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(io, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
     }
 

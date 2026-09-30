@@ -40,6 +40,15 @@ public final class ExternalClientException extends ExternalException {
         super(condition, path, detailCode, remedy);
     }
 
+    private ExternalClientException(ExternalClientException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalClientException copyWithoutCause() {
+        return new ExternalClientException(this);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

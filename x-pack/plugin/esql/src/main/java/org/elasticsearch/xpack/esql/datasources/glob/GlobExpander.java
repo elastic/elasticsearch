@@ -821,8 +821,6 @@ public final class GlobExpander {
         return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
     }
 
-    private static final String EXCLUSION_NOTICE = "[{}] of [{}] files under [{}] skipped by [{}], e.g. [{}] (matched [{}])";
-
     /**
      * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
      * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
@@ -840,17 +838,17 @@ public final class GlobExpander {
         // segments of a comma list (needed for exact-text dedup in NoticeBuffer) without leaking the
         // full storage URI.
         String trimmed = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
-        int slash = trimmed.lastIndexOf('/');
-        String prefixName = slash >= 0 && slash < trimmed.length() - 1 ? trimmed.substring(slash + 1) : trimmed;
+        String prefixName = StoragePath.objectName(trimmed);
+        String under = prefixName.isEmpty() ? "" : " under [" + prefixName + "]";
         return excludedCount
             + " of "
             + (matchedCount + excludedCount)
-            + " objects matching the resource under ["
-            + prefixName
-            + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
+            + " objects matching the resource"
+            + under
+            + (excludedCount == 1 ? " was excluded by the [" : " were excluded by the [")
             + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
             + "] dataset setting, for example ["
-            + excludedExample
+            + excludedExample.substring(excludedExample.lastIndexOf('/') + 1)
             + "] which matched entry ["
             + excludedExampleEntry
             + "]";

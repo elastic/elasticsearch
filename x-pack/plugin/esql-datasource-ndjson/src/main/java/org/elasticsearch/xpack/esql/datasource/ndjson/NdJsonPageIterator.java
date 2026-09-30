@@ -234,8 +234,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.rowCountReadConfigIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
-        // sourceLocation keys stats, so it stays verbatim; messages get it without an HTTP query string or user info.
-        String messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
+        // sourceLocation keys stats, so it stays verbatim; user-facing messages name only the object.
+        String messageLocation = object.path().objectName();
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read

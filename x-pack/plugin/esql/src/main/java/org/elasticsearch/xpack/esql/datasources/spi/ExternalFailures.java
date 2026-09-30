@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -183,8 +182,13 @@ public final class ExternalFailures {
         if (t instanceof Error error) {
             throw error;
         }
+        if (t instanceof ExternalException ee) {
+            ExternalException detached = detach(ee);
+            assert noStoragePathLeaked(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
+            return detached;
+        }
         if (t instanceof ElasticsearchException ese) {
-            assert noStoragePathLeaked(ese) : "storage path leaked in ExternalException: " + ese.getMessage();
+            assert noStoragePathLeaked(ese) : "storage path leaked in ElasticsearchException: " + ese.getMessage();
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
@@ -218,10 +222,43 @@ public final class ExternalFailures {
             }
             result = ioResult;
         } else {
-            result = new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
+            // Unchecked SDK failures (e.g. AWS SdkClientException) land here and may name the bucket host.
+            logger.warn("Unexpected failure reading external source (cause logged, not forwarded)", t);
+            result = new ExternalServerException("Unexpected failure reading external source: {}", safeDetail(t));
         }
         assert noStoragePathLeaked(result) : "storage path leaked in classified exception: " + result.getMessage();
         return result;
+    }
+
+    /**
+     * Returns {@code e} {@link ExternalException#withoutCause() detached} from its cause chain, after logging the
+     * chain on this node. Suppressed failures that are themselves external failures are detached and kept; any
+     * other suppressed failure is dropped. Returns {@code e} itself when there is nothing to detach.
+     */
+    public static ExternalException detach(ExternalException e) {
+        if (isDetached(e)) {
+            return e;
+        }
+        logger.debug("External failure detached from its cause (cause logged, not forwarded)", e);
+        ExternalException detached = e.withoutCause();
+        for (Throwable suppressed : e.getSuppressed()) {
+            if (suppressed instanceof ExternalException external) {
+                detached.addSuppressed(detach(external));
+            }
+        }
+        return detached;
+    }
+
+    private static boolean isDetached(Throwable t) {
+        if (t.getCause() != null) {
+            return false;
+        }
+        for (Throwable suppressed : t.getSuppressed()) {
+            if (suppressed instanceof ExternalException == false || isDetached(suppressed) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -258,16 +295,23 @@ public final class ExternalFailures {
         if (failure instanceof Error error) {
             throw error;
         }
-        RuntimeException result;
-        if (failure instanceof IOException || failure instanceof UncheckedIOException) {
-            result = new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
-        } else if (failure instanceof RuntimeException re) {
+        if (failure instanceof RuntimeException re && failure instanceof UncheckedIOException == false) {
             return re;
-        } else {
-            result = new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
         }
+        // Storage clients embed full URIs in their messages and causes, so the failure is logged here and
+        // never chained; its message is forwarded only when it names no storage location.
+        logger.warn("External read failed (cause logged, not forwarded)", failure);
+        String detail = safeDetail(failure);
+        ElasticsearchException result = failure instanceof IOException || failure instanceof UncheckedIOException
+            ? new ExternalClientException("{}: {}", fallbackMessage, detail)
+            : new ExternalServerException("{}: {}", fallbackMessage, detail);
         assert noStoragePathLeaked(result) : "storage path leaked in surfaced exception: " + result.getMessage();
         return result;
+    }
+
+    private static String safeDetail(Throwable failure) {
+        String message = failure.getMessage();
+        return message != null && containsStoragePath(message) == false ? message : failure.getClass().getSimpleName();
     }
 
     private static boolean isMalformedDataException(Throwable t) {
@@ -290,44 +334,6 @@ public final class ExternalFailures {
      */
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
-    }
-
-    /**
-     * The message for a wrapper that types a metadata-resolution failure as client-caused — {@code FileSourceFactory},
-     * {@code TableCatalog}. Such a wrapper exists to fix the HTTP status, not to say anything new, so it keeps the
-     * cause's own diagnosis: "Object not found: &lt;path&gt;", "CSV file has no schema line", "Could not read
-     * [&lt;path&gt;] as a Parquet file: ...". A wrapper that replaces the diagnosis with a constant naming only the
-     * path reports every distinct condition — a missing object, a wrong format, a truncated footer, an empty file —
-     * with one identical sentence, which is what makes an external-source failure unactionable.
-     * <p>
-     * The location is prepended only when the cause does not already name it. Storage and reader messages usually do
-     * (they are built from the path), and this method is reached through
-     * {@code ExternalSourceResolver#mapResolveFailure}, which passes a client-caused failure straight to the user
-     * without adding context of its own — so the location has to be here when the cause omits it, and must not be
-     * here twice when the cause includes it.
-     */
-    public static String resolutionFailureMessage(String location, Throwable cause) {
-        return locate("Failed to resolve metadata for", location, detail(cause));
-    }
-
-    /**
-     * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
-     * so the path is not printed twice. Callers that have already resolved their own detail string use this
-     * directly rather than re-deriving it from the cause.
-     */
-    public static String locate(String prefix, String location, @Nullable String detail) {
-        String shown = redactHttpUrl(location);
-        if (detail == null) {
-            // A message-less throwable reaches here from the arms that pass getMessage() straight in --
-            // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
-            // than appending the word "null".
-            return prefix + " [" + shown + "]";
-        }
-        // Redact every occurrence of the raw location before deciding: a pre-signed URL's redacted form is a prefix of
-        // the raw one, so a detail naming the raw URL also "contains" the redacted form and would pass the signature
-        // through. A detail built from the redacted form (the HTTP store's own messages) already names the location.
-        String safeDetail = detail.replace(location, shown);
-        return safeDetail.contains(shown) ? safeDetail : prefix + " [" + shown + "]: " + safeDetail;
     }
 
     /**

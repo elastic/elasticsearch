@@ -701,9 +701,7 @@ public final class StreamingParallelParsingCoordinator {
          * this is a one-shot truncation event, not a per-row skip stream.
          */
         private void emitTruncationWarning(long recordStartByte, String causeMessage) {
-            String record = storageObject == null
-                ? "Record "
-                : "Record in [" + ExternalFailures.redactHttpUrl(storageObject.path().toString()) + "] ";
+            String record = storageObject == null ? "Record " : "Record in [" + storageObject.path().objectName() + "] ";
             String warning = record + exceedsRecordLimit() + "; results are partial";
             Consumer<String> partialResultsWarningSink = warningSinks.partialResultsWarningSink();
             if (partialResultsWarningSink != null) {

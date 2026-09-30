@@ -494,7 +494,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertThat(exception, instanceOf(ExternalClientException.class));
         assertFalse(exception instanceof IllegalArgumentException);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(exception)));
-        assertSame(injected, exception.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", exception.getCause());
     }
 
     public void testFetchSyncExternalUnavailableStays503() {

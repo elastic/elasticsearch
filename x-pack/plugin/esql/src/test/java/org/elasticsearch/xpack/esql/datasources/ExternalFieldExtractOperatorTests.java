@@ -340,7 +340,7 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 assertEquals("external_client_exception", ElasticsearchException.getExceptionName(thrown));
                 assertTrue(thrown.getMessage().startsWith("Failed to read external source: "));
                 assertTrue(thrown.getMessage().contains(failure.getMessage()));
-                assertSame(failure, thrown.getCause());
+                assertNull("the read failure must not be chained to prevent caused_by leaks", thrown.getCause());
             } finally {
                 op.close();
             }
@@ -378,7 +378,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
             op.finish();
             try {
                 ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, op::getOutput);
-                assertSame(failure, thrown);
+                assertEquals(failure.getMessage(), thrown.getMessage());
+                assertNull("the transport cause must not reach caused_by", thrown.getCause());
                 assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
                 assertEquals("external_unavailable_exception", ElasticsearchException.getExceptionName(thrown));
             } finally {
@@ -412,8 +413,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
                 assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
-                assertTrue(thrown.getCause() instanceof IllegalStateException);
-                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
+                assertNull(thrown.getCause());
+                assertTrue(thrown.getMessage().contains("SourceExtractors is closed"));
             } finally {
                 op.close();
             }

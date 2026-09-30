@@ -4207,21 +4207,64 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
-     * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
-     * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.
+     * A fault with no arm of its own falls to the terminal 500. Unchecked SDK failures land here and may name the
+     * bucket, so nothing is chained into the user's {@code caused_by}; the root message is forwarded only when it
+     * names no storage location, read through the cache's {@code ExecutionException}.
      */
-    public void testTheTerminalArmChainsTheCauseNotTheCacheWrapper() {
+    public void testTheTerminalArmDoesNotChainTheCause() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
-        IllegalStateException original = new IllegalStateException("broken");
 
-        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(original));
-
+        RuntimeException mapped = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(new IllegalStateException("broken"))
+        );
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(mapped));
-        assertSame("the cause must be the fault itself, not the cache's wrapper", original, mapped.getCause());
-        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
-            assertThat(String.valueOf(c.getMessage()), not(containsString("java.lang.")));
-        }
+        assertNull(mapped.getCause());
+        assertThat(mapped.getMessage(), containsString("broken"));
+        assertThat(mapped.getMessage(), not(containsString("java.lang.")));
+
+        RuntimeException leaky = resolver.mapResolveFailure(
+            "s3://b/x.parquet",
+            new ExecutionException(new IllegalStateException("Unable to execute request to s3://secret-bucket/k"))
+        );
+        assertNull(leaky.getCause());
+        assertThat(leaky.getMessage(), not(containsString("secret-bucket")));
+        assertThat(leaky.getMessage(), containsString("IllegalStateException"));
+    }
+
+    /**
+     * Typed storage failures chain the raw SDK exception, whose message names the bucket, and a cache loader's
+     * failure reaches every concurrent waiter as the same instance. The resolver hands each caller its own copy with
+     * no cause, so annotating it with one query's dataset context cannot leak into another query's error.
+     */
+    public void testATypedFailureIsDetachedAndCopied() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExternalUnavailableException shared = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.of("s3://secret-bucket/private/x.parquet"),
+            "HTTP 503",
+            "",
+            true,
+            1500L,
+            new RuntimeException("SlowDown: secret-bucket.s3.amazonaws.com")
+        );
+        String originalMessage = shared.getMessage();
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://secret-bucket/private/x.parquet", new ExecutionException(shared));
+
+        ExternalUnavailableException copy = (ExternalUnavailableException) mapped;
+        assertNotSame(shared, copy);
+        assertNull("the SDK cause must not reach caused_by", copy.getCause());
+        assertEquals(originalMessage, copy.getMessage());
+        assertEquals(Condition.STORE_THROTTLED, copy.condition());
+        assertEquals("x.parquet", copy.objectName());
+        assertTrue(copy.throttling());
+        assertEquals(1500L, copy.retryAfterMs());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(copy));
+
+        copy.setDatasetContext("ds_a", "src_a", "s3");
+        assertThat(copy.getMessage(), containsString("in dataset [ds_a]"));
+        assertEquals("the shared instance must not be annotated", originalMessage, shared.getMessage());
     }
 
     /**
@@ -4272,7 +4315,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", wrapper);
 
-        assertSame("the original ExternalClientException must be surfaced, not a re-wrap", original, mapped);
+        assertThat(mapped, instanceOf(ExternalClientException.class));
+        assertEquals("the original diagnosis must be surfaced, not a re-wrap", original.getMessage(), mapped.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
     }
 

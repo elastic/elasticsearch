@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -526,9 +527,7 @@ public final class SplitDiscoveryPhase {
     }
 
     private static String sourceLabel(ExternalSourceExec exec) {
-        String raw = exec.sourcePath();
-        int lastSlash = raw.lastIndexOf('/');
-        return lastSlash >= 0 ? raw.substring(lastSlash + 1) : raw;
+        return StoragePath.objectName(exec.sourcePath());
     }
 
     private static PhysicalPlan applyDiscoveryResult(

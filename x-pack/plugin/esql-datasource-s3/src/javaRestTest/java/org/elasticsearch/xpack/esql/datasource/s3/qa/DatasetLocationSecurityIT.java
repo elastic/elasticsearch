@@ -12,6 +12,7 @@ import fixture.aws.DynamicRegionSupplier;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -22,12 +23,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
@@ -41,9 +44,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -62,8 +67,8 @@ import static org.hamcrest.Matchers.not;
  * </ol>
  *
  * <p>A fifth scenario verifies that successful queries issued with {@code profile:true} do not expose
- * the bucket name in {@code profile.plans[].plan} strings for any user, while still preserving the
- * plan shape (e.g. {@code ExternalSourceExec} node type).
+ * the bucket name anywhere in the response (plans, drivers, warnings) for any user, while still
+ * preserving the plan shape (e.g. {@code ExternalSourceExec} node type) and the object name.
  *
  * <p>The cluster uses two nodes. All four failing shapes currently fail at resolution time on the
  * coordinator, so cross-node serialization of the exception is not exercised here; a scan-time
@@ -225,11 +230,11 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
                 String user = userAndPass[0];
                 String label = userAndPass[1];
                 ResponseException error = expectThrows(ResponseException.class, () -> runEsqlAs(user, "FROM " + dataset + " | LIMIT 5"));
-                List<String> texts = allErrorText(entityAsMap(error.getResponse()));
-                for (String text : texts) {
-                    assertThat(label + " must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
-                    assertThat(label + " must not see key prefix in error for [" + dataset + "]", text, not(containsString(LOC_PREFIX)));
-                }
+                Response errorResponse = error.getResponse();
+                String body = EntityUtils.toString(errorResponse.getEntity());
+                assertNoLocation(label + " error body for [" + dataset + "]", body);
+                assertNoLocation(label + " warnings for [" + dataset + "]", String.join("\n", errorResponse.getWarnings()));
+                List<String> texts = allErrorText(XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false));
                 String objName = expectedObjectName.get(dataset);
                 if (objName != null) {
                     assertThat(
@@ -251,24 +256,32 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
             }
         }
 
-        // ── Profile plan strings: neither user sees the bucket name ──────────────────────────────
+        // ── Profile: neither user sees the bucket name anywhere in the response ─────────────────
 
         for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
             String user = userAndPass[0];
             String label = userAndPass[1];
-            Map<String, Object> profileResp = runEsqlWithProfileAs(user, "FROM ds_loc_good | LIMIT 5");
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> plans = plansFromProfileResponse(profileResp);
-            for (Map<String, Object> entry : plans) {
-                String plan = (String) entry.get("plan");
-                if (plan != null) {
-                    assertThat(label + " must not see bucket name in profile plan", plan, not(containsString(BUCKET)));
-                    assertThat(label + " must not see key prefix in profile plan", plan, not(containsString(LOC_PREFIX)));
-                    // Confirm the plan shape (node type) is still present.
-                    assertThat("plan shape must be visible to " + label, plan, containsString("ExternalSourceExec"));
-                }
-            }
+            Response profileResp = runEsqlWithProfileAs(user, "FROM ds_loc_good | LIMIT 5");
+            String body = EntityUtils.toString(profileResp.getEntity());
+            // The whole body covers profile.plans and profile.drivers (operator descriptions and statuses) alike.
+            assertNoLocation(label + " profile response", body);
+            assertNoLocation(label + " profile warnings", String.join("\n", profileResp.getWarnings()));
+            List<String> plans = plansFromProfileResponse(XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false)).stream()
+                .map(entry -> (String) entry.get("plan"))
+                .filter(Objects::nonNull)
+                .toList();
+            assertThat(label + " must receive at least one profile plan", plans, not(empty()));
+            assertThat(
+                "plan shape and object name must be visible to " + label + " in " + plans,
+                plans.stream().anyMatch(plan -> plan.contains("ExternalSourceExec") && plan.contains("good.csv")),
+                is(true)
+            );
         }
+    }
+
+    private static void assertNoLocation(String what, String text) {
+        assertThat(what + " must not contain the bucket name", text, not(containsString(BUCKET)));
+        assertThat(what + " must not contain the key prefix", text, not(containsString(LOC_PREFIX)));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────────
@@ -313,14 +326,13 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         client().performRequest(req);
     }
 
-    private Map<String, Object> runEsqlWithProfileAs(String username, String query) throws IOException {
+    private Response runEsqlWithProfileAs(String username, String query) throws IOException {
         Request req = new Request("POST", "/_query");
         req.setJsonEntity("{\"query\":" + quote(query) + ",\"profile\":true}");
         req.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", username).setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
-        Response resp = client().performRequest(req);
-        return entityAsMap(resp);
+        return client().performRequest(req);
     }
 
     private static String quote(String s) {

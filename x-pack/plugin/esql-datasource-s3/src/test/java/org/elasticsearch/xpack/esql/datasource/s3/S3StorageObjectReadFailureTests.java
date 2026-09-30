@@ -219,8 +219,11 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         // The storage path is intentionally omitted from the exception message.
         assertThat(thrown.getMessage(), not(containsString(PATH.toString())));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
-        assertSame(thrown, ExternalFailures.classify(thrown));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+        RuntimeException classified = ExternalFailures.classify(thrown);
+        assertThat(classified, instanceOf(ExternalCredentialsExpiredException.class));
+        assertNull("the S3 SDK cause must not reach caused_by", classified.getCause());
+        assertEquals(thrown.getMessage(), classified.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
 
     public void testTokenRefreshRequiredOnGetObjectIsTyped400() {

@@ -275,6 +275,43 @@ public abstract class ExternalException extends QlException {
     }
 
     /**
+     * Copy constructor backing {@link #withoutCause()}: same message, typed fields, detail and dataset
+     * context, but no cause.
+     */
+    protected ExternalException(ExternalException source) {
+        super(source.baseMessage(), (Throwable) null);
+        this.condition = source.condition;
+        this.objectName = source.objectName;
+        this.detailCode = source.detailCode;
+        this.remedy = source.remedy;
+        this.detail = source.detail;
+        this.datasetContext = source.datasetContext;
+    }
+
+    /**
+     * A copy of this exception of the same type and status, carrying no cause and no suppressed exceptions.
+     * Storage clients embed bucket names and full URIs in their own exception messages, and the REST layer
+     * renders the whole cause chain as {@code caused_by}, so a failure is detached from its cause before it
+     * reaches the user. Also used to annotate a failure that other callers may share (e.g. a cache loader's
+     * failure delivered to concurrent waiters) without mutating their instance.
+     */
+    public final ExternalException withoutCause() {
+        ExternalException copy = copyWithoutCause();
+        copy.setStackTrace(getStackTrace());
+        return copy;
+    }
+
+    /**
+     * Invokes the subtype's copy constructor, which must delegate to {@link #ExternalException(ExternalException)}
+     * and copy the subtype's own fields.
+     */
+    protected abstract ExternalException copyWithoutCause();
+
+    private String baseMessage() {
+        return super.getMessage();
+    }
+
+    /**
      * The typed condition that describes this failure, or {@code null} when constructed via a
      * legacy free-text constructor (e.g. at the classify() boundary).
      */

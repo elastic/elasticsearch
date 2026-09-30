@@ -47,6 +47,15 @@ public final class ExternalCredentialsExpiredException extends ExternalException
         super(Condition.CREDENTIALS_EXPIRED, path, detailCode, remedy);
     }
 
+    private ExternalCredentialsExpiredException(ExternalCredentialsExpiredException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalCredentialsExpiredException copyWithoutCause() {
+        return new ExternalCredentialsExpiredException(this);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

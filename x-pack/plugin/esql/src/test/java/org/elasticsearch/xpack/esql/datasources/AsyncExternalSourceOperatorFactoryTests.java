@@ -1216,8 +1216,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
         });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+        assertNull("the read failure must not be chained to prevent caused_by leaks", readFailure.getCause());
+        assertTrue(readFailure.getMessage().contains("Simulated read error"));
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
@@ -1573,8 +1573,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             assertEquals(0, onCloseCalls.get());
 
             RuntimeException firstFailure = expectThrows(RuntimeException.class, first::getOutput);
-            assertThat(firstFailure.getCause(), Matchers.instanceOf(IOException.class));
-            assertTrue(firstFailure.getCause().getMessage().contains("injected first-read failure"));
+            assertNull("the read failure must not be chained to prevent caused_by leaks", firstFailure.getCause());
+            assertTrue(firstFailure.getMessage().contains("injected first-read failure"));
 
             while (second.isFinished() == false) {
                 Page page = second.getOutput();

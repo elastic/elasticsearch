@@ -45,6 +45,15 @@ public final class ExternalServerException extends ExternalException {
         super(condition, path, detailCode, remedy);
     }
 
+    private ExternalServerException(ExternalServerException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalServerException copyWithoutCause() {
+        return new ExternalServerException(this);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.INTERNAL_SERVER_ERROR;

@@ -135,6 +135,17 @@ public final class ExternalUnavailableException extends ExternalException {
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
 
+    private ExternalUnavailableException(ExternalUnavailableException source) {
+        super(source);
+        this.throttling = source.throttling;
+        this.retryAfterMs = source.retryAfterMs;
+    }
+
+    @Override
+    protected ExternalUnavailableException copyWithoutCause() {
+        return new ExternalUnavailableException(this);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

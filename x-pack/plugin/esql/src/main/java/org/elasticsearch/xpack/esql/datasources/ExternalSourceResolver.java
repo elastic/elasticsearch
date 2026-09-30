@@ -857,7 +857,6 @@ public class ExternalSourceResolver {
         }
         // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
         // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped.
-        // Return the original to preserve retryAfterMs and all other fields.
         ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
             e,
             ExternalUnavailableException.class
@@ -865,7 +864,7 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return unavailable;
+            return unavailable.withoutCause();
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
         // Recover from a cache ExecutionException the same way as the 503 arm.
@@ -876,7 +875,7 @@ public class ExternalSourceResolver {
         if (expired != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return expired;
+            return expired.withoutCause();
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
@@ -932,7 +931,7 @@ public class ExternalSourceResolver {
         if (clientException != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
-            return clientException;
+            return clientException.withoutCause();
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it may arrive wrapped
@@ -946,16 +945,13 @@ public class ExternalSourceResolver {
         if (ioError != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
-            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
-            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
             // Use objectName(path) — the safe static that never throws and never returns the full URI —
             // as the detailCode so the filename appears in the message while the directory stays hidden.
             return new ExternalClientException(
                 ExternalException.Condition.METADATA_UNAVAILABLE,
                 StoragePath.NONE,
                 StoragePath.objectName(path),
-                "",
-                ioError
+                ""
             );
         }
         recordDiscoveryFailure();
@@ -964,14 +960,11 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
-        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
         return new ExternalServerException(
             ExternalException.Condition.CLIENT_BUG,
             StoragePath.NONE,
-            detail,
-            "",
-            ExternalFailures.rootCause(e)
+            ExternalFailures.safeForUserMessage(detail) ? detail : ExternalFailures.rootCause(e).getClass().getSimpleName(),
+            ""
         );
     }
 

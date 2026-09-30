@@ -3431,6 +3431,25 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The exclusion notice reaches the user through the resolver's "matched no files" error, so it must not name the
+     * bucket of a glob at the bucket root, nor the directories (partition values included) above the excluded file.
+     */
+    public void testExclusionNoticeNamesNeitherBucketNorDirectories() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://secret-bucket/year=2024/month=01/_SUCCESS", 0));
+
+        FileList result = GlobExpander.expandGlob("s3://secret-bucket/**", new StubProvider(listing), null, HIVE_OFF);
+
+        assertEquals(0, result.fileCount());
+        assertEquals(
+            List.of(
+                "1 of 1 objects matching the resource was excluded by the [file_exclusions] dataset setting,"
+                    + " for example [_SUCCESS] which matched entry [**/_*]"
+            ),
+            result.listingWarnings()
+        );
+    }
+
+    /**
      * A listing that drops nothing must stay quiet. This test carries no {@code assertWarnings} call on purpose:
      * the framework fails any test that leaves a warning header unasserted, so its passing IS the assertion that
      * a clean prefix produces no warning. Without this, a warning that fired unconditionally would look correct.

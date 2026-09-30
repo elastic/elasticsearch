@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -214,6 +216,27 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("a filtered limit leaves the relation with no demand at all", FormatReader.NO_LIMIT, guarded.get(0).rowLimit());
+    }
+
+    /**
+     * A demand below an aggregate is kept, because there it is a demand on the source: {@code LIMIT 5 | STATS COUNT(*)}
+     * counts five rows and reading enough files for five rows is the whole answer. Without this the test above would
+     * pass with the mechanism simply switched off.
+     */
+    public void testADemandBelowAnAggregateIsKept() {
+        ExternalRelation relation = externalRelation();
+        LogicalPlan limited = new Limit(SRC, new Literal(SRC, 5, DataType.INTEGER), relation);
+        LogicalPlan fragment = new Aggregate(
+            SRC,
+            limited,
+            List.of(),
+            List.of(new Alias(SRC, "c", new Count(SRC, new Literal(SRC, 1, DataType.INTEGER))))
+        );
+
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+
+        assertEquals(1, guarded.size());
+        assertEquals("the demand is on the source here, so it stands", 5, guarded.get(0).rowLimit());
     }
 
     /**

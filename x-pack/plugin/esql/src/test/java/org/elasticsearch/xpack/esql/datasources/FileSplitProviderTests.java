@@ -6143,6 +6143,74 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The wrong-data case this whole seam exists for. Discovery hands back files the prefix never saw, and each of
+     * them still needs two things the prefix could not supply: the partition values its own path carries, and a read
+     * contract under the dataset's schema rather than its own. Get either wrong and the query answers with nulls, or
+     * with a column read under the wrong type, and nothing downstream can tell.
+     * <p>
+     * Four hive folders, a prefix holding the first file only, a demand covered by three. Every file that gets read -
+     * including the three the prefix never named - must carry its own year and appear in the read contracts.
+     */
+    public void testFilesPastThePrefixCarryTheirOwnValuesAndAContract() throws Exception {
+        for (boolean async : new boolean[] { false, true }) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                payloads.put("f" + i + ".parquet", new byte[2000]);
+                everyFile.add(new StorageEntry(StoragePath.of("s3://b/year=202" + i + "/f" + i + ".parquet"), 2000, Instant.EPOCH));
+            }
+            Settings settings = Settings.builder().put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 3).build();
+            ExternalSchema anchor = new ExternalSchema(List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG)));
+            // Handed only the first file, with a read contract for it alone and year typed from that one path.
+            SplitDiscoveryContext handed = new SplitDiscoveryContext(
+                new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/year=*/*.parquet"),
+                GlobExpander.truncatedFileListOf(List.of(everyFile.get(0)), "s3://b/year=*/*.parquet"),
+                Map.of(everyFile.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+                Map.of("partition_detection", "hive"),
+                new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(everyFile.get(0).path(), Map.of("year", 2020))),
+                List.of(),
+                anchor,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE,
+                Set.of(),
+                null,
+                25,
+                PlanningMemory.NONE
+            );
+            try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                FileSplitProvider provider = rangeAwareProvider(
+                    countingRowCountReader(new AtomicInteger(), 10),
+                    null,
+                    settings,
+                    createMultiFileStorageRegistry(payloads, null, everyFile, new AtomicInteger()),
+                    new DatasetListingService(settings, cache, null, null, null)
+                );
+
+                SplitDiscoveryResult result = discoverOn(async, provider, handed);
+
+                String where = async ? "async: " : "sync: ";
+                assertEquals(where + "three files cover a demand of 25", 3, result.splits().size());
+                for (ExternalSplit split : result.splits()) {
+                    FileSplit file = (FileSplit) split;
+                    String path = file.path().toString();
+                    int expected = Integer.parseInt(path.substring(path.indexOf("year=") + 5, path.indexOf("/f")));
+                    assertEquals(where + path + " must carry the year its own path names", expected, file.partitionValues().get("year"));
+                }
+                Set<StoragePath> read = new HashSet<>();
+                for (ExternalSplit split : result.splits()) {
+                    read.add(((FileSplit) split).path());
+                }
+                assertTrue(
+                    where + "every file read must have a read contract, including the ones the prefix never saw",
+                    result.schemaMap().keySet().containsAll(read)
+                );
+            }
+        }
+    }
+
+    /**
      * The bounded attempt is a guess, so the arithmetic at its boundary is what decides whether an answer is short.
      * One case per row, each naming what it pins. {@code rowsPerFile} is 10 throughout, so the demand alone moves the
      * boundary.

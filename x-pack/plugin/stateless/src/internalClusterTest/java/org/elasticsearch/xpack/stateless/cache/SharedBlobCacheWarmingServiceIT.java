@@ -607,24 +607,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureSearchHits(indexName, totalDocs);
     }
 
-    /**
-     * A search shard relocating onto a newly added search node awaits warming for
-     * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING}, and with
-     * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING} enabled every expired slice
-     * re-evaluates the plan and reschedules instead of resuming recovery.
-     *
-     * <p>What this pins down is that a re-evaluation reads the <em>current</em> cluster state rather than the one captured when recovery
-     * started. The relocation begins with a healthy source, so the first plans read {@code "relocation source not shutting down, no cluster
-     * shutdown"} and use a fixed slice. Only once the timeout has been re-evaluated at least once is the source marked for shutdown, and
-     * the following re-evaluation must switch to the {@code "relocation source shutting down"} plan, whose timeout is instead a share of
-     * the time left to the grace deadline. Every later re-evaluation re-derives its share from what is left of that same deadline, until
-     * the remainder is too small to be worth rescheduling. Note that successive shares are not monotonically decreasing: the share also
-     * depends on how many shards are still assigned to the source, which drops as they finish relocating.
-     *
-     * <p>Warming has to lose the race for any of this to be observable, which on an index this small it never would. Instead of slowing
-     * warming down, {@link ObservableSharedBlobCacheWarmingService#holdSearchWarmingCompletion()} withholds its completion signal, so the
-     * test decides when the warming side of the race may complete.
-     */
     public void testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown() throws Exception {
         final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
         // Bounds the accumulated timeout and also caps the grace period taken from the shutdown metadata once it appears.
@@ -673,13 +655,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         indexDocs(indexName, randomIntBetween(100, 1_000));
         flushAndRefresh(indexName);
         ensureGreen(indexName);
-        IntStream.range(0, numberOfShards)
-            .forEach(
-                shardIndex -> assertThat(
-                    findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
-                    equalTo(getNodeId(sourceSearchNode))
-                )
-            );
+        for (int i = 0; i < numberOfShards; i++) {
+            assertThat(findSearchShard(resolveIndex(indexName), i).routingEntry().currentNodeId(), equalTo(getNodeId(sourceSearchNode)));
+        }
 
         final var targetSearchNode = startSearchNode(nodeSettings);
         ensureStableCluster(3);
@@ -739,14 +717,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
         }
 
-        IntStream.range(0, numberOfShards)
-            .forEach(
-                shardIndex -> assertThat(
-                    "shard " + shardIndex + " should have relocated to the target node",
-                    findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
-                    equalTo(getNodeId(targetSearchNode))
-                )
+        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
+            assertThat(
+                "shard " + shardIndex + " should have relocated to the target node",
+                findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
+                equalTo(getNodeId(targetSearchNode))
             );
+        }
 
         final var plansAfterShutdown = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()
             .stream()

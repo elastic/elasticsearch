@@ -258,11 +258,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values off disk via
-     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
-     * pass — the count, the iterator, then the values.
-     */
-    /**
      * The terms to write the merged column against, without reading a value, or null where only the values
      * can say and the writer has to survey them.
      *
@@ -455,6 +450,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return map;
     }
 
+    /**
+     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values off disk via
+     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
+     * pass - the count, the iterator, then the values.
+     */
     private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState, Vocabulary.Terms vocabulary)
         throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();

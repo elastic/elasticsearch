@@ -44,9 +44,8 @@ public final class Vocabulary {
 
     private Vocabulary() {}
 
-    /** How many columns have been surveyed, which the column a merge writes does not show. */
     /** A share of {@code total}, which is zero for a column holding nothing rather than undefined. */
-    public static double share(long part, long total) {
+    static double share(long part, long total) {
         return total == 0 ? 0.0 : (double) part / total;
     }
 
@@ -233,7 +232,6 @@ public final class Vocabulary {
         return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
     }
 
-    /** Whether {@code wider} holds every id of {@code narrower}, both being in term order. */
     /** Whether every id in {@code narrower} is also in {@code wider}. Both are in term order, so one pass does it. */
     private static boolean containsAll(int[] wider, int[] narrower) {
         int at = 0;

@@ -28,10 +28,8 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
-$if(long)$
 import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
-$endif$
 
 /**
  * Aggregator state for an array of $type$s. It is created in a mode where it
@@ -333,7 +331,6 @@ $endif$
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Long.BYTES$else$$BYTES$$endif$ * length);
     }
 
-$if(long)$
     private static long bytesUsedByPartitionPage(int length) {
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Byte.BYTES$else$$BYTES$$endif$ * length);
     }
@@ -517,7 +514,6 @@ $else$
 $endif$
         trackGroupIds(firstId, end);
     }
-$endif$
 
     @Override
     public void close() {

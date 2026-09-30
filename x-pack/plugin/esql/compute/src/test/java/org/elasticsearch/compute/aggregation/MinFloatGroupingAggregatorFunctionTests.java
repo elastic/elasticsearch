@@ -21,7 +21,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinFloatGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MinFloatGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongFloatTupleBlockSourceOperator(

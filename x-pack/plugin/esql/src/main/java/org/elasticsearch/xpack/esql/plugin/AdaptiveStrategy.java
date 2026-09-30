@@ -62,7 +62,7 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
         PhysicalPlan plan = context.plan();
 
-        if (isLimitOnly(plan)) {
+        if (isUnfilteredLimitOnly(plan)) {
             return ExternalDistributionPlan.LOCAL;
         }
 
@@ -94,13 +94,14 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
     }
 
     /**
-     * True when a coordinator {@code LimitExec} is the only breaker and nothing drops rows before a
-     * limit: no aggregation, TopN, TopNBy, or LimitBy on the physical tree or inside a fragment, and no
-     * filter between the scan and the first limit above it. Such a read stops after about {@code LIMIT}
-     * rows, so one node is cheapest. A UNION STATS leaf that still carries a limit is not limit-only,
-     * so the reduction check can still hop it.
+     * True when a coordinator {@code LimitExec} is the only breaker (no aggregation, TopN, TopNBy, or
+     * LimitBy on the physical tree or inside a fragment) and no filter runs between the scan and the
+     * first limit above it. Only such a read stops after about {@code LIMIT} rows, which is what makes
+     * one node cheapest; a limit-only plan with a filter under the limit may have to read everything
+     * and is left to the split-count rule. A UNION STATS leaf that still carries a limit is not
+     * limit-only, so the reduction check can still hop it.
      */
-    private static boolean isLimitOnly(PhysicalPlan plan) {
+    private static boolean isUnfilteredLimitOnly(PhysicalPlan plan) {
         return plan.anyMatch(n -> n instanceof LimitExec)
             && ExternalDistributionStrategy.hasReducingOperator(plan) == false
             && filtersBeforeLimit(plan) == false;

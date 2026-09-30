@@ -144,6 +144,43 @@ public class ExternalDistributionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Goes through the real {@link Mapper} rather than a hand-built tree, so the Adaptive filter check is pinned to
+     * the shape the coordinator actually hands to the strategy: the filter is a logical {@link Filter} under the
+     * fragment's own {@link Limit}, not a physical {@code FilterExec}. Same splits and nodes for both plans, so the
+     * filter is the only thing that flips the decision.
+     */
+    public void testAdaptiveDistributesMappedFilteredLimitButNotBareLimit() {
+        ExternalRelation external = createExternalRelation();
+        Literal limitExpr = new Literal(SRC, 10, DataType.INTEGER);
+        Mapper mapper = new Mapper();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-2").roles(Set.of(SEARCH_ROLE)).build())
+            .build();
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            splits.add(
+                new FileSplit("parquet", StoragePath.of("s3://bucket/file" + i + ".parquet"), 0, 1024, ".parquet", Map.of(), Map.of())
+            );
+        }
+        AdaptiveStrategy adaptive = new AdaptiveStrategy();
+
+        PhysicalPlan filteredLimit = mapper.map(
+            new Versioned<>(new Limit(SRC, limitExpr, new Filter(SRC, external, Literal.TRUE)), TransportVersion.current())
+        );
+        assertTrue(
+            "WHERE under LIMIT may read the whole dataset, so it must follow the split-count rule",
+            adaptive.planDistribution(new ExternalDistributionContext(filteredLimit, splits, nodes, QueryPragmas.EMPTY)).distributed()
+        );
+
+        PhysicalPlan bareLimit = mapper.map(new Versioned<>(new Limit(SRC, limitExpr, external), TransportVersion.current()));
+        assertFalse(
+            "a bare LIMIT stops after LIMIT rows, so it stays on the coordinator",
+            adaptive.planDistribution(new ExternalDistributionContext(bareLimit, splits, nodes, QueryPragmas.EMPTY)).distributed()
+        );
+    }
+
     public void testMapperInsertsExchangeForTopNAboveExternalSource() {
         ExternalRelation external = createExternalRelation();
         Attribute nameAttr = external.output().get(0);

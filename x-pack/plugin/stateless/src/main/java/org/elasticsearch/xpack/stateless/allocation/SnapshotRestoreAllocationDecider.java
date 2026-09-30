@@ -39,18 +39,16 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         Long size = allocation.snapshotShardSizeInfo().getShardSize(shard);
         // Still-fetching (null) is deferred by StatelessExistingShardsAllocator before we run.
         assert size != null : "snapshot shard size should be fetched before capacity decisions";
-        // Permanent fetch failure cannot be admitted on capacity; waiting forever would stall API restores.
         if (size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }
-        // Missing disk stats: NOT_PREFERRED in simulation still allows a tentative desired assignment; THROTTLE in
-        // reconciliation avoids RestoreService failing the API restore on DECIDERS_NO.
-        Decision missingDiskDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
+            var missingDiskDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
             return allocation.decision(missingDiskDecision, NAME, "node disk information is unavailable");
         }
-        // Include recoveries assigned since the last stats refresh; never credit outgoing files before deletion.
+        // freeBytes does not yet reflect space that initializing shards on this node will occupy once
+        // recovery finishes. Do not credit relocating-away shards: their files still use disk until deleted.
         long committed = DiskThresholdDecider.sizeOfUnaccountedShards(
             node,
             false,
@@ -66,8 +64,6 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         long headroom = reservedDisk.isAbsolute()
             ? reservedDisk.getAbsolute().getBytes()
             : reservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
-        // Reject undersized targets in simulation so a previous desired assignment can be reconsidered. During
-        // reconciliation, THROTTLE keeps the API restore pending rather than marking it failed.
         boolean fits = usable >= headroom && size <= usable - headroom;
         return allocation.decision(
             fits ? Decision.YES : allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,

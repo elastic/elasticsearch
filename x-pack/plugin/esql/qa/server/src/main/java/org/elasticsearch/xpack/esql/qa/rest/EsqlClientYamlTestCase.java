@@ -21,9 +21,9 @@ import java.util.Set;
 
 /**
  * Base class for the ES|QL yaml suites. Before every ES|QL query it waits until all nodes have applied every cluster state published
- * so far. A {@code bulk} with {@code refresh=true} that adds a field through dynamic mapping can return before some search nodes have
- * applied the new mapping, and ES|QL resolves its columns from a single node's local mapping, so a query issued right after such a
- * bulk could otherwise fail with {@code Unknown column}.
+ * so far. A {@code bulk} with {@code refresh=true} that adds a field through dynamic mapping can return before some nodes have applied
+ * the new mapping (nodes holding no copy of the written shards, and in serverless any search node), and ES|QL resolves its columns
+ * from a single node's local mapping, so a query issued right after such a bulk could otherwise fail with {@code Unknown column}.
  */
 public abstract class EsqlClientYamlTestCase extends ESClientYamlSuiteTestCase {
 

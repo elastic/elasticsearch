@@ -85,6 +85,7 @@ public class EsqlDynamicMappingVisibilityIT extends AbstractEsqlIntegTestCase {
         ensureStableCluster(2);
         var indexName = createIndexWithOnePrimaryPerNode(List.of(masterNode, otherNode));
         var ids = idsRoutedToShard(indexName, primaryNodeByShard(indexName).indexOf(masterNode), 4);
+        long versionBefore = appliedMappingVersion(masterNode, indexName);
 
         var disruption = new BlockClusterStateProcessing(otherNode, random());
         internalCluster().setDisruptionScheme(disruption);
@@ -93,6 +94,11 @@ public class EsqlDynamicMappingVisibilityIT extends AbstractEsqlIntegTestCase {
         try {
             bulkFuture = indexDocsWithNewField(masterNode, indexName, ids);
             assertFalse("bulk completed while a node was lagging", waitUntil(bulkFuture::isDone, 2, TimeUnit.SECONDS));
+            assertThat(
+                "the master applies the new mapping only after every other node",
+                appliedMappingVersion(masterNode, indexName),
+                equalTo(versionBefore)
+            );
         } finally {
             disruption.stopDisrupting();
             internalCluster().clearDisruptionScheme();
@@ -126,7 +132,7 @@ public class EsqlDynamicMappingVisibilityIT extends AbstractEsqlIntegTestCase {
 
     private static List<String> idsRoutedToShard(String indexName, int shard, int count) {
         var indexRouting = IndexRouting.fromIndexMetadata(
-            internalCluster().clusterService().state().metadata().getProject().index(indexName)
+            internalCluster().clusterService().state().metadata().getProject(ProjectId.DEFAULT).index(indexName)
         );
         var ids = new ArrayList<String>();
         for (int i = 0; ids.size() < count; i++) {
@@ -139,7 +145,7 @@ public class EsqlDynamicMappingVisibilityIT extends AbstractEsqlIntegTestCase {
     }
 
     private static long appliedMappingVersion(String node, String indexName) {
-        return internalCluster().clusterService(node).state().metadata().getProject().index(indexName).getMappingVersion();
+        return internalCluster().clusterService(node).state().metadata().getProject(ProjectId.DEFAULT).index(indexName).getMappingVersion();
     }
 
     private static ActionFuture<BulkResponse> indexDocsWithNewField(String node, String indexName, List<String> ids) {

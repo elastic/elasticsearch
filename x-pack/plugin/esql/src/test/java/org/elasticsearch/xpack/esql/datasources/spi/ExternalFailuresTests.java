@@ -29,7 +29,7 @@ public class ExternalFailuresTests extends ESTestCase {
         assertSame(error, thrown);
     }
 
-    public void testExternalExceptionsPassThroughWithTheirStatus() {
+    public void testExternalExceptionsKeepTheirTypeAndStatusButNotTheirCause() {
         var client = new ExternalClientException("bad file", new IOException("truncated"));
         RuntimeException classifiedClient = ExternalFailures.classify(client);
         assertThat(classifiedClient, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
@@ -139,8 +139,10 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testCredentialsExpiredPassesThroughAs400() {
         var expired = new ExternalCredentialsExpiredException("Session credentials expired reading [k]");
-        assertSame(expired, ExternalFailures.classify(expired));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(expired)));
+        RuntimeException classified = ExternalFailures.classify(expired);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(expired.getMessage(), classified.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         assertSame(expired, ExternalFailures.surface(expired, "ctx"));
         assertNotNull(ExceptionsHelper.unwrap(new ExecutionException(expired), ExternalCredentialsExpiredException.class));
         assertNull(ExceptionsHelper.unwrap(new IOException("HTTP 400 ExpiredToken"), ExternalCredentialsExpiredException.class));
@@ -148,8 +150,10 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testObjectChangedPassesThroughAs503() {
         var changed = new ExternalObjectChangedException("Object changed during read of [k]");
-        assertSame(changed, ExternalFailures.classify(changed));
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(changed)));
+        RuntimeException classified = ExternalFailures.classify(changed);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalObjectChangedException.class));
+        assertEquals(changed.getMessage(), classified.getMessage());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(classified));
         assertSame(changed, ExternalFailures.surface(changed, "ctx"));
     }
 
@@ -207,7 +211,39 @@ public class ExternalFailuresTests extends ESTestCase {
         assertEquals("only the typed suppressed failure is kept", 1, classified.getSuppressed().length);
         assertThat(classified.getSuppressed()[0], org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertNull(classified.getSuppressed()[0].getCause());
-        assertSame("an already-detached failure is returned as is", classified, ExternalFailures.classify(classified));
+        assertNotSame("even a detached failure is copied, since it may be shared", classified, ExternalFailures.classify(classified));
+    }
+
+    /**
+     * A cache rethrows one failure instance to every concurrent waiter, and each waiter's caller annotates what it
+     * gets with its own dataset. Detaching must hand out a copy, or the annotations pile up on the shared instance.
+     */
+    public void testDetachCopiesSoASharedFailureIsNeverAnnotated() {
+        var shared = new ExternalClientException("Unreadable footer in [a.parquet]");
+        shared.setDetail("bad magic");
+
+        ExternalException first = ExternalFailures.detach(shared);
+        first.setDatasetContext("tmax", "noaa", "s3");
+        ExternalException second = ExternalFailures.detach(shared);
+        second.setDatasetContext("tmin", "noaa", "s3");
+
+        assertEquals("Unreadable footer in [a.parquet]: bad magic", shared.getMessage());
+        assertThat(first.getMessage(), org.hamcrest.Matchers.containsString("bad magic"));
+        assertThat(first.getMessage(), org.hamcrest.Matchers.containsString("in dataset [tmax]"));
+        assertThat(first.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("tmin")));
+        assertThat(second.getMessage(), org.hamcrest.Matchers.containsString("in dataset [tmin]"));
+        assertThat(second.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("tmax")));
+    }
+
+    public void testDetailAndDatasetContextSurviveDetach() {
+        var annotated = new ExternalClientException("Access denied reading [file.parquet]", new IOException("s3://bucket/k"));
+        annotated.setDetail("some reader detail");
+        annotated.setDatasetContext("tmax", "noaa", "s3");
+
+        ExternalException detached = ExternalFailures.detach(annotated);
+
+        assertEquals(annotated.getMessage(), detached.getMessage());
+        assertNull(detached.getCause());
     }
 
     public void testClassifyFallsBackToClassNameWhenMessageIsNull() {
@@ -287,11 +323,12 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testSurfaceComposesIdempotentlyForCheckedNonIo() {
         // The other main coordinator path: a stored InterruptedException produces an ExternalServerException
-        // at surface(), which classify() then passes through unchanged at the read boundary.
+        // at surface(), which classify() then keeps (as a detached copy) at the read boundary.
         InterruptedException interrupted = new InterruptedException("worker interrupted");
         RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
         RuntimeException classified = ExternalFailures.classify(surfaced);
-        assertSame(surfaced, classified);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertEquals(surfaced.getMessage(), classified.getMessage());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
     }
 
@@ -319,12 +356,13 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testSurfaceComposesIdempotentlyWithClassify() {
         // The expected composition at production sites: surface() runs at the worker rethrow, classify() runs
-        // at the read boundary. surface()'s typed output must pass through classify() as the same instance
-        // so the prefix and status the worker site set are preserved end-to-end.
+        // at the read boundary. surface()'s typed output must pass through classify() as the same type
+        // with the same message, so the prefix and status the worker site set are preserved end-to-end.
         IOException ioe = new IOException("truncated");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Failed to read NDJSON page");
         RuntimeException classified = ExternalFailures.classify(surfaced);
-        assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals("classify must keep an already-typed surface() result", surfaced.getMessage(), classified.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
 

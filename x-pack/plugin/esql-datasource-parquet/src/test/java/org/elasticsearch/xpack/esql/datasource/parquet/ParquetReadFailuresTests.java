@@ -39,7 +39,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertThat(wrapped, instanceOf(ExternalClientException.class));
         assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertEquals(wrapped.getMessage(), ExternalFailures.classify(wrapped).getMessage());
     }
 
     public void testUncheckedIoExceptionBecomesExternalClient400() {
@@ -49,7 +49,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertThat(wrapped, instanceOf(ExternalClientException.class));
         assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertEquals(wrapped.getMessage(), ExternalFailures.classify(wrapped).getMessage());
     }
 
     public void testExternalUnavailableIdentityAnd503() {

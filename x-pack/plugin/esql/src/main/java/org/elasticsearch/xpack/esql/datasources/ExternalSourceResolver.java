@@ -939,20 +939,24 @@ public class ExternalSourceResolver {
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
         // is non-retryable and is the caller's fault.
-        // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
-        // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
             recordDiscoveryFailure();
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
+            // rootDetail reads through the cache's ExecutionException, whose own message is the cause's toString().
+            String ioDetail = ExternalFailures.rootDetail(ioError);
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, ioDetail, e);
             // Use objectName(path) — the safe static that never throws and never returns the full URI —
             // as the detailCode so the filename appears in the message while the directory stays hidden.
-            return new ExternalClientException(
+            ExternalClientException ioEx = new ExternalClientException(
                 ExternalException.Condition.METADATA_UNAVAILABLE,
                 StoragePath.NONE,
                 StoragePath.objectName(path),
                 ""
             );
+            if (ExternalFailures.safeForUserMessage(ioDetail)) {
+                ioEx.setDetail(ioDetail);
+            }
+            return ioEx;
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
@@ -3355,9 +3359,8 @@ public class ExternalSourceResolver {
         } catch (IllegalArgumentException e) {
             objectName = "";
         }
-        // The full location is the display path: the caller asked for a glob or a dataset resource, and
-        // quoting back only the object name would lose what they wrote.
-        return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
+        // Only the object name is quoted back: the message reaches users who may not know the storage location.
+        return dataSourceModule.formatReaderRegistry().unreadableObject(objectName, objectName);
     }
 
     /**

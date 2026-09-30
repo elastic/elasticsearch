@@ -1599,7 +1599,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code external_max_record_size}
      * record dropped by the record-reader path and laundered into an unchecked wrapper by
-     * {@link ExternalFailures#surface} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
+     * {@link #surfaceReadFailure} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
      * pragma-dependent survivor loss can safe-miss the stats publish, matching the bracket path's typed catch.
      */
     private static boolean isRecordCapDrop(Throwable e) {
@@ -4330,7 +4330,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 if (isRecordCapDrop(e)) {
                                     // An over-external_max_record_size record dropped by the record-reader path
                                     // (rowPositionSlot >= 0): CsvRecordIterator.hasNext launders the typed
-                                    // CsvRecordTooLargeException through ExternalFailures.surface, so it arrives
+                                    // CsvRecordTooLargeException through surfaceReadFailure, so it arrives
                                     // here as the cause of an unchecked wrapper. Same survivor loss as
                                     // readBracketAwareRecord's typed catch: the cap is a query pragma outside the
                                     // cache fingerprint, so the whole publish must safe-miss rather than cache a

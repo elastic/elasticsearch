@@ -4286,15 +4286,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(mapped)
         );
-        // The IOException message is stripped from the user-facing message to prevent URI leaks;
-        // only the safe METADATA_UNAVAILABLE condition message appears.
         assertThat(mapped.getMessage(), containsString("Failed to get external data metadata"));
         assertThat(mapped.getMessage(), not(containsString("s3://b/x.parquet")));
-        assertThat(mapped.getMessage(), not(containsString("External data object not found")));
-        // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
-        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
-            assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
-        }
+        // The diagnosis is kept when it names no location, read through the wrapper's toString()-derived message.
+        assertThat(mapped.getMessage(), containsString("External data object not found"));
+        assertThat(mapped.getMessage(), not(containsString("java.io.")));
+        assertNull(mapped.getCause());
+    }
+
+    public void testAnIoErrorNamingTheLocationLosesItsMessage() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExecutionException wrapper = new ExecutionException(new IOException("Unable to read s3://secret-bucket/dir/x.parquet"));
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://secret-bucket/dir/x.parquet", wrapper);
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertThat(mapped.getMessage(), containsString("x.parquet"));
+        assertThat(mapped.getMessage(), not(containsString("secret-bucket")));
+        assertThat(mapped.getMessage(), not(containsString("dir/")));
+        assertNull(mapped.getCause());
     }
 
     /**

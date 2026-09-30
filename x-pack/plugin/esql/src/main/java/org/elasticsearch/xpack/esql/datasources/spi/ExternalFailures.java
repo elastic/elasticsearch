@@ -20,9 +20,9 @@ import java.util.Set;
  * Classifies a failure raised while reading an external data source into the exception an external-read
  * operator should surface, so that it maps to the right HTTP status. The
  * companion {@link #surface} helper is used at the worker rethrow sites inside parallel coordinators and
- * page iterators to pre-type the failure: it wraps a raw {@link IOException} in an already-classified
- * {@link ExternalClientException} (400) so the read boundary's {@link #classify} sees a status-typed
- * exception. {@code surface} cannot rescue a status signal already buried under a status-neutral
+ * page iterators to pre-type the failure: it turns a raw {@link IOException} into an already-classified
+ * {@link ExternalClientException} (400), without chaining it, so the read boundary's {@link #classify} sees a
+ * status-typed exception. {@code surface} cannot rescue a status signal already buried under a status-neutral
  * {@link RuntimeException} wrapper; callers must therefore pass the <em>raw</em> stored throwable, not a
  * pre-wrapped one.
  * <p>
@@ -36,17 +36,18 @@ import java.util.Set;
  * <ul>
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
- *     <li>An {@link ElasticsearchException} already carries its own status and is returned unchanged:
- *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
- *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
- *     (400).</li>
+ *     <li>An {@link ExternalException} (400/500/503) raised at the reader/storage boundary keeps its type and
+ *     status but is returned as a {@link #detach detached copy}: storage-client causes name the bucket and key,
+ *     and the instance may be shared (e.g. by a cache's concurrent waiters) while callers annotate the result.</li>
+ *     <li>Any other {@link ElasticsearchException} already carries its own status and is returned unchanged:
+ *     this covers {@code CircuitBreakingException} (429) and {@code TaskCancelledException} (400).</li>
  *     <li>An {@link EsRejectedExecutionException} — a thread pool refusing the task (e.g. the node shutting
  *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
  *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
  *     invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} from a format reader may embed a full storage URI; it is wrapped
  *     in an {@link ExternalClientException} (400) with a path-free message and no cause chain, so the IAE
- *     message never appears in {@code caused_by}. The original is logged at {@code WARN} on this node.</li>
+ *     message never appears in {@code caused_by}. The original is logged on this node.</li>
  *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
  *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
@@ -54,7 +55,8 @@ import java.util.Set;
  *     (503) first.</li>
  *     <li>Anything else ({@link IllegalStateException}, {@link NullPointerException}, an unrecognized
  *     {@link RuntimeException}) indicates a broken invariant in our own code rather than bad input,
- *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible.</li>
+ *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible. It is not chained:
+ *     unchecked storage-client failures (e.g. AWS {@code SdkClientException}) land here too.</li>
  * </ul>
  * Cancellation is not special-cased here: it arrives as a {@code TaskCancelledException} (handled by the
  * {@link ElasticsearchException} branch, 400), and a read interrupted while blocking surfaces as an
@@ -231,15 +233,15 @@ public final class ExternalFailures {
     }
 
     /**
-     * Returns {@code e} {@link ExternalException#withoutCause() detached} from its cause chain, after logging the
-     * chain on this node. Suppressed failures that are themselves external failures are detached and kept; any
-     * other suppressed failure is dropped. Returns {@code e} itself when there is nothing to detach.
+     * Returns a fresh copy of {@code e} {@link ExternalException#withoutCause() detached} from its cause chain,
+     * after logging the chain on this node. Always a new instance, so the caller may annotate it even when
+     * {@code e} is shared (e.g. rethrown to every waiter of a cache load). Suppressed failures that are themselves
+     * external failures are detached and kept; any other suppressed failure is dropped.
      */
     public static ExternalException detach(ExternalException e) {
-        if (isDetached(e)) {
-            return e;
+        if (e.getCause() != null) {
+            logger.debug("External failure detached from its cause (cause logged, not forwarded)", e);
         }
-        logger.debug("External failure detached from its cause (cause logged, not forwarded)", e);
         ExternalException detached = e.withoutCause();
         for (Throwable suppressed : e.getSuppressed()) {
             if (suppressed instanceof ExternalException external) {
@@ -247,18 +249,6 @@ public final class ExternalFailures {
             }
         }
         return detached;
-    }
-
-    private static boolean isDetached(Throwable t) {
-        if (t.getCause() != null) {
-            return false;
-        }
-        for (Throwable suppressed : t.getSuppressed()) {
-            if (suppressed instanceof ExternalException == false || isDetached(suppressed) == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -275,17 +265,20 @@ public final class ExternalFailures {
      *     <li>An {@link Error} is rethrown unchanged — a JVM/programming fault must stay fatal.</li>
      *     <li>A {@link RuntimeException} is returned as-is. This covers status carriers
      *     ({@link ElasticsearchException} family, {@link IllegalArgumentException}) which already pin
-     *     their own status, and any other unchecked cause raised by the worker. <strong>Note:</strong> a
+     *     their own status, and any other unchecked cause raised by the worker. It is <em>not</em> detached
+     *     from its cause, so a caller not followed by {@link #classify} must {@link #detach} it itself. <strong>Note:</strong> a
      *     bare {@link RuntimeException} that buries an {@link IOException} cause is <em>not</em> rescued
      *     here — the wrapper has already destroyed the type signal. Callers must therefore pass the raw
      *     stored throwable, not a pre-wrapped one.</li>
      *     <li>An {@link IOException} or {@link UncheckedIOException} becomes an
      *     {@link ExternalClientException} (400) — undecodable input is a client-class error, not a server
      *     fault. The {@code fallbackMessage} prefix is kept either way, so the context survives whether
-     *     the worker raised checked or unchecked I/O.</li>
+     *     the worker raised checked or unchecked I/O. The failure is logged at DEBUG (lenient error modes
+     *     surface one per malformed row) and not chained; its message is kept only if it names no storage
+     *     location.</li>
      *     <li>Anything else (a checked, non-IO exception — typically {@link InterruptedException} stored
      *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
-     *     no evidence it is the caller's fault, so we keep the bug visible.</li>
+     *     no evidence it is the caller's fault, so we keep the bug visible. Logged at WARN, not chained.</li>
      * </ul>
      *
      * @param failure the raw stored worker-side throwable; <em>not</em> a status-neutral wrapper around it
@@ -300,11 +293,15 @@ public final class ExternalFailures {
         }
         // Storage clients embed full URIs in their messages and causes, so the failure is logged here and
         // never chained; its message is forwarded only when it names no storage location.
-        logger.warn("External read failed (cause logged, not forwarded)", failure);
         String detail = safeDetail(failure);
-        ElasticsearchException result = failure instanceof IOException || failure instanceof UncheckedIOException
-            ? new ExternalClientException("{}: {}", fallbackMessage, detail)
-            : new ExternalServerException("{}: {}", fallbackMessage, detail);
+        ElasticsearchException result;
+        if (failure instanceof IOException || failure instanceof UncheckedIOException) {
+            logger.debug("External read failed (cause logged, not forwarded)", failure);
+            result = new ExternalClientException("{}: {}", fallbackMessage, detail);
+        } else {
+            logger.warn("External read failed (cause logged, not forwarded)", failure);
+            result = new ExternalServerException("{}: {}", fallbackMessage, detail);
+        }
         assert noStoragePathLeaked(result) : "storage path leaked in surfaced exception: " + result.getMessage();
         return result;
     }

@@ -1516,13 +1516,9 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         int listingBound
     ) throws Exception {
-        // Fan-out drains run on virtual threads so that this blocking future.actionGet() call does not
-        // consume a carrier thread from the shared pool. Without virtual threads, N concurrent queries
-        // saturating the pool would each block here waiting for drains that can never run — permanent deadlock.
+        // Fan-out drains run on metadataReadExecutor (esql_external_io wrapped with the query cancellation
+        // scope), so retry backoff inside each drain aborts promptly on cancel and thread context is preserved.
         PlainActionFuture<FileList> future = new PlainActionFuture<>();
-        BooleanSupplier cancelled = this::isCancelled;
-        Executor fanOutExecutor = command -> Thread.ofVirtual()
-            .start(() -> StorageRetryCancellation.runWithCancellation(cancelled, command::run));
         GlobExpander.expandAndCompactAsync(
             path,
             provider,
@@ -1535,7 +1531,7 @@ public class ExternalSourceResolver {
             listingBound,
             listingConcurrency(),
             this::isCancelled,
-            fanOutExecutor,
+            metadataReadExecutor,
             future
         );
         return future.actionGet();

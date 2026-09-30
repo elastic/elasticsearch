@@ -195,7 +195,7 @@ public final class AsymmetricHashingQuantizer {
         assert inheritedWT != null : "trainWarmStart requires a non-null inherited matrix to fall back to";
         int nDims = nDims(originalDim);
 
-        // WS1b warm-start: refine the inherited basis rather than recomputing it from scratch. We trust the
+        // Warm-start: refine the inherited basis rather than recomputing it from scratch. We trust the
         // inherited W (the largest learned input segment's) as a good starting point. Follow-up (#160522):
         // add a residual-energy gate — compare energy retained by W (mean ||x·W||^2) against the total
         // (mean ||x||^2); if the inherited basis fits the merged set poorly, cold re-train instead of

@@ -38,17 +38,6 @@ public final class AshProjectionMatrix {
     private final boolean learned;
 
     /**
-     * Creates a learned projection matrix.
-     *
-     * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
-     * @param originalDim number of rows (original vector dimensionality)
-     * @param nDims       number of columns (projected dimensionality)
-     */
-    public AshProjectionMatrix(float[] wT, int originalDim, int nDims) {
-        this(wT, originalDim, nDims, true);
-    }
-
-    /**
      * Creates a projection matrix.
      *
      * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims

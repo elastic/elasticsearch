@@ -178,7 +178,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             ivfSegmentConfig,
             null,
-            false // flush: vectors are on-heap, train on a reduced sample (cheap-learned)
+            false // flush: vectors are on-heap, train on a reduced sample
         );
     }
 

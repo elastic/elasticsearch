@@ -25,7 +25,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int originalDim = 768;
         int nDims = 384;
         float[] wT = new float[originalDim * nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
     }
@@ -35,7 +35,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int nDims = randomIntBetween(2, originalDim);
         float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, true);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
@@ -49,7 +49,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int nDims = randomIntBetween(2, originalDim);
         float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
@@ -73,13 +73,10 @@ public class AshProjectionMatrixTests extends ESTestCase {
             assertEquals(learned, restored.isLearned());
             assertArrayEquals(wT, restored.wT(), 0f);
         }
-
-        // The single-arg constructor defaults to learned.
-        assertTrue(new AshProjectionMatrix(wT, originalDim, nDims).isLearned());
     }
 
     public void testEmptyMatrix() throws IOException {
-        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0);
+        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0, true);
         assertEquals(0, pm.originalDim());
         assertEquals(0, pm.nDims());
 

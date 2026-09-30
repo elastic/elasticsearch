@@ -85,7 +85,7 @@ public class AshPostingsListWriter {
      *        projection matrix from an existing input segment. When supplied, its length must equal
      *        {@code originalDim * nDims}; a mismatch is a programming error and throws.
      * @param trainOnFullSample when {@code true}, W is learned on the full training sample; when
-     *        {@code false}, W is learned on a reduced sample (cheap-learned) to cut training cost and
+     *        {@code false}, W is learned on a reduced training sample to cut training cost and
      *        heap footprint at the expense of a slightly smaller training set.
      */
     public PostingsOffsetAndLength buildAndWrite(
@@ -117,7 +117,7 @@ public class AshPostingsListWriter {
         final CheckedIntFunction<float[], IOException> vectors = floatVectorValues::vectorValue;
 
         // Select the projection-matrix training profile. When training on a reduced sample
-        // (cheap-learned) we keep the recall-critical PCA subspace while cutting training cost and heap
+        // we keep the recall-critical PCA subspace while cutting training cost and heap
         // footprint; otherwise we train on the full sample.
         final int effectiveTrainingFactor = trainOnFullSample ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
@@ -134,7 +134,7 @@ public class AshPostingsListWriter {
         // Projection matrix selection:
         // - merge with an inheritable W (pretrainedWT != null): warm-start from it, running a few
         // Procrustes refinement iterations to re-fit the rotation to the merged set (skips PCA).
-        // - flush (cheap-learned): full LEARNED training but on a reduced training sample.
+        // - flush: full LEARNED training but on a reduced training sample.
         // - otherwise: full cold training (PCA + Procrustes).
         final float[] wT;
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
@@ -169,7 +169,7 @@ public class AshPostingsListWriter {
 
         // Store the projection matrix for later serialization. The quantizer reports whether W was
         // genuinely learned or a random orthonormal fallback (degenerate tiny segments); only a learned
-        // W may be inherited/warm-started at merge time (WS1b), so a random one is marked learned=false
+        // W may be inherited/warm-started at merge time, so a random one is marked learned=false
         // to stop merge inheriting a random rotation.
         this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims, trained.learned());
 

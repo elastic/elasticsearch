@@ -76,8 +76,8 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 5;
 
         /**
-         * Returns the training-sample factor to use when learning W at flush time (a reduced,
-         * cheap-learned profile). Merge uses {@link #trainingFactor()}.
+         * Returns the training-sample factor to use when learning W at flush time (a reduced
+         * training sample). Merge uses {@link #trainingFactor()}.
          */
         public int flushTrainingFactor() {
             return DEFAULT_FLUSH_TRAINING_FACTOR;

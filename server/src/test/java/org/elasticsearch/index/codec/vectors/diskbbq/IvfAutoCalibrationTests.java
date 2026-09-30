@@ -37,6 +37,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_K;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_TARGET_RECALL;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_CANDIDATE_ENCODINGS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_RERANK_OVERSAMPLES;
 import static org.hamcrest.Matchers.equalTo;
@@ -417,6 +420,44 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
             assertThat(selector.selectFromMergeState(fieldInfo, mergeState), nullValue());
+        }
+    }
+
+    public void testSelectFromMergeStateRecalibratesWhenEncodingExceedsMaxDocBits() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+
+        // both segments agree on a 2-bit encoding
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(QuantEncoding.TWO_BIT_4BIT_QUERY, 2f, false, 50);
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(QuantEncoding.TWO_BIT_4BIT_QUERY, 2f, false, 50);
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { segA, segB },
+                new Bits[] { liveDocs(50), liveDocs(50) },
+                backgroundSegmentInfo(dir)
+            );
+
+            // a ceiling equal to the encoding's doc bits still reuses the agreed encoding
+            IvfAutoCalibration atCeiling = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                DEFAULT_TARGET_RECALL,
+                DEFAULT_K,
+                2
+            );
+            IvfSegmentConfig reused = atCeiling.selectFromMergeState(fieldInfo, mergeState);
+            assertThat(reused, notNullValue());
+            assertThat(reused.osqEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
+
+            // a ceiling below the encoding's doc bits must recalibrate rather than reuse
+            IvfAutoCalibration belowCeiling = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                DEFAULT_TARGET_RECALL,
+                DEFAULT_K,
+                1
+            );
+            assertThat(belowCeiling.selectFromMergeState(fieldInfo, mergeState), nullValue());
         }
     }
 

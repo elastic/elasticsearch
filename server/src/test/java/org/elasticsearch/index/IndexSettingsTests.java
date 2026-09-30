@@ -927,6 +927,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
             null,
+            null,
             xContentRegistry(),
             new MapperRegistry(
                 Collections.emptyMap(),

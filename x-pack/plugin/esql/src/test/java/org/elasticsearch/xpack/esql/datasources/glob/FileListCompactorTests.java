@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -67,6 +68,29 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
         assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
+        PartitionMetadata rawPm = raw.partitionMetadata();
+        PartitionMetadata compactPm = compact.partitionMetadata();
+        if (rawPm != null && rawPm.isEmpty() == false) {
+            assertNotNull(compactPm);
+            assertFalse(compactPm.isEmpty());
+            assertEquals(rawPm.partitionColumns(), compactPm.partitionColumns());
+            for (int i = 0; i < raw.fileCount(); i++) {
+                for (String col : rawPm.partitionColumns().keySet()) {
+                    assertEquals(
+                        "partition [" + col + "] at " + i,
+                        rawPm.getValue(i, raw.path(i), col),
+                        compactPm.getValue(i, compact.path(i), col)
+                    );
+                }
+            }
+            if (compact instanceof DirectoryGroupedFileList) {
+                assertThat(
+                    "DGF should share one value row per directory group",
+                    compactPm.rowCount(),
+                    Matchers.lessThanOrEqualTo(compactPm.fileCount())
+                );
+            }
+        }
         return compact;
     }
 
@@ -115,15 +139,13 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
-     * A {@code key=value} segment whose value contains a dot is not treated as a partition column
-     * ({@link HivePartitionDetector} excludes dotted segments), so the listing carries no partition
-     * metadata and compacts through the segment dictionary, which replays the value verbatim. This
-     * pins that the dotted-value exclusion keeps such layouts faithful without the Hive encoding.
+     * {@code x=2.50} is a partition column. The trailing zero keeps it a keyword, so the folder name round-trips
+     * instead of being reprinted as {@code 2.5}.
      */
-    public void testDottedPartitionValueFallsBackToDictionary() {
+    public void testDottedPartitionValueRoundTrips() {
         String base = "s3://b/data/";
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", base + "x=2.50/f.parquet"));
-        assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals(DataType.KEYWORD, compact.partitionMetadata().partitionColumns().get("x"));
     }
 
     /** Boolean casing is normalized by typing. */
@@ -421,6 +443,53 @@ public class FileListCompactorTests extends ESTestCase {
             }
         }
         assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+    }
+
+    /**
+     * Partition value arrays are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache
+     * weight and does not grow with them; {@link FileList#planningBytes()} adds
+     * {@link PartitionMetadata#planningBytes()}.
+     */
+    public void testPlanningBytesAddsPartitionMetadataOnGroupedList() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2024/f2.parquet");
+        FileList grouped = FileListCompactor.compact(base, raw);
+        assertThat(grouped, Matchers.instanceOf(DirectoryGroupedFileList.class));
+        assertFalse(grouped.partitionMetadata().isEmpty());
+        // Two files under the same directory share one value row after DGF compaction.
+        assertEquals(2, grouped.partitionMetadata().fileCount());
+        assertEquals(1, grouped.partitionMetadata().rowCount());
+        assertEquals(grouped.estimatedBytes() + grouped.partitionMetadata().planningBytes(), grouped.planningBytes());
+
+        // Same entries with and without partition metadata: estimatedBytes is the listing-cache weight and
+        // must not grow when the partition map is attached. planningBytes adds the columnar estimate.
+        GenericFileList without = new GenericFileList(raw.files(), raw.originalPattern(), PartitionMetadata.EMPTY);
+        GenericFileList with = new GenericFileList(raw.files(), raw.originalPattern(), grouped.partitionMetadata());
+        assertEquals(without.estimatedBytes(), with.estimatedBytes());
+        assertEquals(without.estimatedBytes(), without.planningBytes());
+        assertEquals(with.estimatedBytes() + with.partitionMetadata().planningBytes(), with.planningBytes());
+        assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
+    }
+
+    /** Values are looked up by listing position, so metadata covering a different file count must not be attached. */
+    public void testListingRejectsMisalignedPartitionMetadata() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2025/f2.parquet");
+        PartitionMetadata twoFiles = raw.partitionMetadata();
+        List<StorageEntry> oneFile = List.of(raw.files().get(0));
+        expectThrows(AssertionError.class, () -> new GenericFileList(oneFile, raw.originalPattern(), twoFiles));
+    }
+
+    /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */
+    public void testPlanningBytesIgnoresEmptyPartitionMetadata() {
+        StorageEntry file = new StorageEntry(StoragePath.of("s3://b/f.parquet"), 100L, Instant.EPOCH);
+        GenericFileList emptyMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", PartitionMetadata.EMPTY);
+        assertTrue(emptyMetadata.partitionMetadata().isEmpty());
+        assertEquals(emptyMetadata.estimatedBytes(), emptyMetadata.planningBytes());
+
+        GenericFileList noMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", null);
+        assertNull(noMetadata.partitionMetadata());
+        assertEquals(noMetadata.estimatedBytes(), noMetadata.planningBytes());
     }
 
     /**

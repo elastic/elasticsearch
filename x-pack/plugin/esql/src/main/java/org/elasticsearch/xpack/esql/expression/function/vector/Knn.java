@@ -197,7 +197,8 @@ public class Knn extends SingleFieldFullTextFunction
                     valueHint = { "3.5" },
                     description = "Applies the specified oversampling for rescoring quantized vectors. "
                         + "See [oversampling and rescoring quantized vectors]"
-                        + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
+                        + "(docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md"
+                        + "#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",

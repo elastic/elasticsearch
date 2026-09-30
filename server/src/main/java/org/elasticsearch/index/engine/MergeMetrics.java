@@ -32,6 +32,7 @@ public class MergeMetrics {
     public static final String MERGE_QUEUED_ESTIMATED_MEMORY_SIZE = "es.merge.segments.memory.size";
     public static final String MERGE_TIME_IN_SECONDS = "es.merge.time";
     public static final String MERGE_FAILURE_TOTAL = "es.merge.failure.total";
+    public static final String MERGE_ABORTED_TOTAL = "es.merge.aborted.total";
     public static MergeMetrics NOOP = new MergeMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     private final LongCounter mergeSizeInBytes;
@@ -39,6 +40,7 @@ public class MergeMetrics {
     private final LongCounter mergeNumDocs;
     private final LongHistogram mergeTimeInSeconds;
     private final LongCounter mergeFailures;
+    private final LongCounter mergeAborts;
 
     private final AtomicLong runningMergeSizeInBytes = new AtomicLong();
     private final AtomicLong queuedMergeSizeInBytes = new AtomicLong();
@@ -67,7 +69,12 @@ public class MergeMetrics {
         mergeTimeInSeconds = meterRegistry.registerLongHistogram(MERGE_TIME_IN_SECONDS, "Merge time in seconds", "seconds");
         mergeFailures = meterRegistry.registerLongCounter(
             MERGE_FAILURE_TOTAL,
-            "Number of merges that failed or were aborted after they started",
+            "Number of merges that failed with an exception after they started",
+            "unit"
+        );
+        mergeAborts = meterRegistry.registerLongCounter(
+            MERGE_ABORTED_TOTAL,
+            "Number of merges that were aborted after they started",
             "unit"
         );
         meterRegistry.registerLongAsyncGauge(
@@ -106,6 +113,10 @@ public class MergeMetrics {
             1,
             Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName(), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(error))
         );
+    }
+
+    public void onAborted(IndexMode indexMode) {
+        mergeAborts.incrementBy(1, Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName()));
     }
 
     public long getQueuedMergeSizeInBytes() {

@@ -42,6 +42,21 @@ public class MergeMetricsTests extends ESTestCase {
         Measurement failure = single(registry, InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_FAILURE_TOTAL);
         assertThat(failure.getLong(), equalTo(1L));
         assertThat(failure.attributes(), equalTo(expected));
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_ABORTED_TOTAL), hasSize(0));
+    }
+
+    public void testAbortedCarriesIndexMode() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        MergeMetrics metrics = new MergeMetrics(registry);
+        IndexMode indexMode = randomFrom(IndexMode.values());
+
+        metrics.onAborted(indexMode);
+
+        Map<String, Object> expected = Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName());
+        Measurement abort = single(registry, InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_ABORTED_TOTAL);
+        assertThat(abort.getLong(), equalTo(1L));
+        assertThat(abort.attributes(), equalTo(expected));
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, MergeMetrics.MERGE_FAILURE_TOTAL), hasSize(0));
     }
 
     private static Measurement single(RecordingMeterRegistry registry, InstrumentType type, String name) {

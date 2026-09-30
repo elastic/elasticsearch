@@ -851,7 +851,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testFailedOrAbortedMergeIsCountedAsFailure() throws IOException {
+    public void testFailedOrAbortedMergeRecordedSeparately() throws IOException {
         DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()
             // disable fs available disk space feature for this test
@@ -905,9 +905,15 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 assertSame(error, expectThrows(MergePolicy.MergeException.class, threadPoolTaskQueue::runAllTasks).getCause());
             }
 
-            // exactly once: a real failure sets the merge aborted too, which must not be counted a second time as an abort
-            verify(mergeMetrics, times(1)).onFailure(any(), any());
-            verify(mergeMetrics).onFailure(eq(indexMode), error == null ? isA(MergePolicy.MergeAbortedException.class) : same(error));
+            if (error != null) {
+                // a real exception goes to onFailure; setting the merge aborted too must not also trigger onAborted
+                verify(mergeMetrics, times(1)).onFailure(eq(indexMode), same(error));
+                verify(mergeMetrics, times(0)).onAborted(any());
+            } else {
+                // IndexWriter swallowed the MergeAbortedException and returned normally — goes to onAborted, not onFailure
+                verify(mergeMetrics, times(1)).onAborted(eq(indexMode));
+                verify(mergeMetrics, times(0)).onFailure(any(), any());
+            }
             verify(mergeMetrics, times(0)).markMergeMetrics(any(), anyLong(), anyLong());
         }
     }

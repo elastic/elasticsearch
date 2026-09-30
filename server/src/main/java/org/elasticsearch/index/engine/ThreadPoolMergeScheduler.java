@@ -505,7 +505,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
         if (oneMerge.isAborted()) {
             // IndexWriter swallows its MergeAbortedException, so an aborted merge returns normally with isAborted() set.
-            mergeMetrics.onFailure(indexMode, new MergePolicy.MergeAbortedException("merge aborted"));
+            mergeMetrics.onAborted(indexMode);
         }
     }
 

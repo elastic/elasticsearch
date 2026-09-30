@@ -712,4 +712,48 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
     }
 
+    // The max_consecutive_extraction_failures field was introduced (#159554), reverted via a move-forward marker
+    // (#160471), then re-introduced. It is therefore only on the wire in the feature era (before the revert) and once
+    // re-added. These round trips exercise all four eras so a stream-alignment regression in either read or write path
+    // is caught - the generic serialization test above only exercises the current transport version.
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnPreFeatureTransportVersion() throws IOException {
+        // Before the field existed it is not on the wire, so it drains to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion.minimumCompatible(), false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnFeatureEraTransportVersion() throws IOException {
+        // Original feature-era peers, predating the revert, carry the field.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES, true);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnRevertedTransportVersion() throws IOException {
+        // Within the reverted window the field is drained from the wire, so it deserializes to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED, false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnReAddedTransportVersion() throws IOException {
+        // Re-introduced peers carry the field again.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED, true);
+    }
+
+    private void assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion version, boolean expectedOnWire) throws IOException {
+        int value = randomBoolean() ? -1 : randomIntBetween(1, 100);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setMaxConsecutiveExtractionFailures(value).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(version);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                if (expectedOnWire) {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(value));
+                } else {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), nullValue());
+                }
+            }
+        }
+    }
+
 }

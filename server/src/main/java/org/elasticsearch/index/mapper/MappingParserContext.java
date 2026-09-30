@@ -54,7 +54,6 @@ public class MappingParserContext {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
     private final ParseFieldLimits parseFieldLimits;
-    private final MapperService.MergeReason mergeReason;
 
     // Package-private: used by MapperService (to pass ParseFieldLimits directly) and by inner subcontexts.
     MappingParserContext(
@@ -72,8 +71,7 @@ public class MappingParserContext {
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
-        ParseFieldLimits parseFieldLimits,
-        MapperService.MergeReason mergeReason
+        ParseFieldLimits parseFieldLimits
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -91,7 +89,6 @@ public class MappingParserContext {
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
         this.parseFieldLimits = parseFieldLimits;
-        this.mergeReason = mergeReason;
     }
 
     public MappingParserContext(
@@ -130,8 +127,7 @@ public class MappingParserContext {
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
                 0
-            ),
-            MapperService.MergeReason.MAPPING_UPDATE
+            )
         );
     }
 
@@ -208,15 +204,6 @@ public class MappingParserContext {
      */
     public boolean clusterHasFeature(NodeFeature feature) {
         return clusterSupportsFeature.test(feature);
-    }
-
-    /**
-     * Returns {@code true} when the mapping is being parsed as part of {@link MapperService.MergeReason#MAPPING_RECOVERY}.
-     * Recovery re-parses an already-accepted mapping, so parse-time gates that reject newly-invalid configurations must be
-     * skipped during recovery to allow an index with an affected configuration to start.
-     */
-    public boolean isMappingRecovery() {
-        return mergeReason == MapperService.MergeReason.MAPPING_RECOVERY;
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -341,8 +328,7 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                in.parseFieldLimits,
-                in.mergeReason
+                in.parseFieldLimits
             );
         }
 
@@ -377,8 +363,7 @@ public class MappingParserContext {
                 in.namespaceValidator,
                 null,
                 // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
-                ParseFieldLimits.UNLIMITED,
-                in.mergeReason
+                ParseFieldLimits.UNLIMITED
             );
             this.dateFormatter = dateFormatter;
         }

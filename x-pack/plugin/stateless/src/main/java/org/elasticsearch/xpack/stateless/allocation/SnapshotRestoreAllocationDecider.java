@@ -15,17 +15,19 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.xpack.stateless.IndexingDiskController;
 
 /** Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve. */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
 
-    private final RelativeByteSizeValue reservedDisk;
+    private final RelativeByteSizeValue indexingReservedDisk;
 
-    public SnapshotRestoreAllocationDecider(RelativeByteSizeValue reservedDisk) {
-        this.reservedDisk = reservedDisk;
+    public SnapshotRestoreAllocationDecider(Settings settings) {
+        this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
     }
 
     @Override
@@ -36,10 +38,10 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             || node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
             return Decision.YES;
         }
-        Long size = allocation.snapshotShardSizeInfo().getShardSize(shard);
+        Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);
         // Still-fetching (null) is deferred by StatelessExistingShardsAllocator before we run.
-        assert size != null : "snapshot shard size should be fetched before capacity decisions";
-        if (size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+        assert shardSize != null : "snapshot shard size should be fetched before capacity decisions";
+        if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
@@ -59,20 +61,17 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             allocation.globalRoutingTable(),
             allocation.unaccountedSearchableSnapshotSize(node)
         );
-        long usable = disk.freeBytes() - committed;
-        // Same reserve IndexingDiskController uses as its flush/throttle floor (percent of filesystem total, or absolute).
-        long headroom = reservedDisk.isAbsolute()
-            ? reservedDisk.getAbsolute().getBytes()
-            : reservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
-        boolean fits = usable >= headroom && size <= usable - headroom;
+        long freeAfterRestore = disk.freeBytes() - committed - shardSize;
+        long indexingReservedBytes = indexingReservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
+        boolean fits = freeAfterRestore >= indexingReservedBytes;
         return allocation.decision(
             fits ? Decision.YES : allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
             NAME,
-            "snapshot restore storage: free [%d] bytes, incoming commitments [%d] bytes, shard [%d] bytes, headroom [%d] bytes",
+            "snapshot restore storage: free [%d] bytes, incoming commitments [%d] bytes, shard [%d] bytes, indexing reserved [%d] bytes",
             disk.freeBytes(),
             committed,
-            size,
-            headroom
+            shardSize,
+            indexingReservedBytes
         );
     }
 }

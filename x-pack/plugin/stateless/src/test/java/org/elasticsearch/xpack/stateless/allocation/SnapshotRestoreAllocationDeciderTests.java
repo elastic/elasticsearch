@@ -39,7 +39,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.stateless.IndexingDiskController;
 
 import java.util.HashMap;
 import java.util.List;
@@ -53,15 +52,13 @@ import static org.hamcrest.Matchers.containsString;
 /** Exercises restore admission through desired-balance simulation and reconciliation. */
 public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase {
     private static final long GB = ByteSizeValue.ofGb(1).getBytes();
-    /** Filesystem capacity used in ClusterInfo; default reserved_bytes is 20% → 20 GiB headroom. */
+    /** Filesystem capacity used in ClusterInfo; default reserved_bytes is 20% → 20 GiB indexing reserve. */
     private static final long TOTAL = 100 * GB;
-    private static final long HEADROOM = 20 * GB;
+    private static final long INDEXING_RESERVED = 20 * GB;
     private static final String NODE = "index-node";
     private static final String PATH = "/data";
 
-    private final SnapshotRestoreAllocationDecider decider = new SnapshotRestoreAllocationDecider(
-        IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(Settings.EMPTY)
-    );
+    private final SnapshotRestoreAllocationDecider decider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
 
     private ClusterState state(int count) {
         var metadata = Metadata.builder();
@@ -155,11 +152,11 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testMissingInfoAndHeadroom() {
         var state = state(1);
-        // free 70, shard 50, headroom 20 → fits exactly
+        // free 70, shard 50, indexing reserved 20 → fits exactly
         assertEquals(Decision.Type.YES, decide(state, info(70 * GB), sizes(state, 50 * GB)).type());
         var denied = decide(state, info(70 * GB - 1), sizes(state, 50 * GB));
         assertEquals(Decision.Type.THROTTLE, denied.type());
-        assertThat(denied.getExplanation(), containsString("headroom [" + HEADROOM + "]"));
+        assertThat(denied.getExplanation(), containsString("indexing reserved [" + INDEXING_RESERVED + "]"));
 
         assertEquals(Decision.Type.NO, decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type());
         assertEquals(Decision.Type.THROTTLE, decide(state, ClusterInfo.EMPTY, sizes(state, 50 * GB)).type());
@@ -207,7 +204,7 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {
-        // free 70 holds one 50 GiB restore (50 + 20 headroom); a second must wait.
+        // free 70 holds one 50 GiB restore (50 + 20 indexing reserved); a second must wait.
         var state = state(2);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var info = new AtomicReference<>(info(70 * GB));
@@ -225,7 +222,7 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
             )
         );
         assertEquals(Decision.Type.THROTTLE, decide(state, info.get(), sizes.get()).type());
-        // A 20 GiB candidate fits exactly: usable 70 - 30 reserved = 40, headroom 20.
+        // A 20 GiB candidate fits exactly: free after restore 70 - 30 committed - 20 = 20, equals indexing reserved.
         assertEquals(Decision.Type.YES, decide(state, info.get(), sizes(state, 20 * GB)).type());
 
         info.set(info(120 * GB));
@@ -256,8 +253,8 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
             ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         ).v1();
         state = ClusterState.builder(state).routingTable(state.globalRoutingTable().rebuild(nodes, state.metadata())).build();
-        // Only headroom left free; relocating shard must not be credited until deleted.
-        var disks = Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, HEADROOM));
+        // Only the indexing reserve left free; relocating shard must not be credited until deleted.
+        var disks = Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, INDEXING_RESERVED));
         assertEquals(
             Decision.Type.THROTTLE,
             decide(
@@ -288,7 +285,7 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
     public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {
         var state = new AtomicReference<>(state(1));
         var sizes = new AtomicReference<>(sizes(state.get(), 50 * GB));
-        var info = new AtomicReference<>(info(HEADROOM)); // only headroom free → cannot allocate
+        var info = new AtomicReference<>(info(INDEXING_RESERVED)); // only indexing reserve free → cannot allocate
         var service = service(info, sizes);
         var reroutes = new AtomicInteger();
         var monitor = new SnapshotRestoreStorageMonitor(state::get, (reason, priority, listener) -> {

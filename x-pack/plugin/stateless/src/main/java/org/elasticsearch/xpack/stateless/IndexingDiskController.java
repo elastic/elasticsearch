@@ -100,15 +100,8 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
         this.indicesService = Objects.requireNonNull(indicesService);
         this.commitService = Objects.requireNonNull(commitService);
 
-        final ByteSizeValue reservedBytes;
         final ByteSizeValue totalBytes = totalBytes();
-
-        var relativeDiskReservedBytes = INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
-        if (relativeDiskReservedBytes.isAbsolute()) {
-            reservedBytes = relativeDiskReservedBytes.getAbsolute();
-        } else {
-            reservedBytes = relativeDiskReservedBytes.calculateValue(totalBytes, null);
-        }
+        final ByteSizeValue reservedBytes = INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings).calculateValue(totalBytes, null);
         if (reservedBytes.getBytes() >= totalBytes.getBytes()) {
             throw new IllegalStateException(
                 "Reserved disk space ["

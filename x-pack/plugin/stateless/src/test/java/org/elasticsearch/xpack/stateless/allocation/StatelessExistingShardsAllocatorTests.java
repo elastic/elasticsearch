@@ -36,7 +36,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.stateless.IndexingDiskController;
 
 import java.util.List;
 import java.util.Map;
@@ -99,7 +98,7 @@ public class StatelessExistingShardsAllocatorTests extends ESAllocationTestCase 
         var service = new AllocationService(
             new AllocationDeciders(
                 List.of(
-                    new SnapshotRestoreAllocationDecider(IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(Settings.EMPTY)),
+                    new SnapshotRestoreAllocationDecider(Settings.EMPTY),
                     new StatelessAllocationDecider()
                 )
             ),

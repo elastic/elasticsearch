@@ -1960,7 +1960,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new SnapshotRestoreAllocationDecider(IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings)),
+            new SnapshotRestoreAllocationDecider(settings),
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)

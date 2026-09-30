@@ -185,6 +185,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures}
   issue: https://github.com/elastic/elasticsearch/pull/160519
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testHugeMvConcat
+  issue: https://github.com/elastic/elasticsearch/issues/160609
 
 # Examples:
 #

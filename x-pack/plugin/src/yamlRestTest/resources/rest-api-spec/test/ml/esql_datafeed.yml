@@ -3,10 +3,8 @@ setup:
       features: headers
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: esql-datafeed-lifecycle-index
+        index: index-esql-datafeed-lifecycle
         body:
           mappings:
             properties:
@@ -16,37 +14,29 @@ setup:
                 type: double
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: esql-datafeed-lifecycle-index
+        index: index-esql-datafeed-lifecycle
         id: "1"
         body: >
           {"time": "1970-01-01T00:00:01Z", "value": 1.0}
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: esql-datafeed-lifecycle-index
+        index: index-esql-datafeed-lifecycle
         id: "2"
         body: >
           {"time": "1970-01-01T00:00:02Z", "value": 2.0}
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: esql-datafeed-lifecycle-index
+        index: index-esql-datafeed-lifecycle
         id: "3"
         body: >
           {"time": "1970-01-01T00:00:03Z", "value": 3.0}
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: esql-datafeed-lifecycle-index
+        index: index-esql-datafeed-lifecycle
 
   - do:
       headers:
@@ -76,7 +66,7 @@ setup:
             "delayed_data_check_config": {"enabled": false},
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
 ---
@@ -89,7 +79,7 @@ setup:
           {
             "job_id": "esql-datafeed-lifecycle-job",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
   - do:
@@ -100,7 +90,7 @@ setup:
           {
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
   - do:
@@ -112,7 +102,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1w",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
   - do:
@@ -140,7 +130,7 @@ setup:
             "delayed_data_check_config": {"enabled": false},
             "source_time_field": "time",
             "grouping_interval": "2h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
   - do:
@@ -167,7 +157,7 @@ setup:
             "delayed_data_check_config": {"enabled": false},
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | STATS value = AVG(value) BY time = BUCKET(time, 1 hour)"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | STATS value = AVG(value) BY time = BUCKET(time, 1 hour)"
           }
 
   - do:
@@ -184,7 +174,7 @@ setup:
   - do:
       ml.get_datafeeds:
         datafeed_id: esql-datafeed-lifecycle-datafeed
-  - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
+  - match: { datafeeds.0.esql_query: "FROM index-esql-datafeed-lifecycle | KEEP time, value" }
 
   - do:
       catch: /Recreate datafeed \[.*\] to change its query shape/
@@ -192,7 +182,7 @@ setup:
         datafeed_id: esql-datafeed-lifecycle-datafeed
         body: >
           {
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time"
           }
 
   - do:
@@ -295,7 +285,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value",
             "query": {"match_all": {}}
           }
 
@@ -308,7 +298,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value",
             "aggregations": {"max_value": {"max": {"field": "value"}}}
           }
 
@@ -321,7 +311,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value",
             "script_fields": {"copied_value": {"script": "doc['value'].value"}}
           }
 
@@ -334,7 +324,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value",
             "runtime_mappings": {"runtime_value": {"type": "long"}}
           }
 
@@ -347,7 +337,7 @@ setup:
             "job_id": "esql-datafeed-lifecycle-job",
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value",
             "scroll_size": 2000
           }
 
@@ -358,10 +348,10 @@ setup:
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
-            "indices": ["esql-datafeed-lifecycle-index"],
+            "indices": ["index-esql-datafeed-lifecycle"],
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | KEEP time, value"
           }
 
   - do:
@@ -405,7 +395,7 @@ setup:
   - do:
       ml.get_datafeeds:
         datafeed_id: esql-datafeed-lifecycle-datafeed
-  - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
+  - match: { datafeeds.0.esql_query: "FROM index-esql-datafeed-lifecycle | KEEP time, value" }
 
   - do:
       ml.close_job:

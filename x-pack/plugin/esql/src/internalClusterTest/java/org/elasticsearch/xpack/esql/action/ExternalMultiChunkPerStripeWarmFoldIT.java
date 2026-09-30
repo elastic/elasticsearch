@@ -293,13 +293,13 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         }
     }
 
-    /** Writes {@code FILE_COUNT} files of the given format into a directory and registers the glob as a dataset. */
-                                                                                                                    /**
-                                                                                                                     * A registered dataset together with the substring that isolates its per-file cache entries from every other
-                                                                                                                     * test's: the cluster is shared across methods, so the format suffix alone would also match a sibling's files.
-                                                                                                                     */
+    /**
+     * A registered dataset together with the substring that isolates its per-file cache entries from every other
+     * test's: the cluster is shared across methods, so the format suffix alone would also match a sibling's files.
+     */
     private record DatasetFiles(String dataset, String marker) {}
 
+    /** Writes {@code FILE_COUNT} files of the given format into a directory and registers the glob as a dataset. */
     private DatasetFiles writeAndRegister(String format) throws IOException {
         Path dir = createTempDir();
         long v = 0;

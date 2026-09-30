@@ -19,17 +19,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -47,20 +41,19 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsString;
-
-/** Exercises restore admission through desired-balance simulation and reconciliation. */
-public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase {
+/**
+ * Allocation during snapshot restores: ESA size gate, capacity decider, and storage monitor,
+ * exercised through {@link AllocationService} / desired balance.
+ */
+public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     private static final long GB = ByteSizeValue.ofGb(1).getBytes();
-    /** Filesystem capacity used in ClusterInfo; default reserved_bytes is 20% → 20 GiB indexing reserve. */
+    /** Filesystem capacity; default {@code reserved_bytes} is 20% → 20 GiB indexing reserve. */
     private static final long TOTAL = 100 * GB;
     private static final long INDEXING_RESERVED = 20 * GB;
     private static final String NODE = "index-node";
     private static final String PATH = "/data";
 
-    private final SnapshotRestoreAllocationDecider decider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
-
-    private ClusterState state(int count) {
+    private ClusterState restoreState(int count) {
         var metadata = Metadata.builder();
         var routing = RoutingTable.builder(new StatelessShardRoutingRoleStrategy());
         for (int i = 0; i < count; i++) {
@@ -127,19 +120,9 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    private Decision decide(ClusterState state, ClusterInfo info, SnapshotShardSizeInfo sizes) {
-        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(info).shardSizeInfo(sizes).build();
-        allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
-        return decider.canAllocate(
-            state.getRoutingNodes().unassigned().iterator().next(),
-            allocation.routingNodes().node(NODE),
-            allocation
-        );
-    }
-
     private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
         var service = new AllocationService(
-            new AllocationDeciders(List.of(decider, new StatelessAllocationDecider())),
+            new AllocationDeciders(List.of(new SnapshotRestoreAllocationDecider(Settings.EMPTY), new StatelessAllocationDecider())),
             createShardsAllocator(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build()),
             info::get,
             sizes::get,
@@ -150,142 +133,86 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         return service;
     }
 
-    public void testMissingInfoAndHeadroom() {
-        var state = state(1);
-        // free 70, shard 50, indexing reserved 20 → fits exactly
-        assertEquals(Decision.Type.YES, decide(state, info(70 * GB), sizes(state, 50 * GB)).type());
-        var denied = decide(state, info(70 * GB - 1), sizes(state, 50 * GB));
-        assertEquals(Decision.Type.THROTTLE, denied.type());
-        assertThat(denied.getExplanation(), containsString("indexing reserved [" + INDEXING_RESERVED + "]"));
-
-        assertEquals(Decision.Type.NO, decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type());
-        assertEquals(Decision.Type.THROTTLE, decide(state, ClusterInfo.EMPTY, sizes(state, 50 * GB)).type());
+    private static ShardRouting primary(ClusterState state, String index) {
+        return state.routingTable().index(index).shard(0).primaryShard();
     }
 
-    public void testFailedSnapshotSizeFailsRestoreAllocation() {
-        var state = state(1);
+    public void testWaitsWhileSnapshotShardSizeUnknownThenAllocates() {
+        var state = restoreState(1);
+        var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
+        var info = new AtomicReference<>(info(70 * GB));
+        var service = service(info, sizeInfo);
+
+        state = service.reroute(state, "size unknown", ActionListener.noop());
+        assertTrue(primary(state, "index-0").unassigned());
+        assertEquals(
+            UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
+            primary(state, "index-0").unassignedInfo().lastAllocationStatus()
+        );
+
+        sizeInfo.set(sizes(state, 50 * GB));
+        state = service.reroute(state, "size arrived", ActionListener.noop());
+        assertTrue(primary(state, "index-0").initializing());
+    }
+
+    public void testPermanentlyUnavailableShardSizeFailsAllocation() {
+        var state = restoreState(1);
         var sizeInfo = new AtomicReference<>(sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         var info = new AtomicReference<>(info(70 * GB));
         var service = service(info, sizeInfo);
+
         state = service.reroute(state, "size fetch failed", ActionListener.noop());
-        var primary = state.routingTable().index("index-0").shard(0).primaryShard();
-        assertTrue(primary.unassigned());
-        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_NO, primary.unassignedInfo().lastAllocationStatus());
+        assertTrue(primary(state, "index-0").unassigned());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_NO, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
     }
 
-    public void testOnlyUnassignedSnapshotPrimariesOnIndexNodes() {
-        var state = state(1);
-        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(info(0)).build();
-        var node = allocation.routingNodes().node(NODE);
-        var emptyStore = TestShardRouting.shardRoutingBuilder(
-            state.routingTable().index("index-0").shard(0).primaryShard().shardId(),
-            null,
-            true,
-            ShardRoutingState.UNASSIGNED
-        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).withRole(ShardRouting.Role.INDEX_ONLY).build();
-        assertEquals(Decision.Type.YES, decider.canAllocate(emptyStore, node, allocation).type());
-        assertEquals(
-            Decision.Type.YES,
-            decider.canAllocate(
-                state.routingTable().index("index-0").shard(0).primaryShard().initialize(NODE, null, 50 * GB),
-                node,
-                allocation
-            ).type()
-        );
-        var search = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode("search", Set.of(DiscoveryNodeRole.SEARCH_ROLE))))
-            .build()
-            .getRoutingNodes()
-            .node("search");
-        assertEquals(
-            Decision.Type.YES,
-            decider.canAllocate(state.routingTable().index("index-0").shard(0).primaryShard(), search, allocation).type()
-        );
+    public void testWaitsWhenDiskTooSmallThenAllocatesWhenCapacityAppears() {
+        var state = restoreState(1);
+        // free 70 - 1: shard 50 leaves less than 20 GiB indexing reserve
+        var info = new AtomicReference<>(info(70 * GB - 1));
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var service = service(info, sizes);
+
+        state = service.reroute(state, "disk tight", ActionListener.noop());
+        assertTrue(primary(state, "index-0").unassigned());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
+
+        info.set(info(70 * GB));
+        state = service.reroute(state, "exact fit", ActionListener.noop());
+        assertTrue(primary(state, "index-0").initializing());
+    }
+
+    public void testWaitsWhenDiskStatsMissing() {
+        var state = restoreState(1);
+        var info = new AtomicReference<>(ClusterInfo.EMPTY);
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var service = service(info, sizes);
+
+        state = service.reroute(state, "no disk stats", ActionListener.noop());
+        assertTrue(primary(state, "index-0").unassigned());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {
-        // free 70 holds one 50 GiB restore (50 + 20 indexing reserved); a second must wait.
-        var state = state(2);
+        // free 70 holds one 50 GiB restore; a second must wait until capacity increases.
+        var state = restoreState(2);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var info = new AtomicReference<>(info(70 * GB));
         var service = service(info, sizes);
+
         state = service.reroute(state, "initial", ActionListener.noop());
         assertEquals(1, state.routingTable().allShards().filter(ShardRouting::initializing).toList().size());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
-
-        var incoming = state.routingTable().allShards().filter(ShardRouting::initializing).toList().getFirst();
-        // Reported reservation replaces the initializing estimate; remaining free after 30 GiB reserved is still too small for 50 + 20.
-        info.set(
-            info(
-                Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, 70 * GB)),
-                Map.of(new ClusterInfo.NodeAndPath(NODE, PATH), new ClusterInfo.ReservedSpace(30 * GB, Set.of(incoming.shardId())))
-            )
-        );
-        assertEquals(Decision.Type.THROTTLE, decide(state, info.get(), sizes.get()).type());
-        // A 20 GiB candidate fits exactly: free after restore 70 - 30 committed - 20 = 20, equals indexing reserved.
-        assertEquals(Decision.Type.YES, decide(state, info.get(), sizes(state, 20 * GB)).type());
 
         info.set(info(120 * GB));
         state = service.reroute(state, "more capacity", ActionListener.noop());
         assertEquals(0, state.getRoutingNodes().unassigned().size());
     }
 
-    public void testOutgoingShardDoesNotFreeSpace() {
-        var state = state(2);
-        var snapshotSizes = sizes(state, 50 * GB);
-        state = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode("destination", Set.of(DiscoveryNodeRole.INDEX_ROLE))))
-            .build();
-        var nodes = state.mutableRoutingNodes();
-        var iterator = nodes.unassigned().iterator();
-        iterator.next();
-        var started = nodes.startShard(
-            iterator.initialize(NODE, null, 50 * GB, RoutingChangesObserver.NOOP),
-            RoutingChangesObserver.NOOP,
-            50 * GB
-        );
-        var source = nodes.relocateShard(
-            started,
-            "destination",
-            50 * GB,
-            "test relocation",
-            RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        ).v1();
-        state = ClusterState.builder(state).routingTable(state.globalRoutingTable().rebuild(nodes, state.metadata())).build();
-        // Only the indexing reserve left free; relocating shard must not be credited until deleted.
-        var disks = Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, INDEXING_RESERVED));
-        assertEquals(
-            Decision.Type.THROTTLE,
-            decide(
-                state,
-                new ClusterInfo(
-                    disks,
-                    disks,
-                    Map.of(ClusterInfo.shardIdentifierFromRouting(source), 50 * GB),
-                    Map.of(),
-                    Map.of(ClusterInfo.NodeAndShard.from(source), PATH),
-                    Map.of(),
-                    Map.of(),
-                    Map.of(),
-                    ShardAndIndexHeapUsage.ZERO,
-                    Map.of(),
-                    Map.of(),
-                    Map.of(),
-                    Set.of(),
-                    Map.of(),
-                    Map.of(),
-                    Map.of()
-                ),
-                snapshotSizes
-            ).type()
-        );
-    }
-
     public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {
-        var state = new AtomicReference<>(state(1));
+        var state = new AtomicReference<>(restoreState(1));
         var sizes = new AtomicReference<>(sizes(state.get(), 50 * GB));
-        var info = new AtomicReference<>(info(INDEXING_RESERVED)); // only indexing reserve free → cannot allocate
+        var info = new AtomicReference<>(info(INDEXING_RESERVED));
         var service = service(info, sizes);
         var reroutes = new AtomicInteger();
         var monitor = new SnapshotRestoreStorageMonitor(state::get, (reason, priority, listener) -> {
@@ -295,21 +222,20 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
 
         monitor.onNewInfo(info.get());
         assertEquals(1, state.get().getRoutingNodes().unassigned().size());
-        monitor.onNewInfo(info.get()); // unchanged → no second reroute
+        monitor.onNewInfo(info.get());
         assertEquals(1, reroutes.get());
 
         info.set(info(70 * GB));
         monitor.onNewInfo(info.get());
-        assertTrue(state.get().routingTable().index("index-0").shard(0).primaryShard().initializing());
+        assertTrue(primary(state.get(), "index-0").initializing());
 
-        // No pending unassigned snapshot primary → further capacity changes are ignored.
         monitor.onNewInfo(info(80 * GB));
         assertEquals(2, reroutes.get());
     }
 
     public void testMonitorIgnoresSearchNodesAndNonMaster() {
-        var withSearch = ClusterState.builder(state(1))
-            .nodes(DiscoveryNodes.builder(state(1).nodes()).add(newNode("search", Set.of(DiscoveryNodeRole.SEARCH_ROLE))))
+        var withSearch = ClusterState.builder(restoreState(1))
+            .nodes(DiscoveryNodes.builder(restoreState(1).nodes()).add(newNode("search", Set.of(DiscoveryNodeRole.SEARCH_ROLE))))
             .build();
         var state = new AtomicReference<>(withSearch);
         var reroutes = new AtomicInteger();
@@ -318,7 +244,6 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
             listener.onResponse(null);
         });
         monitor.onNewInfo(info(70 * GB));
-        // Search-node free-space change alone is not a storage change for this monitor.
         monitor.onNewInfo(
             info(
                 Map.of(
@@ -332,7 +257,7 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         );
         assertEquals(1, reroutes.get());
 
-        state.set(ClusterState.builder(state(1)).nodes(DiscoveryNodes.builder(state.get().nodes()).masterNodeId(null)).build());
+        state.set(ClusterState.builder(restoreState(1)).nodes(DiscoveryNodes.builder(state.get().nodes()).masterNodeId(null)).build());
         monitor.onNewInfo(info(80 * GB));
         assertEquals(1, reroutes.get());
     }

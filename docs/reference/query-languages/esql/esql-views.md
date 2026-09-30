@@ -216,7 +216,21 @@ Results from all sources (indices, views, subqueries) are unioned into a single 
 
 A view definition can reference another view. This is called a nested view. ES|QL allows nesting to a depth of 10.
 
-When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md). Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a single index pattern could reference four views and four subqueries, but adding one more would exceed the limit and the query will fail.
+When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md).
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+One merge — a single `FORK`, one flattened view union, or one index pattern expansion — is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides it. For example, a single index pattern with 9 views exceeds that default and the query fails. Nested leaves across the whole query are capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
+:::
+
+:::{applies-item} stack: preview 9.4-9.5
+Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a single index pattern could reference four views and four subqueries, but adding one more would exceed the limit and the query will fail.
+:::
+
+::::
+
+### Combining branching and nesting [combining-branching-and-nesting]
 
 Branching and nesting are allowed in combination as long as there is never more than one branch point. This means nested branching has restrictions:
 

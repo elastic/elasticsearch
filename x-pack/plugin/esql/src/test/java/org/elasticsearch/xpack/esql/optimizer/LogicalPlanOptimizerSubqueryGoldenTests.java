@@ -434,11 +434,9 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testNineUnionAllSubqueriesInFromCommand() {
+    public void testEightUnionAllSubqueriesInFromCommand() {
         runGoldenTest("""
             FROM employees,
-                 (FROM languages),
-                 (FROM languages),
                  (FROM languages),
                  (FROM languages),
                  (FROM languages),

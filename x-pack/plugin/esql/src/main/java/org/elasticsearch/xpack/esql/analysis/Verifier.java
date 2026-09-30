@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -154,6 +155,7 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkMaxBranchCount(plan, context, failures);
 
         // collect plan checkers
         var planCheckers = planCheckers(plan, context.analysisRegistry());
@@ -192,6 +194,10 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    private static void checkMaxBranchCount(LogicalPlan plan, AnalyzerContext context, Failures failures) {
+        MergePlan.checkMaxBranchCount(plan, context.maxBranchCountPerMerge(), context.maxBranchCountPerMergeLimitSource(), failures);
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

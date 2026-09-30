@@ -24,6 +24,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -35,6 +36,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -129,6 +133,43 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
+    public void testWildcardOverClusterSettingBranchCountRejects() {
+        int cap = 2;
+        DataSource parent = new DataSource("s3_parent", "test", null, Map.<String, DataSourceSetting>of());
+        Map<String, Dataset> datasets = Map.of(
+            "logs_0",
+            new Dataset("logs_0", new DataSourceReference("s3_parent"), "s3://logs/0/", null, Map.of()),
+            "logs_1",
+            new Dataset("logs_1", new DataSourceReference("s3_parent"), "s3://logs/1/", null, Map.of()),
+            "logs_2",
+            new Dataset("logs_2", new DataSourceReference("s3_parent"), "s3://logs/2/", null, Map.of())
+        );
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("s3_parent", parent)))
+            .datasets(datasets)
+            .build();
+
+        DatasetResolver resolver = new DatasetResolver(
+            localActionClient(new AtomicInteger(), datasets.keySet()),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            crossProjectEnabled(false),
+            true
+        );
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+        resolver.replaceDatasets(
+            relationOf("logs_*"),
+            project,
+            true,
+            QueryPragmas.EMPTY,
+            EsqlFlags.withMaxBranchCountPerMerge(cap),
+            future
+        );
+        VerificationException ex = expectThrows(VerificationException.class, future::actionGet);
+        assertThat(ex.getMessage(), containsString("resolved to 3 branches"));
+        assertThat(ex.getMessage(), containsString("the limit of " + cap));
+        assertThat(ex.getMessage(), containsString("[" + EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey() + "] cluster setting"));
+    }
+
     public void testFederationUnavailableReturnsPlanUnchanged() {
         AtomicInteger localCalls = new AtomicInteger();
         DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls, false);
@@ -159,7 +200,7 @@ public class DatasetResolverTests extends ESTestCase {
         boolean wildcardsMatchDatasets
     ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project, wildcardsMatchDatasets, future);
+        resolver.replaceDatasets(relation, project, wildcardsMatchDatasets, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
         return future.actionGet();
     }
 
@@ -181,6 +222,10 @@ public class DatasetResolverTests extends ESTestCase {
      * dispatches so a test can assert the per-relation round-trip ran.
      */
     private Client localActionClient(AtomicInteger localCalls) {
+        return localActionClient(localCalls, Set.of(DATASET_NAME));
+    }
+
+    private Client localActionClient(AtomicInteger localCalls, Set<String> authorizedDatasets) {
         return new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
@@ -193,7 +238,7 @@ public class DatasetResolverTests extends ESTestCase {
                 ) {
                 assertSame(EsqlResolveDatasetAction.TYPE, action);
                 localCalls.incrementAndGet();
-                listener.onResponse((Response) new EsqlResolveDatasetAction.Response(Set.of(DATASET_NAME), Set.of(), Set.of()));
+                listener.onResponse((Response) new EsqlResolveDatasetAction.Response(authorizedDatasets, Set.of(), Set.of()));
             }
         };
     }

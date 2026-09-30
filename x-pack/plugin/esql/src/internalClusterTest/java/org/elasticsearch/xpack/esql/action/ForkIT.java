@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -1047,15 +1047,62 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWithTooManySubqueries() {
-        var query = """
-            FROM test
-            | FORK (WHERE true) (WHERE true) (WHERE true) (WHERE true) (WHERE true)
-                   (WHERE true) (WHERE true) (WHERE true) (WHERE true)
-            """;
-        var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork supports up to 8 branches"));
+    public void testMaxBranchCountSucceeds() {
+        int limit = currentMaxBranchCountPerMerge();
+        StringBuilder query = new StringBuilder("FROM test | FORK");
+        for (int i = 0; i < limit; i++) {
+            query.append(" (WHERE true)");
+        }
+        query.append(" | STATS c = COUNT(*) BY _fork | STATS c = COUNT(*)");
+        try (var resp = run(query.toString())) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertValues(resp.values(), List.of(List.of((long) limit)));
+        }
+    }
 
+    public void testWithTooManySubqueries() {
+        int limit = currentMaxBranchCountPerMerge();
+        StringBuilder query = new StringBuilder("FROM test | FORK");
+        for (int i = 0; i < limit + 1; i++) {
+            query.append(" (WHERE true)");
+        }
+        var e = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query.toString())));
+        assertTrue(
+            e.getMessage()
+                .contains(
+                    "resolved to "
+                        + (limit + 1)
+                        + " branches, exceeding the limit of "
+                        + limit
+                        + " set by the ["
+                        + EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey()
+                        + "] cluster setting"
+                )
+        );
+    }
+
+    public void testPragmaOverridesClusterBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey(), 2));
+        try {
+            String three = "FROM test | FORK (WHERE true) (WHERE true) (WHERE true)";
+            var e = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(three)));
+            assertTrue(
+                e.getMessage()
+                    .contains(
+                        "FORK (WHERE true) (WHERE true) (WHERE true) resolved to 3 branches, exceeding the limit of 2 set by the ["
+                            + EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey()
+                            + "] cluster setting"
+                    )
+            );
+
+            var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey(), 3).build());
+            try (var resp = run(syncEsqlQueryRequest(three).pragmas(pragmas))) {
+                assertNotNull(resp.columns());
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey()));
+        }
     }
 
     /**
@@ -1421,5 +1468,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
 
     static Iterator<Iterator<Object>> valuesFilter(Iterator<Iterator<Object>> values, Predicate<Iterator<Object>> filter) {
         return getValuesList(values).stream().filter(row -> filter.test(row.iterator())).map(List::iterator).toList().iterator();
+    }
+
+    private int currentMaxBranchCountPerMerge() {
+        return clusterService().getClusterSettings().get(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE);
     }
 }

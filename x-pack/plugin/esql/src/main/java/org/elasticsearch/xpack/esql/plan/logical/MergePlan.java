@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -40,7 +41,6 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
@@ -49,12 +49,27 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
+     * Rejects every {@link Fork} whose direct children exceed {@code maxBranches}, the resolved {@code max_branch_count_per_merge}.
      */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
+    public static void checkMaxBranchCount(LogicalPlan plan, int maxBranches, String limitSource, Failures failures) {
+        plan.forEachDown(MergePlan.class, merge -> {
+            if (merge.children().size() > maxBranches) {
+                String sourceText = merge.sourceText();
+                String errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
+                    ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : sourceText;
+                failures.add(
+                    Failure.fail(
+                        merge,
+                        "{} resolved to {} branches, exceeding the limit of {} set by the {}",
+                        errorMessage,
+                        merge.children().size(),
+                        maxBranches,
+                        limitSource
+                    )
+                );
+            }
+        });
     }
 
     @Override
@@ -256,11 +271,10 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
+     * Empty-merge check shared by {@link MergePlan} subclasses. The upper bound is
+     * {@link #checkMaxBranchCount}, which needs the resolved {@code max_branch_count_per_merge} and so runs from the
+     * analyzer verifier rather than this callback. Called from {@code Fork::checkFork}; {@code UnionAll}
+     * repeats the empty check in its own verifier.
      * <p>
      * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
      * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
@@ -271,13 +285,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * {@code MergePlan} propagate silently.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge) {
-            int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
-                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
-            }
+        if (plan instanceof MergePlan merge && merge.children().isEmpty()) {
+            failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
         }
     }
 

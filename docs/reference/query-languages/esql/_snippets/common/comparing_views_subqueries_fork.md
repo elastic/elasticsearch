@@ -11,7 +11,19 @@
 * **Union of columns.** Columns from multiple branches are merged into a single table. Missing columns are filled with `null` values.
 * **Supported commands.** Complex processing commands can be used inside both views and `FROM` subqueries, as detailed in the [description of `FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md#description).
 * **No nested branching.** Nested branching is generally not supported, but views can work around this through [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
-* **Maximum branch count.** All three share the same maximum branch count of 8.
+* **Maximum branch count.**
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+One merge — a single `FORK`, one flattened view union, or one pattern expansion — is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides it. Nested leaves across the whole query are capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
+:::
+
+:::{applies-item} stack: preview 9.1-9.5
+`FORK` and views are capped at 8 branches.
+:::
+
+::::
 
 ### How FORK differs
 
@@ -26,4 +38,4 @@
 * Views can be nested (up to a depth of 10), with two restrictions:
   * Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.
   * No more than one branching point can exist across the nesting chain.
-* `FROM` subqueries do not support further `FROM` subqueries or `FORK` inside them, but can contain `IN` subqueries. Views allow nested branching under [limited conditions](/reference/query-languages/esql/esql-views.md#nesting-and-branching).
+* `FROM` subqueries do not support further `FROM` subqueries or `FORK` inside them, but can contain `IN` subqueries. Views allow nested branching under [limited conditions](/reference/query-languages/esql/esql-views.md#combining-branching-and-nesting).

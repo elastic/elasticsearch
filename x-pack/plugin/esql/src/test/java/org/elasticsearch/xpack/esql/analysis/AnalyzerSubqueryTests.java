@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -76,6 +75,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1813,9 +1814,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
     }
 
-    public void testForkAfterNineSubqueryBranches() {
+    public void testForkAfterEightSubqueryBranches() {
         analyzer().addDefaultIndex().error("""
-            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
+            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
             | FORK (WHERE true) (WHERE true)
             """, containsString("FORK after subquery is not supported"));
     }
@@ -1937,6 +1938,47 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
+    public void testTooManySubqueries() {
+        analyzer().addDefaultIndex()
+            .error(
+                "FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
+                    + " (FROM test)",
+                allOf(
+                    containsString(
+                        "(FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
+                            + " (FROM test), (FROM ... resolved to 9 branches, exceeding the limit of 8 set by the"
+                            + " [esql.query.max_branch_count_per_merge] cluster setting"
+                    )
+                )
+            );
+    }
+
+    public void testTooManySubqueriesInNestedSubquery() {
+        analyzer().addDefaultIndex()
+            .error(
+                "FROM (FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
+                    + " (FROM test)), (FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test))",
+                allOf(
+                    containsString(
+                        "(FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
+                            + " (FROM test), (FROM ... resolved to 9 branches, exceeding the limit of 8 set by the"
+                            + " [esql.query.max_branch_count_per_merge] cluster setting"
+                    )
+                )
+            );
+    }
+
+    private static String fromTestSubqueries(int branches) {
+        StringBuilder from = new StringBuilder("FROM ");
+        for (int i = 0; i < branches; i++) {
+            if (i > 0) {
+                from.append(", ");
+            }
+            from.append("(FROM test)");
+        }
+        return from.toString();
+    }
+
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
@@ -1945,7 +1987,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
             .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
             .build();
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),

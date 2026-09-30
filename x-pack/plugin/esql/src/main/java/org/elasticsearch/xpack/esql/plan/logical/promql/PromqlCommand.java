@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -398,7 +397,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    public void verify(Failures failures) {
+    public void verify(Failures failures, int maxBranches, String limitSource) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -432,9 +431,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
             // rather than failing later during translation.
             int branchCount = topLevelUnions.size() + 1;
-            if (MergePlan.exceedsMaxBranches(branchCount)) {
+            if (branchCount > maxBranches) {
                 failures.add(
-                    fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", MergePlan.MAX_BRANCHES, branchCount)
+                    fail(
+                        p,
+                        "PromQL set operator [or] supports up to [{}] operands, got [{}], exceeding the limit set by the {}",
+                        maxBranches,
+                        branchCount,
+                        limitSource
+                    )
                 );
             }
         }

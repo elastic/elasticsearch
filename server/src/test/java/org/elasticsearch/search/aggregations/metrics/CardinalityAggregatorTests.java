@@ -256,6 +256,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     "vector_value",
                     new HashMap<>(),
                     IndexVersion.current(),
+                    false,
                     false
                 ),
                 new HashMap<>(),

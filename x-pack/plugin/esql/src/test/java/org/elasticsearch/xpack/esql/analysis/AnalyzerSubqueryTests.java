@@ -1987,7 +1987,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
     public void testConsecutiveForksWithFromSubquery() {
         analyzer().addEmployees("test").error("""
             FROM (
@@ -1999,7 +2000,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
     public void testConsecutiveForksWithNestedView() {
         analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
             FROM fork_view

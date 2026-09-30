@@ -98,19 +98,16 @@ public final class Fork extends MergePlan implements TelemetryAware {
             for (Attribute attr : subPlan.output()) {
                 var merged = mergedOutput.get(attr.name());
 
-                // Union-type resolution can introduce synthetic conversion attributes after this FORK's output was resolved. They are
-                // carried through the branch projections so the conversion can be extracted, but are intentionally absent from the
-                // user-visible FORK output and removed by the union-types cleanup rule.
-                if (merged == null && attr.synthetic()) {
-                    continue;
-                }
-
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
                 //
                 // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
                 // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                //
+                // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
+                // resolved. They are carried through the branch projections so the conversion can be extracted, but are
+                // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
                 if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
                     continue;
                 }

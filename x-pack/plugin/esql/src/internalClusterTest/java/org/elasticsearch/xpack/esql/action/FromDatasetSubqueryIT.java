@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -1589,6 +1590,83 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1), equalTo(3L));
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(1L));
+        }
+    }
+
+    public void testNestedDatasetSubqueryWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees, (FROM employees_alt)),
+                 (FROM employees_alt)
+            | KEEP emp_no
+            | SORT emp_no
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(10));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(10), List.of(11), List.of(11))));
+        }
+    }
+
+    public void testForkAfterSubqueryOnDatasetsWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkAfterSubqueryDatasetViewWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_alt_view", "FROM employees_alt");
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees), emp_alt_view
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testMixedViewDatasetIndexWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createRealEmployees();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        var request = syncEsqlQueryRequest("""
+            FROM emp_fork_view, (FROM employees_alt), real_employees
+            | KEEP emp_no
+            | SORT emp_no
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(3));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(3), List.of(3), List.of(10), List.of(11), List.of(99), List.of(100), List.of(101)))
+            );
         }
     }
 

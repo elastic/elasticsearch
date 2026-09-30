@@ -65,17 +65,17 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
      * index itself, and each is a separate branch. {@code FROM airports*} alone likewise returns two rows.
      */
     public void testViewAndIndexInMainQueryWithSubquery() {
-        assertWildcardViewUnionWithSubquery("FROM airports*, (FROM employees)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM airports*, (FROM employees)");
     }
 
     /** As {@link #testViewAndIndexInMainQueryWithSubquery}, with the wildcard inside the subquery instead of the main query. */
     public void testViewAndIndexInsideSubquery() {
-        assertWildcardViewUnionWithSubquery("FROM employees, (FROM airports*)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM employees, (FROM airports*)");
     }
 
     /** As {@link #testViewAndIndexInMainQueryWithSubquery}, with the wildcard in one of several sibling subqueries. */
     public void testViewAndIndexInOneOfMultipleSubqueries() {
-        assertWildcardViewUnionWithSubquery("FROM (FROM airports*), (FROM employees)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM (FROM airports*), (FROM employees)");
     }
 
     // subquery, view and fork
@@ -156,9 +156,8 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Creates the {@code airports} index and an {@code airports_view} view (both matched by the wildcard {@code airports*}), plus an
-     * {@code employees} index used as the sibling relation. The view body carries a processing command ({@code LIMIT}) so it is kept as
-     * a named view branch rather than compacted into the concrete index — this is what makes {@code airports*} expand to a branching
+     * Creates the {@code airports_view} view. The view body carries a processing command ({@code LIMIT}) so it is kept as a named view
+     * branch rather than compacted into the concrete index — this is what makes {@code airports*} expand to a branching
      * {@code ViewUnionAll} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
      * no column-type conflicts that would fail verification.
      */

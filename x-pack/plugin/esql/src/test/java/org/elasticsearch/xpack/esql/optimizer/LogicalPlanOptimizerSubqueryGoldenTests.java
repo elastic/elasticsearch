@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,7 +33,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Captures the analyzed and logically-optimized plans for subquery-in-{@code FROM} scenarios.
  * Negative tests live in {@code LogicalPlanOptimizerSubqueryTests}.
  */
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")

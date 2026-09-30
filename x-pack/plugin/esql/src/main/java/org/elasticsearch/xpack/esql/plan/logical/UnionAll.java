@@ -191,8 +191,8 @@ public class UnionAll extends MergePlan {
             Failure.fail(
                 stats.first(),
                 "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
-                    + "Reduce the number of sources - subqueries, patterns expanding to several indices, or views - "
-                    + "or split this into multiple queries.",
+                    + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+                    + " or split this into multiple queries.",
                 stats.leaves(),
                 maxBranches,
                 branchCountSource

@@ -1161,6 +1161,7 @@ public class ExternalSourceResolver {
                     anchorPath,
                     anchorHint,
                     fileConfig,
+                    null,
                     anchorListener.map(meta -> (ExternalSourceMetadata) meta)
                 );
             } else {
@@ -1222,9 +1223,16 @@ public class ExternalSourceResolver {
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
-                // Filled by the gather below, before this listener runs.
+                // Filled by the gather below, before this listener runs. The fold drops each file's column
+                // map as it completes; file-level counts are what the schema map keeps.
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
                 Map<StoragePath, Map<String, DataType>> ffwInferredTypes = new HashMap<>();
+                Map<StoragePath, SourceStatistics> ffwSlimStats = new HashMap<>();
+                RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
+                    attributesToTypeMap(base.schema()),
+                    implicitNulls,
+                    declaredTypeColumns
+                );
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
@@ -1236,7 +1244,13 @@ public class ExternalSourceResolver {
                             config
                         );
                         listener.onResponse(
-                            finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config, ffwInferredTypes)
+                            finishFirstFileWins(
+                                listing,
+                                applyFirstFileWinsAggregatedStats(base, effective),
+                                config,
+                                ffwInferredTypes,
+                                ffwSlimStats
+                            )
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -1246,22 +1260,14 @@ public class ExternalSourceResolver {
                     readAndAggregateAllFileStatsWithCache(
                         listing,
                         config,
-                        implicitNulls,
-                        declaredTypeColumns,
+                        fold,
                         ffwReadConfigs,
                         ffwInferredTypes,
+                        ffwSlimStats,
                         statsListener
                     );
                 } else {
-                    readAndAggregateAllFileStats(
-                        listing,
-                        config,
-                        implicitNulls,
-                        declaredTypeColumns,
-                        ffwReadConfigs,
-                        ffwInferredTypes,
-                        statsListener
-                    );
+                    readAndAggregateAllFileStats(listing, config, fold, ffwReadConfigs, ffwInferredTypes, ffwSlimStats, statsListener);
                 }
                 // A bounded listing whose first page held one matching file reports fileCount() == 1 for a
                 // dataset of ninety thousand, so the anchor's stats must not be presented as the dataset's.
@@ -1270,9 +1276,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config, Map.of()));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config, Map.of(), Map.of()));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base, config, Map.of()));
+                listener.onResponse(finishFirstFileWins(listing, base, config, Map.of(), Map.of()));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1361,7 +1367,8 @@ public class ExternalSourceResolver {
         FileList listing,
         ExternalSourceMetadata extMetadata,
         Map<String, Object> config,
-        Map<StoragePath, Map<String, DataType>> inferredTypesByPath
+        Map<StoragePath, Map<String, DataType>> inferredTypesByPath,
+        Map<StoragePath, SourceStatistics> slimStatsByPath
     ) {
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
@@ -1397,9 +1404,10 @@ public class ExternalSourceResolver {
             Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
-                // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
-                // one-file listing, on the anchor metadata). That per-file harvest is what split
-                // discovery uses to skip a second footer open when readableUnitCount is 1.
+                // individual file. An eager multi-file gather keeps the slim file-level counts captured
+                // when that file was folded. A deferred multi-file gather never folds, so it keeps the
+                // cache harvest (the single-unit footer skip needs those column stats). A one-file
+                // listing keeps the anchor harvest.
                 StoragePath path = listing.path(i);
                 SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), config);
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
@@ -1414,7 +1422,7 @@ public class ExternalSourceResolver {
                     new SchemaReconciliation.FileSchemaInfo(
                         fileSchema,
                         mapping,
-                        fileStatisticsForFirstFileWins(listing, extMetadata, cached),
+                        fileStatisticsForFirstFileWins(listing, extMetadata, cached, slimStatsByPath.get(path)),
                         inferred
                     )
                 );
@@ -1428,24 +1436,28 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers {@code cached} (populated by an
-     * eager gather or a previous resolve). A one-file listing falls back to the anchor metadata:
-     * that harvest is the file's own, not a cross-file fold.
+     * Per-file harvest for the FIRST_FILE_WINS schema map. A one-file listing keeps the anchor harvest
+     * (the cache entry, or the anchor metadata). An eager multi-file listing keeps the slim file-level
+     * counts captured at fold time. A deferred multi-file listing never folded, so it uses the cache
+     * harvest when one is already present; a cache miss stays null and split discovery opens the footer.
      */
     @Nullable
     private static SourceStatistics fileStatisticsForFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
-        @Nullable SchemaCacheEntry cached
+        @Nullable SchemaCacheEntry cached,
+        @Nullable SourceStatistics captured
     ) {
+        if (listing.fileCount() > 1) {
+            // Eager gather stored slim file-level counts. The defer branch never folds, so captured is null
+            // and the warm cache harvest is what the single-unit footer skip needs.
+            return captured != null ? captured : fileStatisticsFromCache(cached);
+        }
         SourceStatistics fromCache = fileStatisticsFromCache(cached);
         if (fromCache != null) {
             return fromCache;
         }
-        if (listing.fileCount() == 1) {
-            return SourceStatisticsSerializer.fromSource(extMetadata);
-        }
-        return null;
+        return SourceStatisticsSerializer.fromSource(extMetadata);
     }
 
     /**
@@ -1684,6 +1696,25 @@ public class ExternalSourceResolver {
             return registry.createProvider(storagePath.scheme(), settings, storageConfig(config));
         }
         return registry.provider(storagePath);
+    }
+
+    /**
+     * Registry format name for the absent-column policy, or null when the object name does not resolve.
+     * Does not substitute a raw extension. {@link #detectFormatType} does, and that fallback is for
+     * cache keys, not for choosing a fold.
+     */
+    @Nullable
+    private String registeredFormatName(StoragePath path, @Nullable Map<String, Object> config) {
+        String name = path.objectName();
+        FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
+        if (name.isEmpty() || registry == null) {
+            return null;
+        }
+        try {
+            return FormatNameResolver.resolveFormatNameForIdentity(config, name, registry);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -2048,13 +2079,22 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
+        // Absent-column policy is fixed before files complete out of order. A file dataset passes
+        // datasetFormat, the same name FIRST_FILE_WINS stamps onto the anchor. Otherwise the first
+        // path's registered format name, not a raw extension: detectFormatType's last-dot fallback
+        // would turn csv.gz into "gz", miss the text reader, and fold text as a footer format.
+        // An unresolved name keeps the footer default. FIRST_FILE_WINS still reads the anchor
+        // sourceType(); for a registered object those two names are the same format.
+        String formatForStats = datasetFormat != null ? datasetFormat : registeredFormatName(fileList.path(0), config);
+        boolean implicitNulls = foldsAbsentColumnAsImplicitNull(formatForStats);
+        RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNulls);
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         // Each file's private toAttributes() list stays reachable until gatherPerFile's completion drops
         // its list. That is after this listener returns, so overlay and the next path's listing still run
         // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query
         // close. Stats gathers, first-file-wins, and declared strict do not open a run.
         ExternalPlanningReservation.Run privateLists = planningReservation == null ? null : planningReservation.openRun();
-        readAllFileMetadata(fileList, config, cacheable, schemaInterner, privateLists, new ActionListener<>() {
+        readAllFileMetadata(fileList, config, cacheable, fold, schemaInterner, privateLists, new ActionListener<>() {
             @Override
             public void onResponse(Map<StoragePath, SourceMetadata> allMetadata) {
                 ExternalSourceResolution.ResolvedSource resolved = null;
@@ -2088,19 +2128,11 @@ public class ExternalSourceResolver {
 
                     List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                     SourceMetadata firstMeta = allMetadata.get(firstFile);
-                    String formatForStats = datasetFormat != null ? datasetFormat : firstMeta.sourceType();
-                    // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
-                    // no second cache or storage hit per file. Each file's stats are in its OWN unit/representation;
-                    // normalize every file's min/max to the reconciled unified type (temporal rescale, or safe-miss
-                    // marker for a non-normalizable representation) BEFORE folding, so the source-level warm
-                    // COUNT/MIN/MAX is not a unit-blind numeric mix across DATETIME(millis)/DATE_NANOS(nanos) files.
-                    Map<String, DataType> reconciledTypes = attributesToTypeMap(unifiedSchema);
-                    Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+                    // Pins are known only once every schema is in. The running fold already dropped each file's
+                    // column map. Poison is sticky, and a SKIP_ROW pin drops the file's row count.
                     Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
                     for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
-                        SchemaReconciliation.FileSchemaInfo info = e.getValue();
-                        perFileTypes.put(e.getKey(), statsFileTypesOf(info));
-                        Set<String> pinnedColumns = pinnedColumnsOf(info);
+                        Set<String> pinnedColumns = pinnedColumnsOf(e.getValue());
                         if (pinnedColumns.isEmpty() == false) {
                             perFilePinnedColumns.put(e.getKey(), pinnedColumns);
                         }
@@ -2109,14 +2141,10 @@ public class ExternalSourceResolver {
                     // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
                     // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
                     boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
-                    Map<String, Object> aggregatedStats = aggregateFileStatistics(
-                        fileList,
-                        allMetadata,
-                        perFileTypes,
-                        reconciledTypes,
+                    Map<String, Object> aggregatedStats = RunningFileStatsFold.applyPinnedColumns(
+                        fold.finish(),
                         perFilePinnedColumns,
-                        dropPinnedRowCount,
-                        foldsAbsentColumnAsImplicitNull(formatForStats)
+                        dropPinnedRowCount
                     );
                     Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
                     for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
@@ -2254,12 +2282,13 @@ public class ExternalSourceResolver {
         FileList fileList,
         Map<String, Object> config,
         boolean cacheable,
+        RunningFileStatsFold fold,
         SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, config, cacheable, schemaInterner, privateLists, ActionListener.wrap(perFile -> {
+        gatherPerFile(fileList, config, cacheable, fold, schemaInterner, privateLists, ActionListener.wrap(perFile -> {
             Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
             for (int i = 0; i < fileCount; i++) {
                 result.put(fileList.path(i), perFile.get(i));
@@ -2282,15 +2311,17 @@ public class ExternalSourceResolver {
         FileList fileList,
         Map<String, Object> config,
         boolean cacheable,
+        @Nullable RunningFileStatsFold fold,
         ActionListener<List<SourceMetadata>> listener
     ) {
-        gatherPerFile(fileList, config, cacheable, null, null, listener);
+        gatherPerFile(fileList, config, cacheable, fold, null, null, listener);
     }
 
     private void gatherPerFile(
         FileList fileList,
         Map<String, Object> config,
         boolean cacheable,
+        @Nullable RunningFileStatsFold fold,
         @Nullable SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
         ActionListener<List<SourceMetadata>> listener
@@ -2299,6 +2330,9 @@ public class ExternalSourceResolver {
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
         AtomicReference<Exception> failure = new AtomicReference<>();
         Iterator<Integer> indices = indexIterator(fileCount);
+        // Multi-file fan-out only. A listing that cannot fit the schema budget must not admit entries: the
+        // first wave would prune other datasets. Single-file resolves cache as before.
+        SchemaFanOutAdmission admission = cacheable && fileCount > 1 ? new SchemaFanOutAdmission(fileCount) : null;
         ThrottledIterator.run(indices, (releasable, i) -> {
             if (failure.get() != null) {
                 // A previous file already failed (or the query was cancelled) — drain the remaining items
@@ -2318,9 +2352,18 @@ public class ExternalSourceResolver {
                         schemaGatherRunProbe.accept(privateLists);
                     }
                 }
-                SourceMetadata stored = schemaInterner == null
-                    ? meta
-                    : withCanonicalSchema(meta, schemaInterner.canonicalize(meta.schema()));
+                if (fold != null) {
+                    synchronized (fold) {
+                        fold.accept(i, meta);
+                    }
+                }
+                // slim does not touch fold state, so it stays outside the lock. Fold and slim the
+                // original metadata so its private schema list stays reachable for the planning
+                // charge. The canonical wrapper is applied after and forwards the rest.
+                SourceMetadata stored = fold != null && fileCount > 1 ? RunningFileStatsFold.slim(meta) : meta;
+                if (schemaInterner != null) {
+                    stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema()));
+                }
                 results.set(i, stored);
             }, e -> failure.compareAndSet(null, e)), releasable::close);
             // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
@@ -2336,7 +2379,7 @@ public class ExternalSourceResolver {
                 // footer read.
                 ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
                 if (cacheable) {
-                    cachedResolveSingleSourceAsync(filePath, hint, config, itemListener);
+                    cachedResolveSingleSourceAsync(filePath, hint, config, admission, itemListener);
                 } else {
                     resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
                 }
@@ -2432,6 +2475,7 @@ public class ExternalSourceResolver {
         StoragePath filePath,
         ListingHint hint,
         Map<String, Object> config,
+        @Nullable SchemaFanOutAdmission admission,
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath, config);
@@ -2444,7 +2488,9 @@ public class ExternalSourceResolver {
         }
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
-            cacheService.putSchema(schemaKey, entry);
+            if (admission == null || admission.tryAdmit(entry)) {
+                cacheService.putSchema(schemaKey, entry);
+            }
             return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
@@ -2470,26 +2516,78 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
-     * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
-     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; a file type
-     * that {@code TypeWidening.join}s to DOUBLE; numeric vs the KEYWORD non-widenable fallback) is folded in
-     * ONE type and served result-identical to a full scan, or safe-misses when a value cannot be normalized.
-     * {@code perFileTypes} maps each file's path to its footer or inferred column types (not a pinned or
-     * unified type); {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
-     * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
-     * <p>
-     * {@code perFilePinnedColumns} names, per file, the columns a text-format UNION_BY_NAME pin retyped above their
-     * inferred type (see {@link SchemaReconciliation#reconcileUnionByName}). Their cached per-file stats were harvested
-     * at the narrower read type, but the schema cache identity is read-schema-blind, so a stat harvested by a solo
-     * narrow read is shared with this widened read. That stat is not merely a wrong unit but a wrong value (the narrow
-     * read null-filled or row-dropped the out-of-sample cell that the wide read keeps), which normalization cannot
-     * rescue. So each pinned column is safe-missed via {@link SourceStatisticsSerializer#overlayPinnedColumnsOnStats}:
-     * its extrema are poisoned and its value/null counts dropped, and when {@code dropPinnedRowCount} (SKIP_ROW, where
-     * a narrow-read parse failure dropped the whole row) the file's row count is dropped too, forcing a full re-scan.
+     * Whether a multi-file fan-out may retain schema-cache entries. The first miss's weight times the file
+     * count estimates the listing. Over the schema budget, every put in this fan-out is refused. That
+     * decision happens on the first miss, before any put, so a refused listing never occupies a slot.
+     * Later files follow the same decision: one listing shares a schema, and the first harvest is the
+     * size estimate. A narrower first file can still admit a wider listing, and those puts can evict
+     * other datasets. An estimate just under the whole schema budget is still admitted and can flush
+     * other datasets on its own. Single-file resolves do not use this gate.
+     */
+    private final class SchemaFanOutAdmission {
+        private final int fileCount;
+        private boolean sized;
+        private boolean refuse;
+
+        SchemaFanOutAdmission(int fileCount) {
+            this.fileCount = fileCount;
+        }
+
+        boolean tryAdmit(SchemaCacheEntry entry) {
+            synchronized (this) {
+                if (refuse) {
+                    return false;
+                }
+                if (sized == false) {
+                    sized = true;
+                    if ((long) fileCount * entry.estimatedBytes() > cacheService.schemaBudget()) {
+                        refuse = true;
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+
+    /**
+     * Production reconciliation fold. Column types come from each file's schema; {@code perFileTypes} and
+     * {@code reconciledTypes} are the caller's view and are not re-applied. Pins are overlaid on the folded
+     * aggregate. The listing-order oracle is {@link #batchAggregateFileStatistics}.
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
+        FileList listing,
+        Map<StoragePath, SourceMetadata> allMetadata,
+        Map<StoragePath, Map<String, DataType>> perFileTypes,
+        Map<String, DataType> reconciledTypes,
+        Map<StoragePath, Set<String>> perFilePinnedColumns,
+        boolean dropPinnedRowCount,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNullsForAbsentColumn);
+        for (int i = 0; i < listing.fileCount(); i++) {
+            StoragePath path = listing.path(i);
+            SourceMetadata meta = allMetadata.get(path);
+            if (meta == null) {
+                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", path);
+                return null;
+            }
+            fold.accept(i, meta);
+        }
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("folded [{}] type maps against [{}] reconciled columns", perFileTypes.size(), reconciledTypes.size());
+        }
+        return RunningFileStatsFold.applyPinnedColumns(fold.finish(), perFilePinnedColumns, dropPinnedRowCount);
+    }
+
+    /**
+     * Listing-order reconciliation oracle. Normalizes each file's per-column min/max to the reconciled type
+     * before the cross-file fold, then overlays pins. Differential tests compare this to {@link RunningFileStatsFold}.
+     * Production calls {@link #aggregateFileStatistics}.
+     */
+    @Nullable
+    static Map<String, Object> batchAggregateFileStatistics(
         FileList listing,
         Map<StoragePath, SourceMetadata> allMetadata,
         Map<StoragePath, Map<String, DataType>> perFileTypes,
@@ -2527,21 +2625,41 @@ public class ExternalSourceResolver {
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
     }
 
-    /**
-     * FIRST_FILE_WINS fold. Footer files rewrite an unrepresentable column to the all-null contract;
-     * text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
-     * extrema so MIN/MAX scan. Counts that would describe a different read stay unknown rather than
-     * becoming implicit zeros. Split stamps are raw harvests; {@link #alignHarvestWithAnchorTypes}
-     * and {@link SourceStatisticsSerializer#alignHarvestWithFold} reapply this file's rewrite and
-     * the fold's unservability. {@code allMetadata.get(0)} is the anchor.
-     */
+    /** Production FIRST_FILE_WINS fold of {@code allMetadata}. */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
     }
 
+    /** Production FIRST_FILE_WINS fold. The listing-order oracle is {@link #batchAggregateFileStatistics}. */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
+        List<SourceMetadata> allMetadata,
+        boolean implicitNullsForAbsentColumn,
+        Set<String> declaredTypeColumns
+    ) {
+        if (allMetadata.isEmpty()) {
+            return null;
+        }
+        RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
+            attributesToTypeMap(allMetadata.get(0).schema()),
+            implicitNullsForAbsentColumn,
+            declaredTypeColumns
+        );
+        for (int i = 0; i < allMetadata.size(); i++) {
+            fold.accept(i, allMetadata.get(i));
+        }
+        return fold.finish();
+    }
+
+    /**
+     * Listing-order FIRST_FILE_WINS oracle. Footer files rewrite an unrepresentable column to the all-null
+     * contract; text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
+     * extrema. {@code allMetadata.get(0)} is the anchor. Differential tests compare this to
+     * {@link RunningFileStatsFold}.
+     */
+    @Nullable
+    static Map<String, Object> batchAggregateFileStatistics(
         List<SourceMetadata> allMetadata,
         boolean implicitNullsForAbsentColumn,
         Set<String> declaredTypeColumns
@@ -2561,45 +2679,15 @@ public class ExternalSourceResolver {
             if (anchorTypes == null) {
                 anchorTypes = fileTypes;
             } else {
-                List<String> rewriteColumns = null;
-                List<String> encodeColumns = null;
-                for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
-                    DataType anchorType = anchorTypes.get(entry.getKey());
-                    DataType fileType = entry.getValue();
-                    if (unrepresentableUnderAnchor(anchorType, fileType)) {
-                        if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
-                            // The scan still coerces this column per value, so its harvest describes neither an
-                            // all-null read nor the coerced one: drop extrema and counts after the merge.
-                            invalidCountColumns.add(entry.getKey());
-                        } else if (implicitNullsForAbsentColumn) {
-                            // Footer readers null-fill the whole column, so the file's harvest becomes all-null.
-                            if (rewriteColumns == null) {
-                                rewriteColumns = new ArrayList<>();
-                            }
-                            rewriteColumns.add(entry.getKey());
-                        } else {
-                            // Text readers decide per value under the error policy; the harvest is not all-null.
-                            invalidCountColumns.add(entry.getKey());
-                        }
-                    } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
-                        if (implicitNullsForAbsentColumn) {
-                            if (encodeColumns == null) {
-                                encodeColumns = new ArrayList<>();
-                            }
-                            encodeColumns.add(entry.getKey());
-                        } else {
-                            invalidCountColumns.add(entry.getKey());
-                        }
-                    } else if (unsignedExtremaUnderNonUnsignedPlanner(anchorType, fileType)) {
-                        unsignedForeignDomainColumns.add(entry.getKey());
-                    }
-                }
-                if (rewriteColumns != null) {
-                    flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
-                }
-                if (encodeColumns != null) {
-                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, invalidCountColumns);
-                }
+                flat = rewriteNonAnchorHarvest(
+                    flat,
+                    fileTypes,
+                    anchorTypes,
+                    implicitNullsForAbsentColumn,
+                    declaredColumns,
+                    invalidCountColumns,
+                    unsignedForeignDomainColumns
+                );
             }
             perFileFlatStats.add(flat);
         }
@@ -2706,7 +2794,63 @@ public class ExternalSourceResolver {
         return declaredTypeColumns.contains(name) && DeclaredTypeCoercions.supports(fileType, plannerType);
     }
 
-    private static void dropColumnCounts(Map<String, Object> merged, Set<String> columns, boolean dropCounts) {
+    /**
+     * FIRST_FILE_WINS adjustment for one non-anchor file: all-null rewrite, unsigned encode, or a
+     * post-merge count drop. The anchor file is not passed here. {@code invalidCountColumns} and
+     * {@code unsignedForeignDomainColumns} accumulate names whose merged counts are dropped after the fold.
+     */
+    static Map<String, Object> rewriteNonAnchorHarvest(
+        Map<String, Object> flat,
+        Map<String, DataType> fileTypes,
+        Map<String, DataType> anchorTypes,
+        boolean implicitNullsForAbsentColumn,
+        Set<String> declaredColumns,
+        Set<String> invalidCountColumns,
+        Set<String> unsignedForeignDomainColumns
+    ) {
+        List<String> rewriteColumns = null;
+        List<String> encodeColumns = null;
+        for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
+            DataType anchorType = anchorTypes.get(entry.getKey());
+            DataType fileType = entry.getValue();
+            if (unrepresentableUnderAnchor(anchorType, fileType)) {
+                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                    // The scan still coerces this column per value, so its harvest describes neither an
+                    // all-null read nor the coerced one: drop extrema and counts after the merge.
+                    invalidCountColumns.add(entry.getKey());
+                } else if (implicitNullsForAbsentColumn) {
+                    // Footer readers null-fill the whole column, so the file's harvest becomes all-null.
+                    if (rewriteColumns == null) {
+                        rewriteColumns = new ArrayList<>();
+                    }
+                    rewriteColumns.add(entry.getKey());
+                } else {
+                    // Text readers decide per value under the error policy; the harvest is not all-null.
+                    invalidCountColumns.add(entry.getKey());
+                }
+            } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
+                if (implicitNullsForAbsentColumn) {
+                    if (encodeColumns == null) {
+                        encodeColumns = new ArrayList<>();
+                    }
+                    encodeColumns.add(entry.getKey());
+                } else {
+                    invalidCountColumns.add(entry.getKey());
+                }
+            } else if (unsignedExtremaUnderNonUnsignedPlanner(anchorType, fileType)) {
+                unsignedForeignDomainColumns.add(entry.getKey());
+            }
+        }
+        if (rewriteColumns != null) {
+            flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
+        }
+        if (encodeColumns != null) {
+            flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, invalidCountColumns);
+        }
+        return flat;
+    }
+
+    static void dropColumnCounts(Map<String, Object> merged, Set<String> columns, boolean dropCounts) {
         for (String column : columns) {
             SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
             if (dropCounts) {
@@ -2727,7 +2871,7 @@ public class ExternalSourceResolver {
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
-    private static Map<String, Object> flatStatsOf(SourceMetadata meta) {
+    static Map<String, Object> flatStatsOf(SourceMetadata meta) {
         Map<String, Object> base = meta.sourceMetadata();
         if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
             return base;
@@ -2738,7 +2882,7 @@ public class ExternalSourceResolver {
         return null;
     }
 
-    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+    static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
         Map<String, DataType> types = new HashMap<>(attributes.size());
         for (Attribute a : attributes) {
             types.put(a.name(), a.dataType());
@@ -2873,31 +3017,35 @@ public class ExternalSourceResolver {
      * must drop it and force a re-scan rather than serve a subset COUNT/MIN/MAX. Unknown formats keep
      * the footer default (no behavior change).
      */
-    private boolean foldsAbsentColumnAsImplicitNull(String sourceType) {
+    private boolean foldsAbsentColumnAsImplicitNull(@Nullable String sourceType) {
+        if (sourceType == null) {
+            return true;
+        }
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     /**
      * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
-     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
-     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
-     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
-     * failure so the query aborts promptly instead of silently degrading.
+     * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
+     * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
+     * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts
+     * promptly instead of silently degrading.
      */
     private void readAndAggregateAllFileStats(
         FileList listing,
         Map<String, Object> config,
-        boolean implicitNulls,
-        Set<String> declaredTypeColumns,
+        RunningFileStatsFold fold,
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
+        Map<StoragePath, SourceStatistics> slimStatsOut,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, config, false, fold, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
+            collectSlimStatistics(listing, allMeta, slimStatsOut);
+            listener.onResponse(fold.finish());
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2949,26 +3097,37 @@ public class ExternalSourceResolver {
         }
     }
 
+    /** File-level counts captured when each harvest was folded. Column maps are already gone. */
+    private static void collectSlimStatistics(FileList listing, List<SourceMetadata> allMeta, Map<StoragePath, SourceStatistics> into) {
+        int count = Math.min(listing.fileCount(), allMeta.size());
+        for (int i = 0; i < count; i++) {
+            SourceStatistics stats = SourceStatisticsSerializer.fromSource(allMeta.get(i));
+            if (stats != null) {
+                into.put(listing.path(i), stats);
+            }
+        }
+    }
+
     /**
      * Cache-aware gather for {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime)
-     * for each file so repeated multi-file resolves do not re-read footers, then folds through the same
-     * {@link #aggregateFileStatistics(List, boolean)} as the direct route. Responds with {@code null} if any file
-     * cannot be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked
-     * as partial stats.
+     * for each file so repeated multi-file resolves do not re-read footers, then folds each completion through
+     * {@code fold}. Responds with {@code null} if any file cannot be resolved or lacks statistics; a bare
+     * cancellation is surfaced as a failure so it is never masked as partial stats.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
-        boolean implicitNulls,
-        Set<String> declaredTypeColumns,
+        RunningFileStatsFold fold,
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
+        Map<StoragePath, SourceStatistics> slimStatsOut,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, config, true, fold, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
+            collectSlimStatistics(listing, allMeta, slimStatsOut);
+            listener.onResponse(fold.finish());
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -3461,7 +3620,7 @@ public class ExternalSourceResolver {
 
         // Per-query nullability: a partition column is non-nullable when no file in the matched
         // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
-        // to null in PartitionMetadata#filePartitionValues, so this is precise rather than
+        // to null in PartitionMetadata value rows, so this is precise rather than
         // pessimistic. The same dataset may yield different nullability across globs depending on
         // which files match.
         Set<String> nullableColumns = partitionMetadata.nullablePartitionColumns();

@@ -77,7 +77,6 @@ public class Highlight extends UnaryPlan
     public static final TransportVersion ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS = TransportVersion.fromName(
         "esql_highlight_implicit_query_and_fields"
     );
-
     public static final String DEFAULT_PREFIX = "highlight_";
 
     public static final String PRE_TAGS = "pre_tags";
@@ -164,8 +163,9 @@ public class Highlight extends UnaryPlan
         // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
         MapExpression options = (MapExpression) in.readOptionalNamedWriteable(Expression.class);
         List<Attribute> generatedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        Attribute indexKey = supportsImplicit ? in.readOptionalNamedWriteable(Attribute.class) : null;
-        Map<String, TextEsField> fieldMappings = supportsImplicit ? in.readImmutableMap(EsField::readFrom) : Map.of();
+        boolean supportsFieldAnalyzers = in.getTransportVersion().supports(TextEsField.TEXT_FIELD_ANALYZER);
+        Attribute indexKey = supportsFieldAnalyzers ? in.readOptionalNamedWriteable(Attribute.class) : null;
+        Map<String, TextEsField> fieldMappings = supportsFieldAnalyzers ? in.readImmutableMap(EsField::readFrom) : Map.of();
         return new Highlight(
             source,
             child,
@@ -203,7 +203,7 @@ public class Highlight extends UnaryPlan
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
-        if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
+        if (out.getTransportVersion().supports(TextEsField.TEXT_FIELD_ANALYZER)) {
             // The analyzer only sets the key and the mappings when every node supports this version.
             out.writeOptionalNamedWriteable(indexKey);
             out.writeMap(fieldMappings, (o, mapping) -> mapping.writeTo(o));

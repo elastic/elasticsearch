@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,6 +26,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HighlightExecSerializationTests extends AbstractPhysicalPlanSerializationTests<HighlightExec> {
 
@@ -73,6 +76,32 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
             fields,
             options,
             generatedFor(prefix, fields),
+            indexKey,
+            fieldMappings
+        );
+    }
+
+    public void testBackcompatOmitsIndexKeyAndFieldMappings() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.TEXT_FIELD_ANALYZER);
+        HighlightExec original = withIndexKeyAndFieldMappings(
+            createTestInstance(),
+            randomReferenceAttribute(false),
+            Map.of(randomIdentifier(), randomTextEsField(0))
+        );
+        // The child's text fields drop their analyzers below this version too, so compare only this node.
+        HighlightExec copy = copyInstance(original, oldVersion).replaceChild(original.child());
+        assertThat(copy, equalTo(withIndexKeyAndFieldMappings(original, null, Map.of())));
+    }
+
+    private static HighlightExec withIndexKeyAndFieldMappings(HighlightExec h, Attribute indexKey, Map<String, TextEsField> fieldMappings) {
+        return new HighlightExec(
+            h.source(),
+            h.child(),
+            h.prefix(),
+            h.query(),
+            h.fields(),
+            h.options(),
+            h.generatedFields(),
             indexKey,
             fieldMappings
         );

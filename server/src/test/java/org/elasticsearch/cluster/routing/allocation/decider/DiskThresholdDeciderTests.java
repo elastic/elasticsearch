@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -1060,7 +1061,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 }
 
                 private Decision cannotAllocateFooShards(Index index) {
-                    return index.getName().equals("foo") ? Decision.NO : Decision.YES;
+                    return index.getName().equals("foo") ? TestDecisions.NO : Decision.YES;
                 }
             }
         );

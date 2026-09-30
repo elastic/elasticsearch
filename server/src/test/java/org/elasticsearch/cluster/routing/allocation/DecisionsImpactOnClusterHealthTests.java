@@ -52,7 +52,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .build();
-        AllocationDecider decider = new TestAllocateDecision(Decision.NO);
+        AllocationDecider decider = new TestAllocateDecision(TestDecisions.NO);
         // if deciders say NO to allocating a primary shard, then the cluster health should be RED
         runAllocationTest(settings, indexName, decider, ClusterHealthStatus.RED);
     }
@@ -78,7 +78,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
                 if (node.getByShardId(shardRouting.shardId()) == null) {
                     return Decision.YES;
                 } else {
-                    return Decision.NO;
+                    return TestDecisions.NO;
                 }
             }
         };

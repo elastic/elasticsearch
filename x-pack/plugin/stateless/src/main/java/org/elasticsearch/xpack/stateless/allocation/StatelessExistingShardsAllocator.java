@@ -8,17 +8,13 @@
 package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -51,10 +47,8 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
     @Override
     public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
         if (waitingForSnapshotShardSize(unassignedShard, routingAllocation)) {
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
-                explainDecisions(unassignedShard, routingAllocation)
-            );
+            // No per-node decider walk: capacity answers are meaningless until size is known.
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
@@ -64,15 +58,6 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
             && shard.unassigned()
             && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && allocation.snapshotShardSizeInfo().getShardSize(shard) == null;
-    }
-
-    private static List<NodeAllocationResult> explainDecisions(ShardRouting shard, RoutingAllocation allocation) {
-        List<NodeAllocationResult> results = new ArrayList<>();
-        for (RoutingNode node : allocation.routingNodes()) {
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-            results.add(new NodeAllocationResult(node.node(), null, decision));
-        }
-        return results;
     }
 
     @Override

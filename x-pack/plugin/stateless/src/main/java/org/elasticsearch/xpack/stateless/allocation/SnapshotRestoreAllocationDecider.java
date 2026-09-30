@@ -37,15 +37,9 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             return Decision.YES;
         }
         Long size = allocation.snapshotShardSizeInfo().getShardSize(shard);
-        // Normally deferred by StatelessExistingShardsAllocator; wait if explain still hits this path.
-        if (size == null) {
-            return allocation.decision(
-                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
-                NAME,
-                "snapshot shard size is still being fetched"
-            );
-        }
-        // NO (not wait) so reconciliation yields DECIDERS_NO and RestoreService fails the restore.
+        // Still-fetching (null) is deferred by StatelessExistingShardsAllocator before we run.
+        assert size != null : "snapshot shard size should be fetched before capacity decisions";
+        // Permanent fetch failure cannot be admitted on capacity; waiting forever would stall API restores.
         if (size == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }

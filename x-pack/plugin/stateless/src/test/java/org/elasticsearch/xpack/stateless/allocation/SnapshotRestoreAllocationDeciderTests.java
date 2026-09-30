@@ -161,10 +161,7 @@ public class SnapshotRestoreAllocationDeciderTests extends ESAllocationTestCase 
         assertEquals(Decision.Type.THROTTLE, denied.type());
         assertThat(denied.getExplanation(), containsString("headroom [" + HEADROOM + "]"));
 
-        assertEquals(
-            Decision.Type.NO,
-            decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type()
-        );
+        assertEquals(Decision.Type.NO, decide(state, info(70 * GB), sizes(state, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)).type());
         assertEquals(Decision.Type.THROTTLE, decide(state, ClusterInfo.EMPTY, sizes(state, 50 * GB)).type());
     }
 

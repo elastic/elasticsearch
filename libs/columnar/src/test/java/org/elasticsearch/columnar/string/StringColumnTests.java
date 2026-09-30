@@ -330,7 +330,13 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
         assertEquals("numValues", numValues(docSlots), reader.numValues());
         assertEquals("numNullSlots", numNullSlots(docSlots), metadata.numNullSlots());
-        assertEquals("multi-valued", numValues(docSlots) > numDocsWithField(docSlots), metadata.multiValued());
+        boolean someDocumentHoldsSeveral = false;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                someDocumentHoldsSeveral |= slots.length > 1;
+            }
+        }
+        assertEquals("multi-valued", someDocumentHoldsSeveral, metadata.multiValued());
 
         int seenDocs = 0;
         ColumnIterator iterator = reader.iterator();

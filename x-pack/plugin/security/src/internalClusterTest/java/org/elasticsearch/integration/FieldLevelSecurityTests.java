@@ -642,7 +642,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(hiddenViaAlias.getTerms(), empty());
     }
 
-    public void testTermsEnumRewritesDlsQueryWithoutFieldLevelSecurity() {
+    public void testTermsEnumDoesNotApplyFlsRestrictionToDlsQuery() {
         assertAcked(prepareCreate("test").setMapping("visible", "type=keyword", "hidden", "type=constant_keyword,value=value"));
         prepareIndex("test").setSource("visible", "visible-term").setRefreshPolicy(IMMEDIATE).get();
 

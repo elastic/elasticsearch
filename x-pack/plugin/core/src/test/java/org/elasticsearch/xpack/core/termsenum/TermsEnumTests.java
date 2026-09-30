@@ -253,4 +253,36 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             );
         }
     }
+
+    public void testUnmappedFieldOnStrictIndexDoesNotDropTermsFromOtherIndices() throws Exception {
+        createIndex("mapped");
+        indicesAdmin().preparePutMapping("mapped")
+            .setSource(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("keyword")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+        indexAndRefresh("mapped", "1", "keyword", "only-mapped");
+
+        createIndex(
+            "unmapped",
+            Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build()
+        );
+
+        TermsEnumResponse response = client().execute(
+            TermsEnumAction.INSTANCE,
+            new TermsEnumRequest("mapped", "unmapped").field("keyword")
+        ).get();
+
+        assertTrue(response.isComplete());
+        assertEquals(0, response.getFailedShards());
+        assertThat(response.getTerms(), contains("only-mapped"));
+    }
 }

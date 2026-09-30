@@ -392,6 +392,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
                 openedResources.add(searcher);
                 var context = indexService.newQueryRewriteContext(request::nodeStartedTimeMillis, Collections.emptyMap(), null);
+                // if the index has strict unmapped field handling, `getFieldType` will throw; enabling lenient error handling allows this
+                // method to handle unmapped fields instead
+                context.setAllowUnmappedFields(true);
                 final MappedFieldType mappedFieldType = context.getFieldType(request.field());
                 if (mappedFieldType != null) {
                     TermsEnum terms = mappedFieldType.getTerms(

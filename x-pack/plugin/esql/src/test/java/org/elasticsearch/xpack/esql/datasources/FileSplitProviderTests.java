@@ -6211,6 +6211,41 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A warm query reserves what a cold one did for the same listing. The walk reserves one allowance per entry as it
+     * lists; a cache hit does no walk, so it reserves the equivalent rather than the compacted list's own size. If the
+     * two disagreed, the breaker limit would depend on who ran first - a query that trips on a cold node would go
+     * through on a warm one, and the resolver's top-up would be subtracting bytes nobody reserved.
+     */
+    public void testAWarmListingReservesWhatTheColdOneDid() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicLong cold = new AtomicLong();
+        AtomicLong warm = new AtomicLong();
+        AtomicInteger listings = new AtomicInteger();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            DatasetListingService listingService = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            FileSplitProvider provider = rangeAwareProvider(
+                countingRowCountReader(new AtomicInteger(), 10),
+                null,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                listingService
+            );
+
+            provider.discoverSplits(overAPrefixOfCharging(everyFile, cold::addAndGet));
+            provider.discoverSplits(overAPrefixOfCharging(everyFile, warm::addAndGet));
+
+            assertEquals("the second query was served the listing from the cache", 1, listings.get());
+            assertEquals("and reserved for it exactly what the first did", cold.get(), warm.get());
+            assertEquals(
+                "which is one listing allowance per entry plus one phase-2 allowance per file",
+                2 * (FileList.LISTING_BYTES_PER_ENTRY + FileList.PHASE2_BYTES_PER_FILE),
+                cold.get()
+            );
+        }
+    }
+
+    /**
      * A dataset whose error policy may drop rows declines the prefix. Under skip_row or null_field a unit's record
      * count is what will be decoded, not what will be emitted, so rows the budget counted may never arrive: a prefix
      * the budget called covered could still answer short. The policy is known before anything is listed.

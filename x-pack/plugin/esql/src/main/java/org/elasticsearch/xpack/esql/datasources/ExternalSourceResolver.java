@@ -365,10 +365,12 @@ public class ExternalSourceResolver {
         if (reservation == null) {
             return;
         }
-        // The walk already reserved one LISTING_BYTES_PER_ENTRY for each entry it retained, as it retained them.
-        // What is left is the listing's fixed overhead - its header and any notices it carries - plus the per-file
-        // schema map built over it, neither of which is known until the listing is complete. The two together come
-        // to exactly what this charged in one go before the walk started reserving.
+        // One LISTING_BYTES_PER_ENTRY per entry is already reserved: by the walk as it retained them, or - when the
+        // listing came from the cache and no walk ran - by DatasetListingService.cachedListing, which reserves that
+        // same figure for exactly this subtraction to stay valid. What is left is the listing's fixed overhead, its
+        // header and any notices it carries, plus the per-file schema map built over it, neither of which is known
+        // until the listing is complete. The two together come to exactly what this charged in one go before the walk
+        // started reserving.
         long alreadyReserved = listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY;
         long remainder = listing.planningBytes() - alreadyReserved + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
         reservation.chargeQuery(Math.max(0L, remainder));

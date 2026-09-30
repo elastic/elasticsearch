@@ -147,8 +147,8 @@ public final class DatasetListingService {
      * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
      * query is served, and the refusal below is what holds that.
      * <p>
-     * {@code memory} reserves the entries either way, and only once: a miss reserves through the walk as it grows, a
-     * hit allocated nothing to reserve there and so reserves the whole listing here.
+     * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
+     * through the walk as it grows, a hit reserves the equivalent here.
      */
     public FileList cachedListing(
         String path,
@@ -186,10 +186,15 @@ public final class DatasetListingService {
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;
         // this re-check is for the hit path.
         GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
-        // A hit allocated nothing in the walk, so nothing was reserved there; the caller still holds a reference
-        // for as long as its query runs, and reserves for it here.
+        // A hit allocated nothing in the walk, so nothing was reserved there, and the caller holds a reference for as
+        // long as its query runs. It reserves the same figure the walk would have - one allowance per entry - rather
+        // than the compacted list's own size, for two reasons. The resolver's own top-up subtracts exactly that
+        // figure to find what is left to charge (ExternalSourceResolver.chargeListingPlanning), so a hit reserving
+        // less than the walk made that subtraction remove bytes nobody had reserved. And it is the same listing either
+        // way: a query that trips the breaker on a cold node has to trip on a warm one, or the limit depends on who
+        // ran first. Over-reserved against the compacted list, deliberately and in the safe direction.
         if (servedFromCacheHolder[0]) {
-            memory.reserve(listing.planningBytes());
+            memory.reserve(listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
         }
         return listing;
     }

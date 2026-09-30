@@ -684,6 +684,57 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         }
     }
 
+    // NOTE: the bound only bites where the inputs lost nothing to their own summaries, since mass a summary
+    // dropped is credited in full. A 512 KiB dictionary buys 524 of these terms, just over half of what two
+    // segments hold and a third of what three do.
+    public void testTheDefaultOptionsRuleOutADictionaryOnceTheVocabulariesOutgrowTheCap() throws IOException {
+        final DictionaryPolicy policy = StringColumnOptions.DEFAULT_DICTIONARY;
+        final List<List<String>> segments = new ArrayList<>();
+        for (int segment = 0; segment < 3; segment++) {
+            final List<String> values = new ArrayList<>();
+            for (int i = 0; i < TERMS_PER_SEGMENT; i++) {
+                final String term = paddedTerm(segment, i);
+                values.add(term);
+                values.add(term);
+                values.add(term);
+            }
+            segments.add(values);
+        }
+        try (Directory dir = newDirectory()) {
+            flushSegments(dir, segments.subList(0, 2), policy, StringColumnOptions.DEFAULT_SUMMARY);
+            assertEquals(
+                "two segments' worth is still within reach",
+                MergedVocabulary.Source.COMBINED_SUMMARIES,
+                settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
+            );
+        }
+        try (Directory dir = newDirectory()) {
+            flushSegments(dir, segments, policy, StringColumnOptions.DEFAULT_SUMMARY);
+            assertTrue("with nothing lost from any input summary", every(dir, StringColumnReader::hasSummaryTerms));
+            assertEquals(
+                "a third puts the same dictionary under half the values",
+                MergedVocabulary.Source.SUMMARY_REFUSAL,
+                settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
+            );
+            forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
+            withMergedColumn(dir, column -> {
+                assertFalse("so the merged column stays plain", column.hasDictionary());
+                assertTrue("and still records what it saw for the next merge", column.hasSummaryTerms());
+            });
+        }
+    }
+
+    private static final int TERMS_PER_SEGMENT = 512;
+
+    /** A term of a kilobyte, so a segment's vocabulary lands just under the default summary cap. */
+    private static String paddedTerm(int segment, int index) {
+        final StringBuilder term = new StringBuilder("s" + segment + "-t" + index + "-");
+        while (term.length() < 1000) {
+            term.append('x');
+        }
+        return term.toString();
+    }
+
     public void testStatisticsAreFreshOnceDeletionsAreExpunged() throws IOException {
         final DictionaryPolicy policy = new DictionaryPolicy(64, 0.5, 0.2);
         final List<String> segment = repeated("head", 100);

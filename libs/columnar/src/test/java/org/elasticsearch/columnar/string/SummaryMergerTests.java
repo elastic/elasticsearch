@@ -333,6 +333,53 @@ public class SummaryMergerTests extends ESTestCase {
         }
     }
 
+    public void testTheBoundCoversACheapTermEveryInputLost() {
+        final List<BytesRef> shown = new ArrayList<>();
+        final List<Long> shownCounts = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            shown.add(new BytesRef("one-off-value-" + i));
+            shownCounts.add(1L);
+        }
+        final SummaryMerger merger = mergerWithEqualCaps(64);
+        merger.add(1000, 900 * 4 + 100 * 15, BestCoverage.UNKNOWN, shown, shownCounts);
+        assertThat(
+            "nine hundred values on a term within the cap, which the summaries never saw",
+            merger.decide(true).bestCoverage().namedValues(),
+            greaterThanOrEqualTo(900L)
+        );
+    }
+
+    // NOTE: the trial above hands the merger every term it counts, so nothing is unaccounted and the credit
+    // for lost occurrences never runs.
+    public void testTheBoundNeverUnderstatesWhatALostTermCouldName() {
+        for (int trial = 0; trial < 200; trial++) {
+            final Map<String, Long> held = new LinkedHashMap<>();
+            final List<BytesRef> shown = new ArrayList<>();
+            final List<Long> shownCounts = new ArrayList<>();
+            long numValues = 0;
+            long columnBytes = 0;
+            for (int t = 0; t < between(2, 8); t++) {
+                final String term = randomAlphaOfLengthBetween(1, 4) + t;
+                final long count = between(1, 6);
+                held.put(term, count);
+                numValues += count;
+                columnBytes += count * term.length();
+                if (shown.isEmpty() || randomBoolean()) {
+                    shown.add(new BytesRef(term));
+                    shownCounts.add(count);
+                }
+            }
+            final int cap = between(1, 24);
+            final SummaryMerger merger = mergerWithEqualCaps(cap);
+            merger.add(numValues, columnBytes, BestCoverage.UNKNOWN, shown, shownCounts);
+            assertThat(
+                "cap=" + cap + " held=" + held + " shown=" + shown,
+                merger.decide(true).bestCoverage().namedValues(),
+                greaterThanOrEqualTo(bestDictionary(held, cap))
+            );
+        }
+    }
+
     /** The most values any set of terms costing no more than {@code cap} names, by trying every set. */
     private static long bestDictionary(Map<String, Long> held, int cap) {
         final List<Map.Entry<String, Long>> terms = new ArrayList<>(held.entrySet());

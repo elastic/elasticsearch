@@ -405,6 +405,7 @@ public class QueryRewriteContext {
             fieldType = mappingLookup.getFieldType(fieldName);
         }
 
+        // if this field is a constant_keyword, and the user's role has FLS rules targeting this field, ensure these are respected
         if (fieldType instanceof ConstantFieldType constantFieldType) {
             var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
                 || fieldVisibilityPredicate.test(fieldType.name());

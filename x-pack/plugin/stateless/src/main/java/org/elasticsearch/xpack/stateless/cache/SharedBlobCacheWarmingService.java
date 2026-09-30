@@ -1126,6 +1126,21 @@ public class SharedBlobCacheWarmingService {
         public boolean awaitWarming() {
             return timeout.millis() > 0;
         }
+
+        private boolean considerTotalBudget() {
+            return totalBudget.millis() > 0;
+        }
+
+        public TimeValue timeoutCappedToTotalBudget(SearchRecoveryTimeout initialPlan, TimeValue timeElapsed) {
+            if (initialPlan.considerTotalBudget() == false) {
+                return timeout;
+            }
+            final long budgetLeftMs = Math.max(0L, initialPlan.totalBudget.millis() - timeElapsed.millis());
+            if (budgetLeftMs >= timeout.millis()) {
+                return timeout;
+            }
+            return TimeValue.timeValueMillis(budgetLeftMs);
+        }
     }
 
     /**
@@ -1204,10 +1219,8 @@ public class SharedBlobCacheWarmingService {
         final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
 
         // Accumulated timeout across all scheduling rounds — used in the TIMEOUT log so the operator sees the total wait.
-        final AtomicLong totalOfflineWarmingTimeMs = new AtomicLong(initialPlan.timeout().millis());
-        // Context string from the most recent evaluation — updated on each re-evaluation.
+        final AtomicReference<TimeValue> totalOfflineWarmingTime = new AtomicReference<>(initialPlan.timeout());
         final AtomicReference<String> latestTimeoutContext = new AtomicReference<>(initialPlan.timeoutContext());
-        // Mutable handle to the currently scheduled task so we can cancel the latest one when the race is decided.
         final AtomicReference<Scheduler.ScheduledCancellable> currentTimeoutTask = new AtomicReference<>();
 
         // Recursive re-evaluating timeout command. When reEvaluateOnTimeout is true, re-calls searchRecoveryTimeout() on each expiry
@@ -1222,20 +1235,19 @@ public class SharedBlobCacheWarmingService {
                 }
                 if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
                     final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
-                    final long timeBudgetMs = initialPlan.totalBudget().millis();
-                    final long sliceMs = timeBudgetMs > 0
-                        ? Math.clamp(timeBudgetMs - totalOfflineWarmingTimeMs.get(), 0L, newPlan.timeout().millis())
-                        : newPlan.timeout().millis();
-                    if (sliceMs >= searchRecoveryReevaluationAbortThreshold.millis()) {
-                        totalOfflineWarmingTimeMs.addAndGet(sliceMs);
+                    final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
+                    if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
+                        totalOfflineWarmingTime.getAndUpdate(
+                            oldValue -> TimeValue.timeValueMillis(oldValue.millis() + newTimeout.millis())
+                        );
                         latestTimeoutContext.set(newPlan.timeoutContext());
-                        currentTimeoutTask.set(threadPool.schedule(this, TimeValue.timeValueMillis(sliceMs), threadPool.generic()));
+                        currentTimeoutTask.set(threadPool.schedule(this, newTimeout, threadPool.generic()));
                         logger.info(
                             "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
-                            TimeValue.timeValueMillis(sliceMs),
+                            newTimeout,
                             newPlan.timeoutContext(),
                             indexShard.shardId(),
-                            TimeValue.timeValueMillis(totalOfflineWarmingTimeMs.get())
+                            totalOfflineWarmingTime.get()
                         );
                         return;
                     }
@@ -1260,7 +1272,7 @@ public class SharedBlobCacheWarmingService {
                     final String context = latestTimeoutContext.get().isEmpty() ? "default" : latestTimeoutContext.get();
                     // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that
                     // are not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
-                    final long totalMs = totalOfflineWarmingTimeMs.get();
+                    final long totalMs = totalOfflineWarmingTime.get().millis();
                     logger.warn(
                         new ESLogMessage(
                             "Search shard recovery cache warming timed out after [{}] ({}) for {}, "

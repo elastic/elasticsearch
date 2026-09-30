@@ -5266,7 +5266,8 @@ public class VerifierTests extends AnalyzerTestCase {
 
     public void testFullTextFunctionRejectedOnLookupField() {
         analyzerWithLanguagesLookup().error(
-            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | WHERE language_name : \"English\"",
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
+                + " | WHERE language_name : \"English\"",
             containsString(
                 "[:] operator cannot operate on [language_name], supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
             )

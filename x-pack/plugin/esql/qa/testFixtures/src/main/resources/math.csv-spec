@@ -1748,7 +1748,9 @@ a:integer | b:integer | l:integer
 ;
 
 leastNull
+required_capability: warn_null_misuse
 ROW l=LEAST(10, 5, null);
+warning:Line 1:7: Expression [LEAST(10, 5, null)] always evaluates to NULL.
 
 l:integer
 null
@@ -1776,7 +1778,9 @@ a:integer | b:integer | g:integer
 ;
 
 greatestNull
+required_capability: warn_null_misuse
 ROW g=GREATEST(10, 5, null);
+warning:Line 1:7: Expression [GREATEST(10, 5, null)] always evaluates to NULL.
 
 g:integer
 null
@@ -1882,7 +1886,9 @@ emp_no: integer | x:date     | y:date
 
 greatestWithMixedNumericValues
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW g1=GREATEST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), g2=GREATEST(10.0, 5, 1, -100.1, null);
+warning:Line 1:60: Expression [GREATEST(10.0, 5, 1, -100.1, null)] always evaluates to NULL.
 
 g1:double |g2:double
 1234      |null
@@ -1890,7 +1896,9 @@ g1:double |g2:double
 
 leastWithMixedNumericValues
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW l1=LEAST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), l2=LEAST(10.0, 5, 1, -100.1, null);
+warning:Line 1:57: Expression [LEAST(10.0, 5, 1, -100.1, null)] always evaluates to NULL.
 
 l1:double |l2:double
 -10000    |null
@@ -1898,12 +1906,14 @@ l1:double |l2:double
 
 greatestWithMixedNumericFields
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL g1 = GREATEST(height, salary, languages), g2 = GREATEST(height, salary, languages, null)
 | KEEP emp_no, g1, g2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:55: Expression [GREATEST(height, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | g1:double | g2:double
 10001          | 57305.0   | null
@@ -1913,12 +1923,14 @@ emp_no:integer | g1:double | g2:double
 
 leastWithMixedNumericFields
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL l1 = LEAST(height, salary, languages), l2 = LEAST(height, salary, languages, null)
 | KEEP emp_no, l1, l2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:52: Expression [LEAST(height, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | l1:double | l2:double
 10001          | 2.0       | null
@@ -1928,7 +1940,9 @@ emp_no:integer | l1:double | l2:double
 
 greatestWithMixedNumericValuesWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW g1=GREATEST([10.0, 4], 1), g2=GREATEST([10.0, 4], 1, null);
+warning:Line 1:35: Expression [GREATEST([10.0, 4], 1, null)] always evaluates to NULL.
 
 g1:double |g2:double
 10        |null
@@ -1936,7 +1950,9 @@ g1:double |g2:double
 
 leastWithMixedNumericValuesWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW l1=LEAST([10.0, 4], 1), l2=LEAST([10.0, 4], 1, null);
+warning:Line 1:32: Expression [LEAST([10.0, 4], 1, null)] always evaluates to NULL.
 
 l1:double |l2:double
 1         |null
@@ -1944,12 +1960,14 @@ l1:double |l2:double
 
 greatestWithMixedNumericFieldsWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL g1 = GREATEST(salary_change, salary, languages), g2 = GREATEST(salary_change, salary, languages, null)
 | KEEP emp_no, g1, g2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:62: Expression [GREATEST(salary_change, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | g1:double | g2:double
 10001          | 57305.0   | null
@@ -1959,12 +1977,14 @@ emp_no:integer | g1:double | g2:double
 
 leastWithMixedNumericFieldsWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL l1 = LEAST(salary_change, salary, languages), l2 = LEAST(salary_change, salary, languages, null)
 | KEEP emp_no, l1, l2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:59: Expression [LEAST(salary_change, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | l1:double | l2:double
 10001          | 1.19      | null     

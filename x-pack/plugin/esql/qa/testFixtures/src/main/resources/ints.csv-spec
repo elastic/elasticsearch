@@ -20,7 +20,9 @@ emp_no:integer |languages.short:short|languages.byte:byte
 ;
 
 inCast
+required_capability: warn_null_misuse
 from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+warning:Line 1:82: NULL in the IN list of [languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height)] is ignored, you can move it to [OR languages.byte IS NULL].
 ignoreOrder:true
 
 emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double

@@ -1988,19 +1988,23 @@ rows:l
 ;
 
 countOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*)
 ;
+warning:Line 2:140: Expression [1+null] always evaluates to NULL.
 
 s1:l | s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l
 100  | 100        | 900    | 0        | 100      | 0             | 100
 ;
 
 countOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*) by languages
 | SORT languages
 ;
+warning:Line 2:133: Expression [1+null] always evaluates to NULL.
 
 s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i 
 15         | 45     | 0        | 15       | 0             | 15     | 1
@@ -2012,9 +2016,11 @@ s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 ;
 
 sumOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
 ;
+warning:Line 2:108: Expression [1+null] always evaluates to NULL.
 
 s1:l | s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l
 100  | 210.0      | 600    | 200      | null          | 100
@@ -2031,10 +2037,12 @@ null
 ;
 
 sumOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = round(sum(2.1), 1), s_mv = sum([-1, 0, 3]), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*) by languages
 | SORT languages
 ;
+warning:Line 2:101: Expression [1+null] always evaluates to NULL.
 
 s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 31.5       | 30     | 30       | null          | 15     | 1
@@ -2046,19 +2054,23 @@ s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 ;
 
 avgOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = avg(1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null), s_expr = avg(1+1), s_expr_null = avg(1+null)
 ;
+warning:Line 2:107: Expression [1+null] always evaluates to NULL.
 
 s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
 1.0  | 2.0    | null     | 2.0      | null
 ;
 
 avgOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3, s_expr = avg(1+1), s_expr_null = avg(1+null) by languages
 | SORT languages
 ;
+warning:Line 2:95: Expression [1+null] always evaluates to NULL.
 
 s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 2.1        | 2.0    | 2.0      | null          | 1
@@ -2070,19 +2082,23 @@ s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 ;
 
 minOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = min(1), s_mv = min([-1, 0, 3]), s_null = min(null), s_expr = min(1+1), s_expr_null = min(1+null)
 ;
+warning:Line 2:103: Expression [1+null] always evaluates to NULL.
 
 s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
 1    | -1     | null        | 2        | null
 ;
 
 minOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = min(2.1), s_mv = min([-1, 0, 3]), s_expr = min(1+1), s_expr_null = min(1+null) by languages
 | SORT languages
 ;
+warning:Line 2:91: Expression [1+null] always evaluates to NULL.
 
 s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 2.1        | -1     | 2        | null          | 1
@@ -2094,19 +2110,23 @@ s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 ;
 
 maxOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = max(1), s_mv = max([-1, 0, 3]), s_null = max(null), s_expr = max(1+1), s_expr_null = max(1+null)
 ;
+warning:Line 2:103: Expression [1+null] always evaluates to NULL.
 
 s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
 1    | 3      | null        | 2        | null
 ;
 
 maxOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = max(2.1), s_mv = max([-1, 0, 3]), s_expr = max(1+1), s_expr_null = max(1+null) by languages
 | SORT languages
 ;
+warning:Line 2:91: Expression [1+null] always evaluates to NULL.
 
 s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 2.1        | 3      | 2        | null          | 1
@@ -2118,19 +2138,23 @@ s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 ;
 
 medianOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null), s_expr = median(1+1), s_expr_null = median(1+null)
 ;
+warning:Line 2:121: Expression [1+null] always evaluates to NULL.
 
 s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
 1.0  | 0.5    | null     | 2.0      | null
 ;
 
 medianOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]), s_expr = median(1+1), s_expr_null = median(1+null) by languages
 | SORT languages
 ;
+warning:Line 2:106: Expression [1+null] always evaluates to NULL.
 
 s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 2.1        | 0.5    | 2.0      | null          | 1
@@ -2142,19 +2166,23 @@ s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 ;
 
 countDistinctOfConst
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null)
 ;
+warning:Line 2:219: Expression [1+null] always evaluates to NULL.
 
 s1:l | s_mv:l | s_null:l | s_param:l | s_expr:l | s_expr_null:l
 1    | 4      | 0        | 4         | 1        | 0
 ;
 
 countDistinctOfConstGrouped
+required_capability: warn_null_misuse
 FROM employees
 | STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null) by languages
 | SORT languages
 ;
+warning:Line 2:211: Expression [1+null] always evaluates to NULL.
 
 s2point1:l | s_mv:l | s_param:l | s_expr:l | s_expr_null:l | languages:i
 1          | 4      | 4         | 1        | 0             | 1
@@ -2642,10 +2670,13 @@ max:integer |max_a:integer|min:integer | min_a:integer
 
 statsWithNullFilter
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | stats max = max(salary), max_a = max(salary) where null,
         min = min(salary), min_a = min(salary) where to_string(null) == "abc"  
 ;
+warning:Line 2:28: Expression [max_a = max(salary) where null] always evaluates to NULL.
+warning:Line 3:46: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
 
 max:integer |max_a:integer|min:integer | min_a:integer
 74999       |null         |25324       | null        
@@ -2653,12 +2684,15 @@ max:integer |max_a:integer|min:integer | min_a:integer
 
 statsWithAllFiltersFalse
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | stats max = max(height.float) where false,
         min = min(height.float) where to_string(null) == "abc",
         count = count(height.float) where false,
         count_distinct = count_distinct(salary) where to_string(null) == "def"
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
 max:double |min:double |count:long |count_distinct:long
 null       |null       |0          |0
@@ -2666,11 +2700,14 @@ null       |null       |0          |0
 
 statsWithExpressionsAllFiltersFalse
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | stats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false,
         mix = min(height.float + 1) + count_distinct(emp_no) + 2 where length(null) == 3
 ;
+warning:Line 2:9: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
+warning:Line 4:64: Expression [length(null)] always evaluates to NULL.
 
 max:double |count:long |mix:double
 null       |2          |null
@@ -2678,6 +2715,7 @@ null       |2          |null
 
 statsWithFalseFilterAndGroup
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | stats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
@@ -2685,6 +2723,7 @@ from employees
 | sort job_positions
 | limit 4
 ;
+warning:Line 2:9: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
 
 max:double |count:long |job_positions:keyword
 null       |2          |Accountant
@@ -2695,6 +2734,7 @@ null       |2          |Data Scientist
 
 statsWithFalseFiltersAndGroups
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2704,6 +2744,7 @@ from employees
 | sort job_positions, is_rehired
 | limit 10
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 count_distinct:long |count:long |values:keyword |job_positions:keyword |is_rehired:boolean
 0                   |2          |null           |Accountant            |false
@@ -2720,6 +2761,7 @@ count_distinct:long |count:long |values:keyword |job_positions:keyword |is_rehir
 
 statsWithMixedFiltersAndGroup
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,
@@ -2728,6 +2770,7 @@ from employees
 | sort job_positions
 | limit 4
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 count:long     |values:keyword        |job_positions:keyword
 0              |[Arumugam, Bojan]     |Accountant
@@ -2738,12 +2781,14 @@ count:long     |values:keyword        |job_positions:keyword
 
 prunedStatsFollowedByStats
 required_capability: per_agg_filtering
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,
         values = mv_slice(values(first_name), 0, 1) where my_length > 0
 | stats count_distinct = count_distinct(count)
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 count_distinct:long
 1
@@ -3806,10 +3851,12 @@ a:integer | b:null | c:null | d:double
 
 fixStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
 required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: warn_null_misuse
 
 ROW w = 1 * 10, x = null, y = null + 3, z = 42
 | STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z) + 1 by x
 ;
+warning:Line 1:31: Expression [null + 3] always evaluates to NULL.
 
 a:integer | b:null | c:integer | d:double | x:null
 10        | null   | null      | 43       | null
@@ -4179,10 +4226,12 @@ c:long
 ;
 
 nullArithmeticFilterBeforeStats
+required_capability: warn_null_misuse
 from employees
 | where 1 + null > 0
 | stats c = count(*), mn = min(salary), mx = max(salary)
 ;
+warning:Line 2:9: Expression [1 + null] always evaluates to NULL.
 
 c:long | mn:integer | mx:integer
 0      | null       | null
@@ -4657,9 +4706,12 @@ s1:long  | s2:long
 ;
 
 sumExpressionWithNullInDataExpressionPosition
+required_capability: warn_null_misuse
 FROM employees
 | STATS s1 = SUM(salary + null + 1), s2 = SUM(salary + null + 2)
 ;
+warning:Line 2:18: Expression [salary + null] always evaluates to NULL.
+warning:Line 2:47: Expression [salary + null] always evaluates to NULL.
 
 s1:long | s2:long
 null    | null

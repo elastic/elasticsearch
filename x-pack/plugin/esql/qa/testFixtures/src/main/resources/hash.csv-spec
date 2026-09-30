@@ -75,8 +75,10 @@ null          | null        | null
 
 hashWithNullAlgorithm
 required_capability: hash_function
+required_capability: warn_null_misuse
 
 ROW input="input" | EVAL hash = hash(null, input);
+warning:Line 1:33: Expression [hash(null, input)] always evaluates to NULL.
 
 input:keyword | hash:keyword
 input         | null

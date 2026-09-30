@@ -684,11 +684,13 @@ decade:integer
 // Null propagation: null from → null result
 toRangeNullFrom
 required_capability: fn_to_range
+required_capability: warn_null_misuse
 
 ROW from_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
 | EVAL r = TO_RANGE(null, from_dt)
 | KEEP r
 ;
+warning:Line 2:12: Expression [TO_RANGE(null, from_dt)] always evaluates to NULL.
 
 r:date_range
 null
@@ -697,11 +699,13 @@ null
 // Null propagation: null to → null result
 toRangeNullTo
 required_capability: fn_to_range
+required_capability: warn_null_misuse
 
 ROW from_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
 | EVAL r = TO_RANGE(from_dt, null)
 | KEEP r
 ;
+warning:Line 2:12: Expression [TO_RANGE(from_dt, null)] always evaluates to NULL.
 
 r:date_range
 null

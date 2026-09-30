@@ -180,12 +180,14 @@ null
 
 topSnippetsWithNullField
 required_capability: top_snippets_function
+required_capability: warn_null_misuse
 
 FROM employees 
 | EVAL snippets = TOP_SNIPPETS(null, "foobar")
 | KEEP snippets
 | LIMIT 5
 ;
+warning:Line 2:19: Expression [TOP_SNIPPETS(null, \"foobar\")] always evaluates to NULL.
 
 snippets:keyword
 null

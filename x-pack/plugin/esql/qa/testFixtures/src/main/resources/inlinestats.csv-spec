@@ -1838,6 +1838,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer|salary:i
 
 inlinestatsWithNullFilter
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(salary), max_a = max(salary) where null,
         min = min(salary), min_a = min(salary) where to_string(null) == "abc"
@@ -1845,6 +1846,8 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:35: Expression [max_a = max(salary) where null] always evaluates to NULL.
+warning:Line 3:46: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
 
 max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 74999       |null         |25324       |null           |10001          
@@ -1854,6 +1857,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 
 inlinestatsWithAllFiltersFalse
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false,
         min = min(height.float) where to_string(null) == "abc",
@@ -1863,6 +1867,8 @@ from employees
 | keep emp_no, salary, max, min, count*
 | limit 3
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
 emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinct:long
 10100         |68431         |null        |null       |0          |0
@@ -1872,6 +1878,7 @@ emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinc
 
 inlinestatsWithAllFiltersFalse_GroupByOneField
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1881,6 +1888,8 @@ from employees
 | keep emp_no, salary, max, min, count*, gender
 | limit 5
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
     emp_no:i   |    salary:i   |      max:d    |      min:d    |     count:l   |count_distinct:l|    gender:s     
 10100          |68431          |null           |null           |0              |0               |F              
@@ -1892,6 +1901,7 @@ from employees
 
 inlinestatsWithAllFiltersFalse_GroupByTwoFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1901,6 +1911,8 @@ from employees
 | keep emp_no, salary, max, min, count*, gender, languages
 | limit 5
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
     emp_no:i   |    salary:i   |      max:d    |      min:d    |     count:l   |count_distinct:l|    gender:s  |languages:i   
 10100          |68431          |null           |null           |0              |0               |F              |4              
@@ -1912,6 +1924,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_DifferentFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -1921,6 +1934,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   languages:i |count_distinct:l|    gender:s     
 10001          |Georgi         |null           |0              |null           |2              |1               |M              
@@ -1930,6 +1944,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_SameFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees 
 | eval my_length = length(concat(first_name, null)) 
 | inline stats count = count(my_length) where false,
@@ -1939,6 +1954,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   gender:s    |count_distinct:l|   languages:i   
 10001          |Georgi         |null           |0              |null           |M              |1               |2              
@@ -1949,6 +1965,7 @@ from employees
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats
 required_capability: inline_stats
 required_capability: inline_stats_fix_pruning_null_filter
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false, 
@@ -1958,6 +1975,7 @@ from employees
 | sort emp_no
 | limit 3
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s |    gender:s   |count_distinct:l|   languages:i   
 10001          |Georgi         |null           |0              |null         |M              |1               |2              
@@ -1967,6 +1985,7 @@ from employees
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(is_rehired) where true, 
@@ -1976,6 +1995,7 @@ from employees
 | sort emp_no
 | limit 10
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   languages:i |    gender:s   |count_distinct:l 
 10001          |Georgi         |null           |111            |null           |2              |M              |3              
@@ -1993,6 +2013,7 @@ from employees
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats2
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(is_rehired) where true, 
@@ -2003,6 +2024,7 @@ from employees
 | sort emp_no
 | limit 10
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    count_d:l  |    values:s   |   languages:i |    gender:s   |count_distinct:l 
 10001          |Georgi         |null           |111            |2              |null           |2              |M              |3              
@@ -2020,6 +2042,7 @@ from employees
 
 inlinestatsWithExpressionsAllFiltersFalse
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | keep height.f*, emp_no
 | sort emp_no desc
@@ -2029,6 +2052,8 @@ from employees
 | limit 3
 | drop height.float
 ;
+warning:Line 4:16: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
+warning:Line 6:64: Expression [length(null)] always evaluates to NULL.
 
     emp_no:i   |      max:d    |     count:l   |      mix:d      
 10100          |null           |2              |null           
@@ -2038,6 +2063,7 @@ from employees
 
 inlinestatsWithFalseFilterAndGroup
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
@@ -2046,6 +2072,7 @@ from employees
 | limit 4
 | keep emp_no, job_positions, height.float, max, count
 ;
+warning:Line 2:16: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
 
     emp_no:i   |          job_positions:s                |   height.float:d |      max:d    |     count:l     
 10100          |Purchase Manager                         |1.7699999809265137|null           |2              
@@ -2056,6 +2083,7 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2066,6 +2094,7 @@ from employees
 | limit 10
 | keep emp_no, my_length, count*, values, job_positions, is_rehired
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
  emp_no:integer|my_length:integer|count_distinct:long|     count:long   |values:keyword |                            job_positions:keyword                           |    is_rehired:boolean        
 10100          |null             |[0, 0]             |[2, 2]            |null           |Purchase Manager                                                            |[false, false, true, true]
@@ -2082,6 +2111,7 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups_DropEvaledValue
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2092,6 +2122,7 @@ from employees
 | limit 10
 | keep emp_no, count*, values, job_positions, is_rehired
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 
  emp_no:integer|count_distinct:long|     count:long   |values:keyword |                            job_positions:keyword                           |    is_rehired:boolean        
@@ -2109,6 +2140,7 @@ from employees
 
 inlinestatsWithMixedFiltersAndGroup
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2118,6 +2150,7 @@ from employees
 | limit 4
 | keep *length, count, values, job_positions, emp_no
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 my_length:integer| count:long    |                            values:keyword                             |                        job_positions:keyword                         |emp_no:integer     
 null             |[0, 0]         |[Arumugam, Bojan, Arumugam, Basil]                                     |[Accountant, Senior Python Developer]                                 |10001          
@@ -2129,6 +2162,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 prunedInlinestatsFollowedByInlinestats
 required_capability: inline_stats
 required_capability: inline_stats_fix_pruning_null_filter
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2138,6 +2172,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |  my_length:i  |     count:l   | values:s |count_distinct:l
 10001          |Georgi         |null           |0              |null      |1              
@@ -4119,6 +4154,7 @@ Raleigh     |1
 
 inlinestatsOptimizedAsLocalRelation_before_EsqlSession1
 required_capability: inline_stats_fix_optimized_as_local_relation
+required_capability: warn_null_misuse
 
 from employees 
 | keep first_name, emp_no 
@@ -4127,6 +4163,7 @@ from employees
 | sort first_name 
 | limit 5
 ;
+warning:Line 3:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
   first_name:s |    emp_no:i   |   my_length:i |     count:l     
 Alejandro      |10059          |null           |0              
@@ -4138,6 +4175,7 @@ Arumugam       |10094          |null           |0
 
 inlinestatsOptimizedAsLocalRelation_before_EsqlSession2
 required_capability: inline_stats_fix_optimized_as_local_relation
+required_capability: warn_null_misuse
 
 from employees 
 | eval my_length = concat(first_name, null) 
@@ -4146,6 +4184,7 @@ from employees
 | sort emp_no 
 | limit 3
 ;
+warning:Line 2:20: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |     count:l   |   my_length:s   
 10001          |0              |null           
@@ -5173,10 +5212,12 @@ w:integer | x:null | y:null | z:integer | a:integer | b:null | c:null | d:double
 
 fixInlineStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
 required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: warn_null_misuse
 
 ROW w = 1 * 10, x = null, y = null + 3, z = 42
 | INLINE STATS a = MIN(w) + 1, b = MIN(x), c = MAX(y) by z
 ;
+warning:Line 1:31: Expression [null + 3] always evaluates to NULL.
 
 w:integer | x:null | y:integer | a:integer | b:null | c:integer | z:integer
 10        | null   | null      | 11        | null   | null      | 42

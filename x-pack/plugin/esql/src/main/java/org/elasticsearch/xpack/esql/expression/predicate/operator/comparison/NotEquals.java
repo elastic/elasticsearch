@@ -16,7 +16,9 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -38,7 +41,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NotEquals",
@@ -277,5 +280,23 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
             }
         }
         return super.asQuery(pushdownPredicates, handler);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        Expression kept;
+        if (Expressions.isGuaranteedNull(right()) || ConvertFunction.isExplicitNull(right())) {
+            kept = left();
+        } else if (Expressions.isGuaranteedNull(left()) || ConvertFunction.isExplicitNull(left())) {
+            kept = right();
+        } else {
+            return null;
+        }
+        // Suggesting `<literal> IS NOT NULL` (e.g. `5 IS NOT NULL`) is never what the user meant.
+        if (kept instanceof Literal) {
+            return null;
+        }
+        String text = kept.sourceText();
+        return text.isEmpty() ? null : text + " IS NOT NULL";
     }
 }

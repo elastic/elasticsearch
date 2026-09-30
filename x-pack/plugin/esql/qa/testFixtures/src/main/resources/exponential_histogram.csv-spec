@@ -1081,11 +1081,13 @@ cnt:long
 
 Count exponential histogram with null bucket
 required_capability: fn_count_histogram_bucket
+required_capability: warn_null_misuse
 
 FROM exp_histo_sample
  | WHERE instance == "dummy-full"
  | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
 ;
+warning:Line 3:35: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 cnt:long
 null

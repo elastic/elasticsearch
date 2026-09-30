@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -139,7 +141,8 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             ListingExtents.UNBOUNDED,
-            PlanningMemory.NONE
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
         );
     }
 
@@ -153,6 +156,7 @@ public final class GlobExpander {
      * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
      * byte for byte as before.
      */
+    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
     public static FileList expandAndCompact(
         String path,
         StorageProvider provider,
@@ -165,7 +169,46 @@ public final class GlobExpander {
         ListingExtents extents,
         PlanningMemory memory
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, extents, memory);
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            NEVER_CANCELLED
+        );
+    }
+
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        FileList expanded = expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled
+        );
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -214,7 +257,34 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             ListingExtents.UNBOUNDED,
-            PlanningMemory.NONE
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
+    }
+
+    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            NEVER_CANCELLED
         );
     }
 
@@ -227,7 +297,8 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ListingExtents extents,
-        PlanningMemory memory
+        PlanningMemory memory,
+        BooleanSupplier cancelled
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
@@ -243,7 +314,8 @@ public final class GlobExpander {
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
-                fileOrder
+                fileOrder,
+                cancelled
             )
             : expandGlobWithRewriteFallback(
                 path,
@@ -256,7 +328,8 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 extents,
-                memory
+                memory,
+                cancelled
             );
     }
 
@@ -301,7 +374,8 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         ListingExtents extents,
-        PlanningMemory memory
+        PlanningMemory memory,
+        BooleanSupplier cancelled
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
@@ -317,7 +391,8 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 ListingExtents.UNBOUNDED,
-                memory
+                memory,
+                cancelled
             );
         }
 
@@ -337,7 +412,8 @@ public final class GlobExpander {
                 nameFilter,
                 fileOrder,
                 extents,
-                memory
+                memory,
+                cancelled
             );
         } catch (IOException e) {
             failure = e;
@@ -370,6 +446,7 @@ public final class GlobExpander {
                 fileOrder,
                 ListingExtents.UNBOUNDED,
                 memory,
+                cancelled,
                 false
             );
         } catch (IOException retryFailure) {
@@ -459,7 +536,8 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             ListingExtents.UNBOUNDED,
-            PlanningMemory.NONE
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
         );
     }
 
@@ -496,10 +574,12 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             ListingExtents.UNBOUNDED,
-            PlanningMemory.NONE
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
         );
     }
 
+    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
     static FileList doExpandGlob(
         String pattern,
         StorageProvider provider,
@@ -525,6 +605,37 @@ public final class GlobExpander {
             fileOrder,
             extents,
             memory,
+            NEVER_CANCELLED
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
             true
         );
     }
@@ -546,6 +657,7 @@ public final class GlobExpander {
         FileOrderConfig fileOrder,
         ListingExtents extents,
         PlanningMemory memory,
+        BooleanSupplier cancelled,
         boolean allowRewrite
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
@@ -767,6 +879,7 @@ public final class GlobExpander {
                         if (excludedBy == null) {
                             globKeptCount++;
                             reserved = reserveRetained(memory, matched.size() + valueExcluded.size(), reserved, false);
+                            throwIfCancelled(cancelled);
                             if (valueFilter.excludes(entry)) {
                                 valueExcluded.add(entry);
                                 continue;
@@ -908,6 +1021,21 @@ public final class GlobExpander {
      * @param flush reserve whatever is left over, however small - for the end of a walk
      * @return the new high-water mark, to be passed back on the next call
      */
+    /** For a caller with no query behind it: a listing nobody can cancel because nobody is waiting on it. */
+    public static final BooleanSupplier NEVER_CANCELLED = () -> false;
+
+    /**
+     * Aborts a listing whose query is gone. Listing a large dataset is many sequential page requests and nothing
+     * downstream can shorten that, so a cancelled query would otherwise keep paying for pages whose result is
+     * discarded - twice over where a bounded attempt is followed by a full one. Checked beside the batch reserve
+     * because that is the one point in the walk that runs often enough to be prompt and rarely enough to be free.
+     */
+    private static void throwIfCancelled(BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean()) {
+            throw new TaskCancelledException("listing cancelled");
+        }
+    }
+
     private static int reserveRetained(PlanningMemory memory, int retained, int reservedUpTo, boolean flush) {
         if (retained <= reservedUpTo || (flush == false && retained < reservedUpTo + LISTING_RESERVE_BATCH)) {
             return reservedUpTo;
@@ -1162,7 +1290,8 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             ExclusionConfig.fromConfig(config).compile(),
-            FileOrderConfig.forListing(config)
+            FileOrderConfig.forListing(config),
+            NEVER_CANCELLED
         );
     }
 
@@ -1195,7 +1324,8 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             ExclusionConfig.fromConfig(config).compile(),
-            FileOrderConfig.forListing(config)
+            FileOrderConfig.forListing(config),
+            NEVER_CANCELLED
         );
     }
 
@@ -1208,7 +1338,8 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        BooleanSupplier cancelled
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -1243,7 +1374,8 @@ public final class GlobExpander {
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
                     ListingExtents.UNBOUNDED,
-                    PlanningMemory.NONE
+                    PlanningMemory.NONE,
+                    cancelled
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

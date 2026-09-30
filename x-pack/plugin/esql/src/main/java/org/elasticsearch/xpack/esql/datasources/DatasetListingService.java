@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
 /**
@@ -126,7 +127,8 @@ public final class DatasetListingService {
         Map<String, Object> config,
         StoragePath storagePath,
         ListingExtents extents,
-        PlanningMemory memory
+        PlanningMemory memory,
+        BooleanSupplier cancelled
     ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
@@ -138,7 +140,8 @@ public final class DatasetListingService {
             maxGlobExpansion.getAsInt(),
             maxListedObjects.getAsInt(),
             extents,
-            memory
+            memory,
+            cancelled
         );
     }
 
@@ -156,7 +159,8 @@ public final class DatasetListingService {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
-        PlanningMemory memory
+        PlanningMemory memory,
+        BooleanSupplier cancelled
     ) throws Exception {
         ListingCacheKey listingKey = ListingCacheKey.build(
             storagePath.scheme(),
@@ -171,7 +175,7 @@ public final class DatasetListingService {
         try {
             listing = cacheService.getOrComputeListing(listingKey, k -> {
                 servedFromCacheHolder[0] = false;
-                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory);
+                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled);
             });
         } catch (ExecutionException e) {
             throw asListingFailure(e);

@@ -350,6 +350,12 @@ public class ExternalSourceResolver {
      * partway through its own listing rather than once the whole thing is in heap. That ordering is the point: a
      * reservation taken after the allocation reports the memory but cannot refuse it.
      */
+    /** The walk's cancellation check. Absent on a call with no request behind it, which is the field's convention. */
+    private BooleanSupplier listingCancellation() {
+        BooleanSupplier cancelled = isCancelled;
+        return cancelled == null ? GlobExpander.NEVER_CANCELLED : cancelled;
+    }
+
     private PlanningMemory planningMemory() {
         ExternalPlanningReservation reservation = planningReservation;
         return reservation == null ? PlanningMemory.NONE : reservation::chargeQuery;
@@ -1661,7 +1667,7 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         ListingExtents extents
     ) throws Exception {
-        return listingService.expand(path, provider, hints, config, storagePath, extents, planningMemory());
+        return listingService.expand(path, provider, hints, config, storagePath, extents, planningMemory(), listingCancellation());
     }
 
     /**
@@ -1676,7 +1682,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) throws Exception {
-        return listingService.cachedListing(path, storagePath, provider, hints, config, planningMemory());
+        return listingService.cachedListing(path, storagePath, provider, hints, config, planningMemory(), listingCancellation());
     }
 
     /**
@@ -4103,7 +4109,8 @@ public class ExternalSourceResolver {
                 listingService.maxGlobExpansion(),
                 listingService.maxListedObjects(),
                 extents,
-                planningMemory()
+                planningMemory(),
+                listingCancellation()
             );
         } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
             listing = cachedListing(path, storagePath, provider, schemaHints, config);

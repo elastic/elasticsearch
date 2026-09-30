@@ -718,14 +718,40 @@ public class FileSplitProvider implements SplitProvider {
                 // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
                 // other queries are served whole. This query may read a prefix because its own demand is covered by
                 // one; the next query's demand is not this one's.
-                return listingService.expand(pattern, provider, narrowing, config, storagePath, extents, scanMemory(context));
+                return listingService.expand(
+                    pattern,
+                    provider,
+                    narrowing,
+                    config,
+                    storagePath,
+                    extents,
+                    scanMemory(context),
+                    context.isCancelled()
+                );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
             // filters the cache key already distinguishes. Without this a warm second query over the same dataset
             // pays the listing again, where resolution's own listing would have been served from the cache.
             return listingService.isCacheable(provider)
-                ? listingService.cachedListing(pattern, storagePath, provider, narrowing, config, scanMemory(context))
-                : listingService.expand(pattern, provider, narrowing, config, storagePath, ListingExtents.UNBOUNDED, scanMemory(context));
+                ? listingService.cachedListing(
+                    pattern,
+                    storagePath,
+                    provider,
+                    narrowing,
+                    config,
+                    scanMemory(context),
+                    context.isCancelled()
+                )
+                : listingService.expand(
+                    pattern,
+                    provider,
+                    narrowing,
+                    config,
+                    storagePath,
+                    ListingExtents.UNBOUNDED,
+                    scanMemory(context),
+                    context.isCancelled()
+                );
         } finally {
             StorageProviderCache.closeLease(provider);
         }

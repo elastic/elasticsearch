@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -5347,6 +5349,39 @@ public class GlobExpanderTests extends ESTestCase {
         for (int i = 0; i < bounded.fileCount(); i++) {
             assertEquals("index " + i + " must name the same file in both", full.path(i), bounded.path(i));
         }
+    }
+
+    /**
+     * A cancelled query stops its listing. Listing a large dataset is many sequential page requests, and nothing
+     * downstream of the walk can shorten it - so without this a cancelled query keeps paying for pages whose result
+     * is thrown away, twice over where a bounded attempt is followed by a full one.
+     * <p>
+     * The provider's own object count is what shows it: the walk is abandoned partway, so the keys past that point
+     * were never listed. Cancelled after the first batch rather than before the first key, so this cannot pass by
+     * refusing to start.
+     */
+    public void testACancelledListingStopsWalking() {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+        AtomicInteger reservations = new AtomicInteger();
+        // Cancelled once the walk has reserved its first batch, so it has genuinely started.
+        BooleanSupplier cancelled = () -> reservations.get() > 0;
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/*.parquet",
+                provider,
+                null,
+                Map.of(),
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                bytes -> reservations.incrementAndGet(),
+                cancelled
+            )
+        );
+        assertThat("it stopped partway rather than listing the whole dataset first", provider.keysPulled(), lessThan(5000));
     }
 
     /**

@@ -214,7 +214,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 return Decision.YES;
             }
             return switch (random.nextInt(10)) {
-                case 9, 8, 7, 6, 5 -> Decision.NO;
+                case 9, 8, 7, 6, 5 -> TestDecisions.NO;
                 case 4 -> canThrottle ? Decision.THROTTLE : Decision.YES;
                 case 3, 2, 1 -> Decision.YES;
                 default -> Decision.ALWAYS;

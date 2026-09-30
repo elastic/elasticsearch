@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -64,6 +65,9 @@ public class SearchResponseSections implements Releasable {
     private List<SearchHits> topHitsToRelease;
     // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
     private List<SearchHit> completionOptionHitsToRelease;
+    // Coordinator fetch-breaker charge for the hits above; cleared when transferred to SearchResponse so close() does not release
+    @Nullable
+    private Releasable coordinatorFetchCharge;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -135,6 +139,26 @@ public class SearchResponseSections implements Releasable {
         return list;
     }
 
+    /**
+     * Records a coordinator fetch-breaker charge already made for the hits above, for {@link #close()} or
+     * {@link #transferCoordinatorFetchCharge} to release later.
+     */
+    void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
+        assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
+        this.coordinatorFetchCharge = charge;
+    }
+
+    /**
+     * Transfers the coordinator fetch-breaker charge to the caller, who takes over releasing it. Call when building
+     * a SearchResponse so close() does not also release it. Returns null if already transferred or never adopted.
+     */
+    @Nullable
+    public final Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
+    }
+
     public final SearchHits hits() {
         return hits;
     }
@@ -181,5 +205,7 @@ public class SearchResponseSections implements Releasable {
             completionOptionHitsToRelease = null;
         }
         hits.decRef();
+        Releasables.closeExpectNoException(coordinatorFetchCharge);
+        coordinatorFetchCharge = null;
     }
 }

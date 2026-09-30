@@ -12,6 +12,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -23,6 +24,8 @@ import java.util.List;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.requestBreaker;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseResultsTests extends ESTestCase {
 
@@ -115,6 +118,57 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
             assertThat(breaker.getUsed(), equalTo(0L));
 
             results.reserve(inFlight);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            early.decRef();
+            inFlight.decRef();
+        }
+    }
+
+    public void testTransferHandsTheChargeToTheCallerAndClosesBecomeNoOps() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult result = fetchResult(0, 3);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            long expected = hitBytes(result);
+            results.reserve(result);
+
+            Releasable charge = results.transferCharge();
+            assertThat(charge, notNullValue());
+            // The caller now owns the charge, so close() must not also release it.
+            assertThat(breaker.getUsed(), equalTo(expected));
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
+    }
+
+    public void testTransferWithNothingReservedReturnsNull() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            assertThat(results.transferCharge(), nullValue());
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    public void testShardArrivingAfterTransferGivesItsChargeStraightBack() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult early = fetchResult(0, 2);
+        FetchSearchResult inFlight = fetchResult(1, 2);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+            long expected = hitBytes(early);
+            results.reserve(early);
+            Releasable charge = results.transferCharge();
+
+            // A shard that was still in flight when the response was built must not add to the transferred charge.
+            results.reserve(inFlight);
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            charge.close();
             assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             early.decRef();

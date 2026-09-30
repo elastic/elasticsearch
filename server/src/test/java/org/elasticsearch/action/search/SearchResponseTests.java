@@ -15,8 +15,10 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,6 +76,61 @@ public class SearchResponseTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    public void testCoordinatorFetchBreakerChargeTransfersToTheResponseAndReleasesOnDecRef() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 4096L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponseSections sections = emptySections();
+        sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+
+        // Mirrors how the constructor already takes over topHitsToRelease/completionOptionHitsToRelease.
+        SearchResponse response = new SearchResponse(
+            sections,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+
+        // The charge has been transferred, so close() must not also release it.
+        sections.close();
+        assertEquals(bytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testCoordinatorFetchBreakerChargeReleasesOnCloseIfNeverTransferred() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 2048L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponseSections sections = emptySections();
+        sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+
+        // No SearchResponse is built here, so close() is the only release path.
+        sections.close();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    private static SearchResponseSections emptySections() {
+        return new SearchResponseSections(
+            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null
+        );
     }
 
     private SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {

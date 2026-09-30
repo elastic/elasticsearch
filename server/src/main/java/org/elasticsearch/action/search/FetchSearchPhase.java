@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -37,6 +39,8 @@ import java.util.Map;
 
 class FetchSearchPhase extends SearchPhase {
     static final String NAME = "fetch";
+
+    private static final Supplier<Releasable> NO_COORDINATOR_FETCH_CHARGE = () -> null;
 
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final AbstractSearchAsyncAction<?> context;
@@ -107,7 +111,8 @@ class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(searchPhaseShardResults, reducedQueryPhase, phaseStartTimeInNanos);
+            // These hits ride inside the query result uncharged on the coordinator: a pre-existing gap, not new here.
+            moveToNextPhase(searchPhaseShardResults, NO_COORDINATOR_FETCH_CHARGE, reducedQueryPhase, phaseStartTimeInNanos);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
@@ -115,7 +120,7 @@ class FetchSearchPhase extends SearchPhase {
                 // we have to release contexts here to free up resources
                 searchPhaseShardResults.asList()
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
-                moveToNextPhase(new AtomicArray<>(0), reducedQueryPhase, phaseStartTimeInNanos);
+                moveToNextPhase(new AtomicArray<>(0), NO_COORDINATOR_FETCH_CHARGE, reducedQueryPhase, phaseStartTimeInNanos);
             } else {
                 innerRunFetch(scoreDocs, numShards, reducedQueryPhase, phaseStartTimeInNanos);
             }
@@ -140,7 +145,8 @@ class FetchSearchPhase extends SearchPhase {
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos),
+            // Deferred: transferCharge() must not run until moveToNextPhase's supplier below commits to it.
+            () -> moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -286,6 +292,7 @@ class FetchSearchPhase extends SearchPhase {
 
     private void moveToNextPhase(
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
+        Supplier<Releasable> coordinatorFetchCharge,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
@@ -293,6 +300,9 @@ class FetchSearchPhase extends SearchPhase {
             .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+            // executeNextPhase can fail the phase before this line ever runs. That is why coordinatorFetchCharge
+            // must stay deferred until here instead of being called eagerly above.
+            resp.adoptCoordinatorFetchCharge(coordinatorFetchCharge.get());
             context.addReleasable(resp);
             return nextPhase(resp, searchPhaseShardResults);
         });

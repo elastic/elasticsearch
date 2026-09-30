@@ -11,6 +11,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
@@ -18,8 +21,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Collects the fetch results of a search on the coordinating node and charges the {@link CircuitBreaker#REQUEST}
- * breaker for the hits they carry. Every shard's hits stay on the heap until the search response has been built,
- * so the charge is only given back when this collection is released at the end of the search.
+ * breaker for the hits they carry. The charge is transferred to the {@link SearchResponse} once one is built;
+ * {@link #doClose()} only releases it if one never is.
  */
 final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchResult> {
 
@@ -61,6 +64,22 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
             // A phase failure released this collection while the shard was still in flight, so nothing else will.
             circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
         }
+    }
+
+    /**
+     * Hands the outstanding charge to the caller as a {@link Releasable}; a late {@link #reserve} or
+     * {@link #doClose()} will not touch it again. Must not be called until the caller is committed to using the
+     * result, since discarding it afterward leaks the charge.
+     *
+     * @return a releasable for the outstanding charge, or {@code null} if there is nothing outstanding
+     */
+    @Nullable
+    Releasable transferCharge() {
+        long bytes = reservedBytes.getAndSet(RELEASED);
+        if (bytes <= 0L) {
+            return null;
+        }
+        return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL));
     }
 
     private boolean addToReservation(long bytes) {

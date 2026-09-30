@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -16,10 +17,12 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
@@ -58,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -494,10 +498,10 @@ public class CaseExtraTests extends ESTestCase {
      * anything but the first condition. Checks that each child only ever sees the rows it is allowed
      * to see, that the results land in the right rows, and that multivalued conditions warn.
      */
-    public void testCaseIsLazyPerPosition() {
+    public void testCaseIsLazyPerArm() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         // Channels: 0=c1, 1=v1, 2=c2, 3=v2, 4=e, 5=id
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
@@ -511,13 +515,14 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 8)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             // Expected arms: v1 at {0, 5}; v2 at {1, 3, 7}; e at {2, 4, 6}
             assertLongs(block, 100, 201, 302, 203, 304, 105, 306, 207);
-            assertThat(seen.get("c1"), equalTo(Set.of(0, 1, 2, 3, 4, 5, 6, 7)));
-            assertThat(seen.get("v1"), equalTo(Set.of(0, 5)));
-            assertThat(seen.get("c2"), equalTo(Set.of(1, 2, 3, 4, 6, 7)));
-            assertThat(seen.get("v2"), equalTo(Set.of(1, 3, 7)));
-            assertThat(seen.get("e"), equalTo(Set.of(2, 4, 6)));
+            assertThat(seen.seen("c1"), equalTo(Set.of(0, 1, 2, 3, 4, 5, 6, 7)));
+            assertThat(seen.seen("v1"), equalTo(Set.of(0, 5)));
+            assertThat(seen.seen("c2"), equalTo(Set.of(1, 2, 3, 4, 6, 7)));
+            assertThat(seen.seen("v2"), equalTo(Set.of(1, 3, 7)));
+            assertThat(seen.seen("e"), equalTo(Set.of(2, 4, 6)));
         } finally {
             page.releaseBlocks();
         }
@@ -540,7 +545,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testCaseEagerSafeConditionDoesNotWarnForSkippedRows() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of("c2"), seen)).get(driverContext);
@@ -554,11 +559,12 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 4)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertLongs(block, 100, 201, 102, 303);
             // Eager-safe, so c2 is evaluated on the whole page
-            assertThat(seen.get("c2"), equalTo(Set.of(0, 1, 2, 3)));
-            assertThat(seen.get("v2"), equalTo(Set.of(1)));
-            assertThat(seen.get("e"), equalTo(Set.of(3)));
+            assertThat(seen.seen("c2"), equalTo(Set.of(0, 1, 2, 3)));
+            assertThat(seen.seen("v2"), equalTo(Set.of(1)));
+            assertThat(seen.seen("e"), equalTo(Set.of(3)));
         } finally {
             page.releaseBlocks();
         }
@@ -573,7 +579,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testCaseEagerSafeConditionWarnsForReachedRows() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of("c2"), seen)).get(driverContext);
@@ -586,9 +592,10 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 4)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertLongs(block, 100, 301, 102, 303);
-            assertThat(seen.get("v2"), nullValue());
-            assertThat(seen.get("e"), equalTo(Set.of(1, 3)));
+            assertThat(seen.seen("v2"), nullValue());
+            assertThat(seen.seen("e"), equalTo(Set.of(1, 3)));
         } finally {
             page.releaseBlocks();
         }
@@ -602,13 +609,13 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * When every row picks the same arm and that arm is eager-safe, {@code CASE} hands back the arm's
-     * block itself instead of copying it.
+     * When every row picks the same arm, {@code CASE} hands back that arm's block itself instead of
+     * copying it. With an eager-safe field load that is the page's own block.
      */
     public void testCaseAllRowsFirstArmReturnsValueBlock() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of("v1", "e"), seen))
@@ -622,18 +629,23 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 4)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertThat(block, sameInstance(page.getBlock(1)));
-            assertThat(seen.get("c2"), nullValue());
-            assertThat(seen.get("e"), nullValue());
+            assertThat(seen.seen("c2"), nullValue());
+            assertThat(seen.seen("e"), nullValue());
         } finally {
             page.releaseBlocks();
         }
     }
 
+    /**
+     * When no condition matches any row, the else arm covers the whole page and its block is returned
+     * directly. The multivalued {@code c1} row still warns.
+     */
     public void testCaseNoRowsMatchReturnsElseBlock() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of("v1", "e"), seen))
@@ -647,19 +659,30 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 4)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertThat(block, sameInstance(page.getBlock(4)));
-            assertThat(seen.get("c2"), equalTo(Set.of(0, 1, 2, 3)));
-            assertThat(seen.get("v1"), nullValue());
-            assertThat(seen.get("v2"), nullValue());
+            assertThat(seen.seen("c2"), equalTo(Set.of(0, 1, 2, 3)));
+            assertThat(seen.seen("v1"), nullValue());
+            assertThat(seen.seen("v2"), nullValue());
         } finally {
             page.releaseBlocks();
         }
+        driverContext.finish();
+        assertThat(driverContext.warnings(), hasSize(2));
+        assertThat(driverContext.warnings(), hasItem(containsString("evaluation of [c1] failed, treating result as false")));
+        assertThat(
+            driverContext.warnings(),
+            hasItem(containsString("java.lang.IllegalArgumentException: CASE expects a single-valued boolean"))
+        );
     }
 
+    /**
+     * A page without rows evaluates no child at all and produces an empty block.
+     */
     public void testCaseEmptyPage() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of(), seen)).get(driverContext);
@@ -673,8 +696,129 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 0)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertThat(block.getPositionCount(), equalTo(0));
-            assertThat(seen, equalTo(Map.of()));
+            assertThat(seen.seen, equalTo(Map.of()));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Like {@link #testCaseAllRowsFirstArmReturnsValueBlock} but for an arm that isn't the first one:
+     * once the first condition rejected every row, the second arm still sees the whole page and can
+     * hand its block back directly.
+     */
+    public void testCaseAllRowsNonFirstArmReturnsValueBlock() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Recorder seen = new Recorder();
+        Case caseExpr = caseOfFields("c1", "v1", "c2", "v2", "e");
+        Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "c2", 2, "v2", 3, "e", 4);
+        ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 5, Set.of("v2"), seen)).get(driverContext);
+        Page page = new Page(
+            booleans(blockFactory, false, false, false, false),
+            longs(blockFactory, 100, 4),
+            booleans(blockFactory, true, true, true, true),
+            longs(blockFactory, 200, 4),
+            longs(blockFactory, 300, 4),
+            ids(blockFactory, 4)
+        );
+        try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
+            assertThat(block, sameInstance(page.getBlock(3)));
+            assertThat(seen.seen("c2"), equalTo(Set.of(0, 1, 2, 3)));
+            assertThat(seen.seen("v2"), equalTo(Set.of(0, 1, 2, 3)));
+            assertThat(seen.seen("v1"), nullValue());
+            assertThat(seen.seen("e"), nullValue());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A condition whose evaluator produces a {@code ConstantNullBlock}, which has no vector, is
+     * treated as false for every row without warning.
+     */
+    public void testCaseConstantNullCondition() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Recorder seen = new Recorder();
+        Case caseExpr = caseOfFields("c1", "v1", "e");
+        // Channels: 0=v1, 1=e, 2=id; c1 is computed
+        EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                String name = ((FieldAttribute) expression).name();
+                ExpressionEvaluator.Factory delegate = switch (name) {
+                    case "c1" -> new ComputedFromIdsFactory(2, (bf, id) -> bf.newConstantNullBlock(id.getPositionCount()));
+                    case "v1" -> new LoadFromPageEvaluator.Factory(0);
+                    case "e" -> new LoadFromPageEvaluator.Factory(1);
+                    default -> throw new AssertionError("unexpected child [" + name + "]");
+                };
+                return new RecordingFactory(name, delegate, false, 2, seen);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+        ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driverContext);
+        Page page = new Page(longs(blockFactory, 100, 4), longs(blockFactory, 300, 4), ids(blockFactory, 4));
+        try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
+            assertLongs(block, 300, 301, 302, 303);
+            assertThat(seen.seen("c1"), equalTo(Set.of(0, 1, 2, 3)));
+            assertThat(seen.seen("v1"), nullValue());
+            assertThat(seen.seen("e"), equalTo(Set.of(0, 1, 2, 3)));
+        } finally {
+            page.releaseBlocks();
+        }
+        driverContext.finish();
+        assertThat(driverContext.warnings(), equalTo(List.of()));
+    }
+
+    /**
+     * Arms of different concrete block classes are scattered into one result: {@code v1} is an
+     * {@link OrdinalBytesRefBlock} read on the whole page, the else arm is a plain array block read
+     * from a filtered page.
+     */
+    public void testCaseBytesRefArmsMixOrdinalsAndArrays() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Recorder seen = new Recorder();
+        Case caseExpr = new Case(
+            Source.synthetic("<case>"),
+            field("c1", DataType.BOOLEAN),
+            List.of(field("v1", DataType.KEYWORD), field("e", DataType.KEYWORD))
+        );
+        Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "e", 2);
+        ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 3, Set.of("v1"), seen)).get(driverContext);
+        BytesRefBlock ordinals;
+        try (var ordinalsBuilder = blockFactory.newIntBlockBuilder(6); var dictionaryBuilder = blockFactory.newBytesRefVectorBuilder(2)) {
+            for (int o : new int[] { 0, 1, 0, 1, 0, 1 }) {
+                ordinalsBuilder.appendInt(o);
+            }
+            dictionaryBuilder.appendBytesRef(new BytesRef("a"));
+            dictionaryBuilder.appendBytesRef(new BytesRef("b"));
+            ordinals = new OrdinalBytesRefBlock(ordinalsBuilder.build(), dictionaryBuilder.build());
+        }
+        Page page = new Page(
+            booleans(blockFactory, true, false, true, false, true, false),
+            ordinals,
+            bytesRefs(blockFactory, "x", "y", "z", "w", "u", "v"),
+            ids(blockFactory, 6)
+        );
+        try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
+            assertThat(block.getPositionCount(), equalTo(6));
+            String[] expected = { "a", "y", "a", "w", "a", "v" };
+            for (int p = 0; p < expected.length; p++) {
+                assertThat("position " + p, toJavaObject(block, p), equalTo(new BytesRef(expected[p])));
+            }
+            assertThat(seen.seen("v1"), equalTo(Set.of(0, 1, 2, 3, 4, 5)));
+            assertThat(seen.seen("e"), equalTo(Set.of(1, 3, 5)));
         } finally {
             page.releaseBlocks();
         }
@@ -687,7 +831,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testCaseMultivaluedValueArms() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "e", 2);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 3, Set.of("v1"), seen)).get(driverContext);
@@ -698,14 +842,15 @@ public class CaseExtraTests extends ESTestCase {
             ids(blockFactory, 6)
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertThat(toJavaObject(block, 0), equalTo(List.of(1L, 2L)));
             assertThat(toJavaObject(block, 1), equalTo(List.of(7L, 8L)));
             assertThat(toJavaObject(block, 2), nullValue());
             assertThat(toJavaObject(block, 3), nullValue());
             assertThat(toJavaObject(block, 4), equalTo(3L));
             assertThat(toJavaObject(block, 5), equalTo(42L));
-            assertThat(seen.get("v1"), equalTo(Set.of(0, 1, 2, 3, 4, 5)));
-            assertThat(seen.get("e"), equalTo(Set.of(1, 3, 5)));
+            assertThat(seen.seen("v1"), equalTo(Set.of(0, 1, 2, 3, 4, 5)));
+            assertThat(seen.seen("e"), equalTo(Set.of(1, 3, 5)));
         } finally {
             page.releaseBlocks();
         }
@@ -719,7 +864,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testCaseWithDocBlockInPage() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         Case caseExpr = caseOfFields("c1", "v1", "e");
         Map<String, Integer> channels = Map.of("c1", 0, "v1", 1, "e", 2);
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(new RecordingToEvaluator(channels, 3, Set.of(), seen)).get(driverContext);
@@ -764,9 +909,10 @@ public class CaseExtraTests extends ESTestCase {
             docs.asBlock()
         );
         try (evaluator; Block block = evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             assertLongs(block, 100, 301, 102, 303);
-            assertThat(seen.get("v1"), equalTo(Set.of(0, 2)));
-            assertThat(seen.get("e"), equalTo(Set.of(1, 3)));
+            assertThat(seen.seen("v1"), equalTo(Set.of(0, 2)));
+            assertThat(seen.seen("e"), equalTo(Set.of(1, 3)));
             // The filtered pages have been released, only the original page still references the shard
             assertThat(shardRefs.get(), equalTo(1));
         } finally {
@@ -784,7 +930,7 @@ public class CaseExtraTests extends ESTestCase {
         int rows = 1024;
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        Map<String, Set<Integer>> seen = new HashMap<>();
+        Recorder seen = new Recorder();
         List<Expression> children = new ArrayList<>();
         for (int k = 0; k < arms - 1; k++) {
             children.add(field("c" + k, DataType.BOOLEAN));
@@ -815,6 +961,7 @@ public class CaseExtraTests extends ESTestCase {
         ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driverContext);
         Page page = new Page(ids(blockFactory, rows));
         try (evaluator; LongBlock block = (LongBlock) evaluator.eval(page)) {
+            seen.assertEvaluatedAtMostOnce();
             for (int r = 0; r < rows; r++) {
                 int arm = r % arms;
                 long expected = arm == arms - 1 ? -r : arm * 1000L + r;
@@ -831,8 +978,8 @@ public class CaseExtraTests extends ESTestCase {
                         expectedValue.add(r);
                     }
                 }
-                assertThat("condition " + k, seen.get("c" + k), equalTo(expectedCondition));
-                assertThat("value " + k, seen.get("v" + k), equalTo(expectedValue));
+                assertThat("condition " + k, seen.seen("c" + k), equalTo(expectedCondition));
+                assertThat("value " + k, seen.seen("v" + k), equalTo(expectedValue));
             }
             Set<Integer> expectedElse = new TreeSet<>();
             for (int r = 0; r < rows; r++) {
@@ -840,7 +987,7 @@ public class CaseExtraTests extends ESTestCase {
                     expectedElse.add(r);
                 }
             }
-            assertThat(seen.get("e"), equalTo(expectedElse));
+            assertThat(seen.seen("e"), equalTo(expectedElse));
         } finally {
             page.releaseBlocks();
         }
@@ -858,13 +1005,41 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
+     * Records, per child evaluator name, which rows it was asked to evaluate and how often it was
+     * called. Rows are identified by the value in the page's id channel so this works on filtered
+     * pages too. Arm-at-a-time evaluation must call each child at most once per page.
+     */
+    private static class Recorder {
+        final Map<String, Set<Integer>> seen = new HashMap<>();
+        final Map<String, Integer> calls = new HashMap<>();
+
+        void record(String name, IntBlock ids) {
+            calls.merge(name, 1, Integer::sum);
+            Set<Integer> rows = seen.computeIfAbsent(name, k -> new TreeSet<>());
+            for (int p = 0; p < ids.getPositionCount(); p++) {
+                rows.add(ids.getInt(ids.getFirstValueIndex(p)));
+            }
+        }
+
+        Set<Integer> seen(String name) {
+            return seen.get(name);
+        }
+
+        void assertEvaluatedAtMostOnce() {
+            for (Map.Entry<String, Integer> e : calls.entrySet()) {
+                assertThat("evaluations of [" + e.getKey() + "]", e.getValue(), lessThanOrEqualTo(1));
+            }
+        }
+    }
+
+    /**
      * Maps each {@link FieldAttribute} child of a {@code CASE} by name to a channel of the page and wraps
      * the evaluator so the test can see which rows each child was asked to evaluate. Rows are identified
      * by the value in {@code idChannel} so recording works on filtered pages too. Only the names in
      * {@code eagerSafe} report {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy()}; every other
      * child forces {@code CASE} to filter the page down before evaluating it.
      */
-    private record RecordingToEvaluator(Map<String, Integer> channels, int idChannel, Set<String> eagerSafe, Map<String, Set<Integer>> seen)
+    private record RecordingToEvaluator(Map<String, Integer> channels, int idChannel, Set<String> eagerSafe, Recorder seen)
         implements
             EvaluatorMapper.ToEvaluator {
         @Override
@@ -888,24 +1063,16 @@ public class CaseExtraTests extends ESTestCase {
     /**
      * Wraps a factory so every page its evaluator sees is recorded, by row id, into {@code seen}.
      */
-    private record RecordingFactory(
-        String name,
-        ExpressionEvaluator.Factory delegate,
-        boolean eagerSafe,
-        int idChannel,
-        Map<String, Set<Integer>> seen
-    ) implements ExpressionEvaluator.Factory {
+    private record RecordingFactory(String name, ExpressionEvaluator.Factory delegate, boolean eagerSafe, int idChannel, Recorder seen)
+        implements
+            ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
             ExpressionEvaluator delegateEvaluator = delegate.get(context);
             return new ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
-                    IntBlock ids = page.getBlock(idChannel);
-                    Set<Integer> rows = seen.computeIfAbsent(name, k -> new TreeSet<>());
-                    for (int p = 0; p < page.getPositionCount(); p++) {
-                        rows.add(ids.getInt(ids.getFirstValueIndex(p)));
-                    }
+                    seen.record(name, page.getBlock(idChannel));
                     return delegateEvaluator.eval(page);
                 }
 
@@ -1029,6 +1196,15 @@ public class CaseExtraTests extends ESTestCase {
                 builder.appendLong(base + p);
             }
             return builder.build().asBlock();
+        }
+    }
+
+    private static BytesRefBlock bytesRefs(BlockFactory blockFactory, String... values) {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String v : values) {
+                builder.appendBytesRef(new BytesRef(v));
+            }
+            return builder.build();
         }
     }
 

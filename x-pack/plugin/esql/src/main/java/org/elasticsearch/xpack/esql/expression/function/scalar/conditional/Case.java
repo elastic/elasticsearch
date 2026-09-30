@@ -454,7 +454,7 @@ public final class Case extends EsqlScalarFunction {
         boolean valueEagerEvalSafe
     ) implements Releasable {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConditionEvaluator.class);
 
         @Override
         public void close() {
@@ -579,6 +579,7 @@ public final class Case extends EsqlScalarFunction {
                 for (int arm = 0; arm < conditions.size() && remainingCount > 0; arm++) {
                     ConditionEvaluator condition = conditions.get(arm);
                     boolean fullPage = remainingCount == positionCount || condition.conditionEagerEvalSafe();
+                    // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
                     Page conditionPage = fullPage ? page : page.filter(false, remaining, 0, remainingCount);
                     int matchedCount = 0;
                     int nextRemainingCount = 0;
@@ -614,8 +615,9 @@ public final class Case extends EsqlScalarFunction {
                         condition.registerMultivalue();
                     }
                     if (matchedCount > 0) {
-                        arms[arm] = evalArm(page, condition.value, condition.valueEagerEvalSafe(), matched, matchedCount);
-                        armEvaluatedOnFullPage[arm] = arms[arm].getPositionCount() == positionCount;
+                        boolean valueFullPage = matchedCount == positionCount || condition.valueEagerEvalSafe();
+                        arms[arm] = evalArm(page, condition.value, valueFullPage, matched, matchedCount);
+                        armEvaluatedOnFullPage[arm] = valueFullPage;
                         for (int j = 0; j < matchedCount; j++) {
                             armOf[matched[j]] = arm;
                         }
@@ -627,8 +629,9 @@ public final class Case extends EsqlScalarFunction {
                 }
                 if (remainingCount > 0) {
                     int arm = armCount - 1;
-                    arms[arm] = evalArm(page, elseVal, elseEagerEvalSafe, remaining, remainingCount);
-                    armEvaluatedOnFullPage[arm] = arms[arm].getPositionCount() == positionCount;
+                    boolean elseFullPage = remainingCount == positionCount || elseEagerEvalSafe;
+                    arms[arm] = evalArm(page, elseVal, elseFullPage, remaining, remainingCount);
+                    armEvaluatedOnFullPage[arm] = elseFullPage;
                     for (int j = 0; j < remainingCount; j++) {
                         armOf[remaining[j]] = arm;
                     }
@@ -653,12 +656,28 @@ public final class Case extends EsqlScalarFunction {
                     return result;
                 }
 
+                /*
+                 * Scatter the arm blocks back into page order, copying each run of consecutive
+                 * positions that picked the same arm with a single copyFrom. cursor[arm] tracks how
+                 * far we've read into an arm block that was evaluated on a filtered page.
+                 */
                 int[] cursor = new int[armCount];
                 try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
-                    for (int p = 0; p < positionCount; p++) {
+                    int p = 0;
+                    while (p < positionCount) {
                         int arm = armOf[p];
-                        int idx = armEvaluatedOnFullPage[arm] ? p : cursor[arm]++;
-                        result.copyFrom(arms[arm], idx, idx + 1);
+                        int end = p + 1;
+                        while (end < positionCount && armOf[end] == arm) {
+                            end++;
+                        }
+                        int length = end - p;
+                        if (armEvaluatedOnFullPage[arm]) {
+                            result.copyFrom(arms[arm], p, end);
+                        } else {
+                            result.copyFrom(arms[arm], cursor[arm], cursor[arm] + length);
+                            cursor[arm] += length;
+                        }
+                        p = end;
                     }
                     return result.build();
                 }
@@ -668,21 +687,32 @@ public final class Case extends EsqlScalarFunction {
         }
 
         /**
-         * Evaluate an arm’s value for the {@code selectedCount} positions in {@code selected}. Eager-safe
-         * values, and values that every position selected, are evaluated on the whole page. Everything
-         * else is evaluated on the page filtered down to just the selected positions so that the value
-         * never sees, and never warns about, positions that another arm resolved.
+         * Evaluate an arm’s value for the {@code selectedCount} positions in {@code selected}. When
+         * {@code fullPage} is set the value is evaluated on the whole page, which the caller does for
+         * eager-safe values and for values that every position selected. Otherwise it is evaluated on
+         * the page filtered down to just the selected positions so that the value never sees, and never
+         * warns about, positions that another arm resolved.
          */
-        private static Block evalArm(Page page, ExpressionEvaluator value, boolean eagerEvalSafe, int[] selected, int selectedCount) {
-            if (selectedCount == page.getPositionCount() || eagerEvalSafe) {
-                return value.eval(page);
+        private static Block evalArm(Page page, ExpressionEvaluator value, boolean fullPage, int[] selected, int selectedCount) {
+            Block result;
+            if (fullPage) {
+                result = value.eval(page);
+            } else {
+                // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
+                Page valuePage = page.filter(false, selected, 0, selectedCount);
+                try {
+                    result = value.eval(valuePage);
+                } finally {
+                    valuePage.releaseBlocks();
+                }
             }
-            Page valuePage = page.filter(false, selected, 0, selectedCount);
-            try {
-                return value.eval(valuePage);
-            } finally {
-                valuePage.releaseBlocks();
-            }
+            assert result.getPositionCount() == (fullPage ? page.getPositionCount() : selectedCount)
+                : "arm produced ["
+                    + result.getPositionCount()
+                    + "] positions, expected ["
+                    + (fullPage ? page.getPositionCount() : selectedCount)
+                    + "]";
+            return result;
         }
 
         @Override
@@ -739,7 +769,7 @@ public final class Case extends EsqlScalarFunction {
         ExpressionEvaluator elseVal
     ) implements ExpressionEvaluator {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseEagerEvaluator.class);
 
         @Override
         public Block eval(Page page) {

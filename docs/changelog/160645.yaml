@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 160645
+summary: "[DiskBBQ] Version DiskBBQ format to ES960"
+type: enhancement

@@ -647,12 +647,28 @@ public class FileSplitProvider implements SplitProvider {
      * asks the budget whether it was covered, and lists the whole dataset if it was not. That retry is what makes the
      * guess safe to make.
      * <p>
-     * The two guards are {@link RowBudget#of}'s own first two, checked here because both are known before any footer
-     * is read: no usable demand, or an error policy that may drop rows so a record count is not an emitted-row count.
-     * Where either holds the budget can never stop the scan, so a prefix could never cover it and the listing runs in
-     * full.
+     * It declines wherever the budget is known before any footer is read to be unable to stop the scan, because a
+     * prefix could then never cover the demand and a bounded attempt would only be a listing thrown away before the
+     * real one:
+     * <ul>
+     *   <li>no usable demand, or an error policy that may drop rows - {@link RowBudget#of}'s own first two guards;</li>
+     *   <li>a format that plans without record counts. Only a {@link RangeAwareFormatReader} plans from a footer that
+     *       says how many rows each unit holds; text formats plan whole files or probe record boundaries, and the
+     *       budget gives up on the first such unit. Declining on the reader's kind is conservative in one direction
+     *       only - a range-aware reader whose units turn out uncountable still gets the retry, which keeps it correct;
+     *       it just costs a listing;</li>
+     *   <li>a list with no file to learn the format from.</li>
+     * </ul>
      */
-    private ListingExtents listingExtentsForTheDemand(SplitDiscoveryContext context, @Nullable FormatReader reader) {
+    private ListingExtents listingExtentsForTheDemand(SplitDiscoveryContext context) {
+        FileList handed = context.fileList();
+        if (handed.fileCount() == 0) {
+            return ListingExtents.UNBOUNDED;
+        }
+        FormatReader reader = resolveConfiguredReader(handed.path(0), context.config());
+        if (reader instanceof RangeAwareFormatReader == false) {
+            return ListingExtents.UNBOUNDED;
+        }
         if (RowBudget.of(context, reader).usableForABoundedListing() == false) {
             return ListingExtents.UNBOUNDED;
         }
@@ -720,10 +736,7 @@ public class FileSplitProvider implements SplitProvider {
         if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
         }
-        ListingExtents extents = listingExtentsForTheDemand(
-            handedContext,
-            resolveConfiguredReader(handedContext.fileList().path(0), handedContext.config())
-        );
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
         Attempt attempt = discoverSplitsOver(handedContext, extents);
         // Only a listing that actually stopped short can have missed rows. Asking for a bound and getting the whole
         // dataset back - a dataset smaller than the bound - leaves nothing to list again, and retrying there would
@@ -894,10 +907,7 @@ public class FileSplitProvider implements SplitProvider {
         // Otherwise the file set is a walk of the object store, and this method's contract is that the calling thread
         // waits for no such thing. The same bounded first attempt and the same retry as discoverSplits: this is the
         // path production takes, so a rule that only the sync path applied would be a rule production never runs.
-        ListingExtents extents = listingExtentsForTheDemand(
-            handedContext,
-            resolveConfiguredReader(handedContext.fileList().path(0), handedContext.config())
-        );
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
         attemptAsync(handedContext, extents, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
             if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
                 l.onResponse(attempt.result());

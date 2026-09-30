@@ -6091,6 +6091,57 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A format whose reader is not range-aware plans whole files or probes record boundaries, and neither says how many
+     * rows a unit holds, so the budget can never be satisfied: a bounded first attempt could only be a listing thrown
+     * away before the real one. The reader's kind is known before anything is listed, so the bound is declined up front.
+     * <p>
+     * The reader stands in for any text format. It is registered under the fixture's own name and extension only so
+     * the fixture's paths route to it; what the provider consults is that it is not range-aware.
+     */
+    public void testAFormatThatCannotCountRowsListsOnce() throws Exception {
+        for (boolean async : new boolean[] { false, true }) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = twoParquetFiles(payloads);
+            AtomicInteger listings = new AtomicInteger();
+            FormatReader uncounted = mock(FormatReader.class);
+            when(uncounted.formatName()).thenReturn("parquet");
+            when(uncounted.fileExtensions()).thenReturn(List.of(".parquet"));
+            // The interface's own default, which a mock would otherwise replace with null.
+            when(uncounted.defaultErrorPolicy()).thenCallRealMethod();
+            FormatReaderRegistry formats = new FormatReaderRegistry(new DecompressionCodecRegistry());
+            formats.registerLazy("parquet", (st, bf) -> uncounted, Settings.EMPTY, null);
+            formats.byName("parquet");
+            try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                FileSplitProvider provider = new FileSplitProvider(
+                    FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+                    new DecompressionCodecRegistry(),
+                    createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                    formats,
+                    ONE_FILE_FIRST,
+                    null,
+                    new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null),
+                    null
+                );
+
+                SplitDiscoveryResult result = discoverOn(async, provider, overAPrefixOfDemanding(everyFile, 1));
+
+                String path = async ? "async: " : "sync: ";
+                assertEquals(path + "one listing - a bounded attempt could never have been kept", 1, listings.get());
+                assertFalse(path + "and it was the whole dataset", result.fileSet().isTruncated());
+            }
+        }
+    }
+
+    /** A resolved list with no files carries no format to decide from, so deciding must not read a path it lacks. */
+    public void testAnEmptyListingWithADemandReadsNoPath() {
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(new AtomicInteger(), 10), null);
+
+        SplitDiscoveryResult result = provider.discoverSplits(contextWithRowLimit(0, 5));
+
+        assertTrue("nothing to read, and no path read to find that out", result.splits().isEmpty());
+    }
+
     private static final Settings ONE_FILE_FIRST = Settings.builder()
         .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1)
         .build();

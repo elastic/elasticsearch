@@ -221,6 +221,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
                 throw new IndexSearcher.TooManyNestedClauses();
             }
             chargeBytesFor(parent);
+            // ignore the subqueries inside IndexOrDocValuesQuery
             return QueryVisitor.EMPTY_VISITOR;
         }
         // Return this instance even for MUST_NOT and not an empty QueryVisitor

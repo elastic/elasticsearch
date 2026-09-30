@@ -1864,6 +1864,30 @@ Infinity      | 2024-05-10T01:00:00.000Z | qa
 Infinity      | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Prometheus stddev over a set containing non-finite values is NaN.
+nonfinite_stddev_is_nan
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus stdvar over a set containing non-finite values is NaN.
+nonfinite_stdvar_is_nan
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
 // Prometheus max treats -Inf as an ordinary (smallest) value, so max over an all-(-Inf) set is -Inf.
 nonfinite_max_all_negative_infinity
 required_capability: promql_command_v0

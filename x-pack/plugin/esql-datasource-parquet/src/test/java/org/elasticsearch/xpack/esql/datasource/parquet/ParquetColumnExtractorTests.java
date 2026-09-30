@@ -39,10 +39,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -293,7 +295,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         assertFalse("deferred inferred incompatibility must emit a response Warning", warnings.isEmpty());
         assertTrue(
             "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("incompatible with planner type")
+            warnings.toString().contains("column [v]: [long] in the file, [integer] in the query")
         );
     }
 
@@ -350,12 +352,12 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
         assertTrue(
             "per-value coercion warnings must reach the supplied sink, got: " + sink,
-            sink.stream().anyMatch(w -> w.contains("cannot coerce value"))
+            sink.stream().anyMatch(w -> w.contains("cannot read ["))
         );
         List<String> leaked = drainWarnings();
         assertTrue(
             "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
-            leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+            leaked.stream().noneMatch(w -> w.contains("cannot read ["))
         );
     }
 
@@ -579,7 +581,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             assertEquals(1, ints.getValueCount(1));
             assertEquals(9, ints.getInt(ints.getFirstValueIndex(1)));
         }
-        assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
+        assertThat(warnings, hasItem(containsString("[1] list values dropped")));
     }
 
     public void testExtractMalformedListDoesNotRechargeRecoveryAcrossCalls() throws IOException {
@@ -1362,6 +1364,11 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     private static StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -1402,7 +1409,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * position. The {@code newStream()} (no-arg, full-file) call is also recorded so the test
      * can detect a "scan the whole file" regression even if it sneaks in via that path.
      */
-    private static final class TrackingStorageObject implements StorageObject {
+    private static final class TrackingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         final List<long[]> reads = new ArrayList<>();
 
@@ -1454,7 +1461,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * {@link #testExtractDispatchesPrefetchesInParallel} to assert per-row-group prefetches
      * are dispatched concurrently.
      */
-    private static final class BlockingChunkStorageObject implements StorageObject {
+    private static final class BlockingChunkStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final Executor executor;
         private final long[][] chunkWindows;

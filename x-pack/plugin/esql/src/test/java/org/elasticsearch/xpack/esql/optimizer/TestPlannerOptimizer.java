@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 
 public class TestPlannerOptimizer {
     private final Analyzer analyzer;
@@ -40,7 +42,7 @@ public class TestPlannerOptimizer {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
             flags
         );
     }
@@ -72,7 +74,7 @@ public class TestPlannerOptimizer {
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer, @Nullable QueryBuilder esFilter) {
-        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter);
+        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter, TransportVersion.current());
         return optimizedPlan(plan, stats);
     }
 

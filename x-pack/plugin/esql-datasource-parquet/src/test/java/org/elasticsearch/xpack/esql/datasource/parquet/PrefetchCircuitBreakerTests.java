@@ -41,10 +41,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -572,6 +574,11 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     private StorageObject createAsyncStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -632,6 +639,11 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     private StorageObject createFailingAsyncStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -679,7 +691,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      * fails row group 0's large Phase-2 request. The synchronous retry records whether the held
      * Phase-1 result was released first.
      */
-    private static final class PhaseTwoBarrierStorageObject implements StorageObject {
+    private static final class PhaseTwoBarrierStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final ExecutorService executor;
         private final long[] pendingPhaseOneRange;
@@ -837,7 +849,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      * second, and ignores cancellation by letting the first backend operation finish only when
      * the test releases its latch.
      */
-    private static final class BarrierStorageObject implements StorageObject {
+    private static final class BarrierStorageObject extends AbstractTestStorageObject {
         private static final long LARGE_PREFETCH_BYTES = 8_000_000L;
 
         private final byte[] data;
@@ -1011,7 +1023,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      * heap {@code ByteBuffer} and a no-op closer so older breaker tests do not charge the breaker for
      * prefetch bytes. Do not merge the two stubs.
      */
-    private static final class InMemoryStorageObject implements StorageObject {
+    private static final class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {

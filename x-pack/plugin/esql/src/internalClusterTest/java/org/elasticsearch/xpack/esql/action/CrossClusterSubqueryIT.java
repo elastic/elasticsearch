@@ -806,24 +806,16 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueries() {
-        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-                | STATS c = count(*), s = sum(v) BY tag
-                | SORT tag
-                """, randomBoolean())) {
-                List<List<Object>> values = getValuesList(resp);
-                // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
-                assertThat(values, hasSize(2));
-                assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
-                assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
-            }
-        } else {
-            // nested subqueries are not supported yet
-            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
-                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-                """, randomBoolean()));
-            assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
+            | STATS c = count(*), s = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
+            assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
         }
     }
 
@@ -1672,7 +1664,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     // -- nested UnionAll with different source command combinations --
 
     public void testNestedSubqueriesWithTsAndRow() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,
@@ -1700,7 +1691,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueriesWithAllSourceTypes() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
@@ -1738,12 +1728,36 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         }
     }
 
-    /**
-     * A CPS view union whose strict branches all resolve to empty remote subqueries must collapse to an empty relation rather than leave a
-     * branchless {@code ViewUnionAll} that throws from {@code Fork.expressionsResolved()} during analysis.
-     */
+    public void testNestedSubqueryAllInnerBranchesMissingExactIndices() {
+        String query = """
+            FROM logs-*,
+                 (FROM
+                    (FROM cluster-a:does-not-exist),
+                    (FROM remote-b:does-not-exist)
+                 )
+                 metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """;
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":does-not-exist]"));
+
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            setSkipUnavailable(REMOTE_CLUSTER_2, true);
+            try (EsqlQueryResponse resp = runQuery(query, randomBoolean())) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(10L, LOCAL_INDEX))));
+            }
+        } finally {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
     public void testViewUnionAllWithAllEmptyRemoteBranches() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         try {

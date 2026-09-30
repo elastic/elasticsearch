@@ -180,7 +180,15 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", description, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
-        assertThat(v.validationErrors(), contains("dataset description is too large: 1001 characters, the maximum allowed is 1000"));
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "dataset description is too large: "
+                    + (MAX_DESCRIPTION_LENGTH + 1)
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
     }
 
     public void testValidateAcceptsDescriptionAtLimit() {

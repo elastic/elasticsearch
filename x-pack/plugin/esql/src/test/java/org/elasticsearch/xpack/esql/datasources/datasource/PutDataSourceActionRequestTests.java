@@ -146,7 +146,15 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
         Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
-        assertThat(v.validationErrors(), contains("data source description is too large: 1001 characters, the maximum allowed is 1000"));
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "data source description is too large: "
+                    + (MAX_DESCRIPTION_LENGTH + 1)
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
     }
 
     public void testValidateAcceptsDescriptionAtLimit() {

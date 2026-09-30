@@ -9,9 +9,13 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -126,6 +130,8 @@ public class SimdJsonParserBenchmark {
     @Param({ "clickbench_flat", "small_sparse" })
     private String shape;
 
+    private static final Recycler<BytesRef> RECYCLER = new BytesRefRecycler(new PageCacheRecycler(Settings.EMPTY));
+
     private BytesReference[] docs;
 
     @Setup
@@ -168,14 +174,14 @@ public class SimdJsonParserBenchmark {
 
     @Benchmark
     public int jacksonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
+        try (EscfEncoder encoder = new EscfEncoder(RECYCLER, false)) {
             return encodeBulk(encoder);
         }
     }
 
     @Benchmark
     public int simdJsonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfEncoder encoder = new EscfEncoder(RECYCLER)) {
             return encodeBulk(encoder);
         }
     }

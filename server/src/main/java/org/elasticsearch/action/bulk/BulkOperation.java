@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -45,11 +46,13 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -127,7 +130,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler
     ) {
         this(
             task,
@@ -147,7 +151,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            recycler
         );
     }
 
@@ -169,7 +174,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler
     ) {
         super(listener);
         this.task = task;
@@ -191,7 +197,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
+        this.router = BatchModeRouter.create(
+            bulkRequest,
+            ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
+            recycler
+        );
     }
 
     @Override
@@ -202,7 +212,28 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+        Map<ShardId, SourceBatch> shardBatches = takeShardBatches();
+        executeBulkRequestsByShard(requestsByShard, shardBatches, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        try {
+            Releasables.close(router);
+        } finally {
+            super.onFailure(e);
+        }
+    }
+
+    private Map<ShardId, SourceBatch> takeShardBatches() {
+        if (router == null) {
+            return Map.of();
+        }
+        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
+        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
+        try (router) {
+            return router.shardBatches();
+        }
     }
 
     private void doRedirectFailures() {
@@ -220,7 +251,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
-            executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
+            executeBulkRequestsByShard(requestsByShard, Map.of(), rolledOverState, this::completeBulkOperation);
         };
         rollOverFailureStores(executeRedirectRequests);
     }
@@ -408,63 +439,63 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        Map<ShardId, SourceBatch> shardBatches,
         ClusterState clusterState,
         Runnable onRequestsCompleted
     ) {
-        if (requestsByShard.isEmpty()) {
-            closeBatchEncoders();
-            onRequestsCompleted.run();
-            return;
-        }
-
-        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
-        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
-        BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
-
-        String nodeId = clusterService.localNode().getId();
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
-            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                final List<BulkItemRequest> requests = entry.getValue();
-
-                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
-                var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    splitShardCountSummary,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0]),
-                    bulkRequest.isSimulated()
-                );
-
-                SourceBatch shardBatch = shardBatches.get(shardId);
-                if (shardBatch != null) {
-                    bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
-                }
-
-                if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                }
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
-                }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
+        Map<ShardId, SourceBatch> undispatchedBatches = new HashMap<>(shardBatches);
+        try {
+            if (requestsByShard.isEmpty()) {
+                onRequestsCompleted.run();
+                return;
             }
-        }
-        closeBatchEncoders();
-    }
 
-    private void closeBatchEncoders() {
-        if (router != null) {
-            router.close();
+            BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
+
+            String nodeId = clusterService.localNode().getId();
+            ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+            try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
+                for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                    final ShardId shardId = entry.getKey();
+                    final List<BulkItemRequest> requests = entry.getValue();
+
+                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                    var indexMetadata = project.getIndexSafe(shardId.getIndex());
+                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+
+                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                        shardId,
+                        splitShardCountSummary,
+                        bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[0]),
+                        bulkRequest.isSimulated()
+                    );
+
+                    SourceBatch shardBatch = shardBatches.get(shardId);
+                    if (shardBatch != null) {
+                        bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    }
+
+                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
+                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                    }
+                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                    bulkShardRequest.timeout(bulkRequest.timeout());
+                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                    if (task != null) {
+                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                    }
+                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
+                    Releasable releaseOnFinish = Releasables.wrap(
+                        undispatchedBatches.remove(shardId),
+                        bulkItemRequestCompleteRefCount.acquire()
+                    );
+                    executeBulkShardRequest(bulkShardRequest, project.id(), releaseOnFinish, redactSeqNo);
+                }
+            }
+        } finally {
+            Releasables.close(undispatchedBatches.values());
         }
     }
 

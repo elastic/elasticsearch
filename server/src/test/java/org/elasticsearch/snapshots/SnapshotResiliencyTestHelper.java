@@ -931,7 +931,8 @@ public class SnapshotResiliencyTestHelper {
                             }
                         },
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                        bigArrays
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

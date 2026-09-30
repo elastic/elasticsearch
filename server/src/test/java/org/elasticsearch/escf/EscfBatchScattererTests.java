@@ -417,7 +417,15 @@ public class EscfBatchScattererTests extends ESTestCase {
     public void testEmptySource() {
         // Build an empty batch directly: zero docs, empty schema, no columns.
         org.elasticsearch.sourcebatch.SourceSchema schema = new org.elasticsearch.sourcebatch.SourceSchema();
-        try (EscfBatch source = new EscfBatch(schema, 0, new EscfColumnData[0], org.elasticsearch.core.Releasables.wrap())) {
+        try (
+            EscfBatch source = new EscfBatch(
+                schema,
+                0,
+                new EscfColumnData[0],
+                org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                org.elasticsearch.core.Releasables.wrap()
+            )
+        ) {
             EscfBatch[] parts = scatter(source, new int[0], 3);
             try {
                 assertEquals(3, parts.length);

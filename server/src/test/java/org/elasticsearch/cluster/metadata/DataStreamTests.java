@@ -1754,7 +1754,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             metadata.getProject()::index,
             () -> now,
             timeValueSeconds(2500),
-            ALL
+            ALL,
+            randomBoolean()
         );
 
         // Expected: 2 old backing indices + 2 old failure indices (excluding write indices)
@@ -1919,7 +1920,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         metadata.getProject()::index,
                         () -> now,
                         TimeValue.ZERO,
-                        failureStore ? FAILURE_INDICES : BACKING_INDICES
+                        failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                        randomBoolean()
                     ).isEmpty(),
                     is(true)
                 );
@@ -1943,8 +1945,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(2500),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(2));
             assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(0), indicesSupplier.get().get(1))));
@@ -1956,8 +1958,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(4));
             assertThat(
@@ -1979,8 +1981,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(6000),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -2000,8 +2002,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 indexMetadataWithSomeLifecycleSupplier,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(1));
             assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(2))));
@@ -2046,7 +2048,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     metadata.getProject()::index,
                     () -> now,
                     null,
-                    failureStore ? FAILURE_INDICES : BACKING_INDICES
+                    failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                    randomBoolean()
                 ).isEmpty(),
                 is(true)
             );
@@ -2058,8 +2061,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(2500),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(3));
             assertThat(
@@ -2074,8 +2077,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(9000),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -2256,19 +2259,29 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // false for indices not part of the data stream
             assertThat(
-                dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
+                dataStream.isIndexManagedByDataStreamLifecycle(
+                    new Index("standalone_index", "uuid"),
+                    metadata.getProject()::index,
+                    randomBoolean()
+                ),
                 is(false)
             );
         }
 
         {
             // false for lookup indices even when part of the data stream
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index, randomBoolean()),
+                is(false)
+            );
         }
 
         {
             // false for indices that were deleted
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null, randomBoolean()),
+                is(false)
+            );
         }
 
         {
@@ -2285,7 +2298,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             assertThat(
                 unmanagedDataStream.isIndexManagedByDataStreamLifecycle(
                     unmanagedDataStream.getIndices().get(1),
-                    newMetadata.getProject()::index
+                    newMetadata.getProject()::index,
+                    randomBoolean()
                 ),
                 is(false)
             );
@@ -2305,7 +2319,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(false));
+                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index, randomBoolean()), is(false));
             }
         }
 
@@ -2326,7 +2340,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(true));
+                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index, randomBoolean()), is(true));
                 }
             }
         }
@@ -2334,7 +2348,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index), is(true));
+                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index, randomBoolean()), is(true));
             }
         }
     }
@@ -3280,7 +3294,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream dataStream = createDataStream(Settings.EMPTY, dataStreamMappings);
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = new CompressedXContent(Map.of("_doc", Map.of()));
-        ;
+
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))

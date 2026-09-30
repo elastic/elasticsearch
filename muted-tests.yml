@@ -203,6 +203,15 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceTrue
   issue: https://github.com/elastic/elasticsearch/issues/160597
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testHandlerIsInvokedOnConnectionClose
+  issue: https://github.com/elastic/elasticsearch/issues/160606
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
+  method: testShardSnapshotsStatus
+  issue: https://github.com/elastic/elasticsearch/issues/160607
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/160608
 
 # Examples:
 #

@@ -3772,10 +3772,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * instead - the path the quoted payload above barely touches.
      *
      * <p>It also reads the record starts back out of each span and requires their union to be exactly the
-     * whole-file set. Because the spans are contiguous that cannot catch a boundary landing on a later record
-     * start than it should - the following span simply begins earlier and the union is still complete - so what
-     * it does catch is a boundary that is not a record start at all, from the other direction than the
-     * true-start assertion above, plus any span the walk fails to emit.
+     * whole-file set, which is the property a query over a macro-split file depends on.
      */
     public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
@@ -3799,7 +3796,7 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://quote-free.csv"));
         Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(maxRecordBytes), payload);
 
-        // Every probe must fail to converge, or this exercises the strided path instead of the walk.
+        // Every probe must fail to converge, or the boundaries come from the probe instead of the walk.
         long stride = fileLength / 4;
         for (long pos = stride; pos < fileLength; pos += stride) {
             try (InputStream probe = obj.newStream(pos, fileLength - pos)) {

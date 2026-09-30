@@ -114,9 +114,6 @@ public class CsvProvenProbeTests extends ESTestCase {
         assertProbeInvariants(quoted(), bytes(sb.toString()));
     }
 
-    /** The block the scanners pull their bytes in, taken from the splitter so the sweep cannot drift off it. */
-    private static final int SCANNER_BLOCK_BYTES = CsvRecordSplitter.BLOCK_BYTES;
-
     public void testExactWalkLookaheadStraddlesBlockBoundary() throws IOException {
         // The walk takes its bytes a block at a time, so a two-byte construct has a placement where the first byte is
         // a block's last and the second is only reachable after a refill. Sliding each one through the offsets around
@@ -130,7 +127,7 @@ public class CsvProvenProbeTests extends ESTestCase {
         // The escaped byte is fetched with a read rather than a peek, which every fixture longer than a block
         // already exercises. They stay because they are the same construct at the same offsets for a scanner that
         // may not always treat them this way, not because they guard the peek.
-        for (int pad = SCANNER_BLOCK_BYTES - 8; pad <= SCANNER_BLOCK_BYTES + 8; pad++) {
+        for (int pad = CsvRecordSplitter.BLOCK_BYTES - 8; pad <= CsvRecordSplitter.BLOCK_BYTES + 8; pad++) {
             String filler = "x".repeat(pad);
             // A CRLF terminator, its \r at offset 2 + pad.
             assertExactWalkMatchesOracle(quoted(), bytes("h\n" + filler + "\r\nsecond\nthird\n"));
@@ -150,10 +147,9 @@ public class CsvProvenProbeTests extends ESTestCase {
     }
 
     public void testExactWalkEndsOnAZeroLengthRead() throws IOException {
-        // A stream is not allowed to answer a non-empty read with zero bytes, and BufferedInputStream treats one as
-        // end of stream rather than asking again. The walk reads through its own block now, and keeps that reading:
-        // a stream that breaks the contract ends the scan where it broke it, instead of spinning on a refill that
-        // never advances. The bytes after the zero-length read are never seen, so no record start is found in them.
+        // A stream is not allowed to answer a non-empty read with zero bytes. The walk reports one as end of
+        // stream rather than retrying, so a stream that breaks the contract ends the scan where it broke it
+        // instead of spinning on a refill that never advances, and no record start is found past that point.
         byte[] buf = bytes("h\nfirst\nsecond\nthird\n");
         InputStream stalling = new InputStream() {
             private int pos;

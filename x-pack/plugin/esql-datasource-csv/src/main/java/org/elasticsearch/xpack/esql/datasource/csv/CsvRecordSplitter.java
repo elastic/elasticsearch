@@ -822,7 +822,11 @@ final class CsvRecordSplitter implements RecordSplitter {
             return block[pos++] & 0xff;
         }
 
-        /** A zero-length read ends the scan, which is what {@link BufferedInputStream} does with one. */
+        /**
+         * A zero-length read is reported as end of stream, which is what {@link BufferedInputStream} does with
+         * one. Nothing is latched, so a stream that answers zero and then yields bytes can still be read from
+         * by a later call - the same as before this cursor existed.
+         */
         private boolean fill() throws IOException {
             pos = 0;
             limit = 0;

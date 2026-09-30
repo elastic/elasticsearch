@@ -81,14 +81,14 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
      * The exact walk reads a whole span rather than one record, so what it charges per byte sets the cost of
      * planning a query over quote-free CSV. It must take that span a block at a time.
      *
-     * <p>The stream handed in here is a {@link BufferedInputStream} because that is the only way to see anything
-     * from outside: reusing one the caller supplied is what the walk used to do, and each of those single-byte reads
-     * was a {@code synchronized} call on a stream nothing else can reach.
+     * <p>Two things are asserted, because a single-byte counter alone is not enough. The counter catches a scanner
+     * that asks a caller-supplied {@link BufferedInputStream} for one byte at a time. It does not catch one that
+     * wraps a {@link BufferedInputStream} of its own and reads per byte from that, because the delegate then sees
+     * the same block-sized calls in the same number - so the call stack is checked as well, and a
+     * {@link BufferedInputStream} anywhere beneath the read is a failure.
      *
-     * <p>What this cannot see is a scanner that wraps a {@link BufferedInputStream} of its own and reads one byte at
-     * a time from that - the counter below would stay at zero while every byte still paid for a lock. Nothing
-     * outside the class can distinguish that from a block read, so this asserts the reachable half and the
-     * mechanism is the reader's to check.
+     * <p>What remains uncovered is a locking wrapper that is not a {@link BufferedInputStream} - a hand-rolled
+     * {@code synchronized} stream would pass both assertions. Only a benchmark covers that.
      */
     public void testExactWalkTakesItsSpanBlockAtATime() throws IOException {
         byte[] buf = QUOTE_FREE;
@@ -97,6 +97,9 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
         long start = splitter().findRecordStartAtOrAfter(in, buf.length - 64L, () -> false);
         assertThat("the walk should reach a record start near the end of the file", start, greaterThan(0L));
         assertEquals("the exact walk must not pull its span one read() at a time", 0, singleByteReads[0]);
+
+        long viaStack = splitter().findRecordStartAtOrAfter(refusingBufferedInputStream(buf), buf.length - 64L, () -> false);
+        assertEquals("the same boundary, read without a BufferedInputStream in the stack", start, viaStack);
     }
 
     /** The same for the probe, which reads up to its convergence window at every offset of a file. */
@@ -106,9 +109,10 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
         InputStream in = countingSingleByteReads(new ByteArrayInputStream(buf), singleByteReads);
         assertEquals(RecordSplitter.AMBIGUOUS, splitter().findProvenRecordBoundary(in));
         assertEquals("the probe must not pull its window one read() at a time", 0, singleByteReads[0]);
+        assertEquals(RecordSplitter.AMBIGUOUS, splitter().findProvenRecordBoundary(refusingBufferedInputStream(buf)));
     }
 
-    /** The provenBoundaries loop, byte-counted. Mirrors RecordBoundaryProbe.provenBoundaries. */
+    /** The provenBoundaries loop, byte-counted. Approximates it: neither minSegment break is reproduced. */
     private long bytesReadDuringSplitDiscovery(byte[] buf) throws IOException {
         RecordSplitter splitter = splitter();
         long[] readCounter = new long[1];
@@ -183,6 +187,23 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
                     counter[0] += n;
                 }
                 return n;
+            }
+        };
+    }
+
+    /**
+     * A stream that refuses to be read through a {@link BufferedInputStream}. A scanner that wraps one privately
+     * and reads per byte from it sends this delegate the same block-sized calls a block cursor does, so the count
+     * cannot tell them apart - but the wrapper is on the stack when the call arrives, and that can.
+     */
+    private static InputStream refusingBufferedInputStream(byte[] buf) {
+        return new FilterInputStream(new ByteArrayInputStream(buf)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                boolean buffered = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+                    .walk(frames -> frames.anyMatch(f -> f.getDeclaringClass() == BufferedInputStream.class));
+                assertFalse("the read reached this stream through a BufferedInputStream", buffered);
+                return super.read(b, off, len);
             }
         };
     }

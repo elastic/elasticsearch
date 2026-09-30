@@ -780,6 +780,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
 
         @Override
+        public boolean listsInKeyOrder() {
+            return inner().listsInKeyOrder();
+        }
+
+        @Override
         public void close() {
             StorageProvider current;
             synchronized (this) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -1515,7 +1516,11 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         int listingBound
     ) throws Exception {
-        return GlobExpander.expandAndCompact(
+        // Fan-out drains run on metadataReadExecutor (esql_external_io with cancellation scope) up to
+        // listingConcurrency() in parallel. The calling thread blocks on the future until all drains complete;
+        // this is safe because metadataReadExecutor has enough threads to service the drains concurrently.
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        GlobExpander.expandAndCompactAsync(
             path,
             provider,
             hints,
@@ -1526,8 +1531,11 @@ public class ExternalSourceResolver {
             maxListedObjects.getAsInt(),
             listingBound,
             listingConcurrency(),
-            this::isCancelled
+            this::isCancelled,
+            metadataReadExecutor,
+            future
         );
+        return future.actionGet();
     }
 
     private int listingConcurrency() {
@@ -3718,9 +3726,7 @@ public class ExternalSourceResolver {
                 maxDiscoveredFiles.getAsInt(),
                 maxGlobExpansion.getAsInt(),
                 maxListedObjects.getAsInt(),
-                listingBound,
-                listingConcurrency(),
-                this::isCancelled
+                listingBound
             );
         } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
             listing = cachedListing(path, storagePath, provider, hints, config);

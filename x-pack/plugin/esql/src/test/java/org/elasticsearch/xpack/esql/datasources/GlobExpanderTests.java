@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
@@ -23,6 +26,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -32,7 +36,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -3181,8 +3187,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
-        // Flat listing (insertion order): flag=True first since it appears first in the test data.
-        assertEquals(List.of("s3://bucket/data/flag=True/a.parquet", "s3://bucket/data/flag=False/b.parquet"), paths(result));
+        // Flat listing (key order): flag=False comes before flag=True alphabetically.
+        assertEquals(List.of("s3://bucket/data/flag=False/b.parquet", "s3://bucket/data/flag=True/a.parquet"), paths(result));
     }
 
     /**
@@ -3329,7 +3335,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @SuppressWarnings("RegexpMultiline")
         String pattern = "s3://bucket/data/**/*.parquet";
-        FileList serialResult = GlobExpander.expand(
+        FileList serialResult = expandSync(
             pattern,
             serial,
             null,
@@ -3341,7 +3347,7 @@ public class GlobExpanderTests extends ESTestCase {
             4,
             () -> false
         );
-        FileList fanOutResult = GlobExpander.expand(
+        FileList fanOutResult = expandSync(
             pattern,
             fanOut,
             null,
@@ -3379,7 +3385,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @SuppressWarnings("RegexpMultiline")
         String pattern = "s3://bucket/data/**/*.parquet";
-        GlobExpander.expand(
+        expandSync(
             pattern,
             counting,
             null,
@@ -3428,18 +3434,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expand(
-                pattern,
-                counting,
-                null,
-                HIVE_ON,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                100,
-                Integer.MAX_VALUE,
-                4,
-                () -> false
-            )
+            () -> expandSync(pattern, counting, null, HIVE_ON, Integer.MAX_VALUE, Integer.MAX_VALUE, 100, Integer.MAX_VALUE, 4, () -> false)
         );
         assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
         assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(300));
@@ -3479,21 +3474,53 @@ public class GlobExpanderTests extends ESTestCase {
 
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expand(
-                pattern,
-                counting,
-                null,
-                HIVE_ON,
-                10,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                4,
-                () -> false
-            )
+            () -> expandSync(pattern, counting, null, HIVE_ON, 10, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, 4, () -> false)
         );
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
         assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
+    }
+
+    /**
+     * Calls {@link GlobExpander#expandAsync} synchronously by providing a {@link PlainActionFuture} and a direct
+     * executor. Exceptions from the expansion are re-thrown with their original type (RuntimeException direct,
+     * checked exceptions wrapped in RuntimeException). Use this in tests that verify fan-out behavior but do not
+     * need real parallelism.
+     */
+    private static FileList expandSync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        BooleanSupplier isCancelled
+    ) throws Exception {
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            listingBound,
+            concurrency,
+            isCancelled,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        try {
+            return future.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re) throw re;
+            if (cause instanceof IOException ioe) throw ioe;
+            throw new RuntimeException(cause);
+        }
     }
 
     /**
@@ -3509,7 +3536,16 @@ public class GlobExpanderTests extends ESTestCase {
         boolean childrenUnsupported = false;
 
         TreeStubProvider(List<StorageEntry> allEntries) {
-            this.allEntries = allEntries;
+            // Sort entries by path so listChildren and listObjects return results in key order,
+            // satisfying the contract required by listsInKeyOrder().
+            List<StorageEntry> sorted = new ArrayList<>(allEntries);
+            sorted.sort(Comparator.comparing(e -> e.path().toString()));
+            this.allEntries = sorted;
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            return true;
         }
 
         private static String withTrailingSlash(String prefix) {

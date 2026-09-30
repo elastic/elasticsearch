@@ -572,6 +572,11 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     @Override
+    public boolean listsInKeyOrder() {
+        return true;
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);

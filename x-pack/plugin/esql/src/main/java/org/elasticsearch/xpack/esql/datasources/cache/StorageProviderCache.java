@@ -389,6 +389,11 @@ public class StorageProviderCache implements Closeable {
         }
 
         @Override
+        public boolean listsInKeyOrder() {
+            return delegate.listsInKeyOrder();
+        }
+
+        @Override
         public void close() {
             lease.close();
         }

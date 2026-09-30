@@ -300,6 +300,11 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     @Override
+    public boolean listsInKeyOrder() {
+        return true;
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateGcsScheme(path);
         String bucket = path.host();

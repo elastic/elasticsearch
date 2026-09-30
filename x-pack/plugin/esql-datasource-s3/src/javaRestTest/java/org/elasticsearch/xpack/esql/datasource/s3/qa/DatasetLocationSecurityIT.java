@@ -70,9 +70,9 @@ import static org.hamcrest.Matchers.not;
  * the bucket name anywhere in the response (plans, drivers, warnings) for any user, while still
  * preserving the plan shape (e.g. {@code ExternalSourceExec} node type) and the object name.
  *
- * <p>The cluster uses two nodes. All four failing shapes currently fail at resolution time on the
- * coordinator, so cross-node serialization of the exception is not exercised here; a scan-time
- * failure shape that exercises the data-node → coordinator hop is a follow-up.
+ * <p>The cluster uses two nodes. The four failing shapes above fail at resolution time on the coordinator;
+ * {@link #testScanTimeFailureDoesNotExposeLocation} covers a failure raised while data nodes read, which
+ * crosses the data-node → coordinator hop.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DatasetLocationSecurityIT extends ESRestTestCase {
@@ -134,6 +134,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
     private static final String GARBAGE_ORC = LOC_PREFIX + "garbage.orc";
     private static final String GLOB_A = LOC_PREFIX + "glob/a.csv";
     private static final String GLOB_B = LOC_PREFIX + "glob/b.csv";
+    private static final int SCAN_FILES = 4;
 
     @BeforeClass
     public static void seedFixture() {
@@ -141,6 +142,11 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         s3HttpFixture.seedBlob(DENIED_CSV, "id,name\n1,alpha\n".getBytes(StandardCharsets.UTF_8));
         s3HttpFixture.seedBlob(GLOB_A, "id,name\n1,alpha\n".getBytes(StandardCharsets.UTF_8));
         s3HttpFixture.seedBlob(GLOB_B, "id,name\n2,beta\n".getBytes(StandardCharsets.UTF_8));
+        // Valid header and first rows, then a row with an extra column: planning samples only the first rows
+        // (schema_sample_size=2), so the malformed row fails the scan on whichever node reads the file.
+        for (int i = 0; i < SCAN_FILES; i++) {
+            s3HttpFixture.seedBlob(scanFile(i), "id,name\n1,alpha\n2,beta\n3,gamma,extra\n".getBytes(StandardCharsets.UTF_8));
+        }
         // Garbage bytes that will fail Parquet parsing (no valid magic bytes).
         s3HttpFixture.seedBlob(
             GARBAGE_PARQUET,
@@ -279,6 +285,59 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * A failure raised while reading rows, not while planning. {@code round_robin} over several files puts splits on
+     * both nodes, so at least one failure is raised on a data node other than the coordinator and serialized back.
+     */
+    public void testScanTimeFailureDoesNotExposeLocation() throws IOException {
+        putDataSource(
+            "ds_loc_scan_src",
+            Map.of(
+                "access_key",
+                ACCESS_KEY,
+                "secret_key",
+                SECRET_KEY,
+                "region",
+                regionSupplier.get(),
+                "endpoint",
+                s3HttpFixture.getAddress()
+            )
+        );
+        putDataset("ds_loc_scan_malformed", "ds_loc_scan_src", s3(LOC_PREFIX + "scan/*.csv"), Map.of("schema_sample_size", 2));
+
+        for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
+            String user = userAndPass[0];
+            String label = userAndPass[1];
+            ResponseException error = expectThrows(
+                ResponseException.class,
+                () -> runEsqlAs(
+                    user,
+                    "FROM ds_loc_scan_malformed | STATS c = COUNT(*)",
+                    ",\"pragma\":{\"external_distribution\":\"round_robin\"},\"accept_pragma_risks\":true"
+                )
+            );
+            Response errorResponse = error.getResponse();
+            String body = EntityUtils.toString(errorResponse.getEntity());
+            assertNoLocation(label + " scan-time error body", body);
+            assertNoLocation(label + " scan-time warnings", String.join("\n", errorResponse.getWarnings()));
+            List<String> texts = allErrorText(XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false));
+            assertThat(
+                label + " must see the failing object's name in " + texts,
+                texts.stream().anyMatch(t -> t.matches("(?s).*\\bbad-\\d\\.csv\\b.*")),
+                is(true)
+            );
+            assertThat(
+                label + " must see the dataset context in " + texts,
+                texts.stream().anyMatch(t -> t.contains("in dataset [ds_loc_scan_malformed] from data source [ds_loc_scan_src] (s3)")),
+                is(true)
+            );
+        }
+    }
+
+    private static String scanFile(int i) {
+        return LOC_PREFIX + "scan/bad-" + i + ".csv";
+    }
+
     private static void assertNoLocation(String what, String text) {
         assertThat(what + " must not contain the bucket name", text, not(containsString(BUCKET)));
         assertThat(what + " must not contain the key prefix", text, not(containsString(LOC_PREFIX)));
@@ -318,8 +377,12 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
     }
 
     private void runEsqlAs(String username, String query) throws IOException {
+        runEsqlAs(username, query, "");
+    }
+
+    private void runEsqlAs(String username, String query, String extraBody) throws IOException {
         Request req = new Request("POST", "/_query");
-        req.setJsonEntity("{\"query\":" + quote(query) + "}");
+        req.setJsonEntity("{\"query\":" + quote(query) + extraBody + "}");
         req.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", username).setWarningsHandler(WarningsHandler.PERMISSIVE)
         );

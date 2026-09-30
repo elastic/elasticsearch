@@ -209,6 +209,9 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
   method: testShardSnapshotsStatus
   issue: https://github.com/elastic/elasticsearch/issues/160607
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/160608
 
 # Examples:
 #

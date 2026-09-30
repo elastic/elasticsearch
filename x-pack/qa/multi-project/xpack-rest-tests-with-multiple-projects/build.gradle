@@ -51,6 +51,7 @@ tasks.named("yamlRestTest").configure {
     '^ml/datafeeds_crud/*',
     '^ml/delete_expired_data/*',
     '^ml/delete_job_force/*',
+    '^ml/esql_datafeed/*',
     '^ml/explain_data_frame_analytics/*',
     '^ml/filter_crud/*',
     '^ml/forecast/*',

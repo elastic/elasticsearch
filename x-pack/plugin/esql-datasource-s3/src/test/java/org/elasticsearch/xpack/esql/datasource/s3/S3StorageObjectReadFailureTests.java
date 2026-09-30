@@ -23,11 +23,14 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -219,8 +222,11 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         // The storage path is intentionally omitted from the exception message.
         assertThat(thrown.getMessage(), not(containsString(PATH.toString())));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
-        assertSame(thrown, ExternalFailures.classify(thrown));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+        RuntimeException classified = ExternalFailures.classify(thrown);
+        assertThat(classified, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(thrown.getMessage(), classified.getMessage());
+        assertNull("the SDK exception stays with the storage layer", classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
 
     public void testTokenRefreshRequiredOnGetObjectIsTyped400() {
@@ -289,7 +295,100 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
         assertThat(ex.getMessage(), containsString("not found"));
         assertThat(ex.getMessage(), containsString(PATH.objectName()));
-        assertSame(missing, ex.getCause());
+        assertNull(ex.getCause());
+    }
+
+    /**
+     * esql-planning#2119: S3 answers a read refused by an IAM policy with a sentence naming the principal and the KMS
+     * key ARNs Elasticsearch authenticated with. The 403 arm keeps the status, error code and remedy it composed and
+     * does not chain the SDK exception, so no level of what the read boundary surfaces carries that sentence.
+     */
+    public void testAccessDeniedDoesNotChainTheProviderMessage() throws Exception {
+        S3Exception denied = iamDenial();
+        S3Client mockS3 = mock(S3Client.class);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(denied);
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException sync;
+        S3StorageObject.ACCESS_DENIED_WARN.reset();
+        try (MockLog mockLog = MockLog.capture(S3StorageObject.class)) {
+            // The log is the only place the refusal's reason survives, so an operator must see it at default levels.
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                private boolean seen;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() == Level.WARN && event.getThrown() == denied) {
+                        seen = true;
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertTrue("the S3 denial, with its provider text, must be logged at WARN", seen);
+                }
+            });
+            sync = expectThrows(ExternalClientException.class, obj::newStream);
+            mockLog.assertAllExpectationsMatched();
+        }
+        try (MockLog mockLog = MockLog.capture(S3StorageObject.class)) {
+            // Later denials within the interval stay at DEBUG, on any object: providers create one per file and split.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no second warn", S3StorageObject.class.getCanonicalName(), Level.WARN, "*")
+            );
+            expectThrows(ExternalClientException.class, obj::newStream);
+            expectThrows(ExternalClientException.class, new S3StorageObject(mockS3, BUCKET, KEY, PATH)::newStream);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        Throwable async = readAsyncFailure(asyncClientFailingWith(denied), 10);
+
+        for (Throwable thrown : new Throwable[] { sync, async }) {
+            assertThat(thrown, instanceOf(ExternalClientException.class));
+            RuntimeException surfaced = ExternalFailures.classify(thrown);
+            assertNoProviderText(thrown);
+            assertNoProviderText(surfaced);
+            assertThat(surfaced.getMessage(), containsString("HTTP 403"));
+            assertThat(surfaced.getMessage(), containsString("AccessDenied"));
+            assertThat(surfaced.getMessage(), containsString("Verify the access_key and secret_key"));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
+        }
+    }
+
+    public void testRetryableStatusAndPreconditionDoNotChainTheProviderMessage() throws Exception {
+        for (int status : new int[] { 503, 412 }) {
+            S3Exception failure = (S3Exception) S3Exception.builder()
+                .statusCode(status)
+                .message(IAM_DENIAL)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("Refused").errorMessage(IAM_DENIAL).build())
+                .build();
+            S3Client mockS3 = mock(S3Client.class);
+            when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(failure);
+            S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+            RuntimeException thrown = expectThrows(RuntimeException.class, obj::newStream);
+            assertNull("HTTP " + status + " must not chain the SDK exception", thrown.getCause());
+            assertNoProviderText(ExternalFailures.classify(thrown));
+        }
+    }
+
+    private static final String IAM_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to "
+        + "perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555";
+
+    private static S3Exception iamDenial() {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(403)
+            .message(IAM_DENIAL)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode("AccessDenied").errorMessage(IAM_DENIAL).build())
+            .build();
+    }
+
+    private static void assertNoProviderText(Throwable surfaced) {
+        for (Throwable t = surfaced; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            assertThat(String.valueOf(t.getMessage()), not(containsString("arn:aws:")));
+            assertThat(String.valueOf(t.getMessage()), not(containsString("assumed-role")));
+            for (Throwable suppressed : t.getSuppressed()) {
+                assertThat(String.valueOf(suppressed.getMessage()), not(containsString("arn:aws:")));
+            }
+        }
     }
 
     public void testProgrammingIllegalStateExceptionStays500() {

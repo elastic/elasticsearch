@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -63,6 +67,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  * this side binds by {@code NameId}.
  */
 public final class SplitDiscoveryPhase {
+
+    private static final Logger logger = LogManager.getLogger(SplitDiscoveryPhase.class);
 
     private SplitDiscoveryPhase() {}
 
@@ -504,15 +510,30 @@ public final class SplitDiscoveryPhase {
         }, e -> listener.onFailure(wrapDiscoveryFailure(exec, e))));
     }
 
+    /**
+     * Types a split-discovery failure for the caller and drops its cause chain: discovery lists and reads objects, so
+     * the chain can hold a storage SDK's exception whose message the provider wrote (a denied listing names the
+     * principal and bucket ARNs), and every level of it is rendered into the response. The original is logged first.
+     */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
+        ExternalFailures.logReadFailure(e);
+        // As in ExternalFailures.classify: without its chain, a wrapped cancellation must be reported as itself.
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return ExternalFailures.withoutCause(cancelled);
+        }
         if (e instanceof ElasticsearchException ee) {
-            return ee;
+            return ExternalFailures.withoutCause(ee);
         }
         String label = sourceLabel(exec);
         if (e instanceof IllegalArgumentException) {
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            if (forwardable == null && e.getMessage() != null) {
+                // logReadFailure keeps a cause-less IAE at DEBUG; withheld here, its message would be lost at default levels.
+                logger.warn("Split discovery for [{}] failed; its message is withheld from the response", label, e);
+            }
+            String reason = forwardable != null ? ": " + forwardable : "";
             return new IllegalArgumentException(
-                "failed to discover splits for external source [" + label + "] of type [" + exec.sourceType() + "]",
-                e
+                "failed to discover splits for external source [" + label + "] of type [" + exec.sourceType() + "]" + reason
             );
         }
         RuntimeException surfaced = ExternalFailures.surface(
@@ -520,9 +541,9 @@ public final class SplitDiscoveryPhase {
             "failed to discover splits for external source [" + label + "] of type [" + exec.sourceType() + "]"
         );
         if (surfaced != e) {
-            return surfaced;
+            return ExternalFailures.withoutCause(surfaced);
         }
-        return new ElasticsearchException("failed to discover splits for external source [{}] of type [{}]", e, label, exec.sourceType());
+        return new ElasticsearchException("failed to discover splits for external source [{}] of type [{}]", label, exec.sourceType());
     }
 
     private static String sourceLabel(ExternalSourceExec exec) {

@@ -34,6 +34,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -340,7 +341,7 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 assertEquals("external_client_exception", ElasticsearchException.getExceptionName(thrown));
                 assertTrue(thrown.getMessage().startsWith("Failed to read external source: "));
                 assertTrue(thrown.getMessage().contains(failure.getMessage()));
-                assertSame(failure, thrown.getCause());
+                assertNull(thrown.getCause());
             } finally {
                 op.close();
             }
@@ -349,7 +350,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
 
     /**
      * A storage-layer 503 already carries the retryable status. Classification at this operator
-     * must leave it unchanged rather than re-wrapping it as a client or server exception.
+     * must keep its type and status rather than re-wrapping it as a client or server exception,
+     * dropping only the cause chain beneath it.
      */
     public void testUnavailableExceptionDuringMaterializationStays503() {
         ExternalUnavailableException failure = new ExternalUnavailableException(
@@ -378,7 +380,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
             op.finish();
             try {
                 ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, op::getOutput);
-                assertSame(failure, thrown);
+                assertEquals(failure.getMessage(), thrown.getMessage());
+                assertNull(thrown.getCause());
                 assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
                 assertEquals("external_unavailable_exception", ElasticsearchException.getExceptionName(thrown));
             } finally {
@@ -412,8 +415,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
                 assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
-                assertTrue(thrown.getCause() instanceof IllegalStateException);
-                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
+                assertThat(thrown.getMessage(), containsString("SourceExtractors is closed"));
+                assertNull(thrown.getCause());
             } finally {
                 op.close();
             }

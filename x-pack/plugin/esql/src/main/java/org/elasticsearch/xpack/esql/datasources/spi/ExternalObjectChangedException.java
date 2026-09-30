@@ -46,6 +46,15 @@ public final class ExternalObjectChangedException extends ExternalException {
         super(Condition.OBJECT_CHANGED, path, "", "");
     }
 
+    private ExternalObjectChangedException(ExternalObjectChangedException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalException copyWithoutCause() {
+        return new ExternalObjectChangedException(this);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

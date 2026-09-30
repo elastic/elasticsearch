@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -39,6 +41,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -1168,6 +1172,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures:DEBUG", reason = "counts the read-failure log")
     public void testMultiFileReadPropagatesReadError() throws Exception {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/ok.parquet"), 100, Instant.EPOCH),
@@ -1204,20 +1209,43 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             (Runnable r) -> r.run()
         ).fileList(fileList).build();
 
-        SourceOperator operator = factory.get(driverContext);
-        assertNotNull(operator);
-
         List<Page> pages = new ArrayList<>();
-        RuntimeException readFailure = expectThrows(RuntimeException.class, () -> {
-            while (operator.isFinished() == false) {
-                Page page = operator.getOutput();
-                if (page != null) {
-                    pages.add(page);
+        SourceOperator operator;
+        RuntimeException readFailure;
+        // The response drops the original failure's detail, so the buffer logs it when the read fails; once, and not
+        // again when the operator surfaces it or on status polls. The executor runs inline, so the read fails inside get().
+        AtomicInteger logged = new AtomicInteger();
+        try (MockLog mockLog = MockLog.capture(ExternalFailures.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(org.apache.logging.log4j.core.LogEvent event) {
+                    if (event.getMessage().getFormattedMessage().equals("External source read failed")) {
+                        logged.incrementAndGet();
+                    }
                 }
-            }
-        });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+
+                @Override
+                public void assertMatched() {
+                    assertEquals("the read failure must be logged exactly once", 1, logged.get());
+                }
+            });
+            operator = factory.get(driverContext);
+            assertNotNull(operator);
+            readFailure = expectThrows(RuntimeException.class, () -> {
+                while (operator.isFinished() == false) {
+                    Page page = operator.getOutput();
+                    if (page != null) {
+                        pages.add(page);
+                    }
+                }
+            });
+            operator.status();
+            operator.status();
+            mockLog.assertAllExpectationsMatched();
+        }
+        assertThat(readFailure, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertTrue(readFailure.getMessage().contains("Simulated read error"));
+        assertNull(readFailure.getCause());
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
@@ -1573,8 +1601,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             assertEquals(0, onCloseCalls.get());
 
             RuntimeException firstFailure = expectThrows(RuntimeException.class, first::getOutput);
-            assertThat(firstFailure.getCause(), Matchers.instanceOf(IOException.class));
-            assertTrue(firstFailure.getCause().getMessage().contains("injected first-read failure"));
+            assertThat(firstFailure, Matchers.instanceOf(ExternalClientException.class));
+            assertTrue(firstFailure.getMessage().contains("injected first-read failure"));
+            assertNull(firstFailure.getCause());
 
             while (second.isFinished() == false) {
                 Page page = second.getOutput();

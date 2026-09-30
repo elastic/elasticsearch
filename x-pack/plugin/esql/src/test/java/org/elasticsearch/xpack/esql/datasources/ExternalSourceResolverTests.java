@@ -4208,20 +4208,85 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
-     * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
-     * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.
+     * {@code ExecutionException} whose message is the cause's {@code toString()}, so reading the wrapper's message
+     * would put a JVM type name in front of the user. The fault's own message is kept; its object is not chained.
      */
-    public void testTheTerminalArmChainsTheCauseNotTheCacheWrapper() {
+    public void testTheTerminalArmKeepsTheFaultMessageNotTheCacheWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         IllegalStateException original = new IllegalStateException("broken");
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(original));
 
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(mapped));
-        assertSame("the cause must be the fault itself, not the cache's wrapper", original, mapped.getCause());
-        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
-            assertThat(String.valueOf(c.getMessage()), not(containsString("java.lang.")));
+        assertThat(mapped.getMessage(), containsString("broken"));
+        assertThat(mapped.getMessage(), not(containsString("java.lang.")));
+        assertNull(mapped.getCause());
+    }
+
+    /** What an S3 policy denial says about the identity it refused: the principal and key ARNs. */
+    private static final String IAM_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to "
+        + "perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555";
+
+    /**
+     * esql-planning#2119 on the resolution route: whichever arm types the failure — one that recovers a typed failure
+     * from behind the cache's wrapper, one that wraps a plain I/O error, the retryable and expired-credentials arms —
+     * none of what {@code mapResolveFailure} returns may carry the provider's own sentence, which the storage layer's
+     * failure chains beneath it. The status and the message Elasticsearch composed are kept.
+     */
+    public void testNoArmHandsOnTheProviderMessage() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        StoragePath path = StoragePath.of("s3://b/x.parquet");
+        IOException sdk = new IOException(IAM_DENIAL);
+        IOException composedIo = new IOException("Access denied reading [x.parquet] (HTTP 403 AccessDenied)", sdk);
+        composedIo.addSuppressed(new IOException(IAM_DENIAL));
+        CircuitBreakingException breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        breaking.initCause(sdk);
+        Exception[] failures = {
+            new ExecutionException(new ExternalClientException(Condition.ACCESS_DENIED, path, "HTTP 403 AccessDenied", "", sdk)),
+            new ExternalClientException(Condition.ACCESS_DENIED, path, "HTTP 403 AccessDenied", "", sdk),
+            new ExecutionException(composedIo),
+            new IllegalArgumentException(
+                "factory failed",
+                new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "HTTP 503", "", false, 0L, sdk)
+            ),
+            new ExecutionException(new ExternalCredentialsExpiredException(path, "HTTP 400 ExpiredToken", "", sdk)),
+            new ExecutionException(breaking),
+            new ExecutionException(new IllegalStateException("broken", new RuntimeException(IAM_DENIAL))),
+            // A throw site that wraps the SDK's exception with new X(cause): the wrapper's message is the cause's
+            // toString(), and the root it leads to was not written by Elasticsearch.
+            new ExecutionException(new RuntimeException(builtBySdk(new RuntimeException(IAM_DENIAL)))),
+            new ExecutionException(builtBySdk(new IllegalArgumentException(IAM_DENIAL))) };
+        RestStatus[] statuses = {
+            RestStatus.BAD_REQUEST,
+            RestStatus.BAD_REQUEST,
+            RestStatus.BAD_REQUEST,
+            RestStatus.SERVICE_UNAVAILABLE,
+            RestStatus.BAD_REQUEST,
+            RestStatus.TOO_MANY_REQUESTS,
+            RestStatus.INTERNAL_SERVER_ERROR,
+            RestStatus.INTERNAL_SERVER_ERROR,
+            RestStatus.BAD_REQUEST };
+        for (int i = 0; i < failures.length; i++) {
+            RuntimeException mapped = resolver.mapResolveFailure(path.toString(), failures[i]);
+            assertEquals("arm for " + failures[i] + " mapped to " + mapped, statuses[i], ExceptionsHelper.status(mapped));
+            for (Throwable t = mapped; t != null; t = t.getCause() == t ? null : t.getCause()) {
+                assertThat(String.valueOf(t.getMessage()), not(containsString("arn:aws:")));
+                assertThat(String.valueOf(t.getMessage()), not(containsString("assumed-role")));
+                assertEquals(0, t.getSuppressed().length);
+            }
         }
+    }
+
+    /**
+     * Makes {@code t} look constructed by the AWS SDK, as a real {@code S3Exception} built inside the SDK does: a test
+     * constructs it in Elasticsearch code, so its top stack frame would otherwise mark its message as ours.
+     */
+    private static <T extends Throwable> T builtBySdk(T t) {
+        t.setStackTrace(
+            new StackTraceElement[] {
+                new StackTraceElement("software.amazon.awssdk.services.s3.model.S3Exception$BuilderImpl", "build", null, 1) }
+        );
+        return t;
     }
 
     /**
@@ -4248,10 +4313,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(mapped.getMessage(), containsString("Failed to get external data metadata"));
         assertThat(mapped.getMessage(), not(containsString("s3://b/x.parquet")));
         assertThat(mapped.getMessage(), not(containsString("External data object not found")));
-        // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
-        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
-            assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
-        }
+        assertNull("nothing may reach caused_by", mapped.getCause());
     }
 
     /**

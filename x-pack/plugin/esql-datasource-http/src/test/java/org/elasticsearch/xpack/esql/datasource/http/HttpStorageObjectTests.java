@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -15,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -42,6 +45,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -657,12 +661,83 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(message, not(containsString("https://")));
     }
 
+    /**
+     * esql-planning#2119: the origin's error body is text the remote wrote — an identity, an internal host name, a
+     * token echo — and the message reaches whoever runs the query. The status stays in the message; the body goes to
+     * the node log, at {@code WARN} for a terminal status.
+     */
+    public void testReadFailureKeepsTheOriginBodyOutOfTheMessage() throws Exception {
+        String body = "denied for principal arn:aws:iam::123456789012:role/reader";
+        for (int status : new int[] { HttpStatus.SC_FORBIDDEN, HttpStatus.SC_SERVICE_UNAVAILABLE }) {
+            Exception thrown = expectThrows(Exception.class, () -> objectAnswering(status, body).newStream());
+            assertThat(thrown.getMessage(), containsString("HTTP " + status));
+            assertThat(thrown.getMessage(), not(containsString("arn:aws:")));
+            assertThat(thrown.getMessage(), not(containsString("body")));
+        }
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED, body).newStream(1, 2)
+        );
+        assertThat(changed.getMessage(), containsString("HTTP 412"));
+        assertThat(changed.getMessage(), not(containsString("arn:aws:")));
+
+        HttpStorageObject.ORIGIN_BODY_WARN.reset();
+        try (MockLog mockLog = MockLog.capture(HttpStorageObject.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "origin body logged",
+                    HttpStorageObject.class.getCanonicalName(),
+                    Level.WARN,
+                    "*HTTP 403*body: " + body
+                )
+            );
+            expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN, body).newStream());
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * The retry layer that decides a 503 is final never sees the body, so a body is logged at WARN whatever the
+     * status. Storage objects are created per file, split and resolution, so the bound is per node, not per object:
+     * reads of several objects write one WARN between them and the rest go to DEBUG.
+     */
+    public void testOriginBodyIsLoggedAtWarnAtMostOncePerInterval() throws Exception {
+        String body = "origin overloaded, shard 7";
+        AtomicInteger warnings = new AtomicInteger();
+        HttpStorageObject.ORIGIN_BODY_WARN.reset();
+        try (MockLog mockLog = MockLog.capture(HttpStorageObject.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() == Level.WARN && event.getMessage().getFormattedMessage().endsWith("body: " + body)) {
+                        warnings.incrementAndGet();
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertEquals("the origin body must reach WARN exactly once per interval", 1, warnings.get());
+                }
+            });
+            for (int i = 0; i < 3; i++) {
+                HttpStorageObject obj = objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE, body);
+                expectThrows(ExternalUnavailableException.class, obj::newStream);
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with an empty body. */
     private static HttpStorageObject objectAnswering(int statusCode) throws Exception {
+        return objectAnswering(statusCode, "");
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with {@code body}. */
+    private static HttpStorageObject objectAnswering(int statusCode, String body) throws Exception {
         HttpResponse<InputStream> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(statusCode);
         when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
-        when(response.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(response.body()).thenAnswer(inv -> new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
         HttpClient mockClient = mock(HttpClient.class);
         doReturn(response).when(mockClient).send(any(), any());
         return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());

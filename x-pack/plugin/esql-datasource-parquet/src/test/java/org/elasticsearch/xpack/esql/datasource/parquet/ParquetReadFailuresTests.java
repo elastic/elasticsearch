@@ -39,7 +39,15 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertThat(wrapped, instanceOf(ExternalClientException.class));
         assertSame(io, wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertPassesThroughWithoutCause(wrapped, ExternalFailures.classify(wrapped));
+    }
+
+    /** {@code classify} keeps the type and message of a typed failure but drops its chain from what the caller sees. */
+    private static void assertPassesThroughWithoutCause(RuntimeException original, RuntimeException classified) {
+        assertSame(original.getClass(), classified.getClass());
+        assertEquals(original.getMessage(), classified.getMessage());
+        assertNull(classified.getCause());
+        assertEquals(0, classified.getSuppressed().length);
     }
 
     public void testUncheckedIoExceptionBecomesExternalClient400() {
@@ -49,7 +57,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertThat(wrapped, instanceOf(ExternalClientException.class));
         assertSame(uioe, wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertPassesThroughWithoutCause(wrapped, ExternalFailures.classify(wrapped));
     }
 
     public void testExternalUnavailableIdentityAnd503() {

@@ -305,6 +305,7 @@ public class ExternalFieldExtractOperator implements Operator {
         } catch (Throwable t) {
             // Deferred extraction performs external reads on the driver thread, so classify here
             // while the concrete failure type is still available and before any transport hop.
+            ExternalFailures.logReadFailure(t);
             RuntimeException classified = ExternalFailures.classify(t);
             if (datasetLabel != null && classified instanceof ExternalException ee) {
                 ee.setDatasetLabel(datasetLabel);

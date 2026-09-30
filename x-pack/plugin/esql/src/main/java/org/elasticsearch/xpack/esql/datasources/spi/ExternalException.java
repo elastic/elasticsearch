@@ -253,7 +253,9 @@ public abstract class ExternalException extends QlException {
     /**
      * Structured constructor: builds the message from {@code condition.render(path.objectName(), detailCode, remedy)}.
      * Only the object name (last path segment) is embedded — the bucket, prefix, and full URI
-     * are never included. The {@code cause} parameter chains the low-level SDK or I/O exception.
+     * are never included. The {@code cause} is kept for logs and retry classification only: the
+     * read, resolution and split-discovery boundaries rebuild the failure without it (see {@link #withoutCause()}),
+     * because SDK and I/O messages can carry provider text the querying user must not see.
      */
     protected ExternalException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
         super(condition.render(path.objectName(), detailCode, remedy), cause);
@@ -272,6 +274,47 @@ public abstract class ExternalException extends QlException {
         this.objectName = path.objectName();
         this.detailCode = detailCode != null ? detailCode : "";
         this.remedy = remedy != null ? remedy : "";
+    }
+
+    /**
+     * Copy constructor for {@link #copyWithoutCause()}: same message and structured fields as {@code source}, no cause.
+     */
+    protected ExternalException(ExternalException source) {
+        super(source.baseMessage(), (Throwable) null);
+        this.condition = source.condition;
+        this.objectName = source.objectName;
+        this.detailCode = source.detailCode;
+        this.remedy = source.remedy;
+        this.detail = source.detail;
+        this.datasetContext = source.datasetContext;
+    }
+
+    /**
+     * This failure without its cause chain and suppressed exceptions: same type, status, message, structured fields
+     * and stack trace. Returns {@code this} when there is nothing to drop.
+     * <p>
+     * Every level of a failure's cause chain is rendered into the error response under {@code caused_by}, and a
+     * storage SDK's exception carries text the provider wrote — for an IAM denial, the principal and key ARNs
+     * Elasticsearch authenticated with. The classification boundaries call this so that only text Elasticsearch
+     * composed reaches the caller; they log the original first, so the provider's reason is not lost.
+     */
+    public final ExternalException withoutCause() {
+        if (getCause() == null && getSuppressed().length == 0) {
+            return this;
+        }
+        ExternalException copy = copyWithoutCause();
+        copy.setStackTrace(getStackTrace());
+        return copy;
+    }
+
+    /**
+     * A new instance of the concrete subtype built with {@link #ExternalException(ExternalException)} from {@code this},
+     * carrying any subtype-specific state.
+     */
+    protected abstract ExternalException copyWithoutCause();
+
+    private String baseMessage() {
+        return super.getMessage();
     }
 
     /**

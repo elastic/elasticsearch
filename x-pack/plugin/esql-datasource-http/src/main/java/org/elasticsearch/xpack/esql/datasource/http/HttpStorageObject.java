@@ -15,6 +15,9 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -59,6 +63,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
+
+    private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /** Bounds the WARN lines {@link #mapReadFailure} writes for origin bodies, across every object on the node. */
+    static final LogThrottle ORIGIN_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -183,17 +192,22 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Maps a non-success HTTP status into the exception to surface to ES|QL. A retryable status
      * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
      * any other status becomes an {@link IOException}, which the external source operator classifies as
-     * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
-     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
-     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
-     * synchronous and async read paths can route it.
+     * a client-class 400. {@code detail} is an optional truncated error-body snippet, logged for triage
+     * (a raw status alone is opaque; stores typically return a descriptive body) but kept out of the
+     * message: it is text the origin wrote, and the message reaches whoever runs the query. Bodies are
+     * logged at {@code WARN} whatever the status, since the retry layer that decides a retryable status
+     * is final never sees the body, but at most once a minute per node ({@link #ORIGIN_BODY_WARN});
+     * the rest go to {@code DEBUG}. {@code retryAfterMs} is the parsed
+     * {@code Retry-After} hint (0 when absent). Returns (never throws) so both the synchronous and async
+     * read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
-        String bodyDetail = (detail == null || detail.isEmpty()) ? null : "body: " + detail;
-        String suffix = bodyDetail == null ? "" : ", " + bodyDetail;
+        if (detail != null && detail.isEmpty() == false) {
+            logOriginBody(context, statusCode, detail);
+        }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
-            ExternalUnavailableException ex = new ExternalUnavailableException(
+            return new ExternalUnavailableException(
                 throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
                 path,
                 "HTTP " + statusCode,
@@ -201,17 +215,21 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 throttling,
                 throttling ? retryAfterMs : 0L
             );
-            if (bodyDetail != null) {
-                ex.setDetail(bodyDetail);
-            }
-            return ex;
         }
         if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
             ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
-            ex.setDetail("HTTP " + statusCode + suffix);
+            ex.setDetail("HTTP " + statusCode);
             return ex;
         }
-        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")" + suffix);
+        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")");
+    }
+
+    private void logOriginBody(String context, int statusCode, String body) {
+        if (ORIGIN_BODY_WARN.tryAcquire()) {
+            logger.warn("{} [{}] (HTTP {}), body: {}", context, path.objectName(), statusCode, body);
+        } else {
+            logger.debug("{} [{}] (HTTP {}), body: {}", context, path.objectName(), statusCode, body);
+        }
     }
 
     /**

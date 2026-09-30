@@ -844,9 +844,18 @@ public class ExternalSourceResolver {
      * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
+     * <p>
+     * Whatever arm types the failure, it leaves {@link ExternalFailures#withoutCause without its cause chain}: the
+     * recovered or re-wrapped original is often a storage SDK's exception whose message the provider wrote (an IAM
+     * denial names the principal and key ARNs), and every level of the chain is rendered into the response. Each arm
+     * logs {@code e} in full first.
      */
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
+        return ExternalFailures.withoutCause(typeResolveFailure(path, e));
+    }
+
+    private RuntimeException typeResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -907,12 +916,10 @@ public class ExternalSourceResolver {
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
-            // Log the full IAE detail locally; forward only if free of storage-URI schemes.
+            // Log the full IAE detail locally; forward only what forwardableDetail allows.
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            String iaeMsg = clientError.getMessage();
-            String safeMsg = (iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg))
-                ? iaeMsg
-                : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
+            String forwardable = ExternalFailures.forwardableDetail(clientError);
+            String safeMsg = forwardable != null ? forwardable : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
             // Wrap in ExternalClientException so the caller can annotate with dataset context.
             ExternalClientException iaeEx = new ExternalClientException(
                 ExternalException.Condition.MALFORMED_DATA,
@@ -940,22 +947,18 @@ public class ExternalSourceResolver {
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
         // is non-retryable and is the caller's fault.
-        // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
-        // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
-            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
-            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
+            // Not chained: the log above keeps ioError, and the caller's response must not carry its text.
             // Use objectName(path) — the safe static that never throws and never returns the full URI —
             // as the detailCode so the filename appears in the message while the directory stays hidden.
             return new ExternalClientException(
                 ExternalException.Condition.METADATA_UNAVAILABLE,
                 StoragePath.NONE,
                 StoragePath.objectName(path),
-                "",
-                ioError
+                ""
             );
         }
         recordDiscoveryFailure();
@@ -964,15 +967,8 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
-        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
-        return new ExternalServerException(
-            ExternalException.Condition.CLIENT_BUG,
-            StoragePath.NONE,
-            detail,
-            "",
-            ExternalFailures.rootCause(e)
-        );
+        // Not chained, as in the IOException arm above: the log keeps e.
+        return new ExternalServerException(ExternalException.Condition.CLIENT_BUG, StoragePath.NONE, detail, "");
     }
 
     private void resolveSource(

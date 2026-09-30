@@ -468,13 +468,15 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
+                    ExternalFailures.logReadFailure(t);
                     failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classify(t));
                 }
                 return;
             }
             rawFirstFailure = t;
-            // Classify once here so classify()'s side effects (WARN logging for IAE) fire
-            // exactly once and status() / propagateFailure() read an already-typed exception.
+            // Log and classify once here, so the original is logged exactly once before classify() drops its
+            // cause, and status() / propagateFailure() read an already-typed exception.
+            ExternalFailures.logReadFailure(t);
             failure = (t instanceof Error) ? t : ExternalFailures.classify(t);
         }
         noMoreInputs.set(true);

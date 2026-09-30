@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -101,6 +102,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override

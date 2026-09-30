@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -624,7 +625,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         return baos.toByteArray();
     }
 
-    private static class BytesStorageObject implements StorageObject {
+    private static class BytesStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final StoragePath path;
         private final Instant lastModified;

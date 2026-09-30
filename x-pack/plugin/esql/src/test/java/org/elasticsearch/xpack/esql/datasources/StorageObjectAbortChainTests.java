@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -322,7 +323,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
      * an S3 connection that drops just as the client reads the end of the body. Opens at position 0 serve the same
      * body; resume opens return an empty body.
      */
-    private static final class ResetAtEndOfBodyStorageObject implements StorageObject {
+    private static final class ResetAtEndOfBodyStorageObject extends AbstractTestStorageObject {
         private final byte[] bytes;
         final AtomicInteger opens = new AtomicInteger();
         final AtomicInteger abortCalls = new AtomicInteger();

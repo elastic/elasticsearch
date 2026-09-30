@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -193,7 +194,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         return org.elasticsearch.core.PathUtils.get(path.localPath());
     }
 
-    private static final class SlowFileObject implements StorageObject {
+    private static final class SlowFileObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Path file;
 

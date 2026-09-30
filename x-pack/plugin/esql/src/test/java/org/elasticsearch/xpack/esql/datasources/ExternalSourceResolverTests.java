@@ -49,9 +49,11 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -4450,10 +4452,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Resolver + Cache integration =====
 
     /**
-     * Cacheable multi-file resolves must expose per-file footer statistics on {@code FileSchemaInfo}
-     * for both the cold harvest and a warm schema-cache hit. The warm path reconstructs the typed
-     * view from the cached flat {@code _stats.*} map so split discovery can still skip a second
-     * footer open when {@code readableUnitCount} is 1.
+     * Cacheable multi-file resolves keep per-file row count and readable-unit count on
+     * {@code FileSchemaInfo} for both the cold harvest and a warm schema-cache hit. Column
+     * statistics stay off that map; {@link #testMultiFileSchemaMapKeepsFileLevelCountsOnly} locks
+     * that. The relation fold and the schema cache still hold them.
      */
     public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
@@ -4502,6 +4504,141 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Multi-file schema maps keep file-level counts only. Column min/max stay on the relation fold and in the
+     * schema cache; copying them onto every file is the working set this resolve is not allowed to hold.
+     * A one-file listing still carries the anchor harvest, including its column statistics.
+     */
+    public void testMultiFileSchemaMapKeepsFileLevelCountsOnly() throws Exception {
+        String a = "s3://bucket/data/a.parquet";
+        String b = "s3://bucket/data/b.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(a, schema);
+        schemas.put(b, schema);
+        Map<String, Long> rowCounts = Map.of(a, 10L, b, 20L);
+        List<StorageEntry> listing = List.of(entry(a, 100), entry(b, 200));
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemas, rowCounts) {
+            @Override
+            Optional<Map<String, SourceStatistics.ColumnStatistics>> columnsFor(String path) {
+                return Optional.of(Map.of("x", longColumn(1L, 9L)));
+            }
+        };
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+            ExternalSourceResolution.ResolvedSource resolved = resolveFfwWithConfig(resolver, Set.of(GLOB), configFor(strategy))
+                .resolvedSource(GLOB);
+            assertNotNull(resolved);
+            assertEquals(1L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.columnMinKey("x")));
+            assertEquals(2, resolved.schemaMap().size());
+            for (SchemaReconciliation.FileSchemaInfo info : resolved.schemaMap().values()) {
+                SourceStatistics stats = info.statistics();
+                assertNotNull(stats);
+                assertTrue(stats.rowCount().isPresent());
+                assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                assertTrue(strategy + " schema map must not keep column statistics", stats.columnStatistics().isEmpty());
+            }
+        }
+
+        Map<String, List<Attribute>> oneSchema = Map.of(a, schema);
+        StubFormatReaderWithStats oneReader = new StubFormatReaderWithStats(oneSchema, Map.of(a, 10L)) {
+            @Override
+            Optional<Map<String, SourceStatistics.ColumnStatistics>> columnsFor(String path) {
+                return Optional.of(Map.of("x", longColumn(1L, 9L)));
+            }
+        };
+        ExternalSourceResolver oneResolver = createResolverWithReader(
+            new CountingStorageProvider(Map.of(PREFIX, List.of(entry(a, 100))), oneSchema),
+            oneReader,
+            null
+        );
+        ExternalSourceResolution.ResolvedSource one = resolveFfwWithConfig(
+            oneResolver,
+            Set.of(GLOB),
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        ).resolvedSource(GLOB);
+        SourceStatistics anchorStats = one.schemaMap().get(StoragePath.of(a)).statistics();
+        assertNotNull(anchorStats);
+        assertTrue("a one-file listing keeps the anchor column harvest", anchorStats.columnStatistics().isPresent());
+    }
+
+    /**
+     * A multi-file fan-out whose harvests cannot fit the schema budget must not retain one entry per file,
+     * and must not evict a dataset that was already cached.
+     */
+    public void testOversizedMultiFileListingDoesNotFillSchemaCache() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://bucket/data/a.parquet")).estimatedBytes();
+        long schemaBudget = entryBytes * 2;
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", (schemaBudget * 5) + "b")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        int files = 6;
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        for (int i = 0; i < files; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
+            listing.add(entry(path, 100));
+            schemas.put(path, schema);
+        }
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", config);
+            SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
+            cacheService.putSchema(sentinelKey, sentinel);
+            ExternalSourceResolver resolver = createResolver(
+                schemas,
+                Map.of(PREFIX, listing),
+                Settings.EMPTY,
+                null,
+                null,
+                null,
+                cacheService
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), future);
+            assertNotNull(future.actionGet().resolvedSource(GLOB));
+            assertNotNull(
+                "a listing that does not fit must not evict an unrelated schema entry",
+                cacheService.getSchemaIfPresent(sentinelKey)
+            );
+            for (int i = 0; i < files; i++) {
+                String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
+                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+                assertNull("oversized fan-out must not retain " + path, cacheService.getSchemaIfPresent(key));
+            }
+            assertEquals(1, cacheService.usageStats().get("schema_cache.count"));
+        }
+    }
+
+    private static SourceStatistics.ColumnStatistics longColumn(long min, long max) {
+        return new SourceStatistics.ColumnStatistics() {
+            @Override
+            public OptionalLong nullCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public OptionalLong distinctCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Object> minValue() {
+                return Optional.of(min);
+            }
+
+            @Override
+            public Optional<Object> maxValue() {
+                return Optional.of(max);
+            }
+        };
     }
 
     public void testCacheableColdSingleFileResolveCarriesHarvestedStatistics() throws Exception {
@@ -7036,7 +7173,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                         @Override
                         public Optional<Map<String, ColumnStatistics>> columnStatistics() {
-                            return Optional.empty();
+                            return columnsFor(path);
                         }
                     });
                 }
@@ -7060,6 +7197,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public void close() {}
+
+        /** Per-file column harvest. Empty by default so existing fixtures stay file-level counts only. */
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columnsFor(String path) {
+            return Optional.empty();
+        }
     }
 
     private static class StubStorageProvider implements StorageProvider {
@@ -7143,7 +7285,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long length;
         @Nullable

@@ -178,7 +178,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
         node.start(version);
-        waitUntilReady();
+        // Health check before writing unicast hosts: the existing file (written during start())
+        // is sufficient for the restarted node to rejoin the cluster. Writing the file first
+        // risks a transient "orchestrating test cluster" failure because the just-restarted node
+        // may not have bound its transport port yet. Once the health check passes, the node is
+        // fully up and getTransportEndpoint() is safe to call.
+        waitUntilReadyAfterNodeRestart();
     }
 
     @Override
@@ -233,6 +238,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     protected void waitUntilReady() {
+        // Unicast hosts must be written before the health check so that nodes can discover each
+        // other and elect a master on initial cluster start. For single-node restarts during a
+        // rolling upgrade use waitUntilReadyAfterNodeRestart() instead.
         writeUnicastHostsFile();
         try {
             WaitForHttpResource wait = configureWaitForReady();
@@ -240,6 +248,16 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         } catch (Exception e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
         }
+    }
+
+    private void waitUntilReadyAfterNodeRestart() {
+        try {
+            WaitForHttpResource wait = configureWaitForReady();
+            wait.waitFor(CLUSTER_UP_TIMEOUT.toMillis());
+        } catch (Exception e) {
+            throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
+        }
+        writeUnicastHostsFile();
     }
 
     private WaitForHttpResource configureWaitForReady() throws MalformedURLException {

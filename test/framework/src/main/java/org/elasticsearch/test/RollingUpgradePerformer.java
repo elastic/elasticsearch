@@ -144,7 +144,15 @@ public class RollingUpgradePerformer {
                     }
                 }
             }
-            clusterAndClients.initAllClients().run();
+            try {
+                clusterAndClients.initAllClients().run();
+            } catch (Exception e) {
+                // Treat a failure to re-initialize clients the same as a failed node upgrade: mark
+                // the upgrade as failed so subsequent tests in this phase skip cleanly via
+                // assumeFalse rather than each failing independently with a confusing error.
+                upgradeFailed = true;
+                throw e;
+            }
         }
     }
 

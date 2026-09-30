@@ -685,6 +685,37 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(Set.of(), recorder.lastContext.retainedPartitionKeys());
     }
 
+    public void testRetainedPartitionKeysOmitDerivedLocation() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.NAME, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.DIRECTORY, DataType.KEYWORD),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        Set<String> expected = Set.of("year", FileMetadataColumns.SIZE, FileMetadataColumns.MODIFIED);
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(expected, recorder.lastContext.retainedPartitionKeys());
+    }
+
     /**
      * A query that projects only metadata leaves no data columns, which is the same shape
      * {@code COUNT(*)} already produces: the prune is skipped and {@code adaptSchema} short-circuits

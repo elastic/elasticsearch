@@ -38,8 +38,10 @@ import java.util.function.BooleanSupplier;
  *        not data columns that happen to share a metadata name. This binding is relation-wide
  *        and must not be reinterpreted based on each file's physical schema.
  * @param retainedPartitionKeys keys to keep on each survivor's partition map after filter
- *        evaluation. {@code null} means the projection is unknown, so the full Hive and
- *        {@code _file.*} map is kept. A non-null set, including empty, is authoritative.
+ *        evaluation. {@code null} means the projection is unknown, so hive values plus
+ *        {@code _file.size} and {@code _file.modified} are kept. {@code _file.path},
+ *        {@code _file.name}, and {@code _file.directory} are never stored. A non-null set,
+ *        including empty, is authoritative, except those three location keys are still dropped.
  *        {@link org.elasticsearch.xpack.esql.datasources.ExternalSchema#EMPTY} does not imply an
  *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
  */
@@ -195,7 +197,8 @@ public record SplitDiscoveryContext(
         isCancelled = isCancelled != null ? isCancelled : () -> false;
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
         metadataColumnNames = Set.copyOf(metadataColumnNames);
-        // null stays null: unknown projection keeps today's full map. A provided set is authoritative.
+        // null stays null: unknown projection keeps hive, size, and modified. Location keys are dropped
+        // when the survivor map is frozen. A provided set is authoritative aside from those three keys.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
     }
 }

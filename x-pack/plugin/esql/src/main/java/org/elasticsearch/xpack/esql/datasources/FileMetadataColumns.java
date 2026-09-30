@@ -57,6 +57,13 @@ public final class FileMetadataColumns {
 
     public static final Set<String> NAMES = COLUMNS.keySet();
 
+    /**
+     * {@link #PATH}, {@link #NAME}, and {@link #DIRECTORY}. Derived from the file URI at read time
+     * rather than stored on the survivor map. {@link #SIZE} and {@link #MODIFIED} stay stored;
+     * {@link #RECORD_REF} is composed per row.
+     */
+    public static final Set<String> LOCATION_NAMES = Set.of(PATH, NAME, DIRECTORY);
+
     private FileMetadataColumns() {}
 
     public static boolean isFileMetadataColumn(String name) {
@@ -72,42 +79,46 @@ public final class FileMetadataColumns {
      */
     public static Map<String, Object> extractValues(StoragePath path, long length, Instant lastModified) {
         var map = new LinkedHashMap<String, Object>(8);
-        putValues(map, path, length, lastModified, null);
+        putValues(map, path, length, lastModified, null, true);
         return Collections.unmodifiableMap(map);
     }
 
     /**
-     * Writes the five per-file constants into {@code dest}. Callers that already own a map
-     * skip the throwaway map {@link #extractValues} allocates. {@code directoryIntern}, when
-     * non-null, reuses one {@link BytesRef} per distinct parent path for this call; full
-     * {@link #PATH} URIs are never interned. A null parent or a null {@code lastModified}
-     * is stored as a null value.
+     * Writes the per-file constants into {@code dest}. Callers that already own a map skip the
+     * throwaway map {@link #extractValues} allocates. {@code directoryIntern}, when non-null, reuses
+     * one {@link BytesRef} per distinct parent path for this call; full {@link #PATH} URIs are never
+     * interned. A null parent or a null {@code lastModified} is stored as a null value.
+     * {@code includeLocation} false skips {@link #PATH}, {@link #NAME}, and {@link #DIRECTORY}: discovery
+     * uses that when no bound filter reads them, so those strings are not allocated only to be dropped.
      */
     static void putValues(
         Map<String, Object> dest,
         StoragePath path,
         long length,
         @Nullable Instant lastModified,
-        @Nullable Map<String, BytesRef> directoryIntern
+        @Nullable Map<String, BytesRef> directoryIntern,
+        boolean includeLocation
     ) {
-        dest.put(PATH, new BytesRef(path.toString()));
-        dest.put(NAME, new BytesRef(path.objectName()));
-        StoragePath parent = path.parentDirectory();
-        if (parent == null) {
-            dest.put(DIRECTORY, null);
-        } else {
-            String parentText = parent.toString();
-            BytesRef directory;
-            if (directoryIntern == null) {
-                directory = new BytesRef(parentText);
+        if (includeLocation) {
+            dest.put(PATH, new BytesRef(path.toString()));
+            dest.put(NAME, new BytesRef(path.objectName()));
+            StoragePath parent = path.parentDirectory();
+            if (parent == null) {
+                dest.put(DIRECTORY, null);
             } else {
-                directory = directoryIntern.get(parentText);
-                if (directory == null) {
+                String parentText = parent.toString();
+                BytesRef directory;
+                if (directoryIntern == null) {
                     directory = new BytesRef(parentText);
-                    directoryIntern.put(parentText, directory);
+                } else {
+                    directory = directoryIntern.get(parentText);
+                    if (directory == null) {
+                        directory = new BytesRef(parentText);
+                        directoryIntern.put(parentText, directory);
+                    }
                 }
+                dest.put(DIRECTORY, directory);
             }
-            dest.put(DIRECTORY, directory);
         }
         dest.put(SIZE, length);
         dest.put(MODIFIED, lastModified != null ? lastModified.toEpochMilli() : null);
@@ -133,5 +144,46 @@ public final class FileMetadataColumns {
         long modifiedMillis = fileList.lastModifiedMillis(index);
         Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
         return extractValues(fileList.path(index), fileList.size(index), modified);
+    }
+
+    /**
+     * Fills any of {@link #PATH}, {@link #NAME}, and {@link #DIRECTORY} that {@code neededNames} asks for
+     * and {@code map} does not already contain. Returns {@code map} itself when none of those names are
+     * needed or every needed one is already present, including an explicit null. Otherwise returns a copy
+     * with only the missing location keys filled from {@code path}. Does not write {@link #SIZE} or
+     * {@link #MODIFIED}: a span split's length is not the file size, and a frozen survivor map is shared
+     * across span siblings, so this must not mutate {@code map}.
+     */
+    public static Map<String, Object> overlayLocation(
+        @Nullable Map<String, Object> map,
+        StoragePath path,
+        @Nullable Set<String> neededNames
+    ) {
+        boolean needPath = needsLocation(neededNames, PATH) && containsKey(map, PATH) == false;
+        boolean needName = needsLocation(neededNames, NAME) && containsKey(map, NAME) == false;
+        boolean needDirectory = needsLocation(neededNames, DIRECTORY) && containsKey(map, DIRECTORY) == false;
+        if (needPath == false && needName == false && needDirectory == false) {
+            return map;
+        }
+        LinkedHashMap<String, Object> copy = map == null ? new LinkedHashMap<>() : new LinkedHashMap<>(map);
+        if (needPath) {
+            copy.put(PATH, new BytesRef(path.toString()));
+        }
+        if (needName) {
+            copy.put(NAME, new BytesRef(path.objectName()));
+        }
+        if (needDirectory) {
+            StoragePath parent = path.parentDirectory();
+            copy.put(DIRECTORY, parent == null ? null : new BytesRef(parent.toString()));
+        }
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static boolean needsLocation(@Nullable Set<String> neededNames, String name) {
+        return neededNames != null && neededNames.contains(name);
+    }
+
+    private static boolean containsKey(@Nullable Map<String, Object> map, String key) {
+        return map != null && map.containsKey(key);
     }
 }

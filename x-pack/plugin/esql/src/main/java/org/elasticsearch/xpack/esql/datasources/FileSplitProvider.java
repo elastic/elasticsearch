@@ -641,9 +641,11 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Phase 1: sequential in-memory filter. No object-store IO. The filter loop reuses one scratch map
-     * (hive values copied by reference, {@code _file.*} written in place) so hints see every listing key.
-     * The map stored on the survivor is never that scratch: files in one directory share one unmodifiable
-     * tuple of directory-constant keys, and per-file keys sit on a {@link LayeredPartitionMap}. No {@link FileTask}.
+     * (hive values copied by reference, {@code _file.*} written in place) so a bound filter can see the
+     * listing keys it names. Path, name, and directory are written only when such a filter reads them.
+     * The map stored on the survivor is never that scratch and never keeps those three keys: files in one
+     * directory share one unmodifiable tuple of directory-constant keys, and per-file keys sit on a
+     * {@link LayeredPartitionMap}. No {@link FileTask}.
      */
     private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
@@ -695,6 +697,9 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
+        // A hive-only filter, or an unknown projection with no location filter, must not allocate a path
+        // BytesRef per file. Those keys are derived at read and are not on the survivor map.
+        boolean writeLocationKeys = hintsReferenceBoundLocation(filterHints, metadataColumnNames);
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
             Map<String, Object> frozen;
@@ -720,7 +725,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
-                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, directoryIntern);
+                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, directoryIntern, writeLocationKeys);
                 // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -3310,6 +3315,25 @@ public class FileSplitProvider implements SplitProvider {
                     a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
                 )) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a filter names a bound location column. Unbound location names are stripped before
+     * matching, so writing them would allocate a path string the filter never reads.
+     */
+    private static boolean hintsReferenceBoundLocation(List<Expression> filterHints, Set<String> metadataColumnNames) {
+        if (filterHints.isEmpty() || metadataColumnNames.isEmpty()) {
+            return false;
+        }
+        for (Expression hint : filterHints) {
+            for (Attribute attribute : hint.references()) {
+                String name = attribute.name();
+                if (metadataColumnNames.contains(name) && FileMetadataColumns.LOCATION_NAMES.contains(name)) {
+                    return true;
+                }
             }
         }
         return false;

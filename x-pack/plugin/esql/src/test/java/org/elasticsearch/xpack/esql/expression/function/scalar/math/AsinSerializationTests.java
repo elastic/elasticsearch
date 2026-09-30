@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class AsinSerializationTests extends AbstractUnaryScalarSerializationTests<Asin> {
     @Override
     protected Asin create(Source source, Expression child) {
-        return new Asin(source, child);
+        return new Asin(source, child, randomBoolean());
     }
 }

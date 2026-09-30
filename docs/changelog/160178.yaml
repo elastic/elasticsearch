@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 160178
-summary: Fix relevance scoring for federated search
+summary: Fix `_score` from runtime `MATCH`, `MATCH_PHRASE` and `KNN`, which was null on federated data sources and not yet added when a `WHERE _score` filter ran
 type: bug

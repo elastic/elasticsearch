@@ -1052,23 +1052,11 @@ public class LocalExecutionPlanner {
             TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
             if (minCompetitive == null && luceneMinCompetitivePilot != null) {
                 minCompetitive = luceneMinCompetitivePilot.supplier();
-                if (luceneMinCompetitivePilot.globalTopK() != null && common.limit > 1) {
-                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
-                        luceneMinCompetitivePilot.globalTopK(),
-                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
-                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
-                    );
-                }
+                globalTopKMerge = globalTopKMergeConfig(luceneMinCompetitivePilot.globalTopK(), common.limit, context);
             }
             if (minCompetitive == null && luceneMinCompetitiveScore != null) {
                 minCompetitive = luceneMinCompetitiveScore.supplier();
-                if (luceneMinCompetitiveScore.globalTopK() != null && common.limit > 1) {
-                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
-                        luceneMinCompetitiveScore.globalTopK(),
-                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
-                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
-                    );
-                }
+                globalTopKMerge = globalTopKMergeConfig(luceneMinCompetitiveScore.globalTopK(), common.limit, context);
             }
             return source.with(
                 new TopNOperatorFactory(
@@ -1093,6 +1081,27 @@ public class LocalExecutionPlanner {
                 context.luceneMinCompetitiveScore.set(null);
             }
         }
+    }
+
+    /**
+     * The {@link TopNOperator.GlobalTopKMergeConfig} for a Lucene min competitive TopN, or {@code null}
+     * when there is no {@link SharedGlobalTopK} to merge into or the TopN keeps a single row, where a
+     * per-driver bound is already as tight as it gets.
+     */
+    @Nullable
+    private static TopNOperator.GlobalTopKMergeConfig globalTopKMergeConfig(
+        @Nullable SharedGlobalTopK.Supplier globalTopK,
+        int limit,
+        LocalExecutionPlannerContext context
+    ) {
+        if (globalTopK == null || limit <= 1) {
+            return null;
+        }
+        return new TopNOperator.GlobalTopKMergeConfig(
+            globalTopK,
+            context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
+            context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
+        );
     }
 
     /**

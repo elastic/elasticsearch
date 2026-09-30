@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -102,8 +103,8 @@ public class CsvProvenProbeTests extends ESTestCase {
     }
 
     public void testExactWalkAcrossBufferBoundary() throws IOException {
-        // A single quoted record with embedded newlines longer than the internal 8 KiB BufferedInputStream buffer:
-        // the walk must read one stream in a single pass without dropping read-ahead across the buffer refill.
+        // A single quoted record with embedded newlines longer than the block the walk reads in: the walk must
+        // read one stream in a single pass without dropping read-ahead across a refill.
         StringBuilder sb = new StringBuilder("id,blob\n1,\"");
         for (int i = 0; i < 4000; i++) {
             sb.append("ab\n");
@@ -111,6 +112,77 @@ public class CsvProvenProbeTests extends ESTestCase {
         sb.append("\"\n2,short\n3,\"c\nd\"\n");
         assertExactWalkMatchesOracle(quoted(), bytes(sb.toString()));
         assertProbeInvariants(quoted(), bytes(sb.toString()));
+    }
+
+    /**
+     * Size of the block the scanners pull their bytes in, mirrored from {@code CsvRecordSplitter.BlockCursor}.
+     * A stale value here does not weaken the assertions below, only the offsets they aim at, so the window swept
+     * around it is wide enough to still straddle a nearby boundary.
+     */
+    private static final int SCANNER_BLOCK_BYTES = 8 * 1024;
+
+    public void testExactWalkLookaheadStraddlesBlockBoundary() throws IOException {
+        // The walk takes its bytes a block at a time, so a two-byte construct has a placement where the first byte is
+        // a block's last and the second is only reachable after a refill. Sliding each one through the offsets around
+        // a boundary puts it there, and the oracle - the same bytes read by a different scanner - says where the
+        // record starts actually are.
+        //
+        // The CRLF leg is the one that catches a lost refill, and the other two cannot, for reasons worth writing
+        // down rather than rediscovering. The doubled-quote decision is unobservable through any output: closing the
+        // field and reopening it on the next byte leaves the same inQuotes and the same consumed as consuming the
+        // pair as a literal, because fieldHasNonWhitespace is never set while inQuotes, so the reopen always takes.
+        // The escaped byte is fetched with a read rather than a peek, which every fixture longer than a block
+        // already exercises. They stay because they are the same construct at the same offsets for a scanner that
+        // may not always treat them this way, not because they guard the peek.
+        for (int pad = SCANNER_BLOCK_BYTES - 8; pad <= SCANNER_BLOCK_BYTES + 8; pad++) {
+            String filler = "x".repeat(pad);
+            // A CRLF terminator, its \r at offset 2 + pad.
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n" + filler + "\r\nsecond\nthird\n"));
+            // A doubled "" literal inside a quoted field, its first quote at offset 3 + pad.
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n\"" + filler + "\"\"q\"\nsecond\nthird\n"));
+            // An escaped newline, i.e. one that must not end the record, its escape char at offset 2 + pad.
+            assertExactWalkMatchesOracle(both(), bytes("h\n" + filler + "\\\nsecond\nthird\n"));
+        }
+    }
+
+    public void testExactWalkLookaheadAtEndOfStream() throws IOException {
+        // Both peeks can fall on the last byte of the stream, where there is nothing to look ahead at and a refill
+        // finds end of stream rather than a byte. A bare \r closes a record there; a quote inside a quoted field
+        // closes the field and leaves no record start behind it.
+        assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\nsecond\r"));
+        assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\n2,\"unterminated\""));
+    }
+
+    public void testExactWalkEndsOnAZeroLengthRead() throws IOException {
+        // A stream is not allowed to answer a non-empty read with zero bytes, and BufferedInputStream treats one as
+        // end of stream rather than asking again. The walk reads through its own block now, and keeps that reading:
+        // a stream that breaks the contract ends the scan where it broke it, instead of spinning on a refill that
+        // never advances. The bytes after the zero-length read are never seen, so no record start is found in them.
+        byte[] buf = bytes("h\nfirst\nsecond\nthird\n");
+        InputStream stalling = new InputStream() {
+            private int pos;
+            private boolean stalled;
+
+            @Override
+            public int read() {
+                throw new AssertionError("the walk must not ask for single bytes");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                if (stalled) {
+                    return 0;
+                }
+                stalled = true;
+                int n = Math.min(len, 4);
+                System.arraycopy(buf, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+        };
+        // minSkip sits past everything the stream will hand over, so the walk has to come back for a second block
+        // and meets the stall there; a smaller one would resolve against the first four bytes and never reach it.
+        assertEquals(-1L, splitter(quoted()).findRecordStartAtOrAfter(stalling, 10L, () -> false));
     }
 
     public void testOverMaxRecordBytesProbeAmbiguousWalkTooLarge() throws IOException {

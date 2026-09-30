@@ -2180,7 +2180,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         context.doc(),
                         fieldType().name()
                     );
-                    case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> throw new IllegalStateException(
+                    case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_COLUMNAR_SINGLE_VALUE -> throw new IllegalStateException(
                         "field [" + fieldType().name() + "] keeps array order inline but has no layout that can record a null slot"
                     );
                 }

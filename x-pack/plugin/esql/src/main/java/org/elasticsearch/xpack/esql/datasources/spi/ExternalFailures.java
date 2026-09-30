@@ -92,10 +92,8 @@ public final class ExternalFailures {
      * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
      * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
      * <p>
-     * Covers object-store schemes (S3, GCS, Azure Blob) and generic HTTP/HTTPS endpoints.
-     * Flight/gRPC ({@code esql-datasource-grpc}) uses non-HTTP schemes ({@code grpc://},
-     * {@code grpcs://}) and is hardened separately; add those schemes here when that module
-     * migrates to structured exceptions.
+     * Covers object-store schemes (S3, GCS, Azure Blob), generic HTTP/HTTPS endpoints, Arrow Flight / gRPC
+     * endpoints and local files. {@code file:/} also matches the authority-less {@code file:/path} form.
      */
     private static final String[] STORAGE_URI_SCHEMES = {
         "s3://",
@@ -105,7 +103,11 @@ public final class ExternalFailures {
         "wasb://",
         "wasbs://",
         "http://",
-        "https://" };
+        "https://",
+        "flight://",
+        "grpc://",
+        "grpcs://",
+        "file:/" };
 
     /**
      * Returns {@code true} when no message in {@code e}'s full cause chain contains a known

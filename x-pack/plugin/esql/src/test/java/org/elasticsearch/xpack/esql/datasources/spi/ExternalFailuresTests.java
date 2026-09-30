@@ -486,13 +486,30 @@ public class ExternalFailuresTests extends ESTestCase {
         assertTrue("detail must appear before dataset context", detailPos < ctxPos);
     }
 
+    public void testAuthorityLessFileUriIsAStorageUri() {
+        assertFalse(ExternalFailures.safeForUserMessage("cannot read file:/data/private/x.csv"));
+    }
+
     /**
      * Asserts that every storage-provider URI scheme is covered by {@link ExternalFailures#safeForUserMessage}.
-     * S3: s3/s3a/s3n, GCS: gs, Azure: wasb/wasbs, HTTP: http/https.
+     * S3: s3/s3a/s3n, GCS: gs, Azure: wasb/wasbs, HTTP: http/https, Flight: flight/grpc/grpcs, local: file.
      * If a new provider adds a new scheme, this test will catch it.
      */
     public void testStorageUriSchemesCoversAllProviderSchemes() {
-        for (String scheme : java.util.List.of("s3", "s3a", "s3n", "gs", "wasb", "wasbs", "http", "https")) {
+        for (String scheme : java.util.List.of(
+            "s3",
+            "s3a",
+            "s3n",
+            "gs",
+            "wasb",
+            "wasbs",
+            "http",
+            "https",
+            "flight",
+            "grpc",
+            "grpcs",
+            "file"
+        )) {
             assertFalse(
                 "scheme [" + scheme + "://] must be treated as a storage URI",
                 ExternalFailures.safeForUserMessage(scheme + "://bucket/object")

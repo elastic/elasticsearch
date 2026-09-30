@@ -116,9 +116,36 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
         assertEquals(
-            "[s3://b/f2.parquet] has [1] columns, [s3://b/f1.parquet] has [2]; set [schema_resolution] to [union_by_name] to merge schemas",
+            "[f2.parquet] has [1] columns, [f1.parquet] has [2]; set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
+    }
+
+    /**
+     * Files are named below the directory they share, so the bucket and dataset prefix stay out of the message. Files
+     * that share no bucket have no such directory, and a path below the scheme would name the buckets.
+     */
+    public void testStrictMismatchNamesFilesBelowTheirCommonDirectoryOnly() {
+        List<Attribute> schema1 = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.INTEGER));
+
+        StoragePath p1 = path("s3://secret-bucket/warehouse/logs/day=1/part-0.parquet");
+        StoragePath p2 = path("s3://secret-bucket/warehouse/logs/day=2/part-0.parquet");
+        IllegalArgumentException partitioned = expectThrows(
+            IllegalArgumentException.class,
+            () -> SchemaReconciliation.reconcileStrict(p1, orderedMap(p1, meta(schema1), p2, meta(schema2)))
+        );
+        assertThat(partitioned.getMessage(), containsString("[day=2/part-0.parquet] has [1] columns, [day=1/part-0.parquet] has [2]"));
+        assertThat(partitioned.getMessage(), not(containsString("warehouse")));
+
+        StoragePath b1 = path("s3://secret-one/data/f1.parquet");
+        StoragePath b2 = path("s3://secret-two/data/f2.parquet");
+        IllegalArgumentException acrossBuckets = expectThrows(
+            IllegalArgumentException.class,
+            () -> SchemaReconciliation.reconcileStrict(b1, orderedMap(b1, meta(schema1), b2, meta(schema2)))
+        );
+        assertThat(acrossBuckets.getMessage(), containsString("[f2.parquet] has [1] columns, [f1.parquet] has [2]"));
+        assertThat(acrossBuckets.getMessage(), not(containsString("secret")));
     }
 
     public void testStrictTypeMismatch() {
@@ -132,7 +159,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
         assertEquals(
-            "[s3://b/f2.parquet]: column [salary] is [long], in [s3://b/f1.parquet] it is [integer]; "
+            "[f2.parquet]: column [salary] is [long], in [f1.parquet] it is [integer]; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -237,7 +264,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
         assertEquals(
-            "[s3://logs/day=2/app.ndjson] has no column [level], which [s3://logs/day=1/app.ndjson] has; "
+            "[day=2/app.ndjson] has no column [level], which [day=1/app.ndjson] has; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -252,7 +279,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
-        assertThat(e.getMessage(), containsString("[s3://logs/day=2/app.ndjson] has [1] columns, [s3://logs/day=1/app.ndjson] has [2]"));
+        assertThat(e.getMessage(), containsString("[day=2/app.ndjson] has [1] columns, [day=1/app.ndjson] has [2]"));
     }
 
     public void testStrictOrderedFormatRejectsPermutedColumns() {
@@ -265,7 +292,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
         assertEquals(
-            "[s3://logs/day=2/app.csv]: column 0 is [level], in [s3://logs/day=1/app.csv] it is [id]; "
+            "[day=2/app.csv]: column 0 is [level], in [day=1/app.csv] it is [id]; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -406,7 +433,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             List.of(
                 "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
                     + "set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/f1.parquet (long), s3://b/f2.parquet (double); types [long, double]"
+                "column [val]: f1.parquet (long), f2.parquet (double); types [long, double]"
             ),
             warnings
         );
@@ -852,7 +879,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/f1.parquet (integer), s3://b/f2.parquet (keyword); types [integer, keyword]"
+                "column [val]: f1.parquet (integer), f2.parquet (keyword); types [integer, keyword]"
             ),
             warnings
         );
@@ -1045,8 +1072,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/z.parquet (integer), s3://b/a.parquet (integer), s3://b/m.parquet (integer), "
-                    + "+3 more; types [integer, keyword]"
+                "column [val]: z.parquet (integer), a.parquet (integer), m.parquet (integer), " + "+3 more; types [integer, keyword]"
             ),
             warnings
         );
@@ -1081,8 +1107,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/z.parquet (keyword), s3://b/a.parquet (keyword), s3://b/m.parquet (keyword), "
-                    + "+1 more; types [keyword, integer]"
+                "column [val]: z.parquet (keyword), a.parquet (keyword), m.parquet (keyword), " + "+1 more; types [keyword, integer]"
             ),
             warnings
         );

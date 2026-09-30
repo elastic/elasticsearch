@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -180,7 +181,13 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
 
     @Override
     public String describe() {
-        return "IcebergSourceOperator[path=" + tablePath + ", pageSize=" + pageSize + ", bufferSize=" + maxBufferSize + "]";
+        return "IcebergSourceOperator[table="
+            + StoragePath.objectName(tablePath)
+            + ", pageSize="
+            + pageSize
+            + ", bufferSize="
+            + maxBufferSize
+            + "]";
     }
 
     /**

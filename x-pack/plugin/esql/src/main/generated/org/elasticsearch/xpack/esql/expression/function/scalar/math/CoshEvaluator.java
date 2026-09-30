@@ -30,13 +30,17 @@ public final class CoshEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator val;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CoshEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
+  public CoshEvaluator(Source source, ExpressionEvaluator val, boolean allowNonFinite,
+      DriverContext driverContext) {
     this.source = source;
     this.val = val;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -75,7 +79,7 @@ public final class CoshEvaluator implements ExpressionEvaluator {
         }
         double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Cosh.process(val));
+          result.appendDouble(Cosh.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -90,7 +94,7 @@ public final class CoshEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Cosh.process(val));
+          result.appendDouble(Cosh.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -122,14 +126,17 @@ public final class CoshEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, ExpressionEvaluator.Factory val) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, boolean allowNonFinite) {
       this.source = source;
       this.val = val;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public CoshEvaluator get(DriverContext context) {
-      return new CoshEvaluator(source, val.get(context), context);
+      return new CoshEvaluator(source, val.get(context), allowNonFinite, context);
     }
 
     @Override

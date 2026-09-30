@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -57,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -701,18 +703,73 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         RecordingSplitProvider recorder = new RecordingSplitProvider();
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
 
-        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-            exec,
-            factories,
-            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> true
-        );
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(exec, factories, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES, () -> true);
 
         assertNotNull(recorder.lastContext);
         assertTrue(
             "cancellation signal must be threaded into the split discovery context",
             recorder.lastContext.isCancelled().getAsBoolean()
         );
+    }
+
+    /**
+     * The reserver the caller named is the one the provider reserves through, on both paths. A relation whose schema
+     * listing was a prefix lists the dataset again inside discovery, and those entries are heap the query holds: if
+     * the phase drops the reserver on the way down, that listing is allocated against nothing and the breaker never
+     * sees it. Reserving a byte through what the provider was handed is what proves the wire, so a phase passing
+     * ListingMemory.NONE - or null - leaves the counter at zero and fails here.
+     */
+    public void testTheListingReserverReachesSyncAndAsyncDiscovery() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        AtomicLong reserved = new AtomicLong();
+        ListingMemory memory = reserved::addAndGet;
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            memory
+        );
+        assertNotNull(recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(7L);
+        assertEquals("the sync path must hand the provider the caller's own reserver", 7L, reserved.get());
+
+        recorder.lastContext = null;
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            memory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertNotNull(recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(11L);
+        assertEquals("the async path must hand the provider the same reserver", 18L, reserved.get());
+    }
+
+    /**
+     * A caller that named no reserver gets one that refuses nothing rather than a null the provider has to interpret.
+     * Reserving through it must not throw, and must not reach any budget.
+     */
+    public void testDiscoveryWithNoReserverNamedReservesNothing() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(recorder)));
+
+        assertSame(ListingMemory.NONE, recorder.lastContext.listingMemory());
+        recorder.lastContext.listingMemory().reserve(Long.MAX_VALUE);
     }
 
     public void testDefaultContextIsNotCancelled() {

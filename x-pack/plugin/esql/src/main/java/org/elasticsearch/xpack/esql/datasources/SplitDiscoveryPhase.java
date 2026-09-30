@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -253,7 +254,15 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         List<Expression> seedFilters
     ) {
-        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, isCancelled, seedFilters, FormatReader.NO_LIMIT);
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            FormatReader.NO_LIMIT,
+            ListingMemory.NONE
+        );
     }
 
     /**
@@ -266,10 +275,11 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         BooleanSupplier isCancelled,
         List<Expression> seedFilters,
-        int seedRowLimit
+        int seedRowLimit,
+        ListingMemory listingMemory
     ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled);
+        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
         PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
         return new Result(
             resolved,
@@ -302,6 +312,7 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             seedFilters,
             FormatReader.NO_LIMIT,
+            ListingMemory.NONE,
             executor,
             listener
         );
@@ -315,6 +326,7 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         List<Expression> seedFilters,
         int seedRowLimit,
+        ListingMemory listingMemory,
         Executor executor,
         ActionListener<Result> listener
     ) {
@@ -324,7 +336,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory),
                 executor,
                 l.map(
                     resolved -> new Result(
@@ -354,7 +366,8 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        ListingMemory listingMemory
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -527,10 +540,7 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            // The query's reservation does not reach this layer yet, so this query's own listing reserves
-            // nothing. Resolution's listing already reserves as it lists; wiring the phase-2 run through to
-            // here is what closes the other half.
-            null
+            traversal.listingMemory()
         );
 
         SplitDiscoveryResult result;
@@ -584,10 +594,7 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            // The query's reservation does not reach this layer yet, so this query's own listing reserves
-            // nothing. Resolution's listing already reserves as it lists; wiring the phase-2 run through to
-            // here is what closes the other half.
-            null
+            traversal.listingMemory()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

@@ -145,7 +145,10 @@ public final class DatasetListingService {
     /**
      * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
      * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and the assertion below is what says so — the failure if that ever changes is silent.
+     * query is served, and the refusal below is what holds that.
+     * <p>
+     * {@code memory} reserves the entries either way, and only once: a miss reserves through the walk as it grows, a
+     * hit allocated nothing to reserve there and so reserves the whole listing here.
      */
     public FileList cachedListing(
         String path,

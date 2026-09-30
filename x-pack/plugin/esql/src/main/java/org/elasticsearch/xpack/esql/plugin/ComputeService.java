@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -310,6 +311,22 @@ public class ComputeService {
         chargePhase2(list.fileCount(), run);
     }
 
+    /**
+     * The reserver split discovery's own listing draws on. A relation whose schema listing was a prefix lists the
+     * dataset again during discovery, and those entries are heap this query is about to hold: {@code GlobExpander}
+     * reserves them in batches as the walk grows, so a dataset larger than the node can hold trips partway through
+     * its own listing rather than after the list exists.
+     * <p>
+     * The run rather than the query is the right budget, and the listing's lifetime is why: the coordinator drops
+     * every discovered listing once the splits are built - {@code dropCopiedListingState} on the top-level path,
+     * {@code rewriteFragmentListing} on the fragment one - so it does not outlive the execution that listed it.
+     * Charging query scope instead would hold those bytes to query close and charge again on a second execution,
+     * an INLINE STATS run re-listing, with nothing releasing the first.
+     */
+    private static ListingMemory discoveryListingMemory(ExternalPlanningReservation.Run run) {
+        return run == null ? ListingMemory.NONE : run::charge;
+    }
+
     private static void chargePhase2(long fileCount, ExternalPlanningReservation.Run run) {
         if (fileCount <= 0 || run == null) {
             return;
@@ -363,6 +380,8 @@ public class ComputeService {
                 maxRecordBytes(configuration),
                 isCancelled,
                 List.of(),
+                FormatReader.NO_LIMIT,
+                discoveryListingMemory(run),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -848,7 +867,9 @@ public class ComputeService {
                     maxRecordBytes,
                     isCancelled,
                     guarded.filters(),
-                    guarded.rowLimit()
+                    guarded.rowLimit(),
+                    // No reservation reaches the synchronous path, which only tests take.
+                    ListingMemory.NONE
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -943,6 +964,7 @@ public class ComputeService {
             isCancelled,
             work.guarded().filters(),
             work.guarded().rowLimit(),
+            discoveryListingMemory(run),
             ioExecutor,
             ActionListener.wrap(result -> {
                 try {

@@ -379,9 +379,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/157411
-- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
-  method: testSearchShardRecoveryRegistersCommit
-  issue: https://github.com/elastic/elasticsearch/issues/157463
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   method: testFailedDeploymentStats
   issue: https://github.com/elastic/elasticsearch/issues/157341
@@ -672,3 +669,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testRequestCacheWorks
+  issue: https://github.com/elastic/elasticsearch/issues/160611
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/150297
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/160613

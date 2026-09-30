@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Map;
 import java.util.OptionalLong;
 
@@ -86,6 +88,27 @@ public final class ExternalStats {
 
     /** Stamped by a format that cannot fail on row width, so its count crosses to any read. */
     public static final int NO_WIDTH_BOUND = 0;
+
+    /**
+     * Stamps the row-count licence together with the bound it was won under, which is the only way either should be
+     * written.
+     * <p>
+     * The two are one fact and were briefly written by six separate call sites, one of which stamped the licence and
+     * forgot the bound. That is not a wrong answer — a consumer refuses a crossing it cannot evaluate — it silently
+     * stops a whole format warming, which is the kind of defect no assertion about correctness would catch. Passing
+     * the bound is now the only way to stamp the licence, so the decision has to be made rather than skipped.
+     *
+     * @param widthBound the widest row the producing read would accept, {@link #NO_WIDTH_BOUND} for a format that
+     *                   cannot fail on width, or {@code null} to license without a bound — which refuses every
+     *                   crossing, and is right only where the bound genuinely is not known, such as a merge whose
+     *                   inputs did not all state one.
+     */
+    public static void putRowCountLicence(Map<String, Object> target, @Nullable Integer widthBound) {
+        target.put(ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        if (widthBound != null) {
+            target.put(ROW_COUNT_WIDTH_BOUND_KEY, widthBound);
+        }
+    }
 
     /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as

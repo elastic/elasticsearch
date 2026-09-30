@@ -4024,12 +4024,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // so a committed count is the physical record count for every declaration. Under the lenient policies dropped rows make a
             // committed count a survivor count for this read, not the file's physical record count.
             if (errorPolicy.isStrict()) {
-                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-                // The bound this read enforced, so the crossing can be checked. Positional binding bounds a row at the
-                // pinned schema's width; declared binding bounds it at the bound file's own header, and a headerless
-                // declared read carries no bound at all. Without this the licence would carry a declared read's count
-                // to a positional reader that aborts on the same file.
-                base.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, rowWidthLimit);
+                // Positional binding bounds a row at the pinned schema's width; declared binding at the bound file's
+                // own header; a headerless declared read carries no bound at all.
+                ExternalStats.putRowCountLicence(base, rowWidthLimit);
             }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

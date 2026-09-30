@@ -778,12 +778,7 @@ public class ExternalSourceCacheService implements Closeable {
             // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
             // unchunked one can — a safe-miss, but one with no reason behind it.
             if (rowCountReadConfigIndependent) {
-                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-                // And the bound it was granted under, for the same reason: a chunked read must license exactly what an
-                // unchunked one can, and no more.
-                if (rowCountWidthBound != null) {
-                    whole.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, rowCountWidthBound);
-                }
+                ExternalStats.putRowCountLicence(whole, rowCountWidthBound);
             }
         }
         return whole;
@@ -1060,12 +1055,9 @@ public class ExternalSourceCacheService implements Closeable {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
         if (rowCountReadConfigIndependent) {
-            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            // Re-attached with the licence. Dropped here, the crossing check sees no bound and refuses every crossing:
-            // the safe direction, but it stops a strict dataset warming without saying so.
-            if (rowCountWidthBound != null) {
-                base.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, rowCountWidthBound);
-            }
+            // Re-attached together: dropped here, the crossing check sees no bound and refuses every crossing — the
+            // safe direction, but it stops a strict dataset warming without saying so.
+            ExternalStats.putRowCountLicence(base, rowCountWidthBound);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }

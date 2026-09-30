@@ -913,12 +913,9 @@ public final class SourceStatisticsSerializer {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
         }
         if (allLicensed) {
-            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            // An input that stamped no bound leaves the merged count unable to say what it enforced, so it stamps
-            // nothing and the crossing is refused rather than guessed.
-            if (widthBound != null) {
-                merged.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, widthBound);
-            }
+            // An input that stamped no bound leaves the merged count unable to say what it enforced, so the licence
+            // goes out without one and the crossing is refused rather than guessed.
+            ExternalStats.putRowCountLicence(merged, widthBound);
         }
     }
 

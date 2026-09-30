@@ -1115,11 +1115,11 @@ public class SharedBlobCacheWarmingService {
     public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
 
         public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext) {
-            this(timeout, timeoutContext, TimeValue.MAX_VALUE);
+            this(timeout, timeoutContext, TimeValue.ZERO);
         }
 
         public static SearchRecoveryTimeout skip() {
-            return new SearchRecoveryTimeout(TimeValue.ZERO, "", TimeValue.ZERO);
+            return new SearchRecoveryTimeout(TimeValue.ZERO, "");
         }
 
         /** When {@code true}, recovery should use {@link #searchRecoveryWarmingListener} with {@link #timeout()} (which is then &gt; 0). */

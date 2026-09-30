@@ -80,6 +80,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQ
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -1088,6 +1089,20 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     @Override
     protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
+        if (version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+            // ES|QL datafeeds (esqlQuery, sourceTimeField, groupingInterval and no indicesOptions) have no representation before
+            // ML_DATAFEED_ESQL_QUERY: DatafeedConfig#writeTo refuses to serialize them, so there is no expected deserialized instance.
+            // Classic datafeeds always carry non-null indicesOptions (the builder defaults them), which older nodes read without a
+            // presence flag, so they round-trip unchanged apart from the version-gated fields handled below.
+            assertThat(
+                "ES|QL datafeeds cannot be serialized to transport version [" + version + "]; callers must expect a failure instead",
+                instance.getEsqlQuery(),
+                nullValue()
+            );
+            assertThat(instance.getSourceTimeField(), nullValue());
+            assertThat(instance.getGroupingInterval(), nullValue());
+            assertThat(instance.getIndicesOptions(), notNullValue());
+        }
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
         if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) == false) {
             builder.setProjectRouting(null);
@@ -1907,21 +1922,126 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
         DatafeedConfig config = createRandomizedDatafeedConfigBuilder("job1", "datafeed1", 3600000L).build();
         assertThat(config.getIndicesOptions(), notNullValue());
+        assertWireFormatMatchesLegacyLayout(config, legacyVersion);
+    }
 
+    /**
+     * Randomized version of {@link #testWireFormatBeforeEsqlSupportMatchesLegacyLayout()}: every classic datafeed must be written in the
+     * layout expected by a node that predates {@code ML_DATAFEED_ESQL_QUERY}, for every released transport version before it.
+     * Serializing and deserializing with the same code cannot detect a layout change (both sides agree on it), so this decodes the
+     * bytes with an independent reader that mirrors the pre-ES|QL constructor.
+     */
+    public void testRandomizedWireFormatBeforeEsqlSupportMatchesLegacyLayout() throws IOException {
+        List<TransportVersion> legacyVersions = legacyBwcVersions();
+        assertThat(legacyVersions, not(empty()));
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            DatafeedConfig config = createTestInstance();
+            for (TransportVersion legacyVersion : legacyVersions) {
+                assertWireFormatMatchesLegacyLayout(config, legacyVersion);
+            }
+        }
+    }
+
+    /**
+     * Randomly picks classic or ES|QL datafeeds and round-trips them over every BWC version plus the versions around
+     * {@code ML_DATAFEED_ESQL_QUERY}. Versions that support ES|QL datafeeds must round-trip both kinds; older versions must round-trip
+     * classic datafeeds (as modelled by {@link #mutateInstanceForVersion}) and must refuse ES|QL datafeeds instead of silently
+     * dropping their ES|QL fields.
+     */
+    public void testRandomizedBwcSerializationIncludingEsqlDatafeeds() throws IOException {
+        List<TransportVersion> versions = new ArrayList<>(bwcVersions());
+        for (TransportVersion extra : List.of(
+            TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY),
+            DatafeedConfig.ML_DATAFEED_ESQL_QUERY,
+            TransportVersion.current()
+        )) {
+            if (versions.contains(extra) == false) {
+                versions.add(extra);
+            }
+        }
+        boolean sawEsql = false;
+        boolean sawClassic = false;
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            DatafeedConfig config = randomBoolean() || (runs == 0 && sawEsql == false)
+                ? createRandomizedEsqlDatafeedConfigBuilder("job1", "datafeed1").build()
+                : createRandomizedDatafeedConfig("job1", "datafeed1", 3600000L);
+            boolean esql = config.getEsqlQuery() != null;
+            sawEsql |= esql;
+            sawClassic |= esql == false;
+            for (TransportVersion version : versions) {
+                if (esql && version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+                    IOException e = expectThrows(
+                        IOException.class,
+                        () -> copyWriteable(config, getNamedWriteableRegistry(), instanceReader(), version)
+                    );
+                    assertThat(e.getMessage(), containsString("Cannot send ES|QL datafeed [datafeed1]"));
+                } else {
+                    assertBwcSerialization(config, version);
+                }
+            }
+        }
+        assertTrue("expected to generate at least one ES|QL datafeed", sawEsql);
+        assertTrue("expected to generate at least one classic datafeed", sawClassic);
+    }
+
+    private List<TransportVersion> legacyBwcVersions() {
+        List<TransportVersion> legacyVersions = new ArrayList<>();
+        for (TransportVersion version : bwcVersions()) {
+            if (version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+                legacyVersions.add(version);
+            }
+        }
+        TransportVersion previous = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        if (legacyVersions.contains(previous) == false) {
+            legacyVersions.add(previous);
+        }
+        return legacyVersions;
+    }
+
+    private void assertWireFormatMatchesLegacyLayout(DatafeedConfig config, TransportVersion legacyVersion) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(legacyVersion);
             config.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
                 in.setTransportVersion(legacyVersion);
                 IndicesOptions legacyIndicesOptions = readIndicesOptionsWithLegacyLayout(in);
-                assertThat(legacyIndicesOptions, equalTo(config.getIndicesOptions()));
-                assertThat("legacy reader must consume the whole stream", in.available(), equalTo(0));
+                assertThat("version " + legacyVersion, legacyIndicesOptions, equalTo(config.getIndicesOptions()));
+                assertThat("legacy reader must consume the whole stream, version " + legacyVersion, in.available(), equalTo(0));
             }
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
                 in.setTransportVersion(legacyVersion);
                 assertThat(new DatafeedConfig(in), equalTo(mutateInstanceForVersion(config, legacyVersion)));
             }
         }
+    }
+
+    /**
+     * Builds a random ES|QL datafeed: no indices, query, aggregations, script fields, runtime mappings or indices options, which
+     * {@link DatafeedConfig.Builder#build()} rejects for ES|QL datafeeds.
+     */
+    static DatafeedConfig.Builder createRandomizedEsqlDatafeedConfigBuilder(String jobId, String datafeedId) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setEsqlQuery("FROM " + randomAlphaOfLengthBetween(1, 10) + "-* | WHERE " + randomAlphaOfLengthBetween(1, 10) + " > 0");
+        builder.setSourceTimeField(randomAlphaOfLengthBetween(1, 10));
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(randomIntBetween(1, 3600)));
+        if (randomBoolean()) {
+            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+        }
+        if (randomBoolean()) {
+            builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
+        }
+        if (randomBoolean()) {
+            builder.setChunkingConfig(
+                randomBoolean() ? ChunkingConfig.newAuto() : ChunkingConfig.newManual(TimeValue.timeValueHours(randomIntBetween(1, 100)))
+            );
+        }
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(3600000L));
+        }
+        if (randomBoolean()) {
+            builder.setMaxEmptySearches(randomIntBetween(10, 100));
+        }
+        return builder;
     }
 
     /**

@@ -3227,9 +3227,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + "] uses similarity ["
                     + querySimilarity
                     + "]";
-                InferenceFunction<?> queryFunction = (InferenceFunction<?>) knn.query();
-                Expression unresolvedQuery = queryFunction.withInferenceResolutionError(queryInferenceId, error);
-                return knn.replaceQuery(unresolvedQuery);
+                return knn.replaceQuery(new UnresolvedAttribute(knn.query().source(), "query", error));
             }
 
             if (knn.options() instanceof MapExpression options && options.containsKey(Knn.SIMILARITY_FUNCTION_OPTION)) {

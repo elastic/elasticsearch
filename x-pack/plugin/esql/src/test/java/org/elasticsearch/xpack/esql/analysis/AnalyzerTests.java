@@ -4368,33 +4368,36 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
-    public void testKnnAliasSimilarityHonorsOverrideAndRejectsConflicts() {
+    public void testKnnAliasSimilarityHonorsOverride() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
-        String pipeline = """
+
+        LogicalPlan plan = analyzer.query("""
             FROM books
             | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
             | RENAME vector AS intermediate
             | EVAL emb = intermediate
-            """;
-
-        LogicalPlan plan = analyzer.query(
-            pipeline + " | WHERE KNN(emb, [1.0, 0.0, 0.0], { \"similarity_function\": \"dot_product\" }) | LIMIT 10"
-        );
+            | WHERE KNN(emb, [1.0, 0.0, 0.0], { "similarity_function": "dot_product" })
+            | LIMIT 10
+            """);
         MapExpression options = as(findKnn(plan).options(), MapExpression.class);
         assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
 
-        analyzer.error(
-            pipeline + " | WHERE KNN(emb, TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\")) | LIMIT 10",
-            containsString(
-                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
-                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
-            )
-        );
+        // query_vector is aliased, but similarity is still inferred from the explicit similarity override.
+        plan = analyzer.query("""
+            ROW emb = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+            | RENAME q_vector AS intermediate
+            | EVAL query_vector = intermediate
+            | WHERE KNN(emb, query_vector, { "similarity_function": "dot_product" })
+            | LIMIT 10
+            """);
+        options = as(findKnn(plan).options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
     }
 
     public void testKnnDoesNotInferSimilarityThroughModifiedVector() {
@@ -4411,6 +4414,82 @@ public class AnalyzerTests extends AnalyzerTestCase {
             | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10
             """);
         assertThat(findKnn(plan).options(), nullValue());
+    }
+
+    public void testKnnAliasSimilarityRejectsConflicts() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
+
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | RENAME vector AS intermediate
+                | EVAL emb = intermediate
+                | WHERE KNN(emb, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // still error even though similarity is explicitly specified.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | RENAME vector AS intermediate
+                | EVAL emb = intermediate
+                | WHERE KNN(emb, TEXT_EMBEDDING("italian food recipe", "query-endpoint"), { "similarity_function": "dot_product" })
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // conflict detect through aliases for both dense_vector field and query.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+                | RENAME vector AS intermediate
+                | RENAME q_vector AS q_intermediate
+                | EVAL emb = intermediate, query_vector = q_intermediate
+                | WHERE KNN(emb, query_vector)
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // still error even though similarity is explicitly specified.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+                | RENAME vector AS intermediate
+                | RENAME q_vector AS q_intermediate
+                | EVAL emb = intermediate, query_vector = q_intermediate
+                | WHERE KNN(emb, query_vector, { "similarity_function": "dot_product" })
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
     }
 
     private static void assumeKnnRuntimeEnabled() {

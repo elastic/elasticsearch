@@ -1,6 +1,5 @@
+area: ES|QL
+issues: []
 pr: 160669
 summary: '`min_competitive` `_score` for `LuceneSourceOperator`'
-area: ES|QL
 type: enhancement
-issues:
-  - 136267

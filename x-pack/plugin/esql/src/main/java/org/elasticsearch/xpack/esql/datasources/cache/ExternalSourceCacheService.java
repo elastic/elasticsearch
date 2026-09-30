@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
@@ -35,8 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 
 /**
@@ -70,6 +74,8 @@ public class ExternalSourceCacheService implements Closeable {
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
+    /** In-flight async listings: concurrent cold misses for the same key share one compute. */
+    private final ConcurrentHashMap<ListingCacheKey, SubscribableListener<FileList>> inFlightListings = new ConcurrentHashMap<>();
     private final long maxTotalBytes;
     private volatile boolean enabled;
 
@@ -404,6 +410,44 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return listingCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Async variant of {@link #getOrComputeListing} with in-flight coalescing: concurrent cold misses for
+     * the same key share one {@code compute} invocation rather than each spawning a separate fan-out.
+     * Failures are never cached; a follower that receives a
+     * {@link org.elasticsearch.tasks.TaskCancelledException} from a cancelled leader should re-invoke
+     * rather than propagating the cancellation to its own task.
+     */
+    public void getOrComputeListingAsync(
+        ListingCacheKey key,
+        Consumer<ActionListener<FileList>> compute,
+        ActionListener<FileList> listener
+    ) {
+        if (enabled == false) {
+            compute.accept(listener);
+            return;
+        }
+        FileList cached = listingCache.get(key);
+        if (cached != null) {
+            listener.onResponse(cached);
+            return;
+        }
+        SubscribableListener<FileList> newFuture = new SubscribableListener<>();
+        SubscribableListener<FileList> existing = inFlightListings.putIfAbsent(key, newFuture);
+        if (existing != null) {
+            existing.addListener(listener);
+            return;
+        }
+        newFuture.addListener(listener);
+        compute.accept(ActionListener.wrap(result -> {
+            listingCache.put(key, result);
+            inFlightListings.remove(key, newFuture);
+            newFuture.onResponse(result);
+        }, e -> {
+            inFlightListings.remove(key, newFuture);
+            newFuture.onFailure(e);
+        }));
     }
 
     /**
@@ -1525,6 +1569,7 @@ public class ExternalSourceCacheService implements Closeable {
         datasetAggregateCache.invalidateAll();
         fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
+        inFlightListings.clear();
         synchronized (pendingDatasetAggregates) {
             pendingDatasetAggregates.clear();
         }

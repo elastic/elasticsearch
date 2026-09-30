@@ -187,7 +187,9 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(pattern.objectSubfieldsCouldMatch("a*b"));
         assertFalse(pattern.objectSubfieldsCouldMatch("a"));
         assertFalse(pattern.objectSubfieldsCouldMatch("axb"));
+    }
 
+    public void testForKeepInteriorEscapedStars() {
         UnmappedFieldsPattern interior = UnmappedFieldsPattern.forKeep(List.of(namePattern("*x\\*y*z\\*")));
         assertTrue(interior.matches("x*yz*"));
         assertTrue(interior.matches("ax*ybz*"));
@@ -210,7 +212,9 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertFalse(escapedStarSuffix.matches("unmapped*"));
         assertTrue(escapedStarSuffix.matches("unmapped"));
         assertTrue(escapedStarSuffix.objectSubfieldsCouldMatch("unmappedd*"));
+    }
 
+    public void testForDropEscapedBackslashBeforeWildcard() {
         UnmappedFieldsPattern escapedBackslashThenWildcard = UnmappedFieldsPattern.forDrop(List.of(namePattern("a\\\\*")));
         assertFalse(escapedBackslashThenWildcard.matches("a\\b"));
         assertFalse(escapedBackslashThenWildcard.objectSubfieldsCouldMatch("a\\"));
@@ -228,10 +232,14 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
                 .intersect(UnmappedFieldsPattern.excludes(List.of(exclude)));
             for (int j = 0; j < 20; j++) {
                 String name = randomName();
-                boolean expected = (Regex.simpleMatch(include, name) || Regex.simpleMatch(alternative, name))
-                    && Regex.simpleMatch(otherGroup, name)
-                    && Regex.simpleMatch(exclude, name) == false;
-                assertEquals(pattern + " against [" + name + "]", expected, pattern.matches(name));
+                String message = pattern + " against [" + name + "]";
+                if (Regex.simpleMatch(exclude, name)) {
+                    assertFalse(message, pattern.matches(name));
+                } else {
+                    boolean matchesInclude = Regex.simpleMatch(include, name) || Regex.simpleMatch(alternative, name);
+                    boolean matchesOtherGroup = Regex.simpleMatch(otherGroup, name);
+                    assertEquals(message, matchesInclude && matchesOtherGroup, pattern.matches(name));
+                }
             }
         }
     }

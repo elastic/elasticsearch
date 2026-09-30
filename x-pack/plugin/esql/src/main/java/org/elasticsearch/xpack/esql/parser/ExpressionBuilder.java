@@ -561,7 +561,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return result;
     }
 
-    /** Appends {@code literal} to an {@link UnresolvedNamePattern#glob()}, escaping the characters that glob syntax gives a meaning. */
+    /**
+     * Appends {@code literal} to the glob, escaping {@code *} and {@code \\} so they match literally.
+     * Used by unmapped_fields LOAD_ALL functionality.
+     */
     private static void appendGlobLiteral(StringBuilder glob, String literal) {
         for (int i = 0; i < literal.length(); i++) {
             char c = literal.charAt(i);

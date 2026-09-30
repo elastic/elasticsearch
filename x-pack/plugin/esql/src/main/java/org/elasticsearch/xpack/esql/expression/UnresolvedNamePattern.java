@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -39,9 +40,15 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     // Cannot rely on NamedExpression.name: the UnresolvedNamedExpression superclass throws on name()
     // and stores "<unresolved>" as the internal name field.
     private final String actualName;
-    private final String glob;
+    @Nullable private final String glob;
 
-    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name, String glob) {
+    public UnresolvedNamePattern(
+        Source source,
+        CharacterRunAutomaton automaton,
+        String patternString,
+        String name,
+        @Nullable String glob
+    ) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;
@@ -75,7 +82,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     /**
      * The pattern as a {@code *} glob that matches exactly what {@link #match} does, in which {@code \*} and {@code \\} stand for a literal
-     * {@code *} and {@code \}. Use by unmapped_fields LOAD_ALL functionality.
+     * {@code *} and {@code \}. Used by unmapped_fields LOAD_ALL functionality.
      */
     public String glob() {
         return glob;

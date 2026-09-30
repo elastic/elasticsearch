@@ -71,10 +71,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     private final List<String> globExcludes;
 
-    // TODO: find ways of shrinking the size of this thing
-    private final Set<String> exactExcludes; // this one could potentially be large and IS serialized
+    // TODO: find ways of shrinking exactExcludes — it can grow large and is serialized on the wire.
+    private final Set<String> exactExcludes;
 
-    // compiled once from the strings above
+    // Derived at construction (not serialized); rebuilt from includeGroups / globExcludes after readFrom.
     private final CompiledGlob[][] compiledIncludeGroups;
     private final CompiledGlob[] compiledGlobExcludes;
 
@@ -134,9 +134,9 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         this.globExcludes = List.copyOf(globExcludes);
         this.exactExcludes = Set.copyOf(new LinkedHashSet<>(exactExcludes));
         this.compiledIncludeGroups = this.includeGroups.stream()
-            .map(group -> group.stream().map(CompiledGlob::new).toArray(CompiledGlob[]::new))
+            .map(group -> group.stream().map(CompiledGlob::compile).toArray(CompiledGlob[]::new))
             .toArray(CompiledGlob[][]::new);
-        this.compiledGlobExcludes = this.globExcludes.stream().map(CompiledGlob::new).toArray(CompiledGlob[]::new);
+        this.compiledGlobExcludes = this.globExcludes.stream().map(CompiledGlob::compile).toArray(CompiledGlob[]::new);
         this.subtreeCoveringExcludes = Arrays.stream(compiledGlobExcludes)
             .filter(CompiledGlob::endsWithWildcard)
             .toArray(CompiledGlob[]::new);
@@ -348,7 +348,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     private static final class CompiledGlob {
         private final String[] fragments;
 
-        CompiledGlob(String glob) {
+        static CompiledGlob compile(String glob) {
             List<String> parts = new ArrayList<>();
             StringBuilder fragment = new StringBuilder();
             for (int i = 0; i < glob.length(); i++) {
@@ -363,7 +363,11 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
                 }
             }
             parts.add(fragment.toString());
-            this.fragments = parts.toArray(String[]::new);
+            return new CompiledGlob(parts.toArray(String[]::new));
+        }
+
+        private CompiledGlob(String[] fragments) {
+            this.fragments = fragments;
         }
 
         /** The escape-resolved text before the first wildcard, or the whole literal when there is none. */

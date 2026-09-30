@@ -11,9 +11,16 @@ template:
         value: exemplars
       value:
         type: double
-      metric_name:
-        type: keyword
+      labels:
+        type: passthrough
+        priority: 10
         time_series_dimension: true
+        properties:
+          __name__:
+            type: keyword
+      metric_name:
+        type: alias
+        path: labels.__name__
       exemplar_labels:
         type: passthrough
         priority: 30

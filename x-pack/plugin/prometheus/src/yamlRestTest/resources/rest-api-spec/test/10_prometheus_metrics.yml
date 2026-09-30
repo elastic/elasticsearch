@@ -47,11 +47,11 @@ setup:
               namespace: "default"
               type: "exemplars"
             labels:
+              __name__: "node_cpu_seconds_total"
               job: "node_exporter"
               instance: "localhost:9100"
             exemplar_labels:
               trace_id: "0af7651916cd43dd8448eb211c80319c"
-            metric_name: "node_cpu_seconds_total"
             value: 42.0
   - is_false: errors
   - do:
@@ -65,10 +65,12 @@ setup:
   - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "exemplars" }
   - match: { .$idx0name.mappings.properties.labels.type: "passthrough" }
   - match: { .$idx0name.mappings.properties.labels.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.labels.properties.__name__.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.labels.properties.__name__.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.exemplar_labels.type: "passthrough" }
   - is_false: .$idx0name.mappings.properties.exemplar_labels.time_series_dimension
-  - match: { .$idx0name.mappings.properties.metric_name.type: "keyword" }
-  - match: { .$idx0name.mappings.properties.metric_name.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.metric_name.type: "alias" }
+  - match: { .$idx0name.mappings.properties.metric_name.path: "labels.__name__" }
   - match: { .$idx0name.mappings.properties.value.type: "double" }
 ---
 "Test bulk ingest and query":

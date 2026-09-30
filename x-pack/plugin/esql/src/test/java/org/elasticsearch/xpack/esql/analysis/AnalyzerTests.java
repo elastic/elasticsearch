@@ -4355,7 +4355,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
             "RENAME vector AS query_vector",
             "EVAL query_vector = vector",
             "EVAL intermediate = vector, query_vector = intermediate",
-            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector | KEEP copied_vector, dense_vector_field | RENAME copied_vector AS query_vector"
+            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector " +
+                "| KEEP copied_vector, dense_vector_field | RENAME copied_vector AS query_vector"
         )) {
             LogicalPlan plan = analyzer.query(
                 "ROW dense_vector_field = TO_DENSE_VECTOR([1.0, 0.0, 0.0]) | "

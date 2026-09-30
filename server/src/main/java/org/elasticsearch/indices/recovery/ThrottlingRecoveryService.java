@@ -423,7 +423,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private void onDequeued(PendingRecovery dequeued) {
         // If this recovery matches the cached earliest enqueued time, invalidate the cache (it will be computed the next time it's needed).
         if (cachedEarliestEnqueuedTimeAbsoluteMillis != null
-            && dequeued.enqueuedTimeAbsoluteMillis == cachedEarliestEnqueuedTimeAbsoluteMillis) {
+            && dequeued.enqueuedTimeAbsoluteMillis() == cachedEarliestEnqueuedTimeAbsoluteMillis) {
             cachedEarliestEnqueuedTimeAbsoluteMillis = null;
         }
     }

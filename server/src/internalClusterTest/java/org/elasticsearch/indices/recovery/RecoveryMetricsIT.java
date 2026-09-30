@@ -659,7 +659,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     public void testQueueLatencyMetric() {
-        // Setting estimated_time_interval to 0 disables the clock cache so that absoluteTimeInMillis()calls System.currentTimeMillis()
+        // Setting estimated_time_interval to 0 disables the clock cache so that absoluteTimeInMillis() calls System.currentTimeMillis()
         // directly, so we can make a more precise assertion about the latency metric:
         final var node = internalCluster().startNode(
             Settings.builder()

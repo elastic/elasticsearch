@@ -40,15 +40,10 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     // Cannot rely on NamedExpression.name: the UnresolvedNamedExpression superclass throws on name()
     // and stores "<unresolved>" as the internal name field.
     private final String actualName;
-    @Nullable private final String glob;
+    @Nullable
+    private final String glob;
 
-    public UnresolvedNamePattern(
-        Source source,
-        CharacterRunAutomaton automaton,
-        String patternString,
-        String name,
-        @Nullable String glob
-    ) {
+    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name, @Nullable String glob) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;

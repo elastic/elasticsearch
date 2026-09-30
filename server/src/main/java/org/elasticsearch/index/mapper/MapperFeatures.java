@@ -85,6 +85,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     public static final NodeFeature BBQ_DISK_BYTE_SUPPORT = new NodeFeature("mapper.bbq_disk_byte_support");
     public static final NodeFeature ASH_QUANTIZATION_TYPE_SUPPORT = new NodeFeature("mapper.ash_quantization_type_support");
+    public static final NodeFeature BBQ_DISK_AUTO_CALIBRATE_SUPPORT = new NodeFeature("mapper.dense_vector.bbq_disk_auto_calibrate");
     public static final NodeFeature DISK_BBQ_STABLE_FORMAT_SELECTION = new NodeFeature("mapper.disk_bbq_stable_format_selection");
     public static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     public static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
@@ -179,7 +180,12 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, BBQ_DISK_BYTE_SUPPORT, ASH_QUANTIZATION_TYPE_SUPPORT);
+        return Set.of(
+            TSDB_METRIC_TEMPORALITY_SUPPORT,
+            BBQ_DISK_BYTE_SUPPORT,
+            ASH_QUANTIZATION_TYPE_SUPPORT,
+            BBQ_DISK_AUTO_CALIBRATE_SUPPORT
+        );
     }
 
     @Override

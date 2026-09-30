@@ -2299,6 +2299,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                // auto_calibrate defaults to false, so a resolved value of true means the user explicitly enabled it.
+                // Gate on the cluster feature so it is rejected (rather than silently ignored) where it is not supported.
+                if (autoCalibrate && clusterSupportsFeature.test(MapperFeatures.BBQ_DISK_AUTO_CALIBRATE_SUPPORT) == false) {
+                    throw new IllegalArgumentException(
+                        "'auto_calibrate' is not supported until all nodes in the cluster support it for field [" + fieldName + "]"
+                    );
+                }
                 if (isAsh && autoCalibrate) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"

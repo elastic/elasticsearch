@@ -1127,6 +1127,81 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
     }
 
+    public void testBBQDiskAutoCalibrateRejectedWhenFeatureUnsupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(
+            f -> f.equals(MapperFeatures.BBQ_DISK_AUTO_CALIBRATE_SUPPORT) == false
+        ).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("auto_calibrate", true)
+                    .endObject()
+            )
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping)
+        );
+        assertThat(e.getMessage(), containsString("'auto_calibrate' is not supported until all nodes in the cluster support it"));
+
+        // recovery of an already-created mapping must always succeed, even without the cluster feature
+        merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertTrue(indexOptions.autoCalibrate);
+    }
+
+    public void testBBQDiskAutoCalibrateAcceptedWhenFeatureSupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("auto_calibrate", true)
+                    .endObject()
+            )
+        );
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertTrue(indexOptions.autoCalibrate);
+    }
+
+    public void testBBQDiskAutoCalibrateUnsetAllowedWithoutFeature() throws IOException {
+        // omitting auto_calibrate (default false) must be allowed even when the cluster does not support the feature
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(
+            f -> f.equals(MapperFeatures.BBQ_DISK_AUTO_CALIBRATE_SUPPORT) == false
+        ).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertFalse(indexOptions.autoCalibrate);
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

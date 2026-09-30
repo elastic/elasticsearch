@@ -50,78 +50,15 @@ public abstract class ExternalException extends QlException {
      */
     public enum Condition {
         /** A transient, non-throttling store failure — connection error, 500/502/504. */
-        STORE_UNAVAILABLE {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder("External store unavailable");
-                if (objectName.isEmpty() == false) {
-                    sb.append(" reading [").append(objectName).append("]");
-                }
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                if (remedy.isEmpty() == false) {
-                    sb.append(". ").append(remedy);
-                }
-                return sb.toString();
-            }
-        },
+        STORE_UNAVAILABLE("External store unavailable reading [{}]", "External store unavailable"),
         /** Back-pressure / throttling from the store — 429 / 503. */
-        STORE_THROTTLED {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder("External store throttled");
-                if (objectName.isEmpty() == false) {
-                    sb.append(" reading [").append(objectName).append("]");
-                }
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                if (remedy.isEmpty() == false) {
-                    sb.append(". ").append(remedy);
-                }
-                return sb.toString();
-            }
-        },
+        STORE_THROTTLED("External store throttled reading [{}]", "External store throttled"),
         /** The object was replaced with a different generation mid-query. */
-        OBJECT_CHANGED {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                if (objectName.isEmpty()) {
-                    return "External data object was modified during read";
-                }
-                return "External data object [" + objectName + "] was modified during read";
-            }
-        },
+        OBJECT_CHANGED("External data object [{}] was modified during read", "External data object was modified during read"),
         /** The credentials lacked permission to read the object or list the prefix. */
-        ACCESS_DENIED {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder("Access denied");
-                if (objectName.isEmpty() == false) {
-                    sb.append(" reading [").append(objectName).append("]");
-                } else {
-                    sb.append(" reading external data");
-                }
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                if (remedy.isEmpty() == false) {
-                    sb.append(". ").append(remedy);
-                }
-                return sb.toString();
-            }
-        },
+        ACCESS_DENIED("Access denied reading [{}]", "Access denied reading external data"),
         /** The requested object does not exist at the storage path. */
-        OBJECT_NOT_FOUND {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                if (objectName.isEmpty()) {
-                    return "External data object not found";
-                }
-                return "External data object not found: [" + objectName + "]";
-            }
-        },
+        OBJECT_NOT_FOUND("External data object not found: [{}]", "External data object not found"),
         /** Session or temporary credentials have expired; the caller must refresh and retry. */
         CREDENTIALS_EXPIRED {
             @Override
@@ -132,51 +69,11 @@ public abstract class ExternalException extends QlException {
             }
         },
         /** The object's data is corrupt, truncated, or uses an unsupported format variant. */
-        MALFORMED_DATA {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder();
-                if (objectName.isEmpty()) {
-                    sb.append("Malformed external data");
-                } else {
-                    sb.append("Malformed data in [").append(objectName).append("]");
-                }
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                return sb.toString();
-            }
-        },
+        MALFORMED_DATA("Malformed data in [{}]", "Malformed external data"),
         /** Object metadata (size, last-modified, ETag) could not be retrieved. */
-        METADATA_UNAVAILABLE {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder();
-                if (objectName.isEmpty()) {
-                    sb.append("Failed to get external data metadata");
-                } else {
-                    sb.append("Failed to get metadata for [").append(objectName).append("]");
-                }
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                return sb.toString();
-            }
-        },
+        METADATA_UNAVAILABLE("Failed to get metadata for [{}]", "Failed to get external data metadata"),
         /** A listing call failed — the prefix could not be enumerated. */
-        LISTING_FAILED {
-            @Override
-            public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder("Failed to list external data objects");
-                if (detailCode.isEmpty() == false) {
-                    sb.append(" (").append(detailCode).append(")");
-                }
-                if (remedy.isEmpty() == false) {
-                    sb.append(". ").append(remedy);
-                }
-                return sb.toString();
-            }
-        },
+        LISTING_FAILED("Failed to list external data objects", "Failed to list external data objects"),
         /** The request was rejected because the host clock is too far from the store's clock. */
         CLOCK_SKEW {
             @Override
@@ -189,20 +86,41 @@ public abstract class ExternalException extends QlException {
         CLIENT_BUG {
             @Override
             public String render(String objectName, String detailCode, String remedy) {
-                StringBuilder sb = new StringBuilder("Unexpected internal failure reading external source");
-                if (detailCode.isEmpty() == false) {
-                    sb.append(": ").append(detailCode);
-                }
-                return sb.toString();
+                return detailCode.isEmpty()
+                    ? "Unexpected internal failure reading external source"
+                    : "Unexpected internal failure reading external source: " + detailCode;
             }
         };
+
+        /** Message naming the object, with {@code {}} standing for its name; {@code null} if {@link #render} is overridden. */
+        private final String withObject;
+        /** Message for a failure not tied to one object; {@code null} if {@link #render} is overridden. */
+        private final String withoutObject;
+
+        Condition(String withObject, String withoutObject) {
+            this.withObject = withObject;
+            this.withoutObject = withoutObject;
+        }
+
+        Condition() {
+            this(null, null);
+        }
 
         /**
          * Builds the user-facing message for this condition from the safe object name (last path
          * segment, never the full URI) and an optional {@code detailCode} (e.g. "HTTP 403") and
          * {@code remedy} (actionable advice). Any of the three may be empty.
          */
-        public abstract String render(String objectName, String detailCode, String remedy);
+        public String render(String objectName, String detailCode, String remedy) {
+            StringBuilder sb = new StringBuilder(objectName.isEmpty() ? withoutObject : withObject.replace("{}", objectName));
+            if (detailCode.isEmpty() == false) {
+                sb.append(" (").append(detailCode).append(")");
+            }
+            if (remedy.isEmpty() == false) {
+                sb.append(". ").append(remedy);
+            }
+            return sb.toString();
+        }
     }
 
     /** The structured condition, or {@code null} when constructed via a legacy free-text constructor. */

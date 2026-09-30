@@ -23,6 +23,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RestRequestMetricsTests extends ESTestCase {
@@ -46,8 +47,9 @@ public class RestRequestMetricsTests extends ESTestCase {
 
         for (var c : cases) {
             var ctx = threadContext();
-            metrics.start(ctx, request(c.method, c.path), c.route);
-            metrics.prepareEnd(ctx, response(RestStatus.OK)).close();
+            var request = request(c.method, c.path);
+            metrics.start(ctx, request, c.route);
+            metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
         }
 
         var recorded = recordings();
@@ -59,39 +61,53 @@ public class RestRequestMetricsTests extends ESTestCase {
 
     public void test_leadingSlashStripped() {
         var ctx = threadContext();
-        metrics.start(ctx, request(RestRequest.Method.GET, "/_search"), "/_search");
-        metrics.prepareEnd(ctx, response(RestStatus.OK)).close();
+        var request = request(RestRequest.Method.GET, "/_search");
 
-        assertEquals(1, recordings().size());
+        metrics.start(ctx, request, "/_search");
+        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+
+        assertThat(recordings(), empty());
     }
 
     public void test_nullRoute_noRecording() {
         var ctx = threadContext();
-        metrics.start(ctx, request(RestRequest.Method.GET, "/_search"), null);
-        metrics.prepareEnd(ctx, response(RestStatus.OK)).close();
+        var request = request(RestRequest.Method.GET, "/_search");
 
-        assertEquals(0, recordings().size());
+        metrics.start(ctx, request, null);
+        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+
+        assertThat(recordings(), empty());
     }
 
     public void test_unmeasuredRoute_noRecording() {
         var ctx = threadContext();
-        metrics.start(ctx, request(RestRequest.Method.GET, "/_cluster/health"), "_cluster/health");
-        metrics.prepareEnd(ctx, response(RestStatus.OK)).close();
+        var request = request(RestRequest.Method.GET, "/_cluster/health");
 
-        assertEquals(0, recordings().size());
+        metrics.start(ctx, request, "_cluster/health");
+        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+
+        assertThat(recordings(), empty());
     }
 
     public void test_prepareEndWithoutStart_noRecording() {
         var ctx = threadContext();
-        metrics.prepareEnd(ctx, response(RestStatus.OK)).close();
+        var request = request(RestRequest.Method.GET, "/_search");
 
-        assertEquals(0, recordings().size());
+        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+
+        assertThat(recordings(), empty());
     }
 
     public void test_statusCodeAttribute() {
         var ctx = threadContext();
-        metrics.start(ctx, request(RestRequest.Method.GET, "/_search"), "_search");
-        metrics.prepareEnd(ctx, response(RestStatus.BAD_REQUEST)).close();
+        var request = request(RestRequest.Method.GET, "/_search");
+
+        metrics.start(ctx, request, "_search");
+        var end = metrics.prepareEnd(ctx, request, response(RestStatus.BAD_REQUEST));
+
+        assertThat(recordings(), empty());
+
+        end.close();
 
         var recorded = recordings();
         assertEquals(1, recorded.size());

@@ -16,7 +16,6 @@ import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -35,13 +34,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class APMHttpServerInstrumentationTests extends ESTestCase {
+public class HttpServerTracingTests extends ESTestCase {
 
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
-    final RestRequestMetrics restRequestMetrics = mock(RestRequestMetrics.class);
-    final Releasable restRequestMetricsEnd = mock(Releasable.class);
-    final APMHttpServerInstrumentation instrumentation = new APMHttpServerInstrumentation(tracer, restRequestMetrics);
+    final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
@@ -101,7 +98,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
         instrumentation.start(threadContext, request, route);
 
-        var inOrder = inOrder(tracer, restRequestMetrics);
+        var inOrder = inOrder(tracer);
         inOrder.verify(tracer)
             .startTrace(
                 threadContext,
@@ -139,7 +136,6 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
                     .put(stringKey("user_agent.original"), "Firefox")
                     .build()
             );
-        inOrder.verify(restRequestMetrics).start(threadContext, request, route);
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -163,16 +159,13 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
             .build();
         RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
-        when(restRequestMetrics.prepareEnd(threadContext, response)).thenReturn(restRequestMetricsEnd);
-
         var releasable = instrumentation.prepareEnd(threadContext, request, response);
 
         verifyNoMoreInteractions(tracer, spanStatusBuilder);
 
         releasable.close();
 
-        var inOrder = inOrder(tracer, spanStatusBuilder, restRequestMetricsEnd);
-        inOrder.verify(restRequestMetricsEnd).close();
+        var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 200L);
         inOrder.verify(tracer)
             .setAttributes(
@@ -194,7 +187,6 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
         RestResponse response = new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
         when(tracer.spanStatusBuilder(request)).thenReturn(spanStatusBuilder);
-        when(restRequestMetrics.prepareEnd(threadContext, response)).thenReturn(restRequestMetricsEnd);
 
         var releasable = instrumentation.prepareEnd(threadContext, request, response);
 
@@ -202,8 +194,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
         releasable.close();
 
-        var inOrder = inOrder(tracer, spanStatusBuilder, restRequestMetricsEnd);
-        inOrder.verify(restRequestMetricsEnd).close();
+        var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 500L);
         inOrder.verify(tracer)
             .setAttributes(

@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -31,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * <p><b>These metrics constitute a contract between ES and AutoOps, never modify them without making sure these changes are agreed upon by
  * both sides.</b>
  */
-public class RestRequestMetrics {
+public class RestRequestMetrics implements HttpServerInstrumentation {
 
     private static final String STATE_KEY = State.class.getName();
     private static final double NANOS_PER_MS = MILLISECONDS.toNanos(1);
@@ -72,7 +73,8 @@ public class RestRequestMetrics {
         );
     }
 
-    void start(ThreadContext threadContext, RestRequest request, @Nullable String route) {
+    @Override
+    public void start(ThreadContext threadContext, RestRequest request, @Nullable String route) {
         if (route == null) {
             return;
         }
@@ -88,7 +90,11 @@ public class RestRequestMetrics {
         threadContext.putTransient(STATE_KEY, new State(durationHistogram, System.nanoTime()));
     }
 
-    Releasable prepareEnd(ThreadContext threadContext, RestResponse response) {
+    @Override
+    public void recordException(RestRequest request, Throwable t) {}
+
+    @Override
+    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
         State state = threadContext.getTransient(STATE_KEY);
         if (state == null) {
             return () -> {};

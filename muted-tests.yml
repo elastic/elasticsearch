@@ -675,3 +675,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/160613

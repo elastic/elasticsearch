@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationSe
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -43,6 +44,7 @@ public class DNRTRolloutTests extends ESTestCase {
             is(false)
         );
         assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING), is(false));
+        assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.RECHECK_INTERVAL_SETTING), equalTo(TimeValue.timeValueSeconds(1)));
         assertThat(
             effectiveValue(clusterSettings, ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)

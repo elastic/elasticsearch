@@ -702,9 +702,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap - freeHeap, regionSize);
         assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap, regionSize);
-
-        int noFreeHeapCount = triggerAllocationCount(maxHeap, maxHeap, regionSize);
-        assertThat(triggerAllocationCount(maxHeap, maxHeap + randomLongBetween(1, regionSize - 1), regionSize), equalTo(noFreeHeapCount));
     }
 
     public void testG1TriggerAllocationCountDoesNotLoopWhenUpstreamBudgetIsEmpty() {

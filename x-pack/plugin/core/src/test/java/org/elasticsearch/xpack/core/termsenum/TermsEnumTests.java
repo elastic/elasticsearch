@@ -271,15 +271,10 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             .get();
         indexAndRefresh("mapped", "1", "keyword", "only-mapped");
 
-        createIndex(
-            "unmapped",
-            Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build()
-        );
+        createIndex("unmapped", Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build());
 
-        TermsEnumResponse response = client().execute(
-            TermsEnumAction.INSTANCE,
-            new TermsEnumRequest("mapped", "unmapped").field("keyword")
-        ).get();
+        TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("mapped", "unmapped").field("keyword"))
+            .get();
 
         assertTrue(response.isComplete());
         assertEquals(0, response.getFailedShards());

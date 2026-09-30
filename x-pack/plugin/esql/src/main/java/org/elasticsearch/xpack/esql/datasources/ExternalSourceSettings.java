@@ -293,11 +293,6 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
-     * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
-     */
-    /**
      * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
      * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
      * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
@@ -319,6 +314,11 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
+     * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
+     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
+     */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
         10000,

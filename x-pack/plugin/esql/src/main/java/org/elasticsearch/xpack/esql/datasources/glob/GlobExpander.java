@@ -315,6 +315,7 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
+                memory,
                 cancelled
             )
             : expandGlobWithRewriteFallback(
@@ -1291,6 +1292,7 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             ExclusionConfig.fromConfig(config).compile(),
             FileOrderConfig.forListing(config),
+            PlanningMemory.NONE,
             NEVER_CANCELLED
         );
     }
@@ -1325,6 +1327,7 @@ public final class GlobExpander {
             maxListedObjects,
             ExclusionConfig.fromConfig(config).compile(),
             FileOrderConfig.forListing(config),
+            PlanningMemory.NONE,
             NEVER_CANCELLED
         );
     }
@@ -1339,6 +1342,7 @@ public final class GlobExpander {
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
+        PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
@@ -1374,7 +1378,11 @@ public final class GlobExpander {
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
                     ListingExtents.UNBOUNDED,
-                    PlanningMemory.NONE,
+                    // Each segment reserves against the same budget, so a comma list is charged for every entry it
+                    // retains rather than for none of them. ExternalSourceResolver.chargeListingPlanning subtracts
+                    // exactly that reservation to find what is left to charge, and a segment reserving nothing made
+                    // the subtraction remove bytes nobody had taken.
+                    memory,
                     cancelled
                 );
                 listingWarnings.addAll(expanded.listingWarnings());

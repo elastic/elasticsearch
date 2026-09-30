@@ -5352,6 +5352,37 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A comma-separated location reserves for every entry it retains, like any other. Each segment is its own walk, so
+     * a reserver that reached the single-glob path but not this one left a comma list charged for none of its files -
+     * and the resolver's top-up subtracts the reservation it assumes the walk took, so the shortfall became an
+     * under-charge of one allowance per file rather than merely a missing one.
+     */
+    public void testACommaSeparatedListingReservesForEveryEntry() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(4000));
+        List<Long> reservations = new ArrayList<>();
+
+        FileList listed = GlobExpander.expand(
+            "s3://bucket/data/part-00*.parquet,s3://bucket/data/part-01*.parquet",
+            provider,
+            null,
+            Map.of(),
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            reservations::add
+        );
+
+        assertThat("the fixture must actually match through both segments", listed.fileCount(), greaterThan(0));
+        long reserved = reservations.stream().mapToLong(Long::longValue).sum();
+        assertEquals(
+            "one allowance per retained entry, summed over the segments",
+            listed.fileCount() * FileList.LISTING_BYTES_PER_ENTRY,
+            reserved
+        );
+    }
+
+    /**
      * A cancelled query stops its listing. Listing a large dataset is many sequential page requests, and nothing
      * downstream of the walk can shorten it - so without this a cancelled query keeps paying for pages whose result
      * is thrown away, twice over where a bounded attempt is followed by a full one.

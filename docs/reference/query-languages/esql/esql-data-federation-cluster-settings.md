@@ -37,6 +37,19 @@ These settings control how many concurrent requests each node sends to external 
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
 | `esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: experimental =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 
+## Concurrent dataset queries
+```{applies_to}
+stack: experimental 9.6+
+```
+
+These settings limit how many {{esql}} queries over datasets each node coordinates at once. Every such query lists its dataset and builds planning state for each file before it reads any data, and a dashboard sends one query per panel at the same time, so the number of these queries in flight decides how much heap they need. A query that finds every slot taken waits in a queue, holding no thread and having read nothing from storage. A query that finds the queue full, or waits longer than the timeout, is refused with HTTP 429 and can be retried. Queries over indices are not affected.
+
+| Setting | Default | Description |
+|---|---|---|
+| `esql.external.admission.max_concurrent_queries` | A quarter of heap (or half of `indices.breaker.request.limit` when tighter) divided by 64 MiB, minimum 2 and maximum 64: 4 on a 1 GB heap, 16 on a 4 GB heap | Maximum dataset queries a node runs at once. `0` removes the limit. Range 0–10,000. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.admission.max_queued_queries` | Four times `esql.external.admission.max_concurrent_queries` | Maximum dataset queries that wait for a slot. `0` refuses a query as soon as every slot is taken. Range 0–10,000. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.admission.queue_timeout` | 30s | How long a query waits for a slot before it is refused. `0` refuses a query as soon as every slot is taken. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+
 ## Glob and file-discovery limits
 
 These settings limit how many files and objects glob patterns can discover. Not all caps behave the same way when exceeded — some abort the query, while others fall back to a slower discovery path.

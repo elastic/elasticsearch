@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalQueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -73,6 +74,7 @@ public class PlanExecutor {
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
+    private final ExternalQueryAdmission datasetQueryAdmission;
     private final AnalysisRegistry analysisRegistry;
     @Nullable
     private final IntSupplier maxDiscoveredFiles;
@@ -108,6 +110,7 @@ public class PlanExecutor {
             parser,
             cacheService,
             analysisRegistry,
+            ExternalQueryAdmission.unlimited(),
             null,
             null,
             null
@@ -127,6 +130,7 @@ public class PlanExecutor {
         EsqlParser parser,
         ExternalSourceCacheService cacheService,
         AnalysisRegistry analysisRegistry,
+        ExternalQueryAdmission datasetQueryAdmission,
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
@@ -144,6 +148,7 @@ public class PlanExecutor {
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
         this.analysisRegistry = analysisRegistry;
+        this.datasetQueryAdmission = datasetQueryAdmission;
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
@@ -275,6 +280,8 @@ public class PlanExecutor {
             viewResolver,
             datasetResolver,
             externalSourceResolver,
+            datasetQueryAdmission,
+            cancellation,
             parser,
             preAnalyzer,
             functionRegistry,
@@ -293,9 +300,14 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry, services.usageService(), executionInfo, begin),
-            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+        // Gives back the dataset query slot the session took, if any, before either arm runs. Both transport actions that run
+        // queries (TransportEsqlQueryAction, sync and async, and TransportEsqlStreamQueryAction) complete through here.
+        ActionListener<Versioned<Result>> executeListener = ActionListener.runBefore(
+            wrap(
+                x -> onQuerySuccess(request, listener, x, planTelemetry, services.usageService(), executionInfo, begin),
+                ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+            ),
+            executionInfo::releaseDatasetQuerySlot
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
@@ -413,5 +425,9 @@ public class PlanExecutor {
 
     public ExternalSourceCacheService cacheService() {
         return cacheService;
+    }
+
+    public ExternalQueryAdmission datasetQueryAdmission() {
+        return datasetQueryAdmission;
     }
 }

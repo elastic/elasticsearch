@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160254
+summary: Cap concurrent dataset queries per node, queue, then refuse with 429
+type: enhancement

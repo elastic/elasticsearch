@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -111,6 +112,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -5896,7 +5898,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code gatherPerFile} opens a results-array run and charges {@link SourceMetadata#planningBytes()} per resolved
+     * {@code gatherPerFile} opens a results-array run and charges {@link ExternalSourceResolver#gatheredFileBytes} per resolved
      * file. The run is released in {@code onCompletion} after the results array is nulled out, so the charge is visible
      * on the breaker while the gather is in flight and absent afterwards.
      */
@@ -5999,6 +6001,146 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(narrowBaseline + listingCredit, narrow.getUsed());
     }
 
+    /**
+     * The FIRST_FILE_WINS stats gather keeps every file's own schema list and harvested statistics in the results
+     * array until it completes, with no interner and no private-list run. Each file's charge therefore covers its
+     * private schema list plus its statistics, and the run is released once the gather completes.
+     */
+    public void testStatsGatherChargesPerFileSchemaAndStatistics() throws Exception {
+        int columns = 20;
+        StatsGatherFixture fixture = statsGatherFixture(3, columns);
+        CircuitBreaker breaker = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(fixture.reader(metadataReads), fixture.schemas(), fixture.listings(), breaker);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        List<Long> held = new ArrayList<>();
+        resolver.gatherResultsRunProbe = run -> {
+            capturedRun[0] = run;
+            held.add(run.held());
+        };
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        future.actionGet();
+
+        assertEquals(3, held.size());
+        // The stub statistics carry a row count and no column statistics, so they weigh only the statistics shell.
+        long perFileFloor = SchemaInterner.privateListBytes(columns) + HeapEstimates.statisticsBytes(ROW_COUNT_ONLY_STATISTICS);
+        long previous = 0L;
+        for (long total : held) {
+            assertThat(total - previous, greaterThanOrEqualTo(perFileFloor));
+            previous = total;
+        }
+        assertEquals(0L, capturedRun[0].held());
+        assertEquals(baseline + reservation.queryHeld(), breaker.getUsed());
+    }
+
+    /**
+     * A breaker that admits one gathered file but not the next stops the FIRST_FILE_WINS stats gather: the remaining
+     * footers are not read, the resolve degrades to partial stats, and the results run is released.
+     */
+    public void testStatsGatherTripsBreakerAndDegradesToPartialStats() throws Exception {
+        int files = 4;
+        StatsGatherFixture fixture = statsGatherFixture(files, 20);
+
+        // Measure breaker usage right after the first gathered file is charged.
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger wideReads = new AtomicInteger();
+        ExternalSourceResolver wideResolver = planningResolver(fixture.reader(wideReads), fixture.schemas(), fixture.listings(), wide);
+        EsqlExecutionInfo wideInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        bindPlanning(wideResolver, wideInfo, wide);
+        long wideBaseline = wide.getUsed();
+        List<Long> usedAtProbe = new ArrayList<>();
+        wideResolver.gatherResultsRunProbe = run -> usedAtProbe.add(wide.getUsed());
+        PlainActionFuture<ExternalSourceResolution> wideFuture = new PlainActionFuture<>();
+        wideResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), wideFuture);
+        ExternalSourceResolution wideResolution = wideFuture.actionGet();
+        assertEquals(files, usedAtProbe.size());
+        assertNull(
+            wideResolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+        );
+
+        CircuitBreaker narrow = requestBreaker(usedAtProbe.get(0) + "b");
+        assertEquals(wideBaseline, narrow.getUsed());
+        AtomicInteger narrowReads = new AtomicInteger();
+        ExternalSourceResolver narrowResolver = planningResolver(
+            fixture.reader(narrowReads),
+            fixture.schemas(),
+            fixture.listings(),
+            narrow
+        );
+        EsqlExecutionInfo narrowInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
+        int[] charged = { 0 };
+        narrowResolver.gatherResultsRunProbe = run -> charged[0]++;
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        narrowResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(1, charged[0]);
+        assertThat(narrowReads.get(), lessThan(wideReads.get()));
+        assertEquals(
+            Boolean.TRUE,
+            resolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+        );
+        assertEquals(narrowReservation.queryHeld() + wideBaseline, narrow.getUsed());
+    }
+
+    private static final SourceStatistics ROW_COUNT_ONLY_STATISTICS = new SourceStatistics() {
+        @Override
+        public OptionalLong rowCount() {
+            return OptionalLong.of(1L);
+        }
+
+        @Override
+        public OptionalLong sizeInBytes() {
+            return OptionalLong.empty();
+        }
+    };
+
+    /** A FIRST_FILE_WINS glob whose files all share a wide schema and report row-count statistics. */
+    private record StatsGatherFixture(Map<String, List<Attribute>> schemas, Map<String, Long> rowCounts, List<String> paths) {
+        static final String GLOB = "s3://bucket/data/*.parquet";
+
+        Map<String, List<StorageEntry>> listings() {
+            List<StorageEntry> entries = new ArrayList<>();
+            for (String path : paths) {
+                entries.add(entry(path, 100));
+            }
+            return Map.of("s3://bucket/data/", entries);
+        }
+
+        Map<String, Object> config() {
+            return new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        }
+
+        StubFormatReaderWithStats reader(AtomicInteger metadataReads) {
+            return new StubFormatReaderWithStats(schemas, rowCounts, metadataReads);
+        }
+    }
+
+    private static StatsGatherFixture statsGatherFixture(int files, int columns) {
+        List<Attribute> schema = new ArrayList<>(columns);
+        for (int c = 0; c < columns; c++) {
+            schema.add(attr("c" + c, DataType.INTEGER));
+        }
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        List<String> paths = new ArrayList<>();
+        for (int f = 0; f < files; f++) {
+            String path = "s3://bucket/data/f" + f + ".parquet";
+            schemas.put(path, schema);
+            rowCounts.put(path, 10L + f);
+            paths.add(path);
+        }
+        return new StatsGatherFixture(schemas, rowCounts, paths);
+    }
+
     private static ExternalPlanningReservation bindPlanning(
         ExternalSourceResolver resolver,
         EsqlExecutionInfo info,
@@ -6016,7 +6158,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CircuitBreaker breaker,
         AtomicInteger metadataReads
     ) {
-        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         StubFormatReader formatReader = new StubFormatReader(schemasByPath) {
             @Override
             public SourceMetadata metadata(StorageObject object) {
@@ -6024,6 +6165,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return super.metadata(object);
             }
         };
+        return planningResolver(formatReader, schemasByPath, listingsByPrefix, breaker);
+    }
+
+    private ExternalSourceResolver planningResolver(
+        FormatReader formatReader,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        CircuitBreaker breaker
+    ) {
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -1819,7 +1820,12 @@ public class ExternalSourceResolver {
         // Strip it here so the plan carries only what the optimizer actually reads.
         final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
 
-        return new ExternalSourceMetadata() {
+        return new CacheBackedMetadata() {
+            @Override
+            public boolean sharesCachedSourceMetadata() {
+                return finalMetadata == entry.safeMetadata();
+            }
+
             @Override
             public String location() {
                 return entry.location();
@@ -2192,6 +2198,36 @@ public class ExternalSourceResolver {
         });
     }
 
+    /**
+     * Estimated heap one file's metadata keeps reachable in {@link #gatherPerFile}'s results array until the gather
+     * completes. Not a measured deep size. Counts the shell and location, the private schema list when
+     * {@code chargeSchema} (the reconcile path charges it on its own run), harvested {@link SourceStatistics} (never
+     * shared from the schema cache), and the source-metadata map unless it is the schema cache entry's own map.
+     */
+    static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema) {
+        // object header + field references
+        long bytes = 64L + HeapEstimates.stringBytes(meta.location());
+        if (chargeSchema && meta.schema() != null) {
+            bytes += SchemaInterner.privateListBytes(meta.schema().size());
+        }
+        Optional<SourceStatistics> statistics = meta.statistics();
+        if (statistics != null && statistics.isPresent()) {
+            bytes += HeapEstimates.statisticsBytes(statistics.get());
+        }
+        if ((meta instanceof CacheBackedMetadata cached && cached.sharesCachedSourceMetadata()) == false) {
+            bytes += HeapEstimates.mapBytes(meta.sourceMetadata());
+        }
+        return bytes;
+    }
+
+    /**
+     * Metadata built from a {@link SchemaCacheEntry}. Its source-metadata map is the cache entry's own map unless
+     * {@link #stripStripeBookkeeping} had to copy it, so {@link #gatheredFileBytes} does not charge it again.
+     */
+    private interface CacheBackedMetadata extends ExternalSourceMetadata {
+        boolean sharesCachedSourceMetadata();
+    }
+
     private static void closePrivateSchemaLists(@Nullable ExternalPlanningReservation.Run privateLists) {
         if (privateLists != null) {
             privateLists.close();
@@ -2285,10 +2321,10 @@ public class ExternalSourceResolver {
      * and short-circuits the remaining files.
      * <p>
      * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#planningBytes()} per resolved file to the circuit
-     * breaker, mirroring the per-file pattern used for private schema lists. This makes concurrent gather fan-outs from
-     * different queries visible to the shared breaker so combined accumulation across simultaneous gathers is bounded.
-     * The run is released in {@code onCompletion} after the results array is nulled out.
+     * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
+     * queries are visible to the shared breaker. On the stats path that includes each file's private schema list, which
+     * the reconcile path charges on {@code privateLists} instead. The run is released in {@code onCompletion} after the
+     * results array is nulled out.
      */
     private void gatherPerFile(
         FileList fileList,
@@ -2321,10 +2357,10 @@ public class ExternalSourceResolver {
                 return;
             }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
-                // Reconcile path only. Stats gathers pass a null interner and a null run: those lists are
-                // transient and must not be charged. Charge the raw list before wrapping. Canonicalize so
-                // schema() is the shared list; the wrapper still references the original metadata until the
-                // gather completion drops the file list.
+                // Reconcile path only. Stats gathers pass a null interner and a null run; their lists are charged
+                // on resultsRun below. Charge the raw list before wrapping. Canonicalize so schema() is the shared
+                // list; the wrapper still references the original metadata until the gather completion drops the
+                // file list.
                 if (privateLists != null) {
                     List<Attribute> rawSchema = meta.schema();
                     privateLists.charge(SchemaInterner.privateListBytes(rawSchema.size()));
@@ -2336,7 +2372,7 @@ public class ExternalSourceResolver {
                     ? meta
                     : withCanonicalSchema(meta, schemaInterner.canonicalize(meta.schema()));
                 if (resultsRun != null) {
-                    resultsRun.charge(stored.planningBytes());
+                    resultsRun.charge(gatheredFileBytes(meta, privateLists == null));
                     if (gatherResultsRunProbe != null) {
                         gatherResultsRunProbe.accept(resultsRun);
                     }
@@ -2438,11 +2474,6 @@ public class ExternalSourceResolver {
             @Override
             public Optional<List<String>> partitionColumns() {
                 return metadata.partitionColumns();
-            }
-
-            @Override
-            public long planningBytes() {
-                return metadata.planningBytes();
             }
         };
     }

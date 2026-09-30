@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Map;
+import java.util.Optional;
+
 /**
- * Heap weights for the caches that hold datasource values. Lives in {@code spi} so both the cache and the
- * {@link FileList} implementations can charge the same estimate without the SPI depending on cache internals.
+ * Heap weights for the caches and planning reservations that hold datasource values. Lives in {@code spi} so the
+ * cache, the {@link FileList} implementations, and the resolver can charge the same estimate without the SPI
+ * depending on cache internals.
  */
 public final class HeapEstimates {
 
@@ -35,5 +39,56 @@ public final class HeapEstimates {
      */
     public static long bytesRefBytes(@Nullable BytesRef bytes) {
         return 40 + (bytes != null ? bytes.length : 0L);
+    }
+
+    /**
+     * Shape charge (~100B per entry) plus payload for {@link String} / {@link BytesRef} values. Fixed-size
+     * values (numbers, booleans) stay on the flat constant alone. Nested maps recurse one level for
+     * per-stripe statistics; deeper nesting is not expected in this metadata map.
+     */
+    public static long mapBytes(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return 0L;
+        }
+        long bytes = 0L;
+        for (Object value : map.values()) {
+            bytes += 100L + valuePayloadBytes(value);
+            if (value instanceof Map<?, ?> nested) {
+                for (Object nestedValue : nested.values()) {
+                    bytes += 100L + valuePayloadBytes(nestedValue);
+                }
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * A {@link SourceStatistics} held in memory: a shell, plus per column the same ~100B entry charge as
+     * {@link #mapBytes}, the column name, and the payload of variable-width extrema. Not a measured deep size.
+     */
+    public static long statisticsBytes(SourceStatistics statistics) {
+        long bytes = 64L;
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = statistics.columnStatistics();
+        if (columns != null && columns.isPresent()) {
+            for (Map.Entry<String, SourceStatistics.ColumnStatistics> column : columns.get().entrySet()) {
+                bytes += 100L + stringBytes(column.getKey());
+                SourceStatistics.ColumnStatistics stats = column.getValue();
+                if (stats != null) {
+                    bytes += valuePayloadBytes(stats.minValue().orElse(null));
+                    bytes += valuePayloadBytes(stats.maxValue().orElse(null));
+                }
+            }
+        }
+        return bytes;
+    }
+
+    private static long valuePayloadBytes(@Nullable Object value) {
+        if (value instanceof String s) {
+            return stringBytes(s);
+        }
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRefBytes(bytesRef);
+        }
+        return 0L;
     }
 }

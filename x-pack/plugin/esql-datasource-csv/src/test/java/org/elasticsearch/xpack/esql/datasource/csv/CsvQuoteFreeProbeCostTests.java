@@ -41,9 +41,13 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
     private static final int FILE_BYTES = 8 * 1024 * 1024;
     private static final long STRIDE = 1024 * 1024;
 
+    /** Built once each: six cases read these, and each build is a fresh 8 MiB StringBuilder, String and array. */
+    private static final byte[] QUOTE_FREE = buildCsv(false);
+    private static final byte[] QUOTED = buildCsv(true);
+
     /** A quote-free CSV: every proven probe is AMBIGUOUS, whatever offset it starts at. */
     public void testQuoteFreeProbeNeverConverges() throws IOException {
-        byte[] buf = csv(false);
+        byte[] buf = QUOTE_FREE;
         RecordSplitter splitter = splitter();
         for (long pos = STRIDE; pos < buf.length; pos += STRIDE) {
             long probed = splitter.findProvenRecordBoundary(streamAt(buf, pos));
@@ -53,7 +57,7 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
 
     /** Control: the same data with one quoted field per row converges at every probe offset. */
     public void testQuotedProbeConverges() throws IOException {
-        byte[] buf = csv(true);
+        byte[] buf = QUOTED;
         RecordSplitter splitter = splitter();
         for (long pos = STRIDE; pos < buf.length; pos += STRIDE) {
             long probed = splitter.findProvenRecordBoundary(streamAt(buf, pos));
@@ -66,8 +70,8 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
      * Quote-free data pays the whole file; quoted data pays a small constant per stride.
      */
     public void testSplitDiscoveryReadsWholeFileWhenQuoteFree() throws IOException {
-        long quoteFree = bytesReadDuringSplitDiscovery(csv(false));
-        long quoted = bytesReadDuringSplitDiscovery(csv(true));
+        long quoteFree = bytesReadDuringSplitDiscovery(QUOTE_FREE);
+        long quoted = bytesReadDuringSplitDiscovery(QUOTED);
         logger.info("split discovery read: quote-free={} bytes, quoted={} bytes, file={} bytes", quoteFree, quoted, FILE_BYTES);
         assertThat("quote-free split discovery should read at least the whole file", quoteFree, greaterThanOrEqualTo((long) FILE_BYTES));
         assertThat("quoted split discovery should read a small fraction of the file", quoted, lessThan((long) FILE_BYTES / 10));
@@ -87,7 +91,7 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
      * mechanism is the reader's to check.
      */
     public void testExactWalkTakesItsSpanBlockAtATime() throws IOException {
-        byte[] buf = csv(false);
+        byte[] buf = QUOTE_FREE;
         int[] singleByteReads = new int[1];
         InputStream in = countingSingleByteReads(new ByteArrayInputStream(buf), singleByteReads);
         long start = splitter().findRecordStartAtOrAfter(in, buf.length - 64L, () -> false);
@@ -97,7 +101,7 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
 
     /** The same for the probe, which reads up to its convergence window at every offset of a file. */
     public void testProbeTakesItsWindowBlockAtATime() throws IOException {
-        byte[] buf = csv(false);
+        byte[] buf = QUOTE_FREE;
         int[] singleByteReads = new int[1];
         InputStream in = countingSingleByteReads(new ByteArrayInputStream(buf), singleByteReads);
         assertEquals(RecordSplitter.AMBIGUOUS, splitter().findProvenRecordBoundary(in));
@@ -136,7 +140,7 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
     }
 
     /** Taxi-shaped rows: numeric/date columns, plus one quoted free-text column when {@code withQuotes}. */
-    private static byte[] csv(boolean withQuotes) {
+    private static byte[] buildCsv(boolean withQuotes) {
         StringBuilder sb = new StringBuilder(FILE_BYTES + 1024);
         sb.append("vendor_id,pickup_datetime,passenger_count,trip_distance,fare_amount,total_amount");
         if (withQuotes) {
@@ -195,26 +199,7 @@ public class CsvQuoteFreeProbeCostTests extends ESTestCase {
     }
 
     private static RecordSplitter splitter() {
-        return new CsvRecordSplitter(options(), SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
+        return new CsvRecordSplitter(CsvTestOptions.csvDefaults(), SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
 
-    /** The grammar a plain {@code .csv} resolves to: comma-delimited, quoting on, escaping on. */
-    private static CsvFormatOptions options() {
-        return new CsvFormatOptions(
-            ',',
-            '"',
-            '\\',
-            "//",
-            null,
-            StandardCharsets.UTF_8,
-            null,
-            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
-            CsvFormatOptions.MultiValueSyntax.NONE,
-            true,
-            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
-            true,
-            true,
-            false
-        );
-    }
 }

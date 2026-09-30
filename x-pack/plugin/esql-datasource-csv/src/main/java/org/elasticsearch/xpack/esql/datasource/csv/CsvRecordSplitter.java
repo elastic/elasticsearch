@@ -120,6 +120,13 @@ final class CsvRecordSplitter implements RecordSplitter {
     private static final long CANCEL_CHECK_INTERVAL_BYTES = 64 * 1024;
 
     /**
+     * Bytes a whole-span scanner pulls per refill. Package-private because the block seam is something tests have
+     * to aim at, and a test mirroring this as its own literal stops straddling a refill the moment it changes
+     * here while still passing.
+     */
+    static final int BLOCK_BYTES = 8 * 1024;
+
+    /**
      * No byte is waiting to be re-read. Distinct from the end-of-stream {@code -1} so that a held end-of-stream
      * is taken from the slot rather than read again; both spellings end the walk on the same turn, so this is one
      * fewer read rather than a correctness condition.
@@ -797,8 +804,6 @@ final class CsvRecordSplitter implements RecordSplitter {
      * {@code peek()} instead would owe every caller a rule about when a peeked byte stays valid across a refill.
      */
     private static final class BlockCursor {
-
-        private static final int BLOCK_BYTES = 8 * 1024;
 
         private final InputStream in;
         private final byte[] block = new byte[BLOCK_BYTES];

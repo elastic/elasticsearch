@@ -114,12 +114,8 @@ public class CsvProvenProbeTests extends ESTestCase {
         assertProbeInvariants(quoted(), bytes(sb.toString()));
     }
 
-    /**
-     * Size of the block the scanners pull their bytes in, mirrored from {@code CsvRecordSplitter.BlockCursor}.
-     * A stale value here does not weaken the assertions below, only the offsets they aim at, so the window swept
-     * around it is wide enough to still straddle a nearby boundary.
-     */
-    private static final int SCANNER_BLOCK_BYTES = 8 * 1024;
+    /** The block the scanners pull their bytes in, taken from the splitter so the sweep cannot drift off it. */
+    private static final int SCANNER_BLOCK_BYTES = CsvRecordSplitter.BLOCK_BYTES;
 
     public void testExactWalkLookaheadStraddlesBlockBoundary() throws IOException {
         // The walk takes its bytes a block at a time, so a two-byte construct has a placement where the first byte is
@@ -161,26 +157,23 @@ public class CsvProvenProbeTests extends ESTestCase {
         byte[] buf = bytes("h\nfirst\nsecond\nthird\n");
         InputStream stalling = new InputStream() {
             private int pos;
-            private boolean stalled;
+            private int answers;
 
             @Override
             public int read() {
                 throw new AssertionError("the walk must not ask for single bytes");
             }
 
-            private int zeroAnswers;
-
             @Override
             public int read(byte[] b, int off, int len) {
-                if (stalled) {
+                if (answers++ > 0) {
                     // A reader that retried on zero would spin here forever and the case would fail by hanging
                     // rather than by asserting, so refuse after a few turns and fail with something readable.
-                    if (++zeroAnswers > 4) {
+                    if (answers > 5) {
                         throw new AssertionError("the walk retried a zero-length read instead of ending the scan");
                     }
                     return 0;
                 }
-                stalled = true;
                 int n = Math.min(len, 4);
                 System.arraycopy(buf, pos, b, off, n);
                 pos += n;
@@ -562,22 +555,7 @@ public class CsvProvenProbeTests extends ESTestCase {
 
     /** Comma-delimited, quoting on AND escaping on (the default .csv grammar). */
     private static CsvFormatOptions both() {
-        return new CsvFormatOptions(
-            ',',
-            '"',
-            '\\',
-            "//",
-            null,
-            StandardCharsets.UTF_8,
-            null,
-            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
-            CsvFormatOptions.MultiValueSyntax.NONE,
-            true,
-            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
-            true,
-            true,
-            false
-        );
+        return CsvTestOptions.csvDefaults();
     }
 
     /** Bracket MVC: non-strided and not proven-capable. */

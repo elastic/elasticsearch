@@ -1239,11 +1239,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
-                () -> null, // unused in this test case
+                () -> null,
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),

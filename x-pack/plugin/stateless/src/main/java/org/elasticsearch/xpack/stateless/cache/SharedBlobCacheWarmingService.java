@@ -1111,15 +1111,26 @@ public class SharedBlobCacheWarmingService {
      * {@link #searchRecoveryWarmingListener}; {@link TimeValue#ZERO} means do not await warming. Use {@link #awaitWarming()} to branch.
      *
      * <p>{@link #totalBudget}: when greater than zero, caps the total accumulated timeout across all re-evaluation slices.
+     *
+     * <p>{@link #reevaluationEnabled}: when {@code false}, the re-evaluation loop fires the race immediately on first expiry without
+     * re-reading the cluster state or rescheduling, regardless of the node-level re-evaluation setting.
      */
-    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
+    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget, boolean reevaluationEnabled) {
 
         public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext) {
-            this(timeout, timeoutContext, TimeValue.ZERO);
+            this(timeout, timeoutContext, TimeValue.ZERO, true);
+        }
+
+        public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
+            this(timeout, timeoutContext, totalBudget, true);
         }
 
         public static SearchRecoveryTimeout skip() {
-            return new SearchRecoveryTimeout(TimeValue.ZERO, "");
+            return new SearchRecoveryTimeout(TimeValue.ZERO, "", TimeValue.ZERO, false);
+        }
+
+        public static SearchRecoveryTimeout withDisabledReevaluation(TimeValue timeout, String timeoutContext) {
+            return new SearchRecoveryTimeout(timeout, timeoutContext, TimeValue.ZERO, false);
         }
 
         /** When {@code true}, recovery should use {@link #searchRecoveryWarmingListener} with {@link #timeout()} (which is then &gt; 0). */
@@ -1178,7 +1189,7 @@ public class SharedBlobCacheWarmingService {
             );
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
-            return new SearchRecoveryTimeout(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
+            return SearchRecoveryTimeout.withDisabledReevaluation(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
         }
         return SearchRecoveryTimeout.skip();
     }
@@ -1233,7 +1244,7 @@ public class SharedBlobCacheWarmingService {
                 if (race.isDone()) {
                     return;
                 }
-                if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
+                if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.reevaluationEnabled()) {
                     final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
                     final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
                     if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {

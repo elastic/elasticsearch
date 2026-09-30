@@ -486,6 +486,27 @@ public class ExternalFailuresTests extends ESTestCase {
         assertTrue("detail must appear before dataset context", detailPos < ctxPos);
     }
 
+    /** A local location has no scheme to spot, so an absolute filesystem path is unsafe on its own. */
+    public void testAbsoluteFilesystemPathIsNotSafe() {
+        for (String unsafe : new String[] {
+            "/data/private/x.csv",
+            "Path is not a regular file: /data/private/x.csv",
+            "cannot open [/srv/esql/in.parquet]",
+            "Directory does not exist: C:\\data\\private",
+            "failed (/var/lib/es/x.orc)" }) {
+            assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
+        }
+        for (String safe : new String[] {
+            "[day=2/part-0.parquet] has [1] columns, [day=1/part-0.parquet] has [2]",
+            "Row [3] of [x.csv]: [3] columns, the schema has [2]",
+            "content type application/json is not supported",
+            "losing precision above 2^53",
+            "POST /_query failed",
+            "ratio 3/4" }) {
+            assertTrue(safe, ExternalFailures.safeForUserMessage(safe));
+        }
+    }
+
     public void testAuthorityLessFileUriIsAStorageUri() {
         assertFalse(ExternalFailures.safeForUserMessage("cannot read file:/data/private/x.csv"));
     }

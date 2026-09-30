@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Classifies a failure raised while reading an external data source into the exception an external-read
@@ -135,6 +136,15 @@ public final class ExternalFailures {
         return true;
     }
 
+    /**
+     * A bare filesystem location carries no scheme: an absolute POSIX path of at least two segments
+     * ({@code /data/x.csv}) or a Windows drive path ({@code C:\data}), at the start of the message or after a
+     * delimiter.
+     */
+    private static final Pattern ABSOLUTE_FILESYSTEM_PATH = Pattern.compile(
+        "(?:^|[\\s\\[(<'\"=,])(?:/[^\\s/\\[\\]()<>'\",]+){2,}|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
+    );
+
     private static boolean containsStoragePath(String msg) {
         if (msg == null) {
             return false;
@@ -144,11 +154,11 @@ public final class ExternalFailures {
                 return true;
             }
         }
-        return false;
+        return ABSOLUTE_FILESYSTEM_PATH.matcher(msg).find();
     }
 
     /**
-     * Returns {@code true} when {@code message} contains no known storage-URI scheme. Callers
+     * Returns {@code true} when {@code message} contains no known storage-URI scheme and no absolute filesystem path. Callers
      * outside the {@code spi} package use this to decide whether a diagnostic message from a
      * third-party library is safe to forward to the user.
      */

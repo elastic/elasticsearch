@@ -276,6 +276,11 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
     }
 
     @Override
+    public String field() {
+        return field;
+    }
+
+    @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
             approxQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));

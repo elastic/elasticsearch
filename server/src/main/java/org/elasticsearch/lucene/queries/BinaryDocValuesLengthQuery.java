@@ -51,6 +51,11 @@ final class BinaryDocValuesLengthQuery extends Query implements BinaryDocValuesS
     }
 
     @Override
+    public String field() {
+        return fieldName;
+    }
+
+    @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
         // Captured for the binary doc values decode checkpoint below. This query is reached via rewrite() so it gets its own weight and

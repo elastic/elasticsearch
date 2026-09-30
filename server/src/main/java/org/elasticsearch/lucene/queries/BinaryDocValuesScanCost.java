@@ -9,7 +9,14 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 /**
  * Marks a query whose {@code matches()} opens a decoder over a field's binary doc values and decompresses whole
@@ -25,27 +32,62 @@ import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 public interface BinaryDocValuesScanCost {
 
     /**
-     * Per-clause estimate for the "large block" binary-DV variant: its uncompressed block size, plus the
-     * {@code int[]} of per-document block offsets every decoder holds.
+     * Conservative fallback per-clause estimate for the "large block" binary-DV variant: its uncompressed block
+     * size, plus the {@code int[]} of per-document block offsets every decoder holds. Used whenever a real
+     * per-field bound isn't available (see {@link #estimateDecodeBytes}).
      */
     long PER_CLAUSE_DECODE_BYTES_ESTIMATE = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_LARGE + (long) Integer.BYTES
         * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_LARGE + 1);
 
     /**
-     * Same, for the small-block variant — the TSDB default unless {@code index.use_time_series_doc_values_format_large_binary_block_size}
-     * is set.
+     * @return the field this query reads binary doc values from.
      */
-    long PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_SMALL + (long) Integer.BYTES
-        * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_SMALL + 1);
+    String field();
 
     /**
-     * @param segmentCount unused by the default estimate; kept so a future per-field or concurrency-scaled estimate
-     *                      doesn't need to change every caller.
-     * @param largeBinaryBlock whether the index is confirmed to use the large-block binary-DV variant, or unknown —
-     *                          see {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor#largeBinaryBlockOrDefault}.
-     * @return estimated peak heap bytes one surviving clause charges against the request circuit breaker.
+     * @param segmentCount unused by the default estimate; kept so a future concurrency-scaled estimate doesn't need
+     *                      to change every caller.
+     * @param reader the index reader to probe for the field's real per-segment decode-block size, or {@code null}
+     *               when unavailable. Probing is limited to reading already-parsed segment metadata off the
+     *               {@link BinaryDocValues} instance itself (see {@link BlockLoader.OptionalDecodeSizeHint}) — it
+     *               never decodes a value or allocates a block buffer.
+     * @return estimated peak heap bytes one surviving clause charges against the request circuit breaker: the real,
+     *         segment-reported bound when every leaf holding this field supports it, otherwise the conservative
+     *         fixed estimate.
      */
-    default long estimateDecodeBytes(int segmentCount, boolean largeBinaryBlock) {
-        return largeBinaryBlock ? PER_CLAUSE_DECODE_BYTES_ESTIMATE : PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK;
+    default long estimateDecodeBytes(int segmentCount, @Nullable IndexReader reader) {
+        Long real = reader == null ? null : realDecodeBytes(field(), reader);
+        return real != null ? real : PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+    }
+
+    /**
+     * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or {@code null} when any
+     *         leaf holding the field can't report it (a non-TSDB codec, an I/O error, or the field appearing
+     *         nowhere) — callers must fall back to the conservative constant in that case rather than trust a
+     *         partial answer.
+     */
+    private static Long realDecodeBytes(String field, IndexReader reader) {
+        long max = 0;
+        boolean sawData = false;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            BinaryDocValues values;
+            try {
+                values = leaf.reader().getBinaryDocValues(field);
+            } catch (IOException e) {
+                // Swallow: this is a best-effort cost estimate, not the real read — a genuine problem with the
+                // segment will surface properly when the query actually executes.
+                return null;
+            }
+            if (values == null) {
+                continue;
+            }
+            if (values instanceof BlockLoader.OptionalDecodeSizeHint hint) {
+                sawData = true;
+                max = Math.max(max, hint.maxDecodeBytes());
+            } else {
+                return null;
+            }
+        }
+        return sawData ? max : null;
     }
 }

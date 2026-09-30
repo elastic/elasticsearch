@@ -50,6 +50,11 @@ abstract class AbstractBinaryDocValuesQuery extends Query implements BinaryDocVa
         this.binaryFormat = rejectColumnar(binaryFormat, fieldName);
     }
 
+    @Override
+    public String field() {
+        return fieldName;
+    }
+
     /**
      * A columnar field is answered by its column, through the queries in the columnar library, so one reaching a
      * scanning query is a caller that routed it wrongly - see BinaryDocValuesQueries, which is what chooses between

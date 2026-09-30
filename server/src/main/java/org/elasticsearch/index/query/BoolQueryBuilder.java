@@ -359,7 +359,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             context.getCircuitBreaker(),
             context::isQueryMemoryPreCharged,
             MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
-            MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(context.getIndexSettings())
+            context.getIndexReader()
         );
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {

@@ -12,9 +12,14 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -33,14 +38,11 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
@@ -297,53 +300,260 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertTrue("a disjunction of binary DV scan clauses sized off real decode cost must trip the breaker", breaker.tripped);
     }
 
-    public void testConfirmedSmallBlockChargesTheSmallerEstimate() {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 1, false);
-        Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+    public void testUsesRealPerFieldDecodeBytesWhenReaderConfirmsHint() throws IOException {
+        long realDecodeBytes = 12_345L;
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(
+                    DirectoryReader.open(directory),
+                    "field",
+                    i -> new FakeHintBinaryDocValues(realDecodeBytes)
+                )
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
 
-        query.visit(visitor);
+                query.visit(visitor);
 
-        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK;
-        assertEquals(expected, visitor.getEstimatedBytes());
-        assertThat(
-            "the small-block estimate must be strictly smaller, or this test can't tell the two apart",
-            BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE_SMALL_BLOCK,
-            lessThan(BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE)
-        );
+                long expected = RamUsageEstimator.shallowSizeOf(query) + realDecodeBytes;
+                assertEquals(
+                    "a confirmed real per-field decode size must be used instead of the fixed fallback constant",
+                    expected,
+                    visitor.getEstimatedBytes()
+                );
+                assertThat(realDecodeBytes, lessThan(BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE));
+            }
+        }
     }
 
-    public void testLargeBinaryBlockOrDefaultTrueWhenIndexSettingsUnknown() {
-        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(null));
+    public void testFallsBackWhenAnyLeafDoesNotSupportTheHint() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE))) {
+                writer.addDocument(new Document());
+                writer.flush();
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(
+                    DirectoryReader.open(directory),
+                    "field",
+                    i -> i == 0 ? new FakeHintBinaryDocValues(1_000L) : new PlainBinaryDocValues()
+                )
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+                assertEquals(
+                    "one leaf lacking the hint must not let a partial answer from the other leaf be trusted",
+                    expected,
+                    visitor.getEstimatedBytes()
+                );
+            }
+        }
     }
 
-    public void testLargeBinaryBlockOrDefaultTrueWhenIndexDoesNotUseTimeSeriesDocValuesFormat() {
-        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(false, false);
-        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    public void testFallsBackWhenFieldAbsentFromReader() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> null)) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+                assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
     }
 
-    public void testLargeBinaryBlockOrDefaultTrueWhenLargeBlockSettingIsUnset() {
-        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(true, true);
-        assertTrue(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    public void testRealPerFieldDecodeBytesLookupIsCachedNotPerClause() throws IOException {
+        AtomicInteger lookups = new AtomicInteger();
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> {
+                lookups.incrementAndGet();
+                return new FakeHintBinaryDocValues(1_000L);
+            })) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                BooleanQuery.Builder bool = new BooleanQuery.Builder();
+                int clauses = randomIntBetween(3, 10);
+                for (int i = 0; i < clauses; i++) {
+                    bool.add(
+                        new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT),
+                        BooleanClause.Occur.SHOULD
+                    );
+                }
+
+                bool.build().visit(visitor);
+
+                assertEquals(
+                    "many clauses on the same field must probe the reader once per leaf, not once per clause",
+                    reader.leaves().size(),
+                    lookups.get()
+                );
+            }
+        }
     }
 
-    public void testLargeBinaryBlockOrDefaultFalseWhenSmallBlockConfirmed() {
-        IndexSettings indexSettings = indexSettingsWithTimeSeriesDocValuesFormat(true, false);
-        assertFalse(MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(indexSettings));
+    private static DirectoryReader wrapBinaryDocValues(DirectoryReader reader, String field, IntFunction<BinaryDocValues> perLeafValues)
+        throws IOException {
+        AtomicInteger nextLeafIndex = new AtomicInteger();
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                int leafIndex = nextLeafIndex.getAndIncrement();
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String f) throws IOException {
+                        return f.equals(field) ? perLeafValues.apply(leafIndex) : super.getBinaryDocValues(f);
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                return in;
+            }
+
+            @Override
+            public IndexReader.CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
     }
 
-    private static IndexSettings indexSettingsWithTimeSeriesDocValuesFormat(
-        boolean useTimeSeriesDocValuesFormat,
-        boolean largeBinaryBlock
-    ) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), largeBinaryBlock)
-            .build();
-        return new IndexSettings(
-            IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
-            Settings.EMPTY
-        );
+    /**
+     * Test double for a binary-DV reader that supports {@link BlockLoader.OptionalDecodeSizeHint}, as the TSDB
+     * codec's compressed binary DV readers do.
+     */
+    private static final class FakeHintBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalDecodeSizeHint {
+        private final long maxDecodeBytes;
+        private int doc = -1;
+
+        FakeHintBinaryDocValues(long maxDecodeBytes) {
+            this.maxDecodeBytes = maxDecodeBytes;
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return maxDecodeBytes;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            doc = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
+    }
+
+    /**
+     * Test double for a binary-DV reader that does not support {@link BlockLoader.OptionalDecodeSizeHint}, standing
+     * in for a non-TSDB codec.
+     */
+    private static final class PlainBinaryDocValues extends BinaryDocValues {
+        private int doc = -1;
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            doc = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

@@ -492,6 +492,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 );
 
                 @Override
+                public long maxDecodeBytes() {
+                    return entry.maxUncompressedChunkSize + (long) Integer.BYTES * (entry.maxNumDocsInAnyBlock + 1);
+                }
+
+                @Override
                 public BytesRef binaryValue() throws IOException {
                     return decoder.decode(doc, entry.numCompressedBlocks);
                 }
@@ -589,6 +594,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxNumDocsInAnyBlock,
                     offsetsDecoder
                 );
+
+                @Override
+                public long maxDecodeBytes() {
+                    return entry.maxUncompressedChunkSize + (long) Integer.BYTES * (entry.maxNumDocsInAnyBlock + 1);
+                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -1059,7 +1069,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class TSDBBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {
+            BlockLoader.OptionalLengthReader,
+            BlockLoader.OptionalDecodeSizeHint {
 
         /**
          * Returns the raw compressed block backing the value this iterator is currently positioned
@@ -1073,6 +1084,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          */
         RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
             return null;
+        }
+
+        /**
+         * Defaults to 0 (never buffers more than one value's own bytes); overridden where storage is chunked.
+         */
+        @Override
+        public long maxDecodeBytes() {
+            return 0;
         }
     }
 

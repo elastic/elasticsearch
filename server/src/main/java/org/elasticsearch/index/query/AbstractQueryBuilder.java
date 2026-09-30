@@ -125,7 +125,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             context.getCircuitBreaker(),
             context::isQueryMemoryPreCharged,
             MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
-            MaxClauseCountQueryVisitor.largeBinaryBlockOrDefault(context.getIndexSettings())
+            context.getIndexReader()
         );
         Query query = toQuery(context, visitor);
         if (query != null) {

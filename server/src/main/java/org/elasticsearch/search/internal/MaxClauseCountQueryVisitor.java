@@ -25,11 +25,12 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -72,10 +73,18 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     private final int segmentCount;
 
     /**
-     * Whether the index is confirmed to use the large-block binary-DV variant, or unknown; see
-     * {@link #largeBinaryBlockOrDefault}. Defaults to {@code true} (conservative) for constructors that don't take it.
+     * Reader to probe for a {@link BinaryDocValuesScanCost} field's real per-segment decode-block size, or
+     * {@code null} for constructors that don't take one — in which case the fixed conservative estimate is
+     * always used.
      */
-    private final boolean largeBinaryBlock;
+    @Nullable
+    private final IndexReader reader;
+
+    /**
+     * Per-field cache of the resolved decode-bytes charge, so a query with many clauses on the same field(s) (the
+     * shape this class exists for) probes each field's real block size once per walk, not once per clause.
+     */
+    private final Map<String, Long> binaryDvDecodeBytesCache = new HashMap<>();
 
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
@@ -95,7 +104,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         @Nullable Predicate<Query> preCharged,
         int segmentCount
     ) {
-        this(maxClauseCount, breaker, preCharged, segmentCount, true);
+        this(maxClauseCount, breaker, preCharged, segmentCount, null);
     }
 
     public MaxClauseCountQueryVisitor(
@@ -103,33 +112,17 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         @Nullable CircuitBreaker breaker,
         @Nullable Predicate<Query> preCharged,
         int segmentCount,
-        boolean largeBinaryBlock
+        @Nullable IndexReader reader
     ) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.preCharged = preCharged;
         this.segmentCount = segmentCount;
-        this.largeBinaryBlock = largeBinaryBlock;
+        this.reader = reader;
     }
 
     public static int segmentCountOrDefault(@Nullable IndexReader reader) {
         return reader == null ? FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN : reader.leaves().size();
-    }
-
-    /**
-     * Whether {@code indexSettings} is confirmed to use the large-block binary-DV variant. Defaults to {@code true}
-     * (the conservative assumption {@link BinaryDocValuesScanCost} sizes its estimate around) unless the index is
-     * positively known to use the TSDB doc-values format with the small-block variant selected — this is an
-     * index-wide approximation and doesn't account for the handful of fields/mapper-types the TSDB format itself
-     * excludes on a per-field basis.
-     */
-    public static boolean largeBinaryBlockOrDefault(@Nullable IndexSettings indexSettings) {
-        if (indexSettings == null) {
-            return true;
-        }
-        return indexSettings.useTimeSeriesDocValuesFormat() == false
-            || indexSettings.isES87TSDBCodecEnabled() == false
-            || indexSettings.isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
     }
 
     public int getMaxClauseCount() {
@@ -192,7 +185,8 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof BinaryDocValuesScanCost s) {
-            bytes = RamUsageEstimator.shallowSizeOf(query) + s.estimateDecodeBytes(segmentCount, largeBinaryBlock);
+            long decodeBytes = binaryDvDecodeBytesCache.computeIfAbsent(s.field(), f -> s.estimateDecodeBytes(segmentCount, reader));
+            bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

@@ -11,6 +11,8 @@ setup:
             xpack.ml.esql_datafeeds.enabled: true
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: esql-datafeed-lifecycle-index
         body:
@@ -22,6 +24,8 @@ setup:
                 type: double
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: esql-datafeed-lifecycle-index
         id: "1"
@@ -29,6 +33,8 @@ setup:
           {"time": "1970-01-01T00:00:01Z", "value": 1.0}
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: esql-datafeed-lifecycle-index
         id: "2"
@@ -36,6 +42,8 @@ setup:
           {"time": "1970-01-01T00:00:02Z", "value": 2.0}
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: esql-datafeed-lifecycle-index
         id: "3"
@@ -43,6 +51,8 @@ setup:
           {"time": "1970-01-01T00:00:03Z", "value": 3.0}
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
         index: esql-datafeed-lifecycle-index
 
@@ -399,6 +409,8 @@ setup:
             xpack.ml.esql_datafeeds.enabled: false
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.health:
         wait_for_events: languid
         wait_for_status: yellow
@@ -429,6 +441,8 @@ setup:
   - match: { closed: true }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       tasks.cancel:
         actions: "xpack/ml/*"
 

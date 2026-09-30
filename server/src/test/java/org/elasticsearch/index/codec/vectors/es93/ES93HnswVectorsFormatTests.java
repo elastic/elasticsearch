@@ -87,8 +87,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     public void testRandomWithUpdatesAndGraph() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         String fieldName = "field";
-        try (Directory dir = newDirectory();
-             IndexWriter iw = new IndexWriter(dir, iwc)) {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
             int numDoc = atLeast(100);
             int dimension = atLeast(10);
             if (dimension % 2 != 0) {
@@ -129,7 +128,8 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
                                 "values differ for id=" + idString + ", docid=" + docId + " leaf=" + ctx.ord,
                                 id2value[id],
                                 v,
-                                0);
+                                0
+                            );
                             numLiveDocsWithVectors++;
                         } else {
                             if (id2value[id] != null) {
@@ -149,14 +149,14 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
                     if (k > numLiveDocsWithVectors) {
                         k = numLiveDocsWithVectors;
                     }
-                    TopDocs results =
-                        ctx.reader()
-                            .searchNearestVectors(
-                                fieldName,
-                                randomNormalizedVector(dimension),
-                                k,
-                                AcceptDocs.fromLiveDocs(liveDocs, ctx.reader().maxDoc()),
-                                Integer.MAX_VALUE);
+                    TopDocs results = ctx.reader()
+                        .searchNearestVectors(
+                            fieldName,
+                            randomNormalizedVector(dimension),
+                            k,
+                            AcceptDocs.fromLiveDocs(liveDocs, ctx.reader().maxDoc()),
+                            Integer.MAX_VALUE
+                        );
                     assertEquals(Math.min(k, size), results.scoreDocs.length);
                     for (int i = 0; i < k - 1; i++) {
                         assertTrue(results.scoreDocs[i].score >= results.scoreDocs[i + 1].score);
@@ -167,13 +167,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
         }
     }
 
-    private void add(
-        IndexWriter iw,
-        String field,
-        int id,
-        float[] vector,
-        VectorSimilarityFunction similarityFunction)
-        throws IOException {
+    private void add(IndexWriter iw, String field, int id, float[] vector, VectorSimilarityFunction similarityFunction) throws IOException {
         Document doc = new Document();
         if (vector != null) {
             doc.add(new KnnFloatVectorField(field, vector, similarityFunction));

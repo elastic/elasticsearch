@@ -531,6 +531,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 fillNullAllFieldsModePreservesMV
+skip_flattened_rewrite: fillnull_on_star_warning_lists_flattened_field
 required_capability: fillnull
 
 FROM employees

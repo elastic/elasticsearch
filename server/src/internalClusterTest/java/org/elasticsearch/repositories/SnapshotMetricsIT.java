@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -52,6 +53,7 @@ import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
 import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -61,6 +63,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -533,8 +536,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     public void testByStateCounts_WaitingShards() {
         final String indexName = randomIdentifier();
-        final String boundNode = internalCluster().startDataOnlyNode();
-        final String destinationNode = internalCluster().startDataOnlyNode();
+        final String originalNode = internalCluster().startDataOnlyNode();
+        final String nodeToRelocateTo = internalCluster().startDataOnlyNode();
 
         // Create with single shard so we can reliably delay relocation
         createIndex(
@@ -542,7 +545,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(REQUIRE_NODE_NAME_SETTING, boundNode)
+                .put(REQUIRE_NODE_NAME_SETTING, originalNode)
                 .build()
         );
         indexRandom(true, indexName, randomIntBetween(100, 300));
@@ -550,7 +553,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final String repositoryName = randomIdentifier();
         createRepository(repositoryName, "mock");
 
-        final MockTransportService transportService = MockTransportService.getInstance(destinationNode);
+        final MockTransportService transportService = MockTransportService.getInstance(nodeToRelocateTo);
         final CyclicBarrier handoffRequestBarrier = new CyclicBarrier(2);
         transportService.addRequestHandlingBehavior(
             PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
@@ -565,7 +568,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         client().admin()
             .indices()
             .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, destinationNode).build())
+            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, nodeToRelocateTo).build())
             .get();
 
         // Wait for hand-off request to be blocked (the shard should be relocating now)
@@ -609,6 +612,92 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
+    }
+
+    public void testLongestWaitingTimeMetric() throws Exception {
+        final String indexName = randomIdentifier();
+        final String originalNode = internalCluster().startDataOnlyNode();
+        final String nodeToRelocateTo = internalCluster().startDataOnlyNode();
+        LongSupplier milliClock = internalCluster().getInstance(ClusterService.class).threadPool()::absoluteTimeInMillis;
+
+        // Create with single shard so we can reliably delay relocation:
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(REQUIRE_NODE_NAME_SETTING, originalNode)
+                .build()
+        );
+        indexRandom(true, indexName, randomIntBetween(100, 300));
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        // Intercept the relocation's primary hand-off:
+        final MockTransportService transportService = MockTransportService.getInstance(nodeToRelocateTo);
+        final CyclicBarrier primaryHandoffStarted = new CyclicBarrier(2);
+        final CyclicBarrier primaryHandoffFinished = new CyclicBarrier(2);
+        transportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+            (handler, request, channel, task) -> {
+                safeAwait(primaryHandoffStarted);
+                safeAwait(primaryHandoffFinished);
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        // Force the index to move to another node:
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, nodeToRelocateTo).build())
+            .get();
+        safeAwait(primaryHandoffStarted); // wait until primary handoff has started
+
+        // Kick off a snapshot:
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomIdentifier()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        // Wait until we see the snapshot in progress...
+        awaitNumberOfSnapshotsInProgress(1);
+        // ...The shard should be in the WAITING state because of the blocked relocation:
+        safeAwait(
+            createSnapshotInStateListener(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+                repositoryName,
+                indexName,
+                1,
+                SnapshotsInProgress.ShardState.WAITING
+            )
+        );
+
+        // The first metrics collection seeds the WAITING timestamp in SnapshotMetrics; note the wall-clock time so we can bound the result:
+        final long beforeMillis = milliClock.getAsLong();
+        collectMetrics();
+
+        // Allow time to pass:
+        final long sleepMillis = between(50, 200);
+        safeSleep(sleepMillis);
+
+        // The second metrics collection returns time between calls; assert it is in between the sleep time and the total elapsed time:
+        collectMetrics();
+        final long totalElapsedMillis = milliClock.getAsLong() - beforeMillis;
+        final long marginOfErrorMillis = 5L; // allow for the possibility that we may see time go backwards
+        assertSnapshotWaitingLatency(
+            allOf(greaterThanOrEqualTo(sleepMillis - marginOfErrorMillis), lessThanOrEqualTo(totalElapsedMillis + marginOfErrorMillis))
+        );
+
+        // Allow relocation and the snapshot to complete:
+        safeAwait(primaryHandoffFinished);
+        safeGet(snapshotFuture);
+
+        // No shards are waiting any more:
+        collectMetrics();
+        assertSnapshotWaitingLatency(equalTo(0L));
     }
 
     public void testSnapshotDurationIncludesFinalization() throws Exception {
@@ -779,6 +868,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             return longGaugeMeasurement.getLast().getLong();
         }).toList();
         assertThat(values, matcher);
+    }
+
+    private void assertSnapshotWaitingLatency(Matcher<Long> matcher) {
+        Measurement latestMeasurement = allTestTelemetryPlugins().flatMap(
+            plugin -> plugin.getLongAsyncGaugeMeasurement(SnapshotMetrics.SNAPSHOT_SHARDS_WAITING_LATENCY).stream()
+        ).toList().getLast();
+        assertThat(latestMeasurement.attributes(), anEmptyMap());
+        assertThat(latestMeasurement.getLong(), matcher);
     }
 
     private static void collectMetrics() {

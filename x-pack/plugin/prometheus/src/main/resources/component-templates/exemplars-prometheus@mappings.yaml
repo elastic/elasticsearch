@@ -25,6 +25,7 @@ template:
         priority: 10
         time_series_dimension: true
         properties:
+          # Map the metric name statically so that metric_name can alias it.
           __name__:
             type: keyword
       metric_name:

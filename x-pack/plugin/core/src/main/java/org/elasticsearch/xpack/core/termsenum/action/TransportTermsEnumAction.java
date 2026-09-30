@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -469,6 +470,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     null
                 );
+                // DLS role queries must be rewritten against the complete mapping, independently of the user's field-level permissions.
+                queryShardContext.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
 
                 // Current user has potentially many roles and therefore potentially many queries
                 // defining sets of docs accessible

@@ -160,6 +160,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             + "user9:"
             + usersPasswHashed
             + "\n"
+            + "user_dls_fls:"
+            + usersPasswHashed
+            + "\n"
             + "user_different_fields:"
             + usersPasswHashed
             + "\n";
@@ -176,6 +179,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             role6:user5,user7
             role7:user6
             role8:user9
+            role_dls_fls:user_dls_fls
             role_different_fields:user_different_fields""";
     }
 
@@ -239,6 +243,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     privileges: [ ALL ]
                     field_security:
                        grant: [ 'field*', 'query' ]
+            role_dls_fls:
+              indices:
+                - names: [ 'test' ]
+                  privileges: [ read ]
+                  field_security:
+                    grant: [ 'visible' ]
+                  query: '{"term": {"hidden": "value"}}'
             role_different_fields:
               indices:
                 - names: [ 'partial1*' ]
@@ -629,6 +640,17 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .actionGet();
 
         assertThat(hiddenViaAlias.getTerms(), empty());
+    }
+
+    public void testTermsEnumRewritesDlsQueryWithoutFieldLevelSecurity() {
+        assertAcked(prepareCreate("test").setMapping("visible", "type=keyword", "hidden", "type=constant_keyword,value=value"));
+        prepareIndex("test").setSource("visible", "visible-term").setRefreshPolicy(IMMEDIATE).get();
+
+        var response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_dls_fls", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("visible"))
+            .actionGet();
+
+        assertThat(response.getTerms(), contains("visible-term"));
     }
 
     public void testKnnSearch() throws IOException {

@@ -44,7 +44,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -76,7 +75,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -139,7 +137,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -310,7 +307,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean isExcludeSourceVectors;
         final boolean experimentalFeaturesEnabled;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
-        private final Predicate<NodeFeature> clusterSupportsFeature;
 
         private final boolean indexDisabledByDefault;
         private final float postFilterSelectivityThreshold;
@@ -346,36 +342,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean indexDisabledByDefault,
             float postFilterSelectivityThreshold
         ) {
-            this(
-                name,
-                indexVersionCreated,
-                indexMode,
-                isExcludeSourceVectors,
-                experimentalFeaturesEnabled,
-                vectorsFormatProviders,
-                indexDisabledByDefault,
-                postFilterSelectivityThreshold,
-                f -> true
-            );
-        }
-
-        public Builder(
-            String name,
-            IndexVersion indexVersionCreated,
-            IndexMode indexMode,
-            boolean isExcludeSourceVectors,
-            boolean experimentalFeaturesEnabled,
-            List<VectorsFormatProvider> vectorsFormatProviders,
-            boolean indexDisabledByDefault,
-            float postFilterSelectivityThreshold,
-            Predicate<NodeFeature> clusterSupportsFeature
-        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.indexMode = indexMode == null ? IndexMode.STANDARD : indexMode;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
-            this.clusterSupportsFeature = clusterSupportsFeature;
             this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
             final ElementType defaultElementType = this.indexMode.isVectorDb() ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
@@ -457,9 +428,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
-                (n, c, o) -> o == null
-                    ? null
-                    : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled, c::clusterHasFeature),
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -475,11 +444,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     v.validateElementType(elementType.getValue());
                     if (v.getType() == VectorIndexType.BBQ_DISK
                         && elementType.getValue() == ElementType.BYTE
-                        && clusterSupportsFeature.test(MapperFeatures.BBQ_DISK_BYTE_SUPPORT) == false) {
+                        && indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES960) == false) {
                         throw new IllegalArgumentException(
                             "[element_type] [byte] is not supported with index type ["
                                 + VectorIndexType.BBQ_DISK
-                                + "] until all nodes in the cluster support it"
+                                + "] on indices created before version "
+                                + IndexVersions.DISK_BBQ_ES960.toReleaseVersion()
                         );
                     }
                 }
@@ -1897,8 +1867,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -1934,8 +1903,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -1980,8 +1948,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -2028,8 +1995,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2057,8 +2023,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2091,8 +2056,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2125,8 +2089,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -2167,8 +2130,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 RescoreVector rescoreVector = null;
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -2203,8 +2165,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled,
-                Predicate<NodeFeature> clusterSupportsFeature
+                boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -2264,9 +2225,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     quantizationTypeString
                 );
                 if (quantizationType == BBQIVFIndexOptions.QuantizationType.ASH
-                    && clusterSupportsFeature.test(MapperFeatures.ASH_QUANTIZATION_TYPE_SUPPORT) == false) {
+                    && indexVersion.onOrAfter(IndexVersions.DISK_BBQ_ES960) == false) {
                     throw new IllegalArgumentException(
-                        "quantization_type 'ash' is not supported until all nodes in the cluster support it for field [" + fieldName + "]"
+                        "quantization_type 'ash' is not supported on indices created before version "
+                            + IndexVersions.DISK_BBQ_ES960.toReleaseVersion()
+                            + " for field ["
+                            + fieldName
+                            + "]"
                     );
                 }
 
@@ -2299,13 +2264,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
-                // auto_calibrate defaults to false, so a resolved value of true means the user explicitly enabled it.
-                // Gate on the cluster feature so it is rejected (rather than silently ignored) where it is not supported.
-                if (autoCalibrate && clusterSupportsFeature.test(MapperFeatures.BBQ_DISK_AUTO_CALIBRATE_SUPPORT) == false) {
-                    throw new IllegalArgumentException(
-                        "'auto_calibrate' is not supported until all nodes in the cluster support it for field [" + fieldName + "]"
-                    );
-                }
                 if (isAsh && autoCalibrate) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
@@ -2356,8 +2314,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             String fieldName,
             Map<String, ?> indexOptionsMap,
             IndexVersion indexVersion,
-            boolean experimentalFeaturesEnabled,
-            Predicate<NodeFeature> clusterSupportsFeature
+            boolean experimentalFeaturesEnabled
         );
 
         public abstract boolean supportsElementType(ElementType elementType);
@@ -3376,8 +3333,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
             c.getVectorsFormatProviders(),
             c.getIndexSettings().isIndexDisabledByDefault(),
-            c.getIndexSettings().getPostFilterSelectivityThreshold(),
-            c::clusterHasFeature
+            c.getIndexSettings().getPostFilterSelectivityThreshold()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -4384,8 +4340,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         String fieldName,
         Object propNode,
         IndexVersion indexVersion,
-        boolean experimentalFeaturesEnabled,
-        Predicate<NodeFeature> clusterSupportsFeature
+        boolean experimentalFeaturesEnabled
     ) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
@@ -4399,7 +4354,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled, clusterSupportsFeature);
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
     }
 
     private static boolean parseOnDiskMerge(Map<String, ?> indexOptionsMap) {

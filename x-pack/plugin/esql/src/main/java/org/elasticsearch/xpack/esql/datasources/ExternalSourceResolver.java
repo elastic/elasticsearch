@@ -782,11 +782,17 @@ public class ExternalSourceResolver {
             );
         }, e -> {
             RuntimeException mapped = mapResolveFailure(path, e);
-            if (mapped instanceof ExternalException ee) {
-                @SuppressWarnings("unchecked")
-                Map<String, String> ctx = (Map<String, String>) config.get(DATASET_CONTEXT_KEY);
-                if (ctx != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> ctx = (Map<String, String>) config.get(DATASET_CONTEXT_KEY);
+            if (ctx != null) {
+                if (mapped instanceof ExternalException ee) {
                     ee.setDatasetContext(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+                } else if (mapped instanceof IllegalArgumentException iae) {
+                    String label = ExternalException.buildDatasetLabel(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+                    if (label.isEmpty() == false) {
+                        // A new instance: mapResolveFailure may return one shared by concurrent cache waiters.
+                        mapped = new IllegalArgumentException(iae.getMessage() + " " + label);
+                    }
                 }
             }
             listener.onFailure(mapped);
@@ -903,35 +909,37 @@ public class ExternalSourceResolver {
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
-        IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
-        if (clientError != null) {
-            recordDiscoveryFailure();
-            // Log the full IAE detail locally; forward only if free of storage-URI schemes.
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            String iaeMsg = clientError.getMessage();
-            String safeMsg = (iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg))
-                ? iaeMsg
-                : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
-            // Wrap in ExternalClientException so the caller can annotate with dataset context.
-            ExternalClientException iaeEx = new ExternalClientException(
-                ExternalException.Condition.MALFORMED_DATA,
-                StoragePath.NONE,
-                "",
-                ""
-            );
-            iaeEx.setDetail(safeMsg);
-            return iaeEx;
-        }
-        // Recover a typed client exception from behind a transparent wrapper for the same reason the IAE arm above
-        // does. Storage connectors now throw ExternalClientException (400) directly for access-denied and
-        // object-not-found cases — it is an ElasticsearchException, not an IOException, so the IOException arm
-        // below would not catch it. Unwrapping it here keeps status consistent across the cacheable and
-        // non-cacheable rails.
+        // Storage connectors throw ExternalClientException (400) directly for access-denied and object-not-found
+        // cases — it is an ElasticsearchException, not an IOException, so the IOException arm below would not catch
+        // it. It is checked before the IllegalArgumentException arm: the factory loop wraps every factory failure in
+        // an IllegalArgumentException, which would otherwise shadow the typed condition.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
             return clientException.withoutCause();
+        }
+        IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+        if (clientError != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            String iaeMsg = clientError.getMessage();
+            boolean safe = iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg);
+            if (safe && clientError.getCause() == null) {
+                return clientError;
+            }
+            // The cause chain may name the location, so it never reaches the user's caused_by.
+            if (safe) {
+                return new IllegalArgumentException(iaeMsg);
+            }
+            String objectName = StoragePath.objectName(path);
+            return new IllegalArgumentException(
+                "Failed to resolve external source"
+                    + (objectName.isEmpty() ? "" : " [" + objectName + "]")
+                    + " ("
+                    + clientError.getClass().getSimpleName()
+                    + ")"
+            );
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it may arrive wrapped

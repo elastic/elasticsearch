@@ -4146,12 +4146,52 @@ public class ExternalSourceResolverTests extends ESTestCase {
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertThat(
-            "IAE must be wrapped in ExternalClientException to carry dataset context",
-            mapped,
-            instanceOf(ExternalClientException.class)
+        assertThat(mapped, instanceOf(IllegalArgumentException.class));
+        assertNull(mapped.getCause());
+        assertEquals("Failed to resolve external source [x.log.gz] (IllegalArgumentException)", mapped.getMessage());
+    }
+
+    /**
+     * A client error whose message names no location keeps it verbatim, with neither a condition prefix nor its
+     * type changed. Only its cause is dropped, since that may name the location.
+     */
+    public void testASafeClientErrorKeepsItsMessageButNotItsCause() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalArgumentException bare = new IllegalArgumentException("Row [3] of [x.csv] has [3] columns");
+        assertSame(bare, resolver.mapResolveFailure("s3://b/x.csv", bare));
+
+        IllegalArgumentException chained = new IllegalArgumentException(
+            "Row [3] of [x.csv] has [3] columns",
+            new IOException("reading s3://secret-bucket/x.csv")
         );
-        assertThat("storage path must not appear in the mapped message", mapped.getMessage(), not(containsString("s3://b/x.log.gz")));
+        RuntimeException mapped = resolver.mapResolveFailure("s3://secret-bucket/x.csv", chained);
+
+        assertThat(mapped, instanceOf(IllegalArgumentException.class));
+        assertEquals("Row [3] of [x.csv] has [3] columns", mapped.getMessage());
+        assertNull(mapped.getCause());
+    }
+
+    /**
+     * The factory loop wraps every factory failure in an {@link IllegalArgumentException}. A typed client failure
+     * inside that wrapper must surface with its own condition, not be re-typed by the wrapper.
+     */
+    public void testATypedClientFailureIsNotShadowedByTheFactoryWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExternalClientException denied = new ExternalClientException(
+            Condition.ACCESS_DENIED,
+            StoragePath.of("s3://secret-bucket/x.parquet"),
+            "HTTP 403",
+            "",
+            new RuntimeException("Access Denied: secret-bucket")
+        );
+        IllegalArgumentException wrapper = new IllegalArgumentException(denied.getMessage(), denied);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://secret-bucket/x.parquet", new ExecutionException(wrapper));
+
+        assertThat(mapped, instanceOf(ExternalClientException.class));
+        assertEquals(Condition.ACCESS_DENIED, ((ExternalClientException) mapped).condition());
+        assertEquals(denied.getMessage(), mapped.getMessage());
+        assertNull(mapped.getCause());
     }
 
     public void testCredentialsExpiredKeepsIts400ThroughAWrapper() {

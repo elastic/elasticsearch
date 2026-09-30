@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -1553,7 +1554,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
-                new GrokEvaluatorExtracter.Factory(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(grok.source(), watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );
@@ -1634,7 +1635,7 @@ public class LocalExecutionPlanner {
         // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
-        String analyzerName = options.analyzerName();
+        String analyzerName = HighlightSupport.executionAnalyzerName(options.analyzerName(), highlight.fields());
 
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,

@@ -3903,7 +3903,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, currentRecoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(currentRecoveryState, null, e), FAIL_SEND);
+                    recoveryListener.onRecoveryFailure(
+                        currentRecoveryState,
+                        new RecoveryFailedException(currentRecoveryState, null, e),
+                        FAIL_SEND
+                    );
                 }
             }
             case SNAPSHOT -> {
@@ -3999,7 +4003,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     failureStrategy = FAIL_SEND;
                 }
-                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy);
+                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }
         );
         ActionListener.run(actionListener, action);

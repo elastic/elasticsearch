@@ -482,7 +482,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 if (e instanceof RecoveryCancelledException) {
                     cancelled.set(true);
                 } else {

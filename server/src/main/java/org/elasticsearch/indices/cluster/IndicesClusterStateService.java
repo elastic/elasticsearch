@@ -1316,7 +1316,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             if (failureStrategy == FailureStrategy.ABORT) {
                 // We don't need to notify master of anything here because recovery abortion is a
                 // symptom of a shard that is closing and this is communicated to master through other

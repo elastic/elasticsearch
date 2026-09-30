@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,9 +48,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1288,6 +1292,65 @@ public class IndicesService extends AbstractLifecycleComponent
             indexSettings,
             paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
+    }
+
+    /**
+     * Cleans up stores of shards removed by a restore, after the old shards have closed. This runs on the generic thread pool because
+     * directory scans, filesystem locks, deletion listeners, and recursive deletion could be expensive, and we don't want to block the
+     * cluster applier thread. The applier only checks current metadata while the shard lock is held. Keeping that lock until deletion
+     * finishes prevents a newly introduced shard from creating a store we might delete.
+     */
+    public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+        threadPool.generic().execute(ActionRunnable.wrap(listener, delegate -> {
+            final var shardIds = nodeEnv.findAllShardIds(metadata.getIndex());
+            try (var listeners = new RefCountingListener(delegate)) {
+                for (ShardId shardId : shardIds) {
+                    if (shardId.id() >= metadata.getNumberOfShards()) {
+                        final var shardListener = listeners.acquire();
+                        try {
+                            deleteRemovedShardStore(metadata, shardId, shardListener);
+                        } catch (Exception e) {
+                            shardListener.onFailure(e);
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
+    private void deleteRemovedShardStore(IndexMetadata metadata, ShardId shardId, ActionListener<Void> listener)
+        throws ShardLockObtainFailedException {
+        final ShardLock lock = nodeEnv.shardLock(shardId, "deleting shard removed by restore");
+        SubscribableListener.<IndexMetadata>newForked(
+            validation -> clusterService.getClusterApplierService()
+                .runOnApplierThread(
+                    "validate store deletion for removed shard [" + shardId + "]",
+                    Priority.NORMAL,
+                    state -> ActionListener.completeWith(validation, () -> {
+                        if (state.blocks().disableStatePersistence()) {
+                            throw new IllegalStateException("cannot clean removed shard stores while state persistence is disabled");
+                        }
+                        final var project = state.metadata().lookupProject(metadata.getIndex());
+                        final var current = project.map(p -> p.index(metadata.getIndex())).orElse(null);
+                        if (current == null
+                            || shardId.id() < current.getNumberOfShards()
+                            || Objects.equals(
+                                current.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID),
+                                metadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID)
+                            ) == false) {
+                            return null;
+                        }
+                        return current;
+                    }),
+                    validation.delegateFailure((ignored, response) -> {})
+                )
+        ).<Void>andThen(threadPool.generic(), threadPool.getThreadContext(), (completion, current) -> {
+            assert ClusterApplierService.assertNotClusterStateUpdateThread("deleting removed shard stores");
+            if (current != null) {
+                deleteShardStore("removed by restore", lock, buildIndexSettings(current), IndexRemovalReason.NO_LONGER_ASSIGNED);
+            }
+            completion.onResponse(null);
+        }).addListener(ActionListener.runBefore(listener, lock::close));
     }
 
     /**

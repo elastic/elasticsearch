@@ -1229,7 +1229,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Pin the node-stable config identity from THIS query's WITH config. identityOf filters
         // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
         // so a coordinator and a data node configured from the same logical query derive the same value.
-        String canon = Configured.identityOf(config, RECOGNIZED_KEYS);
+        //
+        // The resolved error policy is folded in because it decides which rows survive: a skip_row scan's committed
+        // count is a survivor count and its column statistics describe null-filled cells, so they are a different
+        // measurement of the same bytes than a fail_fast read makes. Without this the two share a harvest
+        // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
+        // a lenient scan's count enriches a strict entry whose own scan aborts.
+        String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,
@@ -1296,6 +1302,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
      */
     private String computeConfigFingerprint() {
+        return canonicalConfig;
+    }
+
+    /**
+     * The harvest fingerprint this reader stamps, for tests that must assert over the value production derives rather
+     * than a literal. Distinct from the {@link Configured#identity()} the reader vends: that names the reader's
+     * recognised keys, this additionally carries the resolved error policy, and it is this one that decides whether a
+     * contribution may enrich an entry.
+     */
+    String harvestFingerprintForTests() {
         return canonicalConfig;
     }
 

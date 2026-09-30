@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
@@ -407,4 +408,41 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
         };
     }
+
+    /**
+     * The error policy moves the vended identity, because it decides which rows survive. This is the guard that
+     * matters most here: a contribution is matched to a cache entry on path, mtime and this identity alone, so if a
+     * {@code skip_row} read and a {@code fail_fast} read of one file derive the same value, the lenient scan's
+     * survivor count enriches the strict entry and the strict query answers where its own scan aborts.
+     * <p>
+     * Derived through the production vend rather than compared as literals, and asserted over
+     * {@link ErrorPolicy#CONFIG_KEYS} rather than a name typed here, so a policy setting added later is covered.
+     */
+    public void testEveryErrorPolicyKeyMovesTheVendedIdentity() {
+        Map<String, Object> strict = new HashMap<>(Map.of("delimiter", ",", "error_mode", "fail_fast"));
+        String strictIdentity = identityOf(strict);
+        assertFalse("the vended identity must not be empty, or this asserts nothing", strictIdentity.isEmpty());
+
+        int checked = 0;
+        for (String policyKey : ErrorPolicy.CONFIG_KEYS) {
+            Map<String, Object> lenient = new HashMap<>(strict);
+            lenient.put("error_mode", "skip_row");
+            if (policyKey.equals("error_mode") == false) {
+                lenient.put(policyKey, policyKey.equals("max_error_ratio") ? "0.5" : "7");
+            }
+            assertNotEquals(
+                "policy key [" + policyKey + "] must move the vended identity: it changes which rows survive",
+                strictIdentity,
+                identityOf(lenient)
+            );
+            checked++;
+        }
+        assertEquals("every declared policy key must have been exercised", ErrorPolicy.CONFIG_KEYS.size(), checked);
+    }
+
+    private static String identityOf(Map<String, Object> config) {
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        return ((CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value()).harvestFingerprintForTests();
+    }
+
 }

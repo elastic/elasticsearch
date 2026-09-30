@@ -12,6 +12,7 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
@@ -81,6 +82,11 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
      * so it flows into {@code FieldInfo} at index time; read back by the producer to return raw bytes directly.
      */
     public static final String SINGLE_VALUED_ATTRIBUTE = "columnar.string.singleValued";
+
+    /** Whether {@code field} carries {@link #SINGLE_VALUED_ATTRIBUTE}, so each document's blob is its one value's own bytes. */
+    public static boolean isSingleValued(FieldInfo field) {
+        return Boolean.parseBoolean(field.getAttribute(SINGLE_VALUED_ATTRIBUTE));
+    }
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;

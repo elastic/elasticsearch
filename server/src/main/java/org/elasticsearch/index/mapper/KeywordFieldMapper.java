@@ -1126,10 +1126,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                         // Single-valued fields (BINARY_COLUMNAR_SINGLE_VALUE and non-columnar with multi_value:false)
                         // store raw bytes — no count prefix — so the bare-value reader is correct.
                         // BINARY_COLUMNAR_PAYLOAD carries its count in the blob and uses the multi-valued reader.
-                        if (diskFormat == DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE
-                            || (diskFormat != DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
-                                && docValuesParams != null
-                                && docValuesParams.multiValue() == false)) {
+                        if (diskFormat != DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
+                            && docValuesParams != null
+                            && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
@@ -1648,7 +1647,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // a bounded dictionary covers much of the column.
         return switch (fieldType().diskFormat()) {
             case BINARY_COLUMNAR_PAYLOAD, BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT;
-            default -> null;
+            case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_ARRAY_ORDER_INLINE_NULL -> null;
         };
     }
 

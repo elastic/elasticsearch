@@ -120,7 +120,7 @@ public final class ColumnarStringTermQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and compared. For a plain (single-valued) field the blob is the
                         // raw value bytes; for a payload field the blob carries slot count + framed values.
-                        if (Boolean.parseBoolean(info.getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE))) {
+                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 private final BytesRef prefix = new BytesRef();
 

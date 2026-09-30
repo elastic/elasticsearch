@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
@@ -833,7 +831,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// This plugin does a few things:
     /// - Count number of recovery attempts [recoveryCounter]
     /// - Inject failures into recover path through [IndexEventListener] and [failureTarget] + [FailureTarget]
-    /// - Concurrency control by injecting [Gate]s on shard creation/recovery path through [IndexEventListener]
+    /// - Concurrency control via [Gate]s on the recovery path through [IndexEventListener]
     /// - Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use
     /// - Set indices.recovery.local_retry=true
     public static class RetryRecoveryTestPlugin extends Plugin {
@@ -842,20 +840,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
 
         // Gates in the order they are invoked
-        private static final Gate beforeIndexShardCreatedGate = new Gate("beforeIndexShardCreateGate");
-        private static final Gate onStoreCreatedGate = new Gate("onStoreCreatedGate");
-        private static final Gate afterIndexShardCreatedGate = new Gate("afterIndexShardCreatedGate");
-        private static final Gate stateChangeRecoveringGate = new Gate("stateChangeRecoveringGate");
-        private static final Gate beforeIndexShardRecoveryGate = new Gate("beforeIndexShardRecoveryGate");
+        static final Gate beforeIndexShardRecoveryGate = new Gate("beforeIndexShardRecoveryGate");
         private static final Gate stateChangePostRecoveryGate = new Gate("stateChangePostRecoveryGate");
-        private static final List<Gate> allGates = List.of(
-            beforeIndexShardCreatedGate,
-            onStoreCreatedGate,
-            afterIndexShardCreatedGate,
-            stateChangeRecoveringGate,
-            beforeIndexShardRecoveryGate,
-            stateChangePostRecoveryGate
-        );
+        private static final List<Gate> allGates = List.of(beforeIndexShardRecoveryGate, stateChangePostRecoveryGate);
 
         public static void reset() {
             failureTarget.set(null);
@@ -883,18 +870,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public static Gate randomGateBeforeTargetFailure() {
             assert failureTarget.get() != null;
             List<Gate> validGates = switch (failureTarget.get()) {
-                case BEFORE_INDEX_SHARD_RECOVERY, AFTER_INDEX_SHARD_RECOVERY -> allGatesExcept(stateChangePostRecoveryGate);
+                case BEFORE_INDEX_SHARD_RECOVERY, AFTER_INDEX_SHARD_RECOVERY -> List.of(beforeIndexShardRecoveryGate);
                 case STATE_CHANGED_POST_RECOVERY -> allGates;
             };
             return randomFrom(validGates);
-        }
-
-        public static List<Gate> allGatesExcept(Gate... excluded) {
-            List<Gate> result = new ArrayList<>(allGates);
-            for (Gate gate : excluded) {
-                result.remove(gate);
-            }
-            return result;
         }
 
         @Override
@@ -917,27 +896,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 }
             });
             indexModule.addIndexEventListener(new IndexEventListener() {
-
-                @Override
-                public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-                    // Failure here will not cause recovery retry, only gate
-                    beforeIndexShardCreatedGate.enter();
-                    beforeIndexShardCreatedGate.exit();
-                }
-
-                @Override
-                public void onStoreCreated(ShardId shardId) {
-                    // Failure here will not cause recovery retry, only gate
-                    onStoreCreatedGate.enter();
-                    onStoreCreatedGate.exit();
-                }
-
-                @Override
-                public void afterIndexShardCreated(IndexShard indexShard) {
-                    // Failure here will not cause recovery retry, only gate
-                    afterIndexShardCreatedGate.enter();
-                    afterIndexShardCreatedGate.exit();
-                }
 
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
@@ -964,9 +922,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     String reason
                 ) {
                     if (currentState == IndexShardState.RECOVERING) {
-                        stateChangeRecoveringGate.enter();
                         recoveryCounter.incrementAndGet();
-                        stateChangeRecoveringGate.exit();
                     }
                     if (currentState == IndexShardState.POST_RECOVERY) {
                         stateChangePostRecoveryGate.enter();

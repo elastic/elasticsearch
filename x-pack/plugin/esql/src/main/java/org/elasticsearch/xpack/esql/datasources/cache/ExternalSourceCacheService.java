@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
@@ -550,9 +551,9 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Async variant of {@link #getOrComputeListing} with in-flight coalescing: concurrent cold misses for
      * the same key share one {@code compute} invocation rather than each spawning a separate fan-out.
-     * Failures are never cached; a follower that receives a
-     * {@link org.elasticsearch.tasks.TaskCancelledException} from a cancelled leader should re-invoke
-     * rather than propagating the cancellation to its own task.
+     * Failures are never cached. When the leader's compute fails with a
+     * {@link TaskCancelledException} — because the leader query was cancelled — followers retry via a
+     * recursive call rather than inheriting the cancellation, so an unrelated query is not failed.
      */
     public void getOrComputeListingAsync(
         ListingCacheKey key,
@@ -571,18 +572,39 @@ public class ExternalSourceCacheService implements Closeable {
         SubscribableListener<FileList> newFuture = new SubscribableListener<>();
         SubscribableListener<FileList> existing = inFlightListings.putIfAbsent(key, newFuture);
         if (existing != null) {
-            existing.addListener(listener);
+            // Follower: if the leader was cancelled, retry rather than inheriting its TaskCancelledException.
+            existing.addListener(ActionListener.wrap(listener::onResponse, e -> {
+                if (e instanceof TaskCancelledException) {
+                    getOrComputeListingAsync(key, compute, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+            return;
+        }
+        // Re-check the cache after acquiring leadership: a concurrent leader may have completed and removed
+        // itself from inFlightListings between our initial cache-miss check and the putIfAbsent above.
+        FileList racedResult = listingCache.get(key);
+        if (racedResult != null) {
+            inFlightListings.remove(key, newFuture);
+            listener.onResponse(racedResult);
             return;
         }
         newFuture.addListener(listener);
-        compute.accept(ActionListener.wrap(result -> {
-            listingCache.put(key, result);
-            inFlightListings.remove(key, newFuture);
-            newFuture.onResponse(result);
-        }, e -> {
+        // Catch a synchronous throw from compute so neither the in-flight entry nor the listener is orphaned.
+        try {
+            compute.accept(ActionListener.wrap(result -> {
+                listingCache.put(key, result);
+                inFlightListings.remove(key, newFuture);
+                newFuture.onResponse(result);
+            }, e -> {
+                inFlightListings.remove(key, newFuture);
+                newFuture.onFailure(e);
+            }));
+        } catch (Exception e) {
             inFlightListings.remove(key, newFuture);
             newFuture.onFailure(e);
-        }));
+        }
     }
 
     /**

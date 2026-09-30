@@ -760,16 +760,21 @@ public class ExternalSourceResolver {
             }
             resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
-            resolveNextPath(
-                paths,
-                index + 1,
-                pathConfigs,
-                filterHints,
-                declaredMappings,
-                pathsRequiringStats,
-                pathsReadingNoRows,
-                resolved,
-                listener
+            // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
+            // synchronously, so a direct recursive call would stack one frame per path and overflow the
+            // JVM stack for large comma-separated path lists.
+            metadataReadExecutor.execute(
+                () -> resolveNextPath(
+                    paths,
+                    index + 1,
+                    pathConfigs,
+                    filterHints,
+                    declaredMappings,
+                    pathsRequiringStats,
+                    pathsReadingNoRows,
+                    resolved,
+                    listener
+                )
             );
         }, e -> listener.onFailure(mapResolveFailure(path, e))));
     }

@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
@@ -45,14 +52,15 @@ import java.util.function.Function;
  * The registry is owned by the upstream {@code AsyncExternalSourceOperatorFactory} and resolved
  * per-driver via a {@code Function<DriverContext, SourceExtractors>} supplied at construction.
  * The source populates the registry as it opens files; this operator reads it after TopN
- * finishes. Single-threaded — same driver thread.
+ * finishes. Row-reference validation, empty-page reshaping, and output assembly run on the driver
+ * thread. Non-empty materialization runs on the external read executor, one request at a time;
+ * while it is pending the operator blocks the driver.
  * <p>
- * Implements {@link Operator} directly rather than extending {@code AbstractPageMappingOperator}
- * because the latter short-circuits zero-position pages — that would propagate the input shape
- * (including {@code _rowPosition}) instead of our declared output shape, breaking downstream
- * channel indexing.
+ * Extends {@link AsyncOperator} rather than {@code AbstractPageMappingOperator} because materialization
+ * performs external I/O and because the latter short-circuits zero-position pages. That shortcut would
+ * propagate the input shape (including {@code _rowPosition}) instead of the declared output shape.
  */
-public class ExternalFieldExtractOperator implements Operator {
+public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExtractOperator.Result> {
 
     /**
      * Builds {@link ExternalFieldExtractOperator}s for each driver. The {@code sourceExtractorsLookup}
@@ -66,6 +74,7 @@ public class ExternalFieldExtractOperator implements Operator {
         private final List<String> deferredColumnNames;
         private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
+        private final Executor executor;
 
         /**
          * @param rowPositionChannel       channel index in the input page that holds {@code _rowPosition}
@@ -78,13 +87,15 @@ public class ExternalFieldExtractOperator implements Operator {
          *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
+         * @param executor                 executor for non-empty materialization
          */
         public Factory(
             int rowPositionChannel,
             List<Integer> passThroughChannels,
             List<String> deferredColumnNames,
             List<DataType> deferredColumnTypes,
-            Function<DriverContext, SourceExtractors> sourceExtractorsLookup
+            Function<DriverContext, SourceExtractors> sourceExtractorsLookup,
+            Executor executor
         ) {
             if (rowPositionChannel < 0) {
                 throw new IllegalArgumentException("rowPositionChannel must be non-negative, got [" + rowPositionChannel + "]");
@@ -107,11 +118,15 @@ public class ExternalFieldExtractOperator implements Operator {
             if (sourceExtractorsLookup == null) {
                 throw new IllegalArgumentException("sourceExtractorsLookup must not be null");
             }
+            if (executor == null) {
+                throw new IllegalArgumentException("executor must not be null");
+            }
             this.rowPositionChannel = rowPositionChannel;
             this.passThroughChannels = List.copyOf(passThroughChannels);
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
             this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
+            this.executor = executor;
         }
 
         @Override
@@ -128,7 +143,8 @@ public class ExternalFieldExtractOperator implements Operator {
                 deferredColumnNames,
                 deferredColumnTypes,
                 registry,
-                driverContext.blockFactory()
+                driverContext,
+                executor
             );
         }
 
@@ -150,13 +166,50 @@ public class ExternalFieldExtractOperator implements Operator {
     private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
-    private final LongAdder pagesProcessed = new LongAdder();
+    private final Executor executor;
     private final LongAdder rowsExtracted = new LongAdder();
     private final LongAdder extractNanos = new LongAdder();
     private final LongAdder extractCpuNanos = new LongAdder();
 
-    private Page prev;
-    private boolean finished;
+    private volatile IsBlockedResult materializationBlocked = Operator.NOT_BLOCKED;
+
+    static final class Result {
+        private final Page inputPage;
+        private final Block[] deferredBlocks;
+        private final Page outputPage;
+        private final Throwable failure;
+
+        private Result(Page inputPage, Block[] deferredBlocks, Page outputPage, Throwable failure) {
+            this.inputPage = inputPage;
+            this.deferredBlocks = deferredBlocks;
+            this.outputPage = outputPage;
+            this.failure = failure;
+        }
+
+        static Result materialized(Page inputPage, Block[] deferredBlocks) {
+            return new Result(inputPage, deferredBlocks, null, null);
+        }
+
+        static Result output(Page outputPage) {
+            return new Result(null, null, outputPage, null);
+        }
+
+        static Result failure(Page inputPage, Throwable failure) {
+            return new Result(inputPage, null, null, failure);
+        }
+
+        void releaseOnAnyThread() {
+            if (inputPage != null) {
+                releasePageOnAnyThread(inputPage);
+            }
+            if (outputPage != null) {
+                releasePageOnAnyThread(outputPage);
+            }
+            if (deferredBlocks != null) {
+                Releasables.closeExpectNoException(deferredBlocks);
+            }
+        }
+    }
 
     ExternalFieldExtractOperator(
         int rowPositionChannel,
@@ -166,79 +219,139 @@ public class ExternalFieldExtractOperator implements Operator {
         SourceExtractors registry,
         BlockFactory blockFactory
     ) {
+        this(
+            rowPositionChannel,
+            passThroughChannels,
+            deferredColumnNames,
+            deferredColumnTypes,
+            registry,
+            new DriverContext(blockFactory.bigArrays(), blockFactory, null),
+            Runnable::run
+        );
+    }
+
+    ExternalFieldExtractOperator(
+        int rowPositionChannel,
+        List<Integer> passThroughChannels,
+        List<String> deferredColumnNames,
+        List<DataType> deferredColumnTypes,
+        SourceExtractors registry,
+        DriverContext driverContext,
+        Executor executor
+    ) {
+        // Materialization does not produce response headers; AsyncOperator still requires a ThreadContext.
+        super(driverContext, new ThreadContext(Settings.EMPTY), 1);
         this.rowPositionChannel = rowPositionChannel;
         this.passThroughChannels = passThroughChannels;
         this.deferredColumnNames = deferredColumnNames;
         this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
-        this.blockFactory = blockFactory;
+        this.blockFactory = driverContext.blockFactory();
+        this.executor = executor;
     }
 
     @Override
-    public boolean needsInput() {
-        return prev == null && finished == false;
-    }
+    protected void performAsync(Page page, ActionListener<Result> listener) {
+        if (page.getPositionCount() == 0) {
+            Page output = null;
+            Throwable failure = null;
+            try {
+                output = reshapeEmpty(page);
+            } catch (Throwable t) {
+                failure = t;
+            } finally {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
+            listener.onResponse(failure == null ? Result.output(output) : Result.failure(null, failure));
+            return;
+        }
 
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return prev != null;
-    }
+        final long[] refs;
+        try {
+            refs = rowReferences(page);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        } catch (Error e) {
+            releasePageOnAnyThread(page);
+            throw e;
+        }
 
-    @Override
-    public void addInput(Page page) {
-        assert prev == null : "has pending input page";
-        prev = page;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && prev == null;
+        SubscribableListener<Void> ready = new SubscribableListener<>();
+        materializationBlocked = new IsBlockedResult(ready, "external field materialization");
+        ActionListener<Result> completion = ActionListener.runAfter(listener, () -> ready.onResponse(null));
+        try {
+            executor.execute(() -> {
+                long start = System.nanoTime();
+                long cpuStart = ThreadCpuTimer.currentNanos();
+                Result result;
+                try {
+                    result = Result.materialized(
+                        page,
+                        registry.materialize(refs, refs.length, deferredColumnNames, deferredColumnTypes, blockFactory.parent())
+                    );
+                } catch (Throwable t) {
+                    result = Result.failure(page, t);
+                } finally {
+                    extractNanos.add(System.nanoTime() - start);
+                    if (cpuStart >= 0) {
+                        extractCpuNanos.add(ThreadCpuTimer.elapsedNanos(cpuStart));
+                    }
+                }
+                completion.onResponse(result);
+            });
+        } catch (RuntimeException e) {
+            completion.onFailure(ExternalFailures.classify(e));
+        } catch (Error e) {
+            ready.onResponse(null);
+            releasePageOnAnyThread(page);
+            throw e;
+        }
     }
 
     @Override
     public Page getOutput() {
-        if (prev == null) {
+        Result result = fetchFromBuffer();
+        if (result == null) {
             return null;
         }
-        Page page = prev;
-        prev = null;
-        if (page.getPositionCount() == 0) {
+        if (result.outputPage != null) {
+            return result.outputPage;
+        }
+        if (result.failure != null) {
             try {
-                return reshapeEmpty(page);
+                throw ExternalFailures.classify(result.failure);
             } finally {
-                Releasables.closeExpectNoException(page::releaseBlocks);
+                if (result.inputPage != null) {
+                    Releasables.closeExpectNoException(result.inputPage::releaseBlocks);
+                }
             }
         }
-        long start = System.nanoTime();
-        long cpuStart = ThreadCpuTimer.currentNanos();
         try {
-            Page out = materialize(page);
+            Page out = assemble(result.inputPage, result.deferredBlocks);
             rowsExtracted.add(out.getPositionCount());
             return out;
         } finally {
-            Releasables.closeExpectNoException(page::releaseBlocks);
-            extractNanos.add(System.nanoTime() - start);
-            if (cpuStart >= 0) {
-                extractCpuNanos.add(ThreadCpuTimer.elapsedNanos(cpuStart));
-            }
-            pagesProcessed.increment();
+            Releasables.closeExpectNoException(result.inputPage::releaseBlocks);
         }
     }
 
     @Override
-    public Status status() {
-        return new Status(pagesProcessed.sum(), rowsExtracted.sum(), extractNanos.sum(), extractCpuNanos.sum());
+    protected Status status(long receivedPages, long completedPages, long processNanos) {
+        return new Status(completedPages, rowsExtracted.sum(), extractNanos.sum(), extractCpuNanos.sum());
+    }
+
+    @Override
+    public IsBlockedResult isBlocked() {
+        IsBlockedResult blocked = materializationBlocked;
+        return blocked.listener().isDone() ? super.isBlocked() : blocked;
     }
 
     /**
      * For an empty input page, build a shape-correct empty output: drop {@code _rowPosition},
      * keep the pass-through blocks (incRef'd), and append empty placeholder blocks for the
-     * deferred columns. The input page is owned and released by {@link #getOutput()}.
+     * deferred columns. The input page is released synchronously after this method returns;
+     * the returned page owns the retained pass-through references.
      */
     private Page reshapeEmpty(Page page) {
         Block[] outBlocks = new Block[passThroughChannels.size() + deferredColumnNames.size()];
@@ -262,12 +375,8 @@ public class ExternalFieldExtractOperator implements Operator {
         }
     }
 
-    /**
-     * Hot path: extract deferred columns for the surviving positions and assemble the output
-     * page. Pass-through blocks get an extra ref so the new page owns its own references; the
-     * input page is owned and released by {@link #getOutput()}, on success and failure alike.
-     */
-    private Page materialize(Page page) {
+    /** Validates and copies the encoded row references before materialization leaves the driver thread. */
+    private long[] rowReferences(Page page) {
         int positions = page.getPositionCount();
         Block rpBlock = page.getBlock(rowPositionChannel);
         if (rpBlock instanceof LongBlock == false) {
@@ -293,14 +402,11 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
 
-        final Block[] deferredBlocks;
-        try {
-            deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
-        } catch (Throwable t) {
-            // Deferred extraction performs external reads on the driver thread, so classify here
-            // while the concrete failure type is still available and before any transport hop.
-            throw ExternalFailures.classify(t);
-        }
+        return refs;
+    }
+
+    private Page assemble(Page page, Block[] deferredBlocks) {
+        int positions = page.getPositionCount();
         Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
         try {
             int idx = 0;
@@ -333,16 +439,15 @@ public class ExternalFieldExtractOperator implements Operator {
     }
 
     @Override
-    public void close() {
-        if (prev != null) {
-            Page pending = prev;
-            prev = null;
-            Releasables.closeExpectNoException(pending::releaseBlocks);
-        }
+    protected void releaseFetchedOnAnyThread(Result result) {
+        result.releaseOnAnyThread();
+    }
+
+    @Override
+    protected void doClose() {
         // The registry is shared between source and this operator. The lifecycle is the driver:
-        // when this operator closes (driver teardown), close the registry to release per-file
-        // extractors and any held StorageObjects.
-        registry.close();
+        // wait for materialization before releasing per-file extractors and held StorageObjects.
+        driverContext().waitForAsyncActions(ActionListener.running(registry::close));
     }
 
     /**
@@ -420,10 +525,6 @@ public class ExternalFieldExtractOperator implements Operator {
 
         public long extractNanos() {
             return extractNanos;
-        }
-
-        public long extractCpuNanos() {
-            return extractCpuNanos;
         }
 
         @Override

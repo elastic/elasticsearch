@@ -860,7 +860,8 @@ public class LocalExecutionPlanner {
             passThroughChannels,
             deferredColumnNames,
             deferredColumnTypes,
-            capable::sourceExtractorsFor
+            capable::sourceExtractorsFor,
+            operatorFactoryRegistry.fileReadExecutor()
         );
         return source.with(factory, newLayout);
     }

@@ -40,7 +40,7 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         long pages = instance.pagesProcessed();
         long rows = instance.rowsEmitted();
         long nanos = instance.extractNanos();
-        long cpuNanos = instance.extractCpuNanos();
+        long cpuNanos = instance.readCpuNanos();
         switch (between(0, 3)) {
             case 0 -> pages = randomValueOtherThan(pages, ESTestCase::randomNonNegativeLong);
             case 1 -> rows = randomValueOtherThan(rows, ESTestCase::randomNonNegativeLong);
@@ -67,7 +67,7 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         assertThat(copy.pagesProcessed(), equalTo(0L));
         assertThat(copy.rowsEmitted(), equalTo(0L));
         assertThat(copy.extractNanos(), equalTo(0L));
-        assertThat(copy.extractCpuNanos(), equalTo(0L));
+        assertThat(copy.readCpuNanos(), equalTo(0L));
     }
 
     public void testReadFromBwcVersionPriorToExtractCpuNanos() throws IOException {
@@ -76,6 +76,6 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         ExternalFieldExtractOperator.Status copy = copyInstance(original, preExtractCpu);
         assertThat(copy.pagesProcessed(), equalTo(12L));
         assertThat(copy.extractNanos(), equalTo(1_500_000L));
-        assertThat(copy.extractCpuNanos(), equalTo(0L));
+        assertThat(copy.readCpuNanos(), equalTo(0L));
     }
 }

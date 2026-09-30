@@ -31,6 +31,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -149,6 +151,111 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
         }
     }
 
+    public void testEmptyPageDoesNotUseExecutor() {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            registry.register(new IntListExtractor(new int[] { 1 }));
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+            Executor executor = command -> fail("empty pages must not be scheduled");
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                driverContext,
+                executor
+            );
+            op.addInput(newPage(new long[0], new long[0], new int[0]));
+            op.finish();
+            assertTrue(op.isBlocked().listener().isDone());
+            Page output = op.getOutput();
+            try {
+                assertEquals(0, output.getPositionCount());
+                assertTrue(op.isFinished());
+                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).pagesProcessed());
+            } finally {
+                output.releaseBlocks();
+                op.close();
+                driverContext.finish();
+            }
+        }
+    }
+
+    public void testMaterializationBlocksUntilExecutorCompletes() {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        AtomicReference<Runnable> scheduled = new AtomicReference<>();
+        Executor executor = command -> assertTrue("only one materialization may be outstanding", scheduled.compareAndSet(null, command));
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            executor
+        );
+        try {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+            assertFalse(op.needsInput());
+            assertFalse(op.isBlocked().listener().isDone());
+            assertNull(op.getOutput());
+
+            op.finish();
+            assertFalse("finish must not hide an outstanding materialization", op.isBlocked().listener().isDone());
+            assertFalse(op.isFinished());
+
+            Runnable task = scheduled.getAndSet(null);
+            assertNotNull(task);
+            task.run();
+
+            assertTrue(op.isBlocked().listener().isDone());
+            Page output = op.getOutput();
+            try {
+                assertEquals(10, ((IntBlock) output.getBlock(2)).getInt(0));
+                assertTrue(op.isFinished());
+                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).pagesProcessed());
+            } finally {
+                output.releaseBlocks();
+            }
+        } finally {
+            op.close();
+            driverContext.finish();
+            registry.close();
+        }
+    }
+
+    public void testCloseWaitsForMaterializationBeforeClosingRegistry() {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        AtomicReference<Runnable> scheduled = new AtomicReference<>();
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            command -> assertTrue(scheduled.compareAndSet(null, command))
+        );
+        try {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+
+            op.close();
+            driverContext.finish();
+            assertEquals("the pending worker still owns the registry", 1, registry.size());
+
+            Runnable task = scheduled.getAndSet(null);
+            assertNotNull(task);
+            task.run();
+            assertEquals("the registry closes after the worker releases its async action", 0, registry.size());
+        } finally {
+            registry.close();
+        }
+    }
+
     /**
      * Empty pages go through {@code reshapeEmpty()}, whose only breaker-checked allocation is
      * {@code newConstantNullBlock} per deferred column. A cranky breaker will eventually trip
@@ -196,30 +303,35 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
 
     public void testFactoryRejectsNullsAndNegatives() {
         SourceExtractors registry = new SourceExtractors();
+        Executor executor = Runnable::run;
         try {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry, executor)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry, executor)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry, executor)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry, executor)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry, executor)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null, executor)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), ctx -> registry, null)
             );
         } finally {
             registry.close();
@@ -232,7 +344,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
             List.of(),
             List.of(),
             List.of(),
-            ctx -> null
+            ctx -> null,
+            Runnable::run
         );
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
@@ -374,30 +487,34 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
      * at this operator must turn that {@link IllegalStateException} into a 500.
      */
     public void testClosedRegistryDuringMaterializationIsServerException() {
-        try (SourceExtractors registry = new SourceExtractors()) {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        AtomicReference<Runnable> scheduled = new AtomicReference<>();
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            command -> assertTrue(scheduled.compareAndSet(null, command))
+        );
+        try {
             int id = registry.register(new IntListExtractor(new int[] { 10 }));
             Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
-
-            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
-                1,
-                List.of(0, 2),
-                List.of("col"),
-                List.of(DataType.INTEGER),
-                registry,
-                blockFactory
-            );
             op.addInput(page);
             op.finish();
             registry.close();
-            try {
-                ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
-                assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
-                assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
-                assertTrue(thrown.getCause() instanceof IllegalStateException);
-                assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
-            } finally {
-                op.close();
-            }
+            scheduled.getAndSet(null).run();
+            ExternalServerException thrown = expectThrows(ExternalServerException.class, op::getOutput);
+            assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(thrown));
+            assertEquals("external_server_exception", ElasticsearchException.getExceptionName(thrown));
+            assertTrue(thrown.getCause() instanceof IllegalStateException);
+            assertEquals("SourceExtractors is closed", thrown.getCause().getMessage());
+        } finally {
+            op.close();
+            driverContext.finish();
+            registry.close();
         }
     }
 

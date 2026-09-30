@@ -237,7 +237,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             readConfig
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS, IDENTITY_INERT_KEYS);
+        // Same string the harvest stamps — see CsvFormatReader and Configured.fromKnownSubsetWithIdentity.
+        return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)

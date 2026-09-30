@@ -55,6 +55,30 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity, 
     }
 
     /**
+     * As {@link #fromKnownSubset(Object, Map, Set, Set)}, but with the identity supplied rather than derived — for a
+     * participant whose identity carries something beyond the named keys.
+     * <p>
+     * A text reader's identity folds in its resolved error policy, because the policy decides which rows survive and
+     * so it identifies the read. That value is also the fingerprint the reader stamps on a harvest, and the two must
+     * be the same string: the coordinator seeds a cache entry with the identity the reader vends, and the data node
+     * stamps the harvest, and {@code ExternalSourceCacheService.matchesContribution} enriches the entry only when
+     * they compare equal. Deriving them separately is how a strict dataset stopped warming while every assertion
+     * about correctness stayed green.
+     */
+    public static <T> Configured<T> fromKnownSubsetWithIdentity(
+        T value,
+        Map<String, Object> config,
+        Set<String> recognized,
+        String identity
+    ) {
+        if (config == null || config.isEmpty()) {
+            return Configured.empty(value);
+        }
+        Set<String> consumed = config.keySet().stream().filter(recognized::contains).collect(Collectors.toUnmodifiableSet());
+        return new Configured<>(value, consumed, identity, "");
+    }
+
+    /**
      * As {@link #fromKnownSubset(Object, Map, Set)}, with {@code identityInert} naming keys that are
      * consumed but do not change what this participant produces — a tuning hint, a buffer size. They
      * stay out of the identity so two configurations differing only in one of them share a cache entry.

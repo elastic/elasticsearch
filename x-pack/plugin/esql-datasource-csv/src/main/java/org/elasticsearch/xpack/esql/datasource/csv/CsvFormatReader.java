@@ -1251,7 +1251,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.declaredProvenanceBinding,
             parsedOptions.configWarnings()
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+        // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
+        // cache entry with the former and the data node stamps the latter, and the reconcile gate enriches the entry
+        // only when they compare equal, so deriving them apart silently stops a strict dataset warming.
+        return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
     @Override

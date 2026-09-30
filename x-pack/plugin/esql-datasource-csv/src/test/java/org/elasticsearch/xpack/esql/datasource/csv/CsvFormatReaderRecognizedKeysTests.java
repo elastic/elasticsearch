@@ -419,28 +419,61 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
      * {@link ErrorPolicy#CONFIG_KEYS} rather than a name typed here, so a policy setting added later is covered.
      */
     public void testEveryErrorPolicyKeyMovesTheVendedIdentity() {
-        Map<String, Object> strict = new HashMap<>(Map.of("delimiter", ",", "error_mode", "fail_fast"));
-        String strictIdentity = identityOf(strict);
-        assertFalse("the vended identity must not be empty, or this asserts nothing", strictIdentity.isEmpty());
+        // error_mode is held at skip_row throughout, so a budget key must move the identity on its own. Varying it
+        // alongside the mode would let the mode satisfy every assertion and leave the budget keys unchecked - which
+        // is what the first version of this test did, and it stayed green against an identity of mode.name() alone.
+        Map<String, Object> base = new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row"));
+        String baseIdentity = harvestFingerprintOf(base);
+        assertFalse("the fingerprint must not be empty, or this asserts nothing", baseIdentity.isEmpty());
 
-        int checked = 0;
         for (String policyKey : ErrorPolicy.CONFIG_KEYS) {
-            Map<String, Object> lenient = new HashMap<>(strict);
-            lenient.put("error_mode", "skip_row");
-            if (policyKey.equals("error_mode") == false) {
-                lenient.put(policyKey, policyKey.equals("max_error_ratio") ? "0.5" : "7");
-            }
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(policyKey, alternativePolicyValueFor(policyKey));
             assertNotEquals(
-                "policy key [" + policyKey + "] must move the vended identity: it changes which rows survive",
-                strictIdentity,
-                identityOf(lenient)
+                "policy key [" + policyKey + "] must move the fingerprint on its own: it changes which rows survive",
+                baseIdentity,
+                harvestFingerprintOf(altered)
             );
-            checked++;
         }
-        assertEquals("every declared policy key must have been exercised", ErrorPolicy.CONFIG_KEYS.size(), checked);
     }
 
-    private static String identityOf(Map<String, Object> config) {
+    /** A value different from what {@code base} carries for that key, valid for a skip_row policy. */
+    private static Object alternativePolicyValueFor(String policyKey) {
+        return switch (policyKey) {
+            case "error_mode" -> "null_field";
+            case "max_errors" -> 7;
+            case "max_error_ratio" -> 0.5;
+            default -> throw new AssertionError("unhandled error-policy key [" + policyKey + "]");
+        };
+    }
+
+    /**
+     * The reconcile gate compares the fingerprint the coordinator seeded against the one the data node stamped, so
+     * these must be one string. They were two: the seed took the vended {@code Configured.identity()} and the harvest
+     * took the policy-folded value, so no strict text dataset ever warmed.
+     */
+    public void testTheVendedIdentityIsTheFingerprintTheHarvestStamps() {
+        List<Map<String, Object>> configs = new ArrayList<>();
+        configs.add(new HashMap<>(Map.of("delimiter", ",")));
+        configs.add(new HashMap<>(Map.of("delimiter", ",", "error_mode", "skip_row")));
+        Map<String, Object> withBudget = new HashMap<>();
+        withBudget.put("delimiter", ";");
+        withBudget.put("error_mode", "skip_row");
+        withBudget.put("max_errors", 7);
+        configs.add(withBudget);
+        configs.add(new HashMap<>(Map.of("header_row", "true")));
+        for (Map<String, Object> config : configs) {
+            CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+            Configured<FormatReader> configured = reader.withConfigTrackingConsumedKeys(config);
+            assertEquals(
+                "the identity the coordinator seeds with must be the fingerprint the data node stamps, for " + config,
+                ((CsvFormatReader) configured.value()).harvestFingerprintForTests(),
+                configured.identity()
+            );
+        }
+    }
+
+    private static String harvestFingerprintOf(Map<String, Object> config) {
         CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
         return ((CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value()).harvestFingerprintForTests();
     }

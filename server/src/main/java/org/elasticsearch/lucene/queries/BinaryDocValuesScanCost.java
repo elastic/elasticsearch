@@ -46,15 +46,14 @@ public interface BinaryDocValuesScanCost {
      * @return the real per-field bound when every leaf holding the field supports it, otherwise the fixed estimate.
      */
     default long estimateDecodeBytes(int segmentCount, @Nullable IndexReader reader) {
-        Long real = reader == null ? null : realDecodeBytes(field(), reader);
-        return real != null ? real : PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        return reader == null ? PER_CLAUSE_DECODE_BYTES_ESTIMATE : realDecodeBytes(field(), reader);
     }
 
     /**
-     * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or {@code null} if any
-     *         leaf holding the field can't report it — callers must not trust a partial answer.
+     * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or the conservative
+     *         fallback if any leaf holding the field can't report it — callers must not trust a partial answer.
      */
-    private static Long realDecodeBytes(String field, IndexReader reader) {
+    private static long realDecodeBytes(String field, IndexReader reader) {
         long max = 0;
         boolean sawData = false;
         for (LeafReaderContext leaf : reader.leaves()) {
@@ -62,7 +61,7 @@ public interface BinaryDocValuesScanCost {
             try {
                 values = leaf.reader().getBinaryDocValues(field);
             } catch (IOException e) {
-                return null;
+                return PER_CLAUSE_DECODE_BYTES_ESTIMATE;
             }
             if (values == null) {
                 continue;
@@ -71,9 +70,9 @@ public interface BinaryDocValuesScanCost {
                 sawData = true;
                 max = Math.max(max, hint.maxDecodeBytes());
             } else {
-                return null;
+                return PER_CLAUSE_DECODE_BYTES_ESTIMATE;
             }
         }
-        return sawData ? max : null;
+        return sawData ? max : PER_CLAUSE_DECODE_BYTES_ESTIMATE;
     }
 }

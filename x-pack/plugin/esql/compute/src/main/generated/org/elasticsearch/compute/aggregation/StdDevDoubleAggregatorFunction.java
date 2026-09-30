@@ -40,12 +40,15 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private final boolean stdDev;
 
+  private final boolean allowNonFinite;
+
   StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      boolean stdDev) {
+      boolean stdDev, boolean allowNonFinite) {
     this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = StdDevDoubleAggregator.initSingle(stdDev);
+    this.state = StdDevDoubleAggregator.initSingle(stdDev, allowNonFinite);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

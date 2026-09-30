@@ -23,19 +23,13 @@ import java.io.IOException;
  * blocks into heap arrays — the {@code Scanning*} queries in this package, {@link BinaryDocValuesLengthQuery}, and
  * the wildcard module's {@code BinaryDvConfirmedQuery}.
  * <p>
- * Each surviving clause allocates its own decoder and, on first decode, its own uncompressed block buffer — up to
- * several hundred KB, not the handful of bytes a generic query leaf occupies. {@link
- * org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this interface to charge an upper-bound estimate
- * of that cost instead of its default per-leaf floor, so a query with thousands of these clauses is rejected up front
+ * {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this interface to charge that real cost
+ * per clause instead of the generic per-leaf floor, so a query with thousands of these clauses is rejected up front
  * instead of OOMing.
  */
 public interface BinaryDocValuesScanCost {
 
-    /**
-     * Conservative fallback per-clause estimate for the "large block" binary-DV variant: its uncompressed block
-     * size, plus the {@code int[]} of per-document block offsets every decoder holds. Used whenever a real
-     * per-field bound isn't available (see {@link #estimateDecodeBytes}).
-     */
+    /** Conservative fallback when a real per-field bound isn't available; see {@link #estimateDecodeBytes}. */
     long PER_CLAUSE_DECODE_BYTES_ESTIMATE = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_LARGE + (long) Integer.BYTES
         * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_LARGE + 1);
 
@@ -47,13 +41,9 @@ public interface BinaryDocValuesScanCost {
     /**
      * @param segmentCount unused by the default estimate; kept so a future concurrency-scaled estimate doesn't need
      *                      to change every caller.
-     * @param reader the index reader to probe for the field's real per-segment decode-block size, or {@code null}
-     *               when unavailable. Probing is limited to reading already-parsed segment metadata off the
-     *               {@link BinaryDocValues} instance itself (see {@link BlockLoader.OptionalDecodeSizeHint}) — it
-     *               never decodes a value or allocates a block buffer.
-     * @return estimated peak heap bytes one surviving clause charges against the request circuit breaker: the real,
-     *         segment-reported bound when every leaf holding this field supports it, otherwise the conservative
-     *         fixed estimate.
+     * @param reader reader to probe for the field's real decode-block size via {@link BlockLoader.OptionalDecodeSizeHint},
+     *               or {@code null} when unavailable.
+     * @return the real per-field bound when every leaf holding the field supports it, otherwise the fixed estimate.
      */
     default long estimateDecodeBytes(int segmentCount, @Nullable IndexReader reader) {
         Long real = reader == null ? null : realDecodeBytes(field(), reader);
@@ -61,10 +51,8 @@ public interface BinaryDocValuesScanCost {
     }
 
     /**
-     * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or {@code null} when any
-     *         leaf holding the field can't report it (a non-TSDB codec, an I/O error, or the field appearing
-     *         nowhere) — callers must fall back to the conservative constant in that case rather than trust a
-     *         partial answer.
+     * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or {@code null} if any
+     *         leaf holding the field can't report it — callers must not trust a partial answer.
      */
     private static Long realDecodeBytes(String field, IndexReader reader) {
         long max = 0;
@@ -74,8 +62,6 @@ public interface BinaryDocValuesScanCost {
             try {
                 values = leaf.reader().getBinaryDocValues(field);
             } catch (IOException e) {
-                // Swallow: this is a best-effort cost estimate, not the real read — a genuine problem with the
-                // segment will surface properly when the query actually executes.
                 return null;
             }
             if (values == null) {

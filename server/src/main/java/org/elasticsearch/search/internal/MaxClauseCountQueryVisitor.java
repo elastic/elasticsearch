@@ -72,18 +72,11 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
      */
     private final int segmentCount;
 
-    /**
-     * Reader to probe for a {@link BinaryDocValuesScanCost} field's real per-segment decode-block size, or
-     * {@code null} for constructors that don't take one — in which case the fixed conservative estimate is
-     * always used.
-     */
+    /** Reader to probe for a {@link BinaryDocValuesScanCost} field's real decode-block size; {@code null} to skip. */
     @Nullable
     private final IndexReader reader;
 
-    /**
-     * Per-field cache of the resolved decode-bytes charge, so a query with many clauses on the same field(s) (the
-     * shape this class exists for) probes each field's real block size once per walk, not once per clause.
-     */
+    /** Per-field cache of the resolved decode-bytes charge, so many clauses on one field probe it only once. */
     private final Map<String, Long> binaryDvDecodeBytesCache = new HashMap<>();
 
     public MaxClauseCountQueryVisitor(int maxClauseCount) {

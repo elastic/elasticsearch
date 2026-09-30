@@ -25,8 +25,8 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
  */
 public final class ES95TSDBDocValuesFormatFactory {
 
-    public static final int BINARY_BLOCK_BYTES_SMALL = 128 * 1024;
-    public static final int BINARY_BLOCK_COUNT_SMALL = 1024;
+    static final int BINARY_BLOCK_BYTES_SMALL = 128 * 1024;
+    static final int BINARY_BLOCK_COUNT_SMALL = 1024;
     public static final int BINARY_BLOCK_BYTES_LARGE = 512 * 1024;
     public static final int BINARY_BLOCK_COUNT_LARGE = 8096;
 

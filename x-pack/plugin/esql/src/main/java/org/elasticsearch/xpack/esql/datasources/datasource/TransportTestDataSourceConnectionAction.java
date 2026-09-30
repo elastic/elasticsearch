@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,7 +107,10 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         TestDataSourceConnectionAction.Request request,
         ActionListener<TestDataSourceConnectionAction.Response> listener
     ) {
-        federationLicense.check();
+        if (federationLicense.isAllowed() == false) {
+            listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(federationLicense.get()));
+            return;
+        }
         // --- Step 1: validate type against PUT registry (unknown type → 400) ---
         DataSourceValidator validator = dataSourceService.validatorFor(request.type());
         if (validator == null) {

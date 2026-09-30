@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 
@@ -33,15 +32,12 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
     GetDataSourceAction.Request,
     GetDataSourceAction.Response> {
 
-    private final FederationLicense federationLicense;
-
     @Inject
     public TransportGetDataSourceAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        ProjectResolver projectResolver,
-        FederationLicense federationLicense
+        ProjectResolver projectResolver
     ) {
         super(
             GetDataSourceAction.NAME,
@@ -51,7 +47,6 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
-        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -61,7 +56,6 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
         ProjectState project,
         ActionListener<GetDataSourceAction.Response> listener
     ) {
-        federationLicense.check();
         final DataSourceMetadata metadata = DataSourceMetadata.get(project.metadata());
         final String[] requested = request.names();
         final LinkedHashMap<String, DataSource> hits = new LinkedHashMap<>();

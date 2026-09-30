@@ -96,6 +96,14 @@ public class EsqlLicenseChecker {
     }
 
     /**
+     * Whether data federation is licensed, <b>without</b> recording feature usage. Use for pre-checks that run before
+     * confirming that a query actually resolves to datasets, to avoid recording spurious usage.
+     */
+    public static boolean isFederationAllowedWithoutTracking(XPackLicenseState licenseState) {
+        return licenseState != null && FEDERATION_FEATURE.checkWithoutTracking(licenseState);
+    }
+
+    /**
      * @param licenseState existing license state. Need to extract info on the current installed license.
      * @throws ElasticsearchStatusException if data federation is not supported by the current license.
      */

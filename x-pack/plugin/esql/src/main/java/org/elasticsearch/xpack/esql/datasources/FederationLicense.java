@@ -12,15 +12,12 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import java.util.function.Supplier;
 
 /**
- * Holds the license state supplier for data federation operations. Registered as a component by
- * {@code EsqlPlugin} so that federation transport actions can inject it and call
- * {@link #check()} rather than directly using {@code XPackPlugin.getSharedLicenseState()}, which
- * is not overridable in integration tests.
- *
- * <p>Implements {@link Supplier}{@code <XPackLicenseState>} so it can be passed directly wherever
- * a license state supplier is accepted (e.g. {@code DatasetResolver}).
+ * Wraps the plugin's overridable license supplier for data federation operations. Registered as a
+ * component by {@code EsqlPlugin} so that federation transport actions can inject it and call
+ * {@link #check()} or {@link #isAllowed()} rather than directly using
+ * {@code XPackPlugin.getSharedLicenseState()}, which is not overridable in integration tests.
  */
-public class FederationLicense implements Supplier<XPackLicenseState> {
+public class FederationLicense {
 
     private final Supplier<XPackLicenseState> licenseStateSupplier;
 
@@ -28,9 +25,22 @@ public class FederationLicense implements Supplier<XPackLicenseState> {
         this.licenseStateSupplier = licenseStateSupplier;
     }
 
-    @Override
+    /** Returns the current license state. */
     public XPackLicenseState get() {
         return licenseStateSupplier.get();
+    }
+
+    /** Returns {@code true} if the current license permits data federation. */
+    public boolean isAllowed() {
+        return EsqlLicenseChecker.isFederationAllowed(licenseStateSupplier.get());
+    }
+
+    /**
+     * Returns {@code true} if the current license permits data federation, without recording feature usage.
+     * Use before the resolver confirms a query actually targets a dataset, to avoid spurious telemetry.
+     */
+    public boolean isAllowedWithoutTracking() {
+        return EsqlLicenseChecker.isFederationAllowedWithoutTracking(licenseStateSupplier.get());
     }
 
     /** Throws if the current license does not permit data federation. */

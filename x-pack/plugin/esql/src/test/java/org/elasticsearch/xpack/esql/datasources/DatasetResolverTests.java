@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -144,6 +146,45 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("federation unavailable, so no dispatch", 0, localCalls.get());
     }
 
+    public void testNonEnterpriseLicenseRejectsExactDatasetName() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolverWithBasicLicense(crossProjectEnabled(true), localCalls);
+
+        // On a non-Enterprise cluster an exact dataset name that could match a registered dataset fails with
+        // a license error rather than dispatching EsqlResolveDatasetAction.
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> replaceDatasets(resolver, relationOf(DATASET_NAME))
+        );
+        assertThat(ex.getMessage(), containsString("Enterprise license"));
+        assertEquals("no dispatch on license failure", 0, localCalls.get());
+    }
+
+    public void testNonEnterpriseLicenseAllowsNonDatasetIndex() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolverWithBasicLicense(crossProjectEnabled(true), localCalls);
+
+        // An index name that cannot match any registered dataset bypasses the license check entirely.
+        UnresolvedRelation relation = relationOf("some-ordinary-index");
+        LogicalPlan rewritten = replaceDatasets(resolver, relation);
+        assertSame(relation, rewritten);
+        assertEquals("no dispatch needed when no pattern can match a dataset", 0, localCalls.get());
+    }
+
+    public void testNonEnterpriseLicenseRejectsWildcardMatchingDataset() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolverWithBasicLicense(crossProjectEnabled(true), localCalls);
+
+        // A wildcard that could match a registered dataset with wildcards_match_datasets=true must fail with
+        // the license error, not dispatch EsqlResolveDatasetAction.
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> replaceDatasets(resolver, relationOf("log*"), project(), true)
+        );
+        assertThat(ex.getMessage(), containsString("Enterprise license"));
+        assertEquals("no dispatch on license failure", 0, localCalls.get());
+    }
+
     // --- harness ---
 
     /** Resolves with wildcards_match_datasets off — the production default; these cases name their dataset exactly. */
@@ -176,12 +217,26 @@ public class DatasetResolverTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             decider,
             federationAvailable,
-            DatasetResolverTests::enterpriseLicenseState
+            new FederationLicense(DatasetResolverTests::enterpriseLicenseState)
+        );
+    }
+
+    private DatasetResolver resolverWithBasicLicense(CrossProjectModeDecider decider, AtomicInteger localCalls) {
+        return new DatasetResolver(
+            localActionClient(localCalls),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            decider,
+            true,
+            new FederationLicense(DatasetResolverTests::basicLicenseState)
         );
     }
 
     private static XPackLicenseState enterpriseLicenseState() {
         return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+    }
+
+    private static XPackLicenseState basicLicenseState() {
+        return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.BASIC, true, null));
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {

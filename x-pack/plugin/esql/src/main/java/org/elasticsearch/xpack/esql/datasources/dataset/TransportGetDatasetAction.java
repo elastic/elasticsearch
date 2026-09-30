@@ -21,7 +21,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 
 import java.util.List;
 
@@ -29,7 +28,6 @@ import java.util.List;
 public class TransportGetDatasetAction extends TransportLocalProjectMetadataAction<GetDatasetAction.Request, GetDatasetAction.Response> {
 
     private final DatasetResolutionService datasetResolutionService;
-    private final FederationLicense federationLicense;
 
     @Inject
     public TransportGetDatasetAction(
@@ -37,8 +35,7 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        ProjectResolver projectResolver,
-        FederationLicense federationLicense
+        ProjectResolver projectResolver
     ) {
         super(
             GetDatasetAction.NAME,
@@ -49,7 +46,6 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
             projectResolver
         );
         this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
-        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -59,7 +55,6 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ProjectState project,
         ActionListener<GetDatasetAction.Response> listener
     ) {
-        federationLicense.check();
         // An explicit name that doesn't exist, isn't visible, or exists only as a co-resident foreign resource
         // (e.g. a data stream) throws IndexNotFoundException. Translate it to a dataset-shaped not-found instead
         // of leaking a raw index_not_found_exception, mirroring TransportDeleteDatasetAction.

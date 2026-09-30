@@ -20,11 +20,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 
 public class TransportDeleteDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final FederationLicense federationLicense;
 
     @Inject
     public TransportDeleteDataSourceAction(
@@ -33,8 +31,7 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        ProjectResolver projectResolver,
-        FederationLicense federationLicense
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDataSourceAction.NAME,
@@ -47,7 +44,6 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -57,7 +53,6 @@ public class TransportDeleteDataSourceAction extends AcknowledgedTransportMaster
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        federationLicense.check();
         dataSourceService.deleteDataSources(
             state.projectId(),
             request.masterNodeTimeout(),

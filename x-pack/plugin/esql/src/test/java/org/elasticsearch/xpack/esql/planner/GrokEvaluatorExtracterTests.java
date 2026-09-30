@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 

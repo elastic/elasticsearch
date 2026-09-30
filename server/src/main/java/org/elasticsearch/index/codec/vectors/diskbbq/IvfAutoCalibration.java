@@ -177,6 +177,24 @@ public class IvfAutoCalibration {
     private final int k;
     private final int maxDocBits;
 
+    IvfAutoCalibration(int vectorsPerCluster) {
+        this(
+            vectorsPerCluster,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            DEFAULT_TARGET_RECALL,
+            DEFAULT_K,
+            UNCAPPED_MAX_DOC_BITS
+        );
+    }
+
+    IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k, int maxDocBits) {
+        this.vectorsPerCluster = vectorsPerCluster;
+        this.blockDimension = blockDimension;
+        this.targetRecall = targetRecall;
+        this.k = k;
+        this.maxDocBits = maxDocBits;
+    }
+
     public static IvfAutoCalibration fromProfile(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
         IvfAutoCalibrationOsqParams params = IvfAutoCalibrationOsqParams.fromProfile(profile);
         return new IvfAutoCalibration(
@@ -188,35 +206,17 @@ public class IvfAutoCalibration {
         );
     }
 
-    // TODO: Remove?
-    public IvfAutoCalibration(int vectorsPerCluster) {
-        this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
-    }
-
-    private IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {
-        this(vectorsPerCluster, blockDimension, DEFAULT_TARGET_RECALL, DEFAULT_K, UNCAPPED_MAX_DOC_BITS);
-    }
-
-    private IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k, int maxDocBits) {
-        this.vectorsPerCluster = vectorsPerCluster;
-        this.blockDimension = blockDimension;
-        this.targetRecall = targetRecall;
-        this.k = k;
-        this.maxDocBits = maxDocBits;
+    /**
+     * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size using the
+     * {@link IvfAutoCalibrationProfile#QUALITY} profile.
+     */
+    public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
+        return mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY);
     }
 
     /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
-    // TODO: Remove
-    public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
-        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(vectorsPerCluster).resolve(
-            fieldInfo,
-            mergeState,
-            codecDefault
-        );
-    }
-
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
         return (fieldInfo, mergeState, codecDefault) -> fromProfile(vectorsPerCluster, profile).resolve(
             fieldInfo,

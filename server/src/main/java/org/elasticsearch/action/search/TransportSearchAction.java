@@ -794,8 +794,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
         task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
         Rewriteable.rewriteAndFetch(original, rewriteContext, rewriteResult);
-        // subscribe after the rewrite so that a rewrite that completes synchronously continues on this thread without forking
-        rewriteResult.addListener(rewriteListener, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), null);
+        // subscribe after the rewrite so that a rewrite that completes synchronously continues on this thread without forking,
+        // and in the thread context of the search since the cancellation may complete the rewrite from another context
+        rewriteResult.addListener(
+            rewriteListener,
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+            threadPool.getThreadContext()
+        );
     }
 
     /**

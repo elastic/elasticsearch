@@ -20,10 +20,13 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -39,6 +42,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
@@ -70,6 +74,8 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
     private static final AtomicBoolean blockingActionCancelled = new AtomicBoolean();
     private static volatile boolean completeOnCancellation;
     private static final AtomicReference<ActionListener<ActionResponse.Empty>> blockedListener = new AtomicReference<>();
+    private static final String ORIGIN_HEADER = "test-origin";
+    private static final AtomicReference<String> searchFailureOrigin = new AtomicReference<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -81,6 +87,7 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
         blockingActionStarted = new CountDownLatch(1);
         blockingActionCancelled.set(false);
         blockedListener.set(null);
+        searchFailureOrigin.set(null);
         completeOnCancellation = true;
     }
 
@@ -134,6 +141,30 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
         assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
         assertThat("the async action is still running", blockedListener.get(), notNullValue());
+    }
+
+    public void testCancelledSearchFailsInItsThreadContext() throws Exception {
+        createIndex(INDEX);
+        indexDoc(INDEX, "1", "field", "value");
+        refresh(INDEX);
+        completeOnCancellation = false;
+
+        SearchRequest request = new SearchRequest(INDEX).source(new SearchSourceBuilder().retriever(new BlockingRetrieverBuilder()));
+        ActionFuture<SearchResponse> future = client().filterWithHeader(Map.of(ORIGIN_HEADER, "search")).search(request);
+        safeAwait(blockingActionStarted);
+
+        List<TaskInfo> searchTasks = clusterAdmin().prepareListTasks().setActions(TransportSearchAction.TYPE.name()).get().getTasks();
+        assertThat(searchTasks, hasSize(1));
+        client().filterWithHeader(Map.of(ORIGIN_HEADER, "cancel"))
+            .admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(searchTasks.get(0).taskId())
+            .get();
+
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
+        assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+        assertThat(searchFailureOrigin.get(), equalTo("search"));
     }
 
     /**
@@ -249,9 +280,51 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
     }
 
     public static class BlockingActionPlugin extends Plugin implements ActionPlugin {
+        private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            threadPool.set(services.threadPool());
+            return List.of();
+        }
+
         @Override
         public Collection<ActionHandler> getActions() {
             return List.of(new ActionHandler(BlockingAction.INSTANCE, TransportBlockingAction.class));
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(new SearchFailureOriginFilter(threadPool));
+        }
+    }
+
+    /**
+     * Records the {@link #ORIGIN_HEADER} of the thread context in which a search fails.
+     */
+    private record SearchFailureOriginFilter(SetOnce<ThreadPool> threadPool) implements ActionFilter {
+        @Override
+        public int order() {
+            return 0;
+        }
+
+        @Override
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+            Task task,
+            String action,
+            Request request,
+            ActionListener<Response> listener,
+            ActionFilterChain<Request, Response> chain
+        ) {
+            if (action.equals(TransportSearchAction.TYPE.name()) == false) {
+                chain.proceed(task, action, request, listener);
+                return;
+            }
+            ThreadContext threadContext = threadPool.get().getThreadContext();
+            chain.proceed(task, action, request, listener.delegateResponse((l, e) -> {
+                searchFailureOrigin.set(threadContext.getHeader(ORIGIN_HEADER));
+                l.onFailure(e);
+            }));
         }
     }
 }

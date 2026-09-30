@@ -199,7 +199,9 @@ public class SemanticIndexOptions implements ToXContent {
             XContentMapValues.nodeStringValue(type)
         ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
-        return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
+        // semantic_text embedding subfields are generated from model settings, not user-set index_options, so the
+        // recovery-exempt gates in parseIndexOptions are not reachable here; pass false (treat as a normal update).
+        return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled, false);
     }
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {

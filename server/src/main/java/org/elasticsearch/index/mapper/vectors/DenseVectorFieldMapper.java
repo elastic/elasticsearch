@@ -428,7 +428,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
-                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
+                (n, c, o) -> o == null
+                    ? null
+                    : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled, c.isMappingRecovery()),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -1867,7 +1869,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -1903,7 +1906,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -1948,7 +1952,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -1995,7 +2000,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2023,7 +2029,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2056,7 +2063,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2089,7 +2097,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
@@ -2130,7 +2139,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 RescoreVector rescoreVector = null;
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -2165,7 +2175,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
-                boolean experimentalFeaturesEnabled
+                boolean experimentalFeaturesEnabled,
+                boolean isMappingRecovery
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -2264,6 +2275,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                // auto_calibrate is only honored by the ES950+ disk formats; on an older index it would be silently ignored.
+                // Reject it loudly on mapping update (auto_calibrate defaults to false, so a resolved value of true means it was set),
+                // but never during mapping recovery so an index with an affected configuration can still start.
+                if (autoCalibrate
+                    && isMappingRecovery == false
+                    && indexVersion.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) == false) {
+                    throw new IllegalArgumentException(
+                        "'auto_calibrate' is not supported on indices created before version "
+                            + IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE.toReleaseVersion()
+                            + " for field ["
+                            + fieldName
+                            + "]"
+                    );
+                }
                 if (isAsh && autoCalibrate) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
@@ -2314,7 +2339,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             String fieldName,
             Map<String, ?> indexOptionsMap,
             IndexVersion indexVersion,
-            boolean experimentalFeaturesEnabled
+            boolean experimentalFeaturesEnabled,
+            boolean isMappingRecovery
         );
 
         public abstract boolean supportsElementType(ElementType elementType);
@@ -4340,7 +4366,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         String fieldName,
         Object propNode,
         IndexVersion indexVersion,
-        boolean experimentalFeaturesEnabled
+        boolean experimentalFeaturesEnabled,
+        boolean isMappingRecovery
     ) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
@@ -4354,7 +4381,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled, isMappingRecovery);
     }
 
     private static boolean parseOnDiskMerge(Map<String, ?> indexOptionsMap) {

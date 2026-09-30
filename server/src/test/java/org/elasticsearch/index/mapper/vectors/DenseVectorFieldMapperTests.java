@@ -1109,6 +1109,89 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
     }
 
+    public void testBBQDiskAutoCalibrateRejectedOnPreES950IndexUpdate() throws IOException {
+        // Mirrors the #160120 repro: adding a new bbq_disk field with auto_calibrate to a pre-9.5 index.
+        IndexVersion preAutoCalibrateVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preAutoCalibrateVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 128)
+                        .field("index", true)
+                        .field("similarity", "dot_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("auto_calibrate", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("'auto_calibrate' is not supported on indices created before version"));
+
+        // recovery of an already-persisted (affected) mapping must always succeed
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("auto_calibrate", true)
+                    .endObject()
+            )
+        );
+        MapperService recoveryMapperService = createMapperService(preAutoCalibrateVersion, mapping(b -> {}));
+        merge(recoveryMapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) recoveryMapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertTrue(indexOptions.autoCalibrate);
+    }
+
+    public void testBBQDiskAutoCalibrateAcceptedOnES950Index() throws IOException {
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("auto_calibrate", true)
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertTrue(indexOptions.autoCalibrate);
+    }
+
+    public void testBBQDiskAutoCalibrateUnsetAllowedOnPreES950Index() throws IOException {
+        // omitting auto_calibrate (default false) must always be allowed, regardless of index version
+        IndexVersion preAutoCalibrateVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
+        MapperService mapperService = createMapperService(
+            preAutoCalibrateVersion,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 128)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertFalse(indexOptions.autoCalibrate);
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

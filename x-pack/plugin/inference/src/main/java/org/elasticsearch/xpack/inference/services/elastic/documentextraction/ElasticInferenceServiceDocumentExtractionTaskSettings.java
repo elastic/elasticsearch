@@ -23,8 +23,8 @@ import java.util.Objects;
 
 /**
  * Task settings for the Elastic Inference Service {@code document_extraction} task type. They can be stored on the inference endpoint
- * and overridden per request through the {@code task_settings} field of the document extraction request body, where the request
- * value wins (see {@link #of(ElasticInferenceServiceDocumentExtractionTaskSettings, ElasticInferenceServiceDocumentExtractionTaskSettings)}).
+ * and overridden per request through the {@code task_settings} field of the document extraction request body, where the request value
+ * wins (see {@link #of(ElasticInferenceServiceDocumentExtractionTaskSettings, ElasticInferenceServiceDocumentExtractionTaskSettings)}).
  */
 public class ElasticInferenceServiceDocumentExtractionTaskSettings implements TaskSettings {
 

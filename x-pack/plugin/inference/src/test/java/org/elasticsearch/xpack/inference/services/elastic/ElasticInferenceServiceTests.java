@@ -1973,7 +1973,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding", "document_extraction"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                               "document_extraction"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1994,7 +1995,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "supported_task_types": ["sparse_embedding"]
                            },
                            "output_format": {
-                               "description": "The format of the extracted document content. Can be overridden per request via task_settings.",
+                               "description": "The format of the extracted document content.
+                               Can be overridden per request via task_settings.",
                                "label": "Output Format",
                                "required": false,
                                "sensitive": false,
@@ -2038,7 +2040,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding", "document_extraction"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                               "document_extraction"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -2059,7 +2062,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "supported_task_types": ["sparse_embedding"]
                            },
                            "output_format": {
-                               "description": "The format of the extracted document content. Can be overridden per request via task_settings.",
+                               "description": "The format of the extracted document content.
+                               Can be overridden per request via task_settings.",
                                "label": "Output Format",
                                "required": false,
                                "sensitive": false,

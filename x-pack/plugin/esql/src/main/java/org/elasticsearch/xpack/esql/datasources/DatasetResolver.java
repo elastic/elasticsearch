@@ -174,8 +174,7 @@ public class DatasetResolver {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         chain.andThenApply(ignored -> {
             // Record federation usage only now that resolution has confirmed at least one dataset was matched.
-            boolean anyDatasetResolved = resolutions.values().stream()
-                .anyMatch(r -> r.resolvedExternalDatasets().isEmpty() == false);
+            boolean anyDatasetResolved = resolutions.values().stream().anyMatch(r -> r.resolvedExternalDatasets().isEmpty() == false);
             if (anyDatasetResolved) {
                 federationLicense.isAllowed(); // records feature-usage telemetry; license already checked above
             }

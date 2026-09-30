@@ -484,7 +484,8 @@ public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCas
 
     /**
      * {@code numHot} short documents with many {@code a}s among long documents with a single {@code a}.
-     * A single segment so the doc ids are the global ids the filter uses.
+     * Force merged into a single segment so the whole run is one scorer over one set of impacts,
+     * which keeps the number of skipped documents predictable.
      */
     private IndexReader skewedReader(int numDocs, int numHot) throws IOException {
         Set<Integer> hot = new HashSet<>();

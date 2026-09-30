@@ -1342,8 +1342,8 @@ public class LocalExecutionPlanner {
      * <p>
      * Skipping documents is only sound if nothing but this TopN consumes the rows the source emits and
      * if the published bound is computed from rows that already passed every filter. The plan shape
-     * guarantees both: the operators between the source and the TopN only drop rows or add columns,
-     * and the TopN only publishes the least competitive row of its full heap. Specifically:
+     * guarantees both: the operators between the source and the TopN only drop rows or add and remove
+     * columns, and the TopN only publishes the least competitive row of its full heap. Specifically:
      * <ul>
      *     <li>Exactly one sort key, the {@code _score} produced by the {@link EsQueryExec} itself
      *         (same id), so no {@code EVAL} or rename can have changed its value.</li>

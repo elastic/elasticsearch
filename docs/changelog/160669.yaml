@@ -1,5 +1,6 @@
 pr: 160669
-summary: Feed the `SORT _score DESC` TopN bound back into Lucene
+summary: '`min_competitive` `_score` for `LuceneSourceOperator`'
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+  - 136267

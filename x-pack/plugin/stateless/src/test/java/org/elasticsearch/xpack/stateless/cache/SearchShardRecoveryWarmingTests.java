@@ -116,6 +116,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -879,6 +880,71 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
+    /**
+     * When some shards on the shutting-down source are still STARTED (not yet relocating), the timeout for the
+     * currently relocating shard is reduced to reserve budget for those pending shards.
+     */
+    public void testPendingShardBudgetReservationCapsRelocatingShard() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            // 1 shard relocating, 2 shards STARTED (pending) on source; grace cap=10s; minBudgetPerPendingShard=3s
+            // reservedForPendingMs = 2 * 3000 = 6000ms; remaining after 2s elapsed = 8000ms
+            // equalShareMs = 8000/3 * 1.0 ≈ 2667ms; timeoutMs = min(8000, 2667*1) ≈ 2667ms
+            // cappedTimeoutMs = clamp(8000 - 6000, 0, 2667) = 2000ms
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
+                        .getKey(),
+                    "3000ms"
+                )
+                .build();
+            final var service = newWarmingService(threadPool, TelemetryProvider.NOOP, settings, null, null);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                1,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                2
+            );
+
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            final SharedBlobCacheWarmingService.SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(plan.timeout().millis(), equalTo(2000L));
+            assertThat(
+                plan.timeoutContext(),
+                equalTo(
+                    "relocation source shutting down (equal share of remaining time to capped grace deadline)"
+                        + ", capped to reserve time for [2] pending shards"
+                )
+            );
+        }
+    }
+
     public void testWarmCacheForSearchShardRecoveryNullEndOffsetsUsesResumesRecoveryBeforeWarmingCompletes() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long warmDurationMillis = randomLongBetween(50, 100);
@@ -1348,8 +1414,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /**
      * Builds a cluster state with {@code numShards} SEARCH_ONLY replicas on {@code sourceNodeId},
      * with the first {@code numShardsToTarget} relocating to {@code targetNodeId} and the remainder
-     * relocating to {@code "other-node"}. The source is marked for REMOVE shutdown starting at
-     * {@code startedAtMillis}; the effective grace period is controlled via
+     * relocating to {@code "other-node"}, plus {@code numStartedShards} additional SEARCH_ONLY shards
+     * that are STARTED on {@code sourceNodeId} (not yet relocating). The source is marked for REMOVE
+     * shutdown starting at {@code startedAtMillis}; the effective grace period is controlled via
      * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING}.
      */
     private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
@@ -1358,14 +1425,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         Index index,
         String sourceNodeId,
         String targetNodeId,
-        long startedAtMillis
+        long startedAtMillis,
+        int numStartedShards
     ) {
         assert numShardsToTarget <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
         final String otherNodeId = "other-node";
+        final int totalShards = numShards + numStartedShards;
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), totalShards, 1))
             .build();
         final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
         for (int s = 0; s < numShards; s++) {
@@ -1379,6 +1448,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
+        }
+        for (int s = numShards; s < totalShards; s++) {
+            final ShardId sid = new ShardId(index, s);
+            final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final ShardRouting started = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, STARTED)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(started));
         }
         final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId(sourceNodeId)
@@ -1407,6 +1486,25 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
             .build();
+    }
+
+    private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
+        int numShards,
+        int numShardsToTarget,
+        Index index,
+        String sourceNodeId,
+        String targetNodeId,
+        long startedAtMillis
+    ) {
+        return clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            numShards,
+            numShardsToTarget,
+            index,
+            sourceNodeId,
+            targetNodeId,
+            startedAtMillis,
+            0
+        );
     }
 
     /// With re-evaluation enabled, the loop reschedules as long as the remaining grace budget exceeds the abort threshold.

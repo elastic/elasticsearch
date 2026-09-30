@@ -831,6 +831,28 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(5, recorder.lastContext.rowLimit());
     }
 
+    /**
+     * What discovery warns about reaches the response whether or not it produced splits. A partition value the
+     * dataset's type cannot hold reads null in the rows a user gets back, and a relation that was pruned or fell
+     * through to a whole read has no other signal - so dropping the warning there loses it on the queries least able
+     * to spare it.
+     */
+    public void testWarningsSurviveAResultWithNoSplits() {
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(
+                new FixedSplitProvider(
+                    new SplitDiscoveryResult(List.of(), 0, false, 0L, null, null, List.of("a partition value did not fit"))
+                )
+            )
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(exec, factories, 1000);
+
+        assertEquals(List.of("a partition value did not fit"), result.warnings());
+    }
+
     public void testDefaultContextIsNotCancelled() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");

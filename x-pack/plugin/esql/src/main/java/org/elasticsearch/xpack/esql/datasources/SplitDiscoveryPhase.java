@@ -651,6 +651,11 @@ public final class SplitDiscoveryPhase {
                 exec = exec.withSchemaMap(result.schemaMap());
             }
         }
+        // Before the branches, because what discovery warns about does not depend on whether it produced splits.
+        // A partition value the dataset's own type cannot hold reads null in the answer, and that is as true of a
+        // relation that was pruned or fell through as of one that was read - collecting these only where splits
+        // exist dropped the warning on exactly the queries with nothing else to signal with.
+        stats.warnings.addAll(result.warnings());
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
@@ -687,7 +692,6 @@ public final class SplitDiscoveryPhase {
             }
             return exec;
         }
-        stats.warnings.addAll(result.warnings());
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();

@@ -60,6 +60,8 @@ final class DictionaryFileList implements FileList {
         @Nullable FileSetFingerprint fileSetFingerprint,
         List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.tokens = tokens;
         this.pathTokens = pathTokens;

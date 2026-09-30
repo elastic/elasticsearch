@@ -748,6 +748,10 @@ public class FileSplitProvider implements SplitProvider {
         // would answer LIMIT n with fewer than n rows and say nothing. Everything the first attempt planned is
         // discarded and the dataset is listed in full. The cost of guessing wrong is one extra listing request; the
         // cost of not retrying would be a short answer.
+        // Checked here because the retry is a second listing of the whole dataset, and the walk itself takes no
+        // cancellation - so this is the last point before committing to it. That the walk cannot be interrupted is
+        // older than the bounded attempt and unchanged by it; what is new is that there can be two of them.
+        throwIfCancelled(handedContext);
         LOGGER.debug(
             () -> Strings.format(
                 "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",
@@ -913,7 +917,8 @@ public class FileSplitProvider implements SplitProvider {
                 l.onResponse(attempt.result());
                 return;
             }
-            // See discoverSplits: a prefix that did not cover the demand would answer short, so it is discarded.
+            // See discoverSplits, including why cancellation is checked before committing to a second listing.
+            throwIfCancelled(handedContext);
             LOGGER.debug(
                 () -> Strings.format(
                     "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",

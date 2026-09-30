@@ -6142,6 +6142,79 @@ public class FileSplitProviderTests extends ESTestCase {
         assertTrue("nothing to read, and no path read to find that out", result.splits().isEmpty());
     }
 
+    /**
+     * The bounded attempt is a guess, so the arithmetic at its boundary is what decides whether an answer is short.
+     * One case per row, each naming what it pins. {@code rowsPerFile} is 10 throughout, so the demand alone moves the
+     * boundary.
+     * <p>
+     * {@code listings} is the whole assertion on the retry: 1 means the prefix was kept, 2 means it was discarded and
+     * the dataset listed again. {@code files} is what the query ends up reading, and it must never be short of what the
+     * demand needs while the dataset can supply it.
+     */
+    public void testTheRetryBoundaryArithmetic() throws Exception {
+        record Edge(String what, int dataset, int bound, int demand, int listings, int files) {}
+        List<Edge> edges = List.of(
+            // A prefix that exactly covers the demand is kept - >= is the test, not >.
+            new Edge("prefix covers exactly", 4, 2, 20, 1, 2),
+            // One row short is one file short, so the dataset is listed again - but the budget still stops planning
+            // once the demand is covered, so the query reads three of the four files, not all of them.
+            new Edge("prefix one row short", 4, 2, 21, 2, 3),
+            // Covered with room to spare stops at the first file whose rows carry it over.
+            new Edge("prefix covers with room", 4, 2, 5, 1, 1),
+            // A demand the whole dataset cannot meet still reads all of it, and reads it once.
+            new Edge("dataset cannot cover", 4, 2, 999, 2, 4),
+            // A bound above the dataset returns it whole: nothing stopped short, so there is nothing to retry even
+            // when the demand is unmeetable.
+            new Edge("bound above dataset, unmeetable", 3, 9, 999, 1, 3),
+            // A bound EQUAL to the dataset does retry, and that is the walk's documented trade: it marks a listing
+            // truncated on reaching the bound rather than buying another page to prove more keys exist, so a dataset of
+            // exactly the bound is called a prefix when it is not. The answer is unaffected; it costs one listing, and
+            // only a dataset whose size equals the setting exactly.
+            new Edge("bound equals dataset, unmeetable", 3, 3, 999, 2, 3),
+            // The smallest prefix there is, covering and not covering.
+            new Edge("bound of one covers", 4, 1, 10, 1, 1),
+            new Edge("bound of one short", 4, 1, 11, 2, 2),
+            // A demand of one is covered by one file, which is the case the whole mechanism exists for.
+            new Edge("demand of one", 90, 1, 1, 1, 1)
+        );
+
+        for (Edge edge : edges) {
+            for (boolean async : new boolean[] { false, true }) {
+                Map<String, byte[]> payloads = new HashMap<>();
+                List<StorageEntry> everyFile = new ArrayList<>(edge.dataset());
+                for (int i = 0; i < edge.dataset(); i++) {
+                    payloads.put("f" + i + ".parquet", new byte[2000]);
+                    everyFile.add(new StorageEntry(StoragePath.of("s3://b/f" + i + ".parquet"), 2000, Instant.EPOCH));
+                }
+                AtomicInteger listings = new AtomicInteger();
+                Settings settings = Settings.builder()
+                    .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), edge.bound())
+                    .build();
+                String where = edge.what() + (async ? " [async]" : " [sync]");
+                try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                    FileSplitProvider provider = rangeAwareProvider(
+                        countingRowCountReader(new AtomicInteger(), 10),
+                        null,
+                        settings,
+                        createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                        new DatasetListingService(settings, cache, null, null, null)
+                    );
+
+                    SplitDiscoveryResult result = discoverOn(async, provider, overAPrefixOfDemanding(everyFile, edge.demand()));
+
+                    assertEquals(where + ": listings", edge.listings(), listings.get());
+                    assertEquals(where + ": files read", edge.files(), result.splits().size());
+                    long rows = totalRows(result);
+                    long available = (long) edge.dataset() * 10;
+                    assertTrue(
+                        where + ": answered " + rows + " rows for a demand of " + edge.demand() + " with " + available + " available",
+                        rows >= Math.min(edge.demand(), available)
+                    );
+                }
+            }
+        }
+    }
+
     private static final Settings ONE_FILE_FIRST = Settings.builder()
         .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1)
         .build();

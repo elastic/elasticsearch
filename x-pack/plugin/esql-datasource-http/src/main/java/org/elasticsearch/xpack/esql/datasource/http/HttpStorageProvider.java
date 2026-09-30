@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 public final class HttpStorageProvider implements StorageProvider {
     private final HttpClient httpClient;
     private final HttpConfiguration config;
+    private final StorageIdentity storageIdentity;
     /**
      * One daemon thread for body idle-timeout watchdogs. JDK {@code HttpClient} has no SO_TIMEOUT on
      * streaming GETs; delayed close of the body stream is how we abort a silent connection. Cancelled
@@ -61,6 +63,7 @@ public final class HttpStorageProvider implements StorageProvider {
         }
 
         this.config = config;
+        this.storageIdentity = HttpConfigIdentity.of(config);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(config.connectTimeout())
             .followRedirects(config.followRedirects() ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
@@ -78,19 +81,19 @@ public final class HttpStorageProvider implements StorageProvider {
     @Override
     public StorageObject newObject(StoragePath path) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, idleScheduler);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config, idleScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length, idleScheduler);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config, length, idleScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length, lastModified, idleScheduler);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config, length, lastModified, idleScheduler);
     }
 
     @Override

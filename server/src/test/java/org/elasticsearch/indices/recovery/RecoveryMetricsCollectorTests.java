@@ -35,6 +35,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
             () -> null,
+            () -> 0L,
             () -> 0L
         );
         final String gateName = randomIdentifier();
@@ -75,6 +76,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             var ignored = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 blockedState::get,
+                () -> 0L,
                 relativeTimeMillis::get
             )
         ) {
@@ -102,11 +104,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {
         telemetryPlugin.collect();
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
             equalTo(expectedBlocked)
         );
         assertThat(
-            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
             equalTo(expectedDuration)
         );
     }

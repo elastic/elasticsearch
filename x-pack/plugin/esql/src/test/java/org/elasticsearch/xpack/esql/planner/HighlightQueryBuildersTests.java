@@ -106,6 +106,11 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         return HighlightQueryBuilders.toLuceneQuery(builder, RuntimeSearchExecutionContext.create(fields, analyzer));
     }
 
+    private static Query translateLenient(Expression query, List<String> fields) {
+        QueryBuilder builder = HighlightQueryBuilders.toQueryBuilder(query, fields);
+        return HighlightQueryBuilders.toLuceneQuery(builder, RuntimeSearchExecutionContext.create(fields, Lucene.STANDARD_ANALYZER, true));
+    }
+
     private static Query translateLiteral(String text) {
         return translate(of(text), TITLE);
     }
@@ -160,9 +165,26 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
+            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer, true, false)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
+    }
+
+    public void testVerifyCanSkipExplicitOnFieldEnforcement() {
+        Expression query = match("body", "fox", null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, true, false)
+        );
+        assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
+        HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, false, false);
+    }
+
+    public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {
+        HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE, Lucene.STANDARD_ANALYZER, false, true);
+        HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE, Lucene.STANDARD_ANALYZER, false, true);
+        Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
+        HighlightQueryBuilders.verify(kql, TITLE, Lucene.STANDARD_ANALYZER, false, true);
     }
 
     // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position
@@ -331,6 +353,13 @@ public class HighlightQueryBuildersTests extends ESTestCase {
             () -> translate(queryString("fox", options("default_field", "body")), TITLE)
         );
         assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
+    }
+
+    public void testFieldsOutsideOnAreMatchNoneInLenientContext() {
+        assertThat(translateLenient(queryString("body:fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
+        assertThat(translateLenient(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
+        Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
+        assertThat(translateLenient(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testMatchInvalidOperatorThrows() {

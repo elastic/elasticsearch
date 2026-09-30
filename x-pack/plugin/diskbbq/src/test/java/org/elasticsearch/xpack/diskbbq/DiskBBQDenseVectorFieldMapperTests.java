@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -63,9 +62,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             Codec codec = codecService.codec("default");
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            String expectedString = Build.current().isSnapshot()
-                ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)"
-                : "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
+            String expectedString = "ES960DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
     }
@@ -112,22 +109,15 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 
-    public void testSliceSettingControlsSliceFieldForDiskBBQESNextFormat() throws Exception {
+    public void testSliceSettingControlsSliceFieldForDiskBBQES960Format() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        assumeTrue("ESNext DiskBBQ format is only used in snapshots", Build.current().isSnapshot());
         final Settings enabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder()
-                .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-                .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-                .build()
+            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()
         ).getSettings();
         final Settings disabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder()
-                .put(IndexSettings.SLICE_ENABLED.getKey(), false)
-                .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-                .build()
+            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), false).build()
         ).getSettings();
         MapperService enabledMapperService = createMapperService(getVersion(), enabledSettings, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");

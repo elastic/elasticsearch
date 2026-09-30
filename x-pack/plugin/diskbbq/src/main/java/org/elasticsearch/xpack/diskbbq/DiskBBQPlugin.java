@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -22,8 +21,8 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskASHVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -88,20 +87,17 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         ? RoutingFieldMapper.NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
-                    boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(
-                        indexSettings.getSettings()
-                    );
-                    if (Build.current().isSnapshot() && experimentalFeaturesEnabled) {
+                    if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES960)) {
                         if (diskbbq.getQuantizationType() == DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH) {
                             var ashConfig = IvfSegmentConfig.AshConfig.of(
                                 diskbbq.getBits(),
                                 IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
                                 IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
                             );
-                            return new ESNextDiskASHVectorsFormat(
+                            return new ES960DiskASHVectorsFormat(
                                 ashConfig,
                                 clusterSize,
-                                ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                                ES960DiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                                 elementType,
                                 onDiskRescore,
                                 mergingExecutorService,
@@ -116,16 +112,16 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             : IvfMergeConfigResolver.useCodecDefault();
-                        return new ESNextDiskBBQVectorsFormat(
+                        return new ES960DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
                             clusterSize,
-                            ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                            ES960DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
                             onDiskRescore,
                             mergingExecutorService,
                             maxMergingWorkers,
                             doPrecondition,
-                            ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                            ES960DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
                             sliceField,
                             IvfFlushConfigSource.empty(),
@@ -161,7 +157,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         mergingExecutorService,
                         maxMergingWorkers,
                         doPrecondition,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                         flatIndexThreshold,
                         ES940DiskBBQVectorsFormat.VERSION_CURRENT,
                         onDiskMerge

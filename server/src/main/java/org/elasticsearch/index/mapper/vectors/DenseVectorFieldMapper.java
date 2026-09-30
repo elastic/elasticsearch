@@ -37,7 +37,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -59,8 +58,8 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskASHVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es96.ES960DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -443,6 +442,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 if (v != null) {
                     v.validateElementType(elementType.getValue());
+                    if (v.getType() == VectorIndexType.BBQ_DISK
+                        && elementType.getValue() == ElementType.BYTE
+                        && indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES960) == false) {
+                        throw new IllegalArgumentException(
+                            "[element_type] [byte] is not supported with index type ["
+                                + VectorIndexType.BBQ_DISK
+                                + "] on indices created before version "
+                                + IndexVersions.DISK_BBQ_ES960.toReleaseVersion()
+                        );
+                    }
                 }
             })
                 .acceptsNull()
@@ -2210,13 +2219,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
-                BBQIVFIndexOptions.QuantizationType quantizationType;
-                if (Build.current().isSnapshot()) {
-                    // Parse quantization_type before bits so we can set the correct default
-                    String quantizationTypeString = XContentMapValues.nodeStringValue(indexOptionsMap.remove("quantization_type"), "osq");
-                    quantizationType = BBQIVFIndexOptions.QuantizationType.fromString(quantizationTypeString);
-                } else {
-                    quantizationType = BBQIVFIndexOptions.QuantizationType.OSQ;
+                // Parse quantization_type before bits so we can set the correct default
+                String quantizationTypeString = XContentMapValues.nodeStringValue(indexOptionsMap.remove("quantization_type"), "osq");
+                BBQIVFIndexOptions.QuantizationType quantizationType = BBQIVFIndexOptions.QuantizationType.fromString(
+                    quantizationTypeString
+                );
+                if (quantizationType == BBQIVFIndexOptions.QuantizationType.ASH
+                    && indexVersion.onOrAfter(IndexVersions.DISK_BBQ_ES960) == false) {
+                    throw new IllegalArgumentException(
+                        "quantization_type 'ash' is not supported on indices created before version "
+                            + IndexVersions.DISK_BBQ_ES960.toReleaseVersion()
+                            + " for field ["
+                            + fieldName
+                            + "]"
+                    );
                 }
 
                 boolean isAsh = quantizationType == BBQIVFIndexOptions.QuantizationType.ASH;
@@ -2273,9 +2289,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public boolean supportsElementType(ElementType elementType) {
-                return elementType == ElementType.FLOAT
-                    || elementType == ElementType.BFLOAT16
-                    || (elementType == ElementType.BYTE && Build.current().isSnapshot());
+                return elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16 || elementType == ElementType.BYTE;
             }
 
             @Override
@@ -3069,20 +3083,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
-                if (quantizationType == QuantizationType.ASH && !Build.current().isSnapshot()) {
-                    throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
-                }
-                if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES960)) {
+                if (quantizationType == QuantizationType.ASH) {
                     var ashConfig = IvfSegmentConfig.AshConfig.of(
                         bits,
                         IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
                         IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
                     );
-                    return new ESNextDiskASHVectorsFormat(
+                    return new ES960DiskASHVectorsFormat(
                         ashConfig,
                         clusterSize,
-                        ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        ES960DiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
                         onDiskRescore,
                         mergingExecutorService,
@@ -3097,16 +3108,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
                         ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                         : IvfMergeConfigResolver.useCodecDefault();
-                    return new ESNextDiskBBQVectorsFormat(
+                    return new ES960DiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
                         clusterSize,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        ES960DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
                         onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
                         doPrecondition,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        ES960DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),

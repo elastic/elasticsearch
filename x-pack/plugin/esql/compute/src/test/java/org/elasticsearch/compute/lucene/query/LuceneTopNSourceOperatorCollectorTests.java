@@ -456,7 +456,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * {@link LuceneSourceOperatorTests.MockShardContext} has no mappings to resolve sorts against, so {@code sortResolver} stands in for them.
+     * {@link LuceneSourceOperatorTests.MockShardContext} has no mappings to resolve sorts against, so {@code sortResolver} stands
+     * in for them.
      */
     private static ShardContext createMockShardContext(IndexReader reader, int shardId, Function<List<SortBuilder<?>>, Sort> sortResolver) {
         return new LuceneSourceOperatorTests.MockShardContext(reader, shardId) {

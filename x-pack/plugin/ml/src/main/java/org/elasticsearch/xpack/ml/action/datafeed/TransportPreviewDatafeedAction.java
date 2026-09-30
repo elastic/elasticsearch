@@ -383,7 +383,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
      */
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
-            Optional<InputStream> inputStream = dataExtractor.next().data();
+            // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
+            // NoSuchElementException (a 500); an empty window previews as an empty array.
+            Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
             // DataExtractor returns single-line JSON but without newline characters between objects.
             // Instead, it has a space between objects due to how JSON XContentBuilder works.
             // In order to return a proper JSON array from preview, we surround with square brackets and

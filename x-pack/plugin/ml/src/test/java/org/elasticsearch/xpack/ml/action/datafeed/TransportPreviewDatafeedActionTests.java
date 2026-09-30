@@ -80,6 +80,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -423,7 +424,19 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
+    public void testPreviewDatafeed_GivenExtractorWithNothingToExtract() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(false);
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+
+        assertThat(capturedResponse, equalTo("[]"));
+        assertThat(capturedFailure, is(nullValue()));
+        verify(dataExtractor, never()).next();
+        verify(dataExtractor).destroy();
+    }
+
     public void testPreviewDatafeed_GivenEmptyStream() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.empty(), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -436,6 +449,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testPreviewDatafeed_GivenNonEmptyStream() throws IOException {
         String streamAsString = "{\"a\":1, \"b\":2} {\"c\":3, \"d\":4}\n{\"e\":5, \"f\":6}";
         InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -446,6 +460,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testPreviewDatafeed_GivenFailure() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);

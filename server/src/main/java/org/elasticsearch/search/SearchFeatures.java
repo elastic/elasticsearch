@@ -162,9 +162,7 @@ public final class SearchFeatures implements FeatureSpecification {
                 COLUMNAR_DEFAULT_FIELD_LENIENCY
             )
         );
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(OPEN_POINT_IN_TIME_SLICE);
-        }
+        features.add(OPEN_POINT_IN_TIME_SLICE);
         return Set.copyOf(features);
     }
 }

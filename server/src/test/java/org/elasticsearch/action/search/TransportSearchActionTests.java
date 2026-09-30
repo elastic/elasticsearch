@@ -2127,7 +2127,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingDefaultsToAllWhenEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
         IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
             .settings(
@@ -2147,7 +2146,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
         request.routing("r1");
         IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
@@ -2172,7 +2170,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-disabled-index");
         request.routing("s1");
         request.searchSlice("s1");
@@ -2196,7 +2193,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index", "slice-disabled-index");
         request.routing("s1,s2");
         request.searchSlice("s1,s2");
@@ -2226,7 +2222,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingNormalizesAllToNullRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
         request.searchSlice(SliceIndexing.SLICE_ALL);
         IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
@@ -2248,7 +2243,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingAllowsSliceForRemoteResolution() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("remote:idx");
         request.routing("s1");
         request.searchSlice("s1");
@@ -2258,7 +2252,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingAllowsPitWhenSliceEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index").source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
         );
@@ -2281,7 +2274,6 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testValidateAndResolveSearchSliceRoutingKeepsSliceRoutingForPit() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index").source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
         );

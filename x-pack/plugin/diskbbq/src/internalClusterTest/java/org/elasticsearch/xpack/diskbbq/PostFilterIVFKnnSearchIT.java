@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
@@ -123,7 +122,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
      * the filter ("common") and belong to the queried slice.
      */
     public void testIvfFloatSliced() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String indexName = "ivf_float_sliced_test";
         createSlicedIvfIndex(indexName);
         indexSlicedDocs(indexName);

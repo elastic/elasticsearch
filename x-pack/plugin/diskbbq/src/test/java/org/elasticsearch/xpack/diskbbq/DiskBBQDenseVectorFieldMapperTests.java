@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
@@ -110,7 +109,6 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSliceSettingControlsSliceFieldForDiskBBQES960Format() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final Settings enabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
             Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()

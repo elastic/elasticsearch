@@ -254,9 +254,6 @@ class BulkByPaginatedSearchParallelizationHelper {
         ProjectMetadata projectMetadata,
         String requestDescription
     ) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         if (request.getSearchRequest().isRoutingFromSlice() == false) {
             var indicesLookup = projectMetadata.getIndicesLookup();
             for (String indexName : request.getSearchRequest().indices()) {

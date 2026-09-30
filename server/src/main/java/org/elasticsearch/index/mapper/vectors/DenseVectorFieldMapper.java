@@ -4401,9 +4401,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
-        final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-            ? RoutingFieldMapper.NAME
-            : null;
+        final String sliceField = indexSettings.isSliceEnabled() ? RoutingFieldMapper.NAME : null;
         if (indexOptions == null) {
             format = switch (elementType) {
                 case BYTE, FLOAT -> defaultFormat;

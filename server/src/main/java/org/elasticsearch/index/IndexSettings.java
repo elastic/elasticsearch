@@ -746,18 +746,7 @@ public final class IndexSettings {
      */
     public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
         @Override
-        public void validate(Boolean enabled) {
-            if (enabled && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "unknown setting [%s] please check that any required plugins are installed, "
-                            + "or check the breaking changes documentation for removed settings",
-                        SLICE_ENABLED.getKey()
-                    )
-                );
-            }
-        }
+        public void validate(Boolean enabled) {}
 
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -1263,8 +1252,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
         "index.dense_vector.experimental_features",
         // snapshot should use new experimental formats
-        // enabling with slice feature as well for ease of testing
-        Build.current().isSnapshot() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled(),
+        Build.current().isSnapshot(),
         Property.IndexScope,
         Property.Final
     );

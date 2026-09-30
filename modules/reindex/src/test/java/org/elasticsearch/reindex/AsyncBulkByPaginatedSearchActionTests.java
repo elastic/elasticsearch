@@ -60,7 +60,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
@@ -1415,7 +1414,6 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
 
         IndexRequest routingRequest = new IndexRequest().index("test").id("2");

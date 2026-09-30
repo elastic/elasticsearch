@@ -210,7 +210,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testParseRequestWithTopLevelSliceParam() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
@@ -223,7 +222,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testParseRequestRejectsRoutingAndSliceInSameMetadata() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
             {"routing":"r1","slice":"s1"}
             {"query":{"match_all":{}}}
@@ -232,7 +230,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testParseRequestRejectsTopLevelRoutingWithMetadataSlice() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"slice":"s1"}
             {"query":{"match_all":{}}}
@@ -241,7 +238,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testParseRequestRejectsTopLevelSliceWithMetadataRouting() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
@@ -249,17 +245,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
-    public void testParseRequestRejectsMetadataSliceWhenFeatureDisabled() throws IOException {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
-            {"slice":"s1"}
-            {"query":{"match_all":{}}}
-            """));
-        assertEquals("request does not support [slice]", ex.getMessage());
-    }
-
     public void testParseRequestAllowsDifferentRoutingModesPerSubRequestWithoutTopLevel() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         MultiSearchRequest request = parseMultiSearchRequestFromString("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
@@ -304,7 +290,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest();
         request.routing("s1");
         request.searchSlice("s1");
@@ -488,7 +473,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testMultiLineSerializationPreservesSliceProvenance() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         MultiSearchRequest originalRequest = new MultiSearchRequest();
         originalRequest.add(new SearchRequest("index-1").routing("s1").searchSlice("s1"));
         originalRequest.add(new SearchRequest("index-2").searchSlice(SliceIndexing.SLICE_ALL));

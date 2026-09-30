@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
@@ -52,7 +51,6 @@ public class ReindexSliceEnabledIT extends ESIntegTestCase {
     }
 
     public void testReindexFromSliceEnabledSourceUsesPit() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assumeTrue(
             "reindex PIT search feature must be enabled on the cluster",
             internalCluster().getCurrentMasterNodeInstance(FeatureService.class)

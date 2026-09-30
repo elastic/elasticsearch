@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -47,9 +46,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
             validateQueryRequest.explain(false);
-            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-                validateQueryRequest.searchSlice("s1");
-            }
+            validateQueryRequest.searchSlice("s1");
             ShardValidateQueryRequest request = new ShardValidateQueryRequest(
                 new ShardId("index", "foobar", 1),
                 AliasFilter.of(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),

@@ -626,7 +626,7 @@ public class QueryRewriteContext {
     }
 
     private boolean isSliceFieldAliasEnabled() {
-        return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings != null && indexSettings.isSliceEnabled();
+        return indexSettings != null && indexSettings.isSliceEnabled();
     }
 
     /**

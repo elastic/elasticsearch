@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
@@ -83,9 +82,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     boolean onDiskMerge = diskbbq.isOnDiskMerge();
                     boolean doPrecondition = diskbbq.doPrecondition();
                     int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
-                    final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-                        ? RoutingFieldMapper.NAME
-                        : null;
+                    final String sliceField = indexSettings.isSliceEnabled() ? RoutingFieldMapper.NAME : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
                     if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES960)) {
                         if (diskbbq.getQuantizationType() == DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH) {

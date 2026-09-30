@@ -149,7 +149,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestWithSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1,s2"))
@@ -162,7 +161,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestWithSliceAllParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL))
@@ -175,7 +173,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
@@ -188,22 +185,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
-    public void testParseSearchRequestRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
-        );
-        assertEquals("request does not support [slice]", e.getMessage());
-    }
-
     public void testParseSearchRequestAllowsSliceWithPointInTime() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))

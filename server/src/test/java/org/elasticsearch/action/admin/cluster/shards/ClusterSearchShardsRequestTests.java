@@ -45,7 +45,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             }
             request.routing(routings);
         }
-        if (randomBoolean() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+        if (randomBoolean()) {
             String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
             request.searchSlice(slice);
         }
@@ -81,7 +81,6 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
     }
 
     public void testSearchSliceDerivesRoutingAndProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
         request.routing("manual");
         request.searchSlice("s1,s2");

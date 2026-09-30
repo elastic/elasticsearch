@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -670,7 +669,6 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testRoutingFromSlicePropagatesToGeneratedWriteRequests() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"bar\"}"), null, null);
 

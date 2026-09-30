@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -129,7 +128,6 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
     }
 
     public void testAutoSlicesInitTaskStateForwardsSliceRoutingProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexRequest request = new ReindexRequest();
         request.getSearchRequest().indices("source-index");
         request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);

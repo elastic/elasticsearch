@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -430,7 +429,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertAcked(
             prepareCreate("slice-enabled").setSettings(
                 Settings.builder().put(indexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true)
@@ -443,7 +441,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testSliceRejectedWhenSliceDisabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
@@ -453,7 +450,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testSliceValidateQuerySucceedsWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertAcked(
             prepareCreate("slice-enabled").setSettings(
                 Settings.builder().put(indexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true)

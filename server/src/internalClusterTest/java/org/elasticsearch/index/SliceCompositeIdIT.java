@@ -67,9 +67,7 @@ import static org.hamcrest.Matchers.not;
 public class SliceCompositeIdIT extends ESIntegTestCase {
 
     @Before
-    public void requireSliceFeatureFlag() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-    }
+    public void requireSliceFeatureFlag() {}
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -62,7 +62,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledAddsRoutingPrimarySort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
@@ -75,7 +74,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledBuildIndexSortWithImplicitRoutingPrimarySort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         Sort sort = buildIndexSort(indexSettings, Map.of(RoutingFieldMapper.NAME, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE));
@@ -84,7 +82,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledBuildIndexSortWithoutRoutingFieldLookup() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         Sort sort = buildIndexSort(indexSettings, Map.of());
@@ -93,7 +90,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledPrependsRoutingToExplicitIndexSort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
 
@@ -118,7 +114,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledRejectsRoutingInUserProvidedIndexSort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
 
@@ -132,7 +127,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledRejectsSliceAliasInUserProvidedIndexSort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
 
@@ -146,7 +140,6 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSliceEnabledPrependsRoutingToIndexModeDefaultSort() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
             .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)

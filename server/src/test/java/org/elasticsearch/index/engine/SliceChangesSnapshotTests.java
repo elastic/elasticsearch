@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SliceIdFieldMapper;
@@ -31,9 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SliceChangesSnapshotTests extends EngineTestCase {
 
     @BeforeClass
-    public static void checkSliceFeatureFlag() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-    }
+    public static void checkSliceFeatureFlag() {}
 
     @Override
     protected Settings indexSettings() {

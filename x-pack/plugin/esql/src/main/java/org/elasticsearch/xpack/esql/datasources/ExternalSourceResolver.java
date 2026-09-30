@@ -951,15 +951,21 @@ public class ExternalSourceResolver {
         if (ioError != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
-            // Not chained: the log above keeps ioError, and the caller's response must not carry its text.
+            // Not chained: the log above keeps ioError. Its own message is forwarded only when forwardableDetail allows
+            // it, e.g. a storage provider's "Access denied listing objects ... s3:ListBucket" remedy.
             // Use objectName(path) — the safe static that never throws and never returns the full URI —
             // as the detailCode so the filename appears in the message while the directory stays hidden.
-            return new ExternalClientException(
+            ExternalClientException ioEx = new ExternalClientException(
                 ExternalException.Condition.METADATA_UNAVAILABLE,
                 StoragePath.NONE,
                 StoragePath.objectName(path),
                 ""
             );
+            String forwardable = ExternalFailures.forwardableDetail(ioError);
+            if (forwardable != null) {
+                ioEx.setDetail(forwardable);
+            }
+            return ioEx;
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the

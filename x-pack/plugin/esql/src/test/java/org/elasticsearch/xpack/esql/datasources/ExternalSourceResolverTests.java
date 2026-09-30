@@ -4308,12 +4308,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(mapped)
         );
-        // The IOException message is stripped from the user-facing message to prevent URI leaks;
-        // only the safe METADATA_UNAVAILABLE condition message appears.
+        // Nothing reaches caused_by, so an IOException message Elasticsearch composed is forwarded as the detail
+        // (e.g. a listing 403's s3:ListBucket remedy); the path never is.
         assertThat(mapped.getMessage(), containsString("Failed to get external data metadata"));
+        assertThat(mapped.getMessage(), containsString("External data object not found"));
         assertThat(mapped.getMessage(), not(containsString("s3://b/x.parquet")));
-        assertThat(mapped.getMessage(), not(containsString("External data object not found")));
         assertNull("nothing may reach caused_by", mapped.getCause());
+
+        IOException withUri = new IOException("Failed to list s3://b/secret/ prefix");
+        RuntimeException mappedWithUri = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(withUri));
+        assertThat(mappedWithUri.getMessage(), containsString("Failed to get external data metadata"));
+        assertThat(mappedWithUri.getMessage(), not(containsString("s3://")));
+        assertThat(mappedWithUri.getMessage(), not(containsString("secret")));
     }
 
     /**

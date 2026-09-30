@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector", "-Xms20g", "-Xmx20g" })
 @State(Scope.Thread)
 public class BytesRefSwissHashPartitionBenchmark {
+    private static final int NUM_PARTITIONS = 256;
     static {
         BenchmarkLogging.configure();
     }
@@ -109,7 +110,7 @@ public class BytesRefSwissHashPartitionBenchmark {
                 while ((offset = nextKeyIndex.getAndAdd(LongLongSwissHashBenchmark.CHUNK_SIZE)) < keys.length) {
                     int len = Math.min(keys.length - offset, LongLongSwissHashBenchmark.CHUNK_SIZE);
                     if (worker.size() + len > BytesRefSwissHash.PARTITION_THRESHOLD) {
-                        sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
+                        sharedPartitionedKeys.add(worker.splitPartition(breaker, NUM_PARTITIONS, NOOP_SPLITTER));
                         worker.clear();
                     }
                     for (int i = 0; i < len; i++) {
@@ -117,7 +118,7 @@ public class BytesRefSwissHashPartitionBenchmark {
                     }
                 }
                 if (worker.size() > 0) {
-                    sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
+                    sharedPartitionedKeys.add(worker.splitPartition(breaker, NUM_PARTITIONS, NOOP_SPLITTER));
                     worker.clear();
                 }
                 collectLatch.countDown();
@@ -135,7 +136,7 @@ public class BytesRefSwissHashPartitionBenchmark {
                 int[] mergedIds = null;
                 for (;;) {
                     int p = nextPartition.getAndIncrement();
-                    if (p >= PartitionedHashTable.NUM_PARTITIONS) {
+                    if (p >= NUM_PARTITIONS) {
                         break;
                     }
                     partition.clear();

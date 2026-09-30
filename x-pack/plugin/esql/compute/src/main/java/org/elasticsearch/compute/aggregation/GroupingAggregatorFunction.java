@@ -276,7 +276,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * Creates a splitter for this grouping aggregation state.
      * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
      */
-    default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+    default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 

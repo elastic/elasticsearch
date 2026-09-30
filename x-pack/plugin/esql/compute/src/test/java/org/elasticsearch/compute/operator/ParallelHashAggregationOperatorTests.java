@@ -9,9 +9,11 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -78,6 +81,36 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         );
         DriverContext driverContext = driverContext();
         runTest(between(100, 1000), randomBoolean(), randomBoolean(), driverContext.blockFactory(), driverContext, config);
+    }
+
+    public void testRejectsMismatchedPartitionCount() {
+        var blockFactory = blockFactory();
+        try (
+            var partitions = new PartitionedHashAggregations(blockFactory.breaker(), 1);
+            var block = new PartitionedAggregationBlock(blockFactory, 0, new PartitionedHashTable.PartitionedHashKeys() {
+                @Override
+                public int numPartitions() {
+                    return 2;
+                }
+
+                @Override
+                public int keysInPartition(int partition) {
+                    return 0;
+                }
+
+                @Override
+                public void releasePartition(org.elasticsearch.common.breaker.CircuitBreaker breaker, int partition) {}
+
+                @Override
+                public void releaseAll(org.elasticsearch.common.breaker.CircuitBreaker breaker) {}
+            }, new GroupingAggregatorFunction.PartitionedState[0])
+        ) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> partitions.addPartitionedBlocks(List.of(block))
+            );
+            assertThat(e.getMessage(), equalTo("partition count mismatch, expected [1] but got [2]"));
+        }
     }
 
     public void testLarge() {

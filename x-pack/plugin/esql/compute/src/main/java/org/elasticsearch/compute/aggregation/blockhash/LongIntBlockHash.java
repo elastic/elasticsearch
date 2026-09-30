@@ -577,6 +577,11 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
 
     private record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
         @Override
+        public int numPartitions() {
+            return delegate.numPartitions();
+        }
+
+        @Override
         public int keysInPartition(int partition) {
             return delegate.keysInPartition(partition);
         }
@@ -593,9 +598,9 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     }
 
     @Override
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, int numPartitions, PartitionSplitter partitionSplitter) {
         if (hash instanceof LongLongSwissHash swiss) {
-            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, partitionSplitter), seenBlocks);
+            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, numPartitions, partitionSplitter), seenBlocks);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }

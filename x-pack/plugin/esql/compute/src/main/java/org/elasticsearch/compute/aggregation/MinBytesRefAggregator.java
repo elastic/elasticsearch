@@ -93,8 +93,8 @@ class MinBytesRefAggregator {
             internalState.ensureCapacity(size);
         }
 
-        PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-            return internalState.createPartitioningSplitter(breaker);
+        PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
+            return internalState.createPartitioningSplitter(breaker, numPartitions);
         }
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

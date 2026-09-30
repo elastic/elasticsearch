@@ -20,7 +20,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 /**
@@ -247,12 +246,12 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         private final long[][] values;
         private final boolean[][] seen;
 
-        private LongPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
-            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
+        private LongPartitionedState(CircuitBreaker breaker, int numPartitions, int partitionSize, boolean trackSeen) {
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(numPartitions) + (trackSeen ? bytesUsedByPagesArray(numPartitions) : 0);
             long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
-            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new long[NUM_PARTITIONS][partitionSize];
-            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + numPartitions * pageBytes, LABEL);
+            values = new long[numPartitions][partitionSize];
+            seen = trackSeen ? new boolean[numPartitions][partitionSize] : null;
         }
 
         @Override
@@ -277,7 +276,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         @Override
         public void releaseAll(CircuitBreaker breaker) {
             long usedBytes = baseBytes;
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < values.length; p++) {
                 if (values[p] != null) {
                     usedBytes += bytesUsedByPartitionPage(values[p].length);
                     values[p] = null;
@@ -292,13 +291,15 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
     }
 
     private final class LongPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+        private final int numPartitions;
         private final CircuitBreaker partitionBreaker;
         private LongPartitionedState partitionedState;
 
-        private LongPartitionSplitter(CircuitBreaker partitionBreaker) {
+        private LongPartitionSplitter(CircuitBreaker partitionBreaker, int numPartitions) {
+            this.numPartitions = numPartitions;
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Long.BYTES);
-            partitionedState = new LongPartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, numPartitions)), Long.BYTES);
+            partitionedState = new LongPartitionedState(partitionBreaker, numPartitions, partitionSize, trackingGroupIds());
         }
 
         @Override
@@ -307,7 +308,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 splitWithAllValues(firstId, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
                 return;
             }
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
@@ -327,7 +328,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         }
 
         void splitWithAllValues(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
@@ -377,8 +378,8 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         }
     }
 
-    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-        return new LongPartitionSplitter(breaker);
+    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
+        return new LongPartitionSplitter(breaker, numPartitions);
     }
 
     long[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

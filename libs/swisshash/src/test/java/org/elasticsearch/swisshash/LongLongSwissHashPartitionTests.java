@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -47,6 +46,7 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
         var recycler = new LongLongSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        final int numPartitions = randomFrom(1, 2, 16, 64, 256);
         final int partitionSize = randomIntBetween(128, 10 * 1024);
         var hash1 = new LongLongSwissHash(recycler, breaker, randomIntBetween(1, 4096));
         SumAgg agg1 = new SumAgg(breaker);
@@ -74,13 +74,13 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
                 addInput(hash2, agg2, keys1, keys2, values);
 
                 if (hash2.size() >= partitionSize) {
-                    gens.add(partition(breaker, hash2, hash2.size, agg2));
+                    gens.add(partition(breaker, numPartitions, hash2, hash2.size, agg2));
                     hash2.clear();
                     agg2.clear();
                 }
             }
             if (hash2.size > 0) {
-                gens.add(partition(breaker, hash2, hash2.size, agg2));
+                gens.add(partition(breaker, numPartitions, hash2, hash2.size, agg2));
                 hash2.clear();
                 agg2.clear();
             }
@@ -89,7 +89,7 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
             hash1 = null;
             agg1.close();
             agg1 = null;
-            var results2 = combinePartitions(breaker, hash2, agg2, gens);
+            var results2 = combinePartitions(breaker, numPartitions, hash2, agg2, gens);
             assertThat(result1, equalTo(results2));
         } finally {
             Releasables.close(hash1, hash2, agg1, agg2);
@@ -98,10 +98,16 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    Set<KeyAndSum> combinePartitions(CircuitBreaker breaker, LongLongSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
+    Set<KeyAndSum> combinePartitions(
+        CircuitBreaker breaker,
+        int numPartitions,
+        LongLongSwissHash hash,
+        SumAgg agg,
+        List<PartitionedKeyAndAggs> gens
+    ) {
         int[] mergedIds = null;
         Set<KeyAndSum> results = new HashSet<>();
-        for (int partition = 0; partition < PartitionedHashTable.NUM_PARTITIONS; partition++) {
+        for (int partition = 0; partition < numPartitions; partition++) {
             hash.clear();
             agg.clear();
             int totalKeys = 0;

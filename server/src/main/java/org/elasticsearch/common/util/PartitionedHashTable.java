@@ -25,25 +25,32 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
  */
 public interface PartitionedHashTable {
     /**
-     * The number of partitions a hash table is split into.
-     * Ideally, we should choose the number of partitions dynamically depending on the hash table size.
-     */
-    int NUM_PARTITIONS = 256;
-
-    /**
-     * The mask applied to a key's hash to determine its partition.
-     */
-    int PARTITION_MASK = NUM_PARTITIONS - 1;
-
-    /**
      * The maximum number of entries buffered in any partition before flushing. When any partition is about to exceed
      * this limit, all buffered entries are flushed regardless of the sizes of the other partitions. Since entries are
      * partitioned from a hash table with a good hash function, the other partitions will likely be similarly full.
      * <p>
-     * Entries are accumulated in a buffer of {@code NUM_PARTITIONS * PARTITION_WRITE_BATCH} entries. This value must fit in
-     * a {@code short}, since {@link #splitPartition(CircuitBreaker, PartitionSplitter)} passes ids to the callback as shorts.
+     * Entries are accumulated in a buffer of {@code numPartitions * PARTITION_WRITE_BATCH} entries. This value must fit in
+     * a {@code short}, since {@link #splitPartition(CircuitBreaker, int, PartitionSplitter)} passes ids to the callback as shorts.
      */
     int PARTITION_WRITE_BATCH = 64;
+
+    /**
+     * Validates a partition count for use with this table.
+     */
+    static void checkNumPartitions(int numPartitions) {
+        if (numPartitions <= 0 || Integer.bitCount(numPartitions) != 1) {
+            throw new IllegalArgumentException("numPartitions must be a positive power of two, got [" + numPartitions + "]");
+        }
+        if ((long) numPartitions * PARTITION_WRITE_BATCH >= Short.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                "numPartitions ["
+                    + numPartitions
+                    + "] is too large for partition write batch ["
+                    + PARTITION_WRITE_BATCH
+                    + "] and short relative ids"
+            );
+        }
+    }
 
     /**
      * The keys of a hash table, split into partitions. Returned by {@link #splitPartition} and consumed by
@@ -57,6 +64,11 @@ public interface PartitionedHashTable {
      * during the split are returned to the same accounting.
      */
     interface PartitionedHashKeys {
+        /**
+         * Returns the number of partitions.
+         */
+        int numPartitions();
+
         /**
          * Returns the number of keys in the given partition. The count remains available after the partition is released with
          * {@link #releasePartition(CircuitBreaker, int)}. This method must not be called after {@link #releaseAll(CircuitBreaker)}.
@@ -124,12 +136,13 @@ public interface PartitionedHashTable {
     }
 
     /**
-     * Partitions the keys of this hash table into {@link #NUM_PARTITIONS} partitions by hash, invoking
+     * Partitions the keys of this hash table into {@code numPartitions} partitions by hash, invoking
      * {@code partitionSplitter} periodically so the caller can split associated per-key state the same way.
      *
+     * @param numPartitions a positive power of two supported by the short relative-id batch representation
      * @return the keys of every partition, to be passed to {@link #combinePartition}
      */
-    PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter);
+    PartitionedHashKeys splitPartition(CircuitBreaker breaker, int numPartitions, PartitionSplitter partitionSplitter);
 
     /**
      * Combines one partition of keys into this hash table, writing the id assigned to each key to {@code resultIds} so the

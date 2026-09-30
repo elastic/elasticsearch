@@ -33,13 +33,14 @@ public abstract class PartitionedHashTestCase extends ESTestCase {
         }
     }
 
-    PartitionedKeyAndAggs partition(CircuitBreaker breaker, PartitionedHashTable hash, int hashSize, SumAgg agg) {
-        int estimatePartitionSize = ArrayUtil.oversize(Math.ceilDiv(hashSize, PartitionedHashTable.NUM_PARTITIONS), Long.BYTES);
-        var partitionSum = new PartitionedSum(breaker, estimatePartitionSize);
+    PartitionedKeyAndAggs partition(CircuitBreaker breaker, int numPartitions, PartitionedHashTable hash, int hashSize, SumAgg agg) {
+        int estimatePartitionSize = ArrayUtil.oversize(Math.ceilDiv(hashSize, numPartitions), Long.BYTES);
+        var partitionSum = new PartitionedSum(breaker, numPartitions, estimatePartitionSize);
         var aggSplitter = agg.splitter(breaker, partitionSum);
         boolean success = false;
         try {
-            var partitionedHash = hash.splitPartition(breaker, aggSplitter);
+            var partitionedHash = hash.splitPartition(breaker, numPartitions, aggSplitter);
+            assertEquals(numPartitions, partitionedHash.numPartitions());
             success = true;
             return new PartitionedKeyAndAggs(partitionedHash, partitionSum);
         } finally {
@@ -53,10 +54,10 @@ public abstract class PartitionedHashTestCase extends ESTestCase {
     static final class PartitionedSum {
         final int[][] values;
 
-        PartitionedSum(CircuitBreaker breaker, int estimatePartitionSize) {
-            long bytes = (long) PartitionedHashTable.NUM_PARTITIONS * estimatePartitionSize * Integer.BYTES;
+        PartitionedSum(CircuitBreaker breaker, int numPartitions, int estimatePartitionSize) {
+            long bytes = (long) numPartitions * estimatePartitionSize * Integer.BYTES;
             breaker.addEstimateBytesAndMaybeBreak(bytes, "SumAgg#partition");
-            values = new int[PartitionedHashTable.NUM_PARTITIONS][];
+            values = new int[numPartitions][];
             for (int p = 0; p < values.length; p++) {
                 values[p] = new int[estimatePartitionSize];
             }

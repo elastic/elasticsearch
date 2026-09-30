@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector", "-Xms10g", "-Xmx10g" })
 @State(Scope.Thread)
 public class LongLongSwissHashBenchmark {
+    private static final int NUM_PARTITIONS = 256;
     static {
         BenchmarkLogging.configure();
     }
@@ -164,7 +165,7 @@ public class LongLongSwissHashBenchmark {
                 while ((offset = nextKeyIndex.getAndAdd(CHUNK_SIZE)) < keys.length) {
                     int len = Math.min(keys.length - offset, CHUNK_SIZE);
                     if (worker.size() + len > LongLongSwissHash.PARTITION_THRESHOLD) {
-                        sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
+                        sharedPartitionedKeys.add(worker.splitPartition(breaker, NUM_PARTITIONS, NOOP_SPLITTER));
                         worker.clear();
                     }
                     if (worker.supportBulkAdd()) {
@@ -182,7 +183,7 @@ public class LongLongSwissHashBenchmark {
                     }
                 }
                 if (worker.size() > 0) {
-                    sharedPartitionedKeys.add(worker.splitPartition(breaker, NOOP_SPLITTER));
+                    sharedPartitionedKeys.add(worker.splitPartition(breaker, NUM_PARTITIONS, NOOP_SPLITTER));
                     worker.clear();
                 }
                 collectLatch.countDown();
@@ -200,7 +201,7 @@ public class LongLongSwissHashBenchmark {
                 int[] mergedKeys = null;
                 for (;;) {
                     int p = nextPartition.getAndIncrement();
-                    if (p >= LongLongSwissHash.NUM_PARTITIONS) {
+                    if (p >= NUM_PARTITIONS) {
                         break;
                     }
                     partition.clear();

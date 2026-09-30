@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,6 +36,7 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
         var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         var partitionBreaker = new NoopCircuitBreaker("partition");
 
+        int numPartitions = randomFrom(1, 2, 16, 64, 256);
         int numGroups = between(1, 50000);
         boolean withNulls = randomBoolean();
         BytesRef[] expected = new BytesRef[numGroups];
@@ -55,25 +55,25 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
                 }
             }
 
-            var splitter = state.createPartitioningSplitter(partitionBreaker);
-            int batchTotal = NUM_PARTITIONS * PARTITION_WRITE_BATCH;
-            int[] cumulativeCounts = new int[NUM_PARTITIONS];
+            var splitter = state.createPartitioningSplitter(partitionBreaker, numPartitions);
+            int batchTotal = numPartitions * PARTITION_WRITE_BATCH;
+            int[] cumulativeCounts = new int[numPartitions];
             for (int batchStart = 0; batchStart < numGroups; batchStart += batchTotal) {
                 int batchEnd = Math.min(batchStart + batchTotal, numGroups);
                 int batchSize = batchEnd - batchStart;
 
-                int[] batchPartitionCounts = new int[NUM_PARTITIONS];
-                short[] shiftedIds = new short[NUM_PARTITIONS * PARTITION_WRITE_BATCH];
+                int[] batchPartitionCounts = new int[numPartitions];
+                short[] shiftedIds = new short[numPartitions * PARTITION_WRITE_BATCH];
 
                 for (int i = 0; i < batchSize; i++) {
-                    int p = (batchStart + i) % NUM_PARTITIONS;
+                    int p = (batchStart + i) % numPartitions;
                     shiftedIds[p * PARTITION_WRITE_BATCH + batchPartitionCounts[p]] = (short) i;
                     batchPartitionCounts[p]++;
                 }
 
                 splitter.split(batchStart, shiftedIds, batchSize, batchPartitionCounts, cumulativeCounts.clone());
 
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < numPartitions; p++) {
                     cumulativeCounts[p] += batchPartitionCounts[p];
                 }
             }
@@ -81,14 +81,14 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
             PartitionedState partitioned = splitter.finish();
 
             BytesRef scratch = new BytesRef();
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 BytesRefSequence values = state.partitionValues(partitioned, p);
                 boolean[] seen = state.partitionSeen(partitioned, p);
 
                 assertThat("seen==null iff no null-tracking", seen == null, equalTo(withNulls == false));
 
                 int k = 0;
-                for (int g = p; g < numGroups; g += NUM_PARTITIONS) {
+                for (int g = p; g < numGroups; g += numPartitions) {
                     BytesRef expectedValue = expected[g];
                     if (withNulls == false) {
                         assertNotNull("group " + g + " should have a value", expectedValue);

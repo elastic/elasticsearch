@@ -16,7 +16,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -87,6 +86,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         long pagedPartitionBytesThreshold,
         boolean fixedLength
     ) {
+        final int numPartitions = randomFrom(1, 2, 16, 64, 256);
         final int keyLength = fixedLength ? randomIntBetween(1, 32) : -1;
         final int partitionSize = randomIntBetween(128, 10 * 1024);
         var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
@@ -114,7 +114,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 addInput(hash2, agg2, keys, values);
 
                 if (hash2.size() >= partitionSize) {
-                    PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                    PartitionedKeyAndAggs gen = partition(breaker, numPartitions, hash2, hash2.size, agg2);
                     assertThat(gen.keys(), instanceOf(expectedType));
                     gens.add(gen);
                     hash2.clear();
@@ -122,7 +122,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 }
             }
             if (hash2.size > 0) {
-                PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                PartitionedKeyAndAggs gen = partition(breaker, numPartitions, hash2, hash2.size, agg2);
                 assertThat(gen.keys(), instanceOf(expectedType));
                 gens.add(gen);
                 hash2.clear();
@@ -133,7 +133,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
             hash1 = null;
             agg1.close();
             agg1 = null;
-            var results2 = combinePartitions(breaker, hash2, agg2, gens);
+            var results2 = combinePartitions(breaker, numPartitions, hash2, agg2, gens);
             assertThat(result1, equalTo(results2));
         } finally {
             Releasables.close(hash1, hash2, agg1, agg2);
@@ -141,10 +141,16 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         }
     }
 
-    Map<BytesRef, Long> combinePartitions(CircuitBreaker breaker, BytesRefSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
+    Map<BytesRef, Long> combinePartitions(
+        CircuitBreaker breaker,
+        int numPartitions,
+        BytesRefSwissHash hash,
+        SumAgg agg,
+        List<PartitionedKeyAndAggs> gens
+    ) {
         int[] mergedIds = null;
         Map<BytesRef, Long> results = new HashMap<>();
-        for (int partition = 0; partition < PartitionedHashTable.NUM_PARTITIONS; partition++) {
+        for (int partition = 0; partition < numPartitions; partition++) {
             hash.clear();
             agg.clear();
             int totalKeys = 0;

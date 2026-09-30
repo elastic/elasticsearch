@@ -448,6 +448,11 @@ public final class ShardBatchMapper {
                         schemaLeafPaths.add(escfSchema.getFullPath(c));
                     }
                     final int batchDocCount = chunkEnd - chunkStart;
+                    // TODO: requiredFields("") returns only top-level required fields. This is
+                    // currently safe because resolveMappers() returns null for any mapping that
+                    // contains nested fields, so nested batches never reach this code. When batch
+                    // support is extended to nested fields, this will need to handle nested required
+                    // fields as well.
                     for (String fieldName : mappingLookup.requiredFields("")) {
                         if (schemaLeafPaths.contains(fieldName) == false) {
                             final Mapper m = mappingLookup.getMapper(fieldName);

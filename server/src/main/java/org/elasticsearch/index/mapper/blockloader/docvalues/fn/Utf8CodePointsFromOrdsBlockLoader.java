@@ -134,16 +134,20 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     /**
      * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
-     * hands them to {@code reader}.
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its blob is a bare value.
      */
     private ColumnAtATimeReader withCounts(
         CircuitBreaker breaker,
         LeafReaderContext context,
         BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
     ) throws IOException {
-        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
+        }
+        if (bc.counts() == null) {
+            // No counts column: the field is single-valued, so its blob is a bare value.
+            return new SingleValuedBinary(bc.binary());
         }
         return reader.apply(bc.binary(), bc.counts());
     }
@@ -600,7 +604,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
     }
 
-    /** Binary doc values holding each document's one value as its own bytes, as a {@code multi_value: false} column does. */
+    /** Binary doc values holding each document's one value as its own bytes, as a {@code multi_value: false} field does. */
     private static class SingleValuedBinary extends BlockDocValuesReader {
         private final TrackingBinaryDocValues values;
 

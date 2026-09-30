@@ -1,5 +1,5 @@
 area: Compute Engine
 issues: []
 pr: 160679
-summary: Evaluate lazy CASE one arm at a time
+summary: Improve performance of ES|QL CASE function by evaluating on case condition at a time.
 type: enhancement

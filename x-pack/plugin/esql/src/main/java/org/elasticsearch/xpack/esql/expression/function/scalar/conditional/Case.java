@@ -467,10 +467,6 @@ public final class Case extends EsqlScalarFunction {
         }
 
         public void registerMultivalue() {
-            /*
-             * Register by class and message rather than instantiating the exception so
-             * we don’t pay for a stack trace we never show.
-             */
             conditionWarnings.registerException(IllegalArgumentException.class, "CASE expects a single-valued boolean");
         }
 

@@ -6032,27 +6032,30 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     /**
      * With the first attempt bounded to one file, a demand one file covers is answered from that one listing: the
-     * prefix is this query's file set and nothing goes back for more.
+     * prefix is this query's file set and nothing goes back for more. Checked on both entry points, because the sync
+     * one is only reached by tests and the async one is what production runs.
      */
     public void testADemandCoveredByThePrefixIsAnsweredFromIt() throws Exception {
-        Map<String, byte[]> payloads = new HashMap<>();
-        List<StorageEntry> everyFile = twoParquetFiles(payloads);
-        AtomicInteger listings = new AtomicInteger();
-        Settings oneFileFirst = Settings.builder().put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1).build();
-        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            FileSplitProvider provider = rangeAwareProvider(
-                countingRowCountReader(new AtomicInteger(), 10),
-                null,
-                oneFileFirst,
-                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
-                new DatasetListingService(oneFileFirst, cache, null, null, null)
-            );
+        for (boolean async : new boolean[] { false, true }) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = twoParquetFiles(payloads);
+            AtomicInteger listings = new AtomicInteger();
+            try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                FileSplitProvider provider = rangeAwareProvider(
+                    countingRowCountReader(new AtomicInteger(), 10),
+                    null,
+                    ONE_FILE_FIRST,
+                    createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                    new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null)
+                );
 
-            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfDemanding(everyFile, 1));
+                SplitDiscoveryResult result = discoverOn(async, provider, overAPrefixOfDemanding(everyFile, 1));
 
-            assertEquals("one file was enough, so one listing was enough", 1, listings.get());
-            assertEquals("and only that file is read", 1, result.splits().size());
-            assertTrue("the file set it answered from is a prefix", result.fileSet().isTruncated());
+                String path = async ? "async: " : "sync: ";
+                assertEquals(path + "one file was enough, so one listing was enough", 1, listings.get());
+                assertEquals(path + "and only that file is read", 1, result.splits().size());
+                assertTrue(path + "the file set it answered from is a prefix", result.fileSet().isTruncated());
+            }
         }
     }
 
@@ -6062,28 +6065,45 @@ public class FileSplitProviderTests extends ESTestCase {
      * nothing about it - so the attempt is thrown away and the dataset is listed in full.
      * <p>
      * One file listed first, a demand no single file covers. Without the retry the scan reads that one file and
-     * answers short.
+     * answers short. Both entry points, for the reason the test above gives.
      */
     public void testAPrefixThatCannotCoverTheDemandIsDiscarded() throws Exception {
-        Map<String, byte[]> payloads = new HashMap<>();
-        List<StorageEntry> everyFile = twoParquetFiles(payloads);
-        AtomicInteger listings = new AtomicInteger();
-        Settings oneFileFirst = Settings.builder().put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1).build();
-        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            FileSplitProvider provider = rangeAwareProvider(
-                countingRowCountReader(new AtomicInteger(), 10),
-                null,
-                oneFileFirst,
-                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
-                new DatasetListingService(oneFileFirst, cache, null, null, null)
-            );
+        for (boolean async : new boolean[] { false, true }) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = twoParquetFiles(payloads);
+            AtomicInteger listings = new AtomicInteger();
+            try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                FileSplitProvider provider = rangeAwareProvider(
+                    countingRowCountReader(new AtomicInteger(), 10),
+                    null,
+                    ONE_FILE_FIRST,
+                    createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                    new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null)
+                );
 
-            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfDemanding(everyFile, Integer.MAX_VALUE));
+                SplitDiscoveryResult result = discoverOn(async, provider, overAPrefixOfDemanding(everyFile, Integer.MAX_VALUE));
 
-            assertEquals("every file is read, not just the one the prefix held", 2, result.splits().size());
-            assertFalse("and the file set it answered from is the whole dataset", result.fileSet().isTruncated());
-            assertEquals("which took a second listing", 2, listings.get());
+                String path = async ? "async: " : "sync: ";
+                assertEquals(path + "every file is read, not just the one the prefix held", 2, result.splits().size());
+                assertFalse(path + "and the file set it answered from is the whole dataset", result.fileSet().isTruncated());
+                assertEquals(path + "which took a second listing", 2, listings.get());
+            }
         }
+    }
+
+    private static final Settings ONE_FILE_FIRST = Settings.builder()
+        .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1)
+        .build();
+
+    /** Runs discovery on the named entry point and returns what it produced. */
+    private static SplitDiscoveryResult discoverOn(boolean async, FileSplitProvider provider, SplitDiscoveryContext context)
+        throws Exception {
+        if (async == false) {
+            return provider.discoverSplits(context);
+        }
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(context, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        return future.get(30, TimeUnit.SECONDS);
     }
 
     /**

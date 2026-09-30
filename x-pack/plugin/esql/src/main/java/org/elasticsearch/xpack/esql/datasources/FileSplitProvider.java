@@ -888,24 +888,68 @@ public class FileSplitProvider implements SplitProvider {
             // The listing is the query's file set already: nothing to discover, so nothing leaves this thread that
             // did not leave it before. Taking the same decision as the sync path through the same helper below is
             // what keeps the two entry points on one rule; this branch only decides which thread asks.
-            planSplitsAsync(handedContext, requestedExecutor, listener);
+            planSplitsAsync(handedContext, requestedExecutor, listener.map(Attempt::result));
             return;
         }
-        // Otherwise the file set is a walk of the object store — on the dataset this was measured against, ninety-one
-        // sequential page requests — and this method's contract is that the calling thread waits for no such thing.
+        // Otherwise the file set is a walk of the object store, and this method's contract is that the calling thread
+        // waits for no such thing. The same bounded first attempt and the same retry as discoverSplits: this is the
+        // path production takes, so a rule that only the sync path applied would be a rule production never runs.
+        ListingExtents extents = listingExtentsForTheDemand(
+            handedContext,
+            resolveConfiguredReader(handedContext.fileList().path(0), handedContext.config())
+        );
+        attemptAsync(handedContext, extents, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
+            if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+                l.onResponse(attempt.result());
+                return;
+            }
+            // See discoverSplits: a prefix that did not cover the demand would answer short, so it is discarded.
+            LOGGER.debug(
+                () -> Strings.format(
+                    "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",
+                    handedContext.metadata() == null ? "?" : handedContext.metadata().location(),
+                    handedContext.rowLimit()
+                )
+            );
+            attemptAsync(handedContext, ListingExtents.UNBOUNDED, requestedExecutor, l.map(Attempt::result));
+        }));
+    }
+
+    /** One async pass: list under {@code extents} off the calling thread, then plan over what was listed. */
+    private void attemptAsync(
+        SplitDiscoveryContext handedContext,
+        ListingExtents extents,
+        Executor requestedExecutor,
+        ActionListener<Attempt> listener
+    ) {
         discoveryFanOutExecutor(requestedExecutor).execute(
-            // UNBOUNDED, not the demand's extents: a bounded attempt needs the retry that discoverSplits performs,
-            // and threading a second listing and a second plan through this listener chain is a separate change. So
-            // the async path lists in full and is correct but not yet faster.
             ActionRunnable.wrap(
                 listener,
-                resolved -> planSplitsAsync(overTheQuerysFileSet(handedContext, ListingExtents.UNBOUNDED), requestedExecutor, resolved)
+                attempted -> planSplitsAsync(overTheQuerysFileSet(handedContext, extents), requestedExecutor, attempted)
             )
         );
     }
 
+    /**
+     * Whether the planned files hold at least the rows the query asked for, by the budget's own arithmetic replayed
+     * over what was planned. Replayed rather than read off the budget that stopped the scan, because on the async path
+     * that budget lives inside the gather and never reaches here; the same {@link RowBudget} rules - including every
+     * way it fails closed - decide both, so the two cannot disagree about what counts.
+     */
+    private boolean coversTheDemand(SplitDiscoveryContext context, List<PlanResult> planResults) {
+        FileList fileList = context.fileList();
+        RowBudget replay = RowBudget.of(
+            context,
+            fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), context.config()) : null
+        );
+        for (PlanResult planned : planResults) {
+            replay.account(planned);
+        }
+        return replay.satisfied();
+    }
+
     /** Phase-1 filtering and the Phase-2 fan-out, over a context whose file set is the query's own. */
-    private void planSplitsAsync(SplitDiscoveryContext context, Executor requestedExecutor, ActionListener<SplitDiscoveryResult> listener) {
+    private void planSplitsAsync(SplitDiscoveryContext context, Executor requestedExecutor, ActionListener<Attempt> listener) {
         final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();
@@ -930,7 +974,14 @@ public class FileSplitProvider implements SplitProvider {
             SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()));
+                // No rows were planned, so a demand above zero was not covered; see the sync path's same exit.
+                listener.onResponse(
+                    new Attempt(
+                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                        fileList.isTruncated(),
+                        false
+                    )
+                );
                 return;
             }
 
@@ -940,10 +991,7 @@ public class FileSplitProvider implements SplitProvider {
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
             splitDiscoveryCpuNanos.set(0L);
             Executor fanOut = recordingDiscoveryCpu(withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled));
-            ActionListener<SplitDiscoveryResult> completion = ActionListener.runAfter(
-                listener,
-                () -> StorageProviderCache.closeLease(hoistedProvider)
-            );
+            ActionListener<Attempt> completion = ActionListener.runAfter(listener, () -> StorageProviderCache.closeLease(hoistedProvider));
             gatherSkippingCachedFooters(
                 batch,
                 hoistedProvider,
@@ -964,7 +1012,11 @@ public class FileSplitProvider implements SplitProvider {
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
                                 completion.onResponse(
-                                    resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get())
+                                    new Attempt(
+                                        resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                                        fileList.isTruncated(),
+                                        coversTheDemand(context, planResults)
+                                    )
                                 );
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));

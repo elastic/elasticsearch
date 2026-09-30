@@ -94,9 +94,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // SNAPSHOT excluded: restoring datasets before their parent data sources have credentials re-entered would
-        // produce broken references. Datasets should be re-created after credentials are restored.
-        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override

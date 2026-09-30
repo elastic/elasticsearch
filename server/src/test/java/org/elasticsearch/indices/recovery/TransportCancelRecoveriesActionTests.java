@@ -76,7 +76,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             Settings.builder()
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build(),
-            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING)
+            Set.of(
+                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+                ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(

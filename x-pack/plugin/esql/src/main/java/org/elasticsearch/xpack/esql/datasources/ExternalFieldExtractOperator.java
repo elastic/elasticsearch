@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.util.List;
@@ -152,6 +153,7 @@ public class ExternalFieldExtractOperator implements Operator {
     private final LongAdder pagesProcessed = new LongAdder();
     private final LongAdder rowsExtracted = new LongAdder();
     private final LongAdder extractNanos = new LongAdder();
+    private final LongAdder extractCpuNanos = new LongAdder();
 
     private Page prev;
     private boolean finished;
@@ -213,6 +215,7 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
         long start = System.nanoTime();
+        long cpuStart = ThreadCpuTimer.currentNanos();
         try {
             Page out = materialize(page);
             rowsExtracted.add(out.getPositionCount());
@@ -220,13 +223,16 @@ public class ExternalFieldExtractOperator implements Operator {
         } finally {
             Releasables.closeExpectNoException(page::releaseBlocks);
             extractNanos.add(System.nanoTime() - start);
+            if (cpuStart >= 0) {
+                extractCpuNanos.add(ThreadCpuTimer.elapsedNanos(cpuStart));
+            }
             pagesProcessed.increment();
         }
     }
 
     @Override
     public Status status() {
-        return new Status(pagesProcessed.sum(), rowsExtracted.sum(), extractNanos.sum());
+        return new Status(pagesProcessed.sum(), rowsExtracted.sum(), extractNanos.sum(), extractCpuNanos.sum());
     }
 
     /**
@@ -354,15 +360,18 @@ public class ExternalFieldExtractOperator implements Operator {
         );
 
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+        private static final TransportVersion ESQL_EXTRACT_CPU_NANOS = TransportVersion.fromName("esql_extract_cpu_nanos");
 
         private final long pagesProcessed;
         private final long rowsExtracted;
         private final long extractNanos;
+        private final long extractCpuNanos;
 
-        public Status(long pagesProcessed, long rowsExtracted, long extractNanos) {
+        public Status(long pagesProcessed, long rowsExtracted, long extractNanos, long extractCpuNanos) {
             this.pagesProcessed = pagesProcessed;
             this.rowsExtracted = rowsExtracted;
             this.extractNanos = extractNanos;
+            this.extractCpuNanos = extractCpuNanos;
         }
 
         Status(StreamInput in) throws IOException {
@@ -378,6 +387,7 @@ public class ExternalFieldExtractOperator implements Operator {
                 rowsExtracted = 0L;
                 extractNanos = 0L;
             }
+            extractCpuNanos = in.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -386,6 +396,9 @@ public class ExternalFieldExtractOperator implements Operator {
                 out.writeVLong(pagesProcessed);
                 out.writeVLong(rowsExtracted);
                 out.writeVLong(extractNanos);
+            }
+            if (out.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS)) {
+                out.writeVLong(extractCpuNanos);
             }
         }
 
@@ -409,12 +422,22 @@ public class ExternalFieldExtractOperator implements Operator {
             return extractNanos;
         }
 
+        public long extractCpuNanos() {
+            return extractCpuNanos;
+        }
+
+        @Override
+        public long readCpuNanos() {
+            return extractCpuNanos;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field("pages_processed", pagesProcessed);
             builder.field("rows_extracted", rowsExtracted);
             builder.field("extract_nanos", extractNanos);
+            builder.field("extract_cpu_nanos", extractCpuNanos);
             return builder.endObject();
         }
 
@@ -427,12 +450,15 @@ public class ExternalFieldExtractOperator implements Operator {
                 return false;
             }
             Status status = (Status) o;
-            return pagesProcessed == status.pagesProcessed && rowsExtracted == status.rowsExtracted && extractNanos == status.extractNanos;
+            return pagesProcessed == status.pagesProcessed
+                && rowsExtracted == status.rowsExtracted
+                && extractNanos == status.extractNanos
+                && extractCpuNanos == status.extractCpuNanos;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesProcessed, rowsExtracted, extractNanos);
+            return Objects.hash(pagesProcessed, rowsExtracted, extractNanos, extractCpuNanos);
         }
 
         @Override

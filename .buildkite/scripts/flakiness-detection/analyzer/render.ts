@@ -1,4 +1,4 @@
-import type { FailureKind, FlakinessReport } from "./analyze.ts";
+import type { FailureKind, FlakinessReport } from "./junit-reports-analyzer.ts";
 
 // Buildkite rejects annotation bodies larger than ~1 MiB.
 const MAX_FAILING_ROWS = 100;
@@ -27,13 +27,13 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false): st
   const lines: string[] = [];
   lines.push("## Flakiness summary");
   lines.push("");
-  // The pre-flight compile gate failed, so every batch was skipped and the
+  // The compile phase failed, so every batch was skipped and the
   // totals below are all zero. Explain that up front so the run does not read
   // as a clean pass.
   if (buildFailed) {
     lines.push("> ⚠️ One or more of the affected test source sets failed to compile, so *all*");
-    lines.push("> flakiness re-runs were skipped - they share a single pre-flight compile gate.");
-    lines.push("> See the precompile step's log for the specific compile error; this makes no");
+    lines.push("> flakiness re-runs were skipped - they all depend on one compile of those source sets.");
+    lines.push("> See the `resolve · compile · scan` step's log for the compile error; this makes no");
     lines.push("> claim about the rest of the build.");
     lines.push("");
   }

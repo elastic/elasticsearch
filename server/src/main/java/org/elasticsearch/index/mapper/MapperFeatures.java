@@ -179,7 +179,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, BBQ_DISK_BYTE_SUPPORT, ASH_QUANTIZATION_TYPE_SUPPORT);
     }
 
     @Override
@@ -275,8 +275,6 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
             DOC_VALUES_NULLABILITY,
             DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING,
-            BBQ_DISK_BYTE_SUPPORT,
-            ASH_QUANTIZATION_TYPE_SUPPORT,
             DOC_VALUES_ON_FAILURE,
             COLUMNAR_BARE_NULL_IS_ABSENCE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,

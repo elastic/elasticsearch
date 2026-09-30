@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -1026,6 +1027,104 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endObject();
             b.endObject();
         })));
+    }
+
+    public void testBBQDiskByteRejectedWhenFeatureUnsupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(
+            f -> f.equals(MapperFeatures.BBQ_DISK_BYTE_SUPPORT) == false
+        ).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("element_type", "byte")
+                    .field("dims", 8)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping)
+        );
+        assertThat(e.getMessage(), containsString("[element_type] [byte] is not supported with index type [bbq_disk]"));
+        assertThat(e.getMessage(), containsString("until all nodes in the cluster support it"));
+
+        // recovery of an already-created mapping must always succeed, even without the cluster feature
+        merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertEquals(ElementType.BYTE, mapper.fieldType().getElementType());
+    }
+
+    public void testBBQDiskByteAcceptedWhenFeatureSupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("element_type", "byte")
+                    .field("dims", 8)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertEquals(ElementType.BYTE, mapper.fieldType().getElementType());
+    }
+
+    public void testBBQDiskAshRejectedWhenFeatureUnsupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(
+            f -> f.equals(MapperFeatures.ASH_QUANTIZATION_TYPE_SUPPORT) == false
+        ).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 64)
+                    .field("index", true)
+                    .field("similarity", "max_inner_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("quantization_type", "ash")
+                    .endObject()
+            )
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping)
+        );
+        assertThat(e.getMessage(), containsString("quantization_type 'ash' is not supported until all nodes in the cluster support it"));
+
+        // recovery of an already-created mapping must always succeed, even without the cluster feature
+        merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(DenseVectorFieldMapper.class));
+    }
+
+    public void testBBQDiskAshAcceptedWhenFeatureSupported() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+        String mapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 64)
+                    .field("index", true)
+                    .field("similarity", "max_inner_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("quantization_type", "ash")
+                    .endObject()
+            )
+        );
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
     }
 
     public void testRescoreVectorForNonQuantized() {

@@ -6211,6 +6211,63 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A dataset whose error policy may drop rows declines the prefix. Under skip_row or null_field a unit's record
+     * count is what will be decoded, not what will be emitted, so rows the budget counted may never arrive: a prefix
+     * the budget called covered could still answer short. The policy is known before anything is listed.
+     */
+    public void testAnErrorPolicyThatDropsRowsDeclinesThePrefix() throws Exception {
+        for (String mode : new String[] { "skip_row", "null_field" }) {
+            Map<String, byte[]> payloads = new HashMap<>();
+            List<StorageEntry> everyFile = twoParquetFiles(payloads);
+            AtomicInteger listings = new AtomicInteger();
+            try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+                FileSplitProvider provider = rangeAwareProvider(
+                    countingRowCountReader(new AtomicInteger(), 10),
+                    null,
+                    ONE_FILE_FIRST,
+                    createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                    new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null)
+                );
+                SplitDiscoveryContext handed = withConfig(
+                    overAPrefixOfDemanding(everyFile, 1),
+                    Map.of(ErrorPolicy.CONFIG_ERROR_MODE, mode, ErrorPolicy.CONFIG_MAX_ERRORS, 10)
+                );
+
+                SplitDiscoveryResult result = provider.discoverSplits(handed);
+
+                assertEquals(mode + ": one listing, of the whole dataset", 1, listings.get());
+                assertFalse(mode + ": and it is not a prefix", result.fileSet().isTruncated());
+            }
+        }
+    }
+
+    /**
+     * A dataset whose schema listing was already the whole thing is untouched by any of this: discovery does not list,
+     * does not bound, and reads what it was handed. The regression guard for every mode that lists everything -
+     * union_by_name, a declared mapping, anything demanding statistics.
+     */
+    public void testACompleteListingIsNeitherRelistedNorBounded() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicInteger listings = new AtomicInteger();
+        FileList complete = GlobExpander.fileListOf(everyFile, "s3://b/*.parquet");
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                countingRowCountReader(new AtomicInteger(), 10),
+                null,
+                ONE_FILE_FIRST,
+                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                new DatasetListingService(ONE_FILE_FIRST, cache, null, null, null)
+            );
+
+            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfDemanding(everyFile, 1).withScanFileSet(complete));
+
+            assertEquals("a complete listing is the file set: nothing is listed", 0, listings.get());
+            assertSame("and it is read as handed", complete, result.fileSet());
+        }
+    }
+
+    /**
      * The bounded attempt is a guess, so the arithmetic at its boundary is what decides whether an answer is short.
      * One case per row, each naming what it pins. {@code rowsPerFile} is 10 throughout, so the demand alone moves the
      * boundary.

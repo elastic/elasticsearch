@@ -306,14 +306,17 @@ public final class ExternalSourceSettings {
      * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower
      * it and a query whose demand the prefix cannot cover pays two listings; raise it and the first attempt costs more
      * pages. Either way the answer is the same.
+     * <p>
+     * Not dynamic, unlike the caps below. They are read live because a cap lowered at runtime has to start refusing;
+     * this is read from the settings the split provider was built with, so marking it dynamic would accept a change
+     * that then did nothing.
      */
     public static final Setting<Integer> FIRST_ATTEMPT_LISTING_FILES = Setting.intSetting(
         "esql.external.first_attempt_listing_files",
         1000,
         1,
         1000000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(

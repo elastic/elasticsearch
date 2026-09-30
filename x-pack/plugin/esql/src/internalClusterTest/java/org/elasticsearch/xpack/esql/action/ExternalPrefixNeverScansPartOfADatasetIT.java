@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,11 +42,69 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDataSourceIT {
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // One file on discovery's first attempt, so the retry is reachable from a test whose datasets are small.
+        // Read when the split provider is built, which is why it is set here rather than updated at runtime.
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1)
+            .build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(ParquetDataSourcePlugin.class, CsvDataSourcePlugin.class);
     }
 
     /** The same, in the shape a real partitioned dataset has: hive folders and a globstar pattern. */
+    /**
+     * End to end over a real node, with discovery's own listing bounded to one file so the retry actually fires.
+     * <p>
+     * Every other test here bounds the schema's listing; this one bounds the listing split discovery performs for
+     * itself, which is the only reason a query is fast. That listing is a guess at how much of the dataset the demand
+     * needs, and a wrong guess must cost a second listing rather than rows: 35 rows over twelve ten-row files cannot
+     * come from one, so the whole stack has to notice and list again. If it does not, this returns 10.
+     */
+    public void testABoundedDiscoveryListingStillAnswersTheWholeLimit() throws Exception {
+        Path dir = createTempDir();
+        int files = 12;
+        int rowsPerFile = 10;
+        for (int h = 0; h < files; h++) {
+            Path hour = dir.resolve("year=2026").resolve(String.format(Locale.ROOT, "hour=%02d", h));
+            Files.createDirectories(hour);
+            writeParquet(hour.resolve("part-000.parquet"), rowsPerFile, rowsPerFile);
+        }
+
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("partition_detection", "hive");
+        settings.put("partition_sample_size", 2);
+        String dataset = registerLocalFileDataset("bounded_discovery_ds", dir.toUri() + "**/*.parquet", settings);
+
+        // Covered by one file, so the prefix stands and this is the fast path.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 5"))) {
+            assertThat("a demand one file covers is answered", getValuesList(response).size(), equalTo(5));
+        }
+        // Not covered by one file, so the prefix is discarded and the dataset is listed again.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 35"))) {
+            assertThat("a demand one file cannot cover is not answered short", getValuesList(response).size(), equalTo(35));
+        }
+        // More than the dataset holds: every row, and no more.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 500"))) {
+            assertThat(getValuesList(response).size(), equalTo(files * rowsPerFile));
+        }
+        // And the partition column is right for every file, including the eleven the bounded attempt never listed.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*) BY hour | SORT hour"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("one group per folder, none null", rows.size(), equalTo(files));
+            for (List<Object> row : rows) {
+                assertThat(row.get(1), notNullValue());
+                assertThat(((Number) row.get(0)).longValue(), equalTo((long) rowsPerFile));
+            }
+        }
+    }
+
     public void testEveryFileIsReadWhenTheSchemaListingWasAPrefixOfAPartitionedDataset() throws Exception {
         Path dir = createTempDir();
         int hours = 12;

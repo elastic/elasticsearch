@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -19,7 +20,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class AssignmentStatsTests extends AbstractWireSerializingTestCase<AssignmentStats> {
 
@@ -92,7 +95,10 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(0, 100),
             avgInferenceTimeLastPeriod,
             randomLongBetween(0, 100),
-            randomLongBetween(0, 100)
+            // Native RSS is sampled from periodic process stats independently of inference traffic, so it may be present
+            // even when this node has served no inferences yet, or absent when no native sample has arrived regardless.
+            randomBoolean() ? null : randomLongBetween(1, 1_000_000),
+            randomBoolean() ? null : randomLongBetween(1, 1_000_000)
         );
     }
 
@@ -221,6 +227,61 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         AssignmentStats original = randomDeploymentStats();
         AssignmentStats copy = new AssignmentStats(original);
         assertThat(copy, equalTo(original));
+    }
+
+    public void testToXContentReportsNativeRssIndependentlyOfInferenceCount() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node_0");
+        // An idle deployment (inference_count == 0) with a native RSS sample: the periodic RSS stats must still be
+        // reported, even though the inference-timing averages are correctly suppressed for a zero inference count.
+        AssignmentStats.NodeStats idleWithRss = AssignmentStats.NodeStats.forStartedState(
+            node,
+            0, // inferenceCount - idle
+            null, // avgInferenceTime
+            null, // avgInferenceTimeExcludingCacheHit
+            0,
+            0,
+            0,
+            0,
+            0,
+            null, // lastAccess
+            Instant.now(),
+            randomIntBetween(1, 16),
+            randomIntBetween(1, 16),
+            0,
+            0,
+            null, // avgInferenceTimeLastPeriod
+            0,
+            1234L, // average RSS - a real native sample
+            5678L // peak RSS - a real native sample
+        );
+        String json = Strings.toString(idleWithRss);
+        assertThat(json, containsString("\"average_inference_process_memory_rss_bytes\":1234"));
+        assertThat(json, containsString("\"peak_inference_process_memory_rss_bytes\":5678"));
+        assertThat(json, not(containsString("average_inference_time_ms")));
+
+        // No native sample yet (both null): neither RSS field is emitted.
+        AssignmentStats.NodeStats idleWithoutRss = AssignmentStats.NodeStats.forStartedState(
+            node,
+            0,
+            null,
+            null,
+            0,
+            0,
+            0,
+            0,
+            0,
+            null,
+            Instant.now(),
+            randomIntBetween(1, 16),
+            randomIntBetween(1, 16),
+            0,
+            0,
+            null,
+            0,
+            null,
+            null
+        );
+        assertThat(Strings.toString(idleWithoutRss), not(containsString("inference_process_memory_rss_bytes")));
     }
 
     @Override

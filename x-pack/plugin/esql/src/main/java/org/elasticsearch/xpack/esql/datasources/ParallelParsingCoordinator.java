@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -26,13 +27,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -423,7 +427,8 @@ public final class ParallelParsingCoordinator {
             splitIsFileFinal,
             metrics,
             null,
-            ExternalReadCounters.NOOP
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -458,7 +463,8 @@ public final class ParallelParsingCoordinator {
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
-        ExternalReadCounters readCounters
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -499,6 +505,7 @@ public final class ParallelParsingCoordinator {
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
             .informationalWarningSink(warningSink)
+            .readCounters(formatCounters)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -530,7 +537,8 @@ public final class ParallelParsingCoordinator {
             splitIsFileFinal,
             metrics,
             warningSink,
-            readCounters
+            readCounters,
+            formatCounters
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -699,6 +707,8 @@ public final class ParallelParsingCoordinator {
         @Nullable
         private final Consumer<String> warningSink;
         private final ExternalReadCounters readCounters;
+        @Nullable
+        private final FormatReadCounters formatCounters;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -712,6 +722,13 @@ public final class ParallelParsingCoordinator {
          */
         private final BlockingQueue<Page> sharedQueue;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
+        /**
+         * Live file-level GETs. Key is the inner {@code newStream()} instance (not the unregister
+         * filter the reader holds) so provider abort (S3 {@code Abortable}) still matches. Value is
+         * always the iterator's file-level {@code storageObject}, never the range view — storing
+         * {@code this} would re-enter {@link RegisteringRangeStorageObject#abortStream}.
+         */
+        private final ConcurrentMap<InputStream, StorageObject> liveStreams = new ConcurrentHashMap<>();
         /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
         private final AtomicInteger remainingSegments;
         private final CountDownLatch allDone;
@@ -752,7 +769,8 @@ public final class ParallelParsingCoordinator {
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
-            ExternalReadCounters readCounters
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -770,6 +788,7 @@ public final class ParallelParsingCoordinator {
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
             this.readCounters = readCounters;
+            this.formatCounters = formatCounters;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -816,7 +835,7 @@ public final class ParallelParsingCoordinator {
                     // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down). The
                     // record method self-guards, so no inner try/catch is needed here.
                     metrics.recordPoolRejected();
-                    firstError.compareAndSet(null, e);
+                    recordError(e);
                     finishSegment();
                     segIdx += maxConcurrentSegments;
                 }
@@ -831,7 +850,7 @@ public final class ParallelParsingCoordinator {
                 }
                 readSegment(segmentIndex, offset, length);
             } catch (Exception e) {
-                firstError.compareAndSet(null, e);
+                recordError(e);
             } finally {
                 finishSegment();
                 // Slide the window: this stream is now closed, so the segment maxConcurrentSegments ahead may open.
@@ -850,7 +869,7 @@ public final class ParallelParsingCoordinator {
          */
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
-            StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
+            StorageObject segObj = new RegisteringRangeStorageObject(storageObject, offset, length);
             // Absolute file offset of this segment's first byte: segment offsets are relative to this
             // (possibly macro-split) storage object, so add its base file offset. The reader uses it to
             // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
@@ -897,6 +916,7 @@ public final class ParallelParsingCoordinator {
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
                 .informationalWarningSink(warningSink)
+                .readCounters(formatCounters)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its
@@ -1106,6 +1126,11 @@ public final class ParallelParsingCoordinator {
             closed = true;
             // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
             signalReady();
+            // Abort leftover GETs before waiting for workers. Skip on a clean drain — those streams
+            // already unregistered from close(). Otherwise LIMIT/cancel sits on allDone.await(60s).
+            if (cleanCompletion == false) {
+                abortLiveStreams();
+            }
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
             if (buffered != null) {
@@ -1135,6 +1160,92 @@ public final class ParallelParsingCoordinator {
             Page p;
             while ((p = sharedQueue.poll()) != null) {
                 p.releaseBlocks();
+            }
+        }
+
+        private void recordError(Throwable e) {
+            if (firstError.compareAndSet(null, e)) {
+                abortLiveStreams();
+                signalReady();
+            }
+        }
+
+        private InputStream registerLiveStream(InputStream in) {
+            liveStreams.put(in, storageObject);
+            LiveStream live = new LiveStream(in);
+            if (closed || firstError.get() != null) {
+                abortLiveStream(in);
+            }
+            return live;
+        }
+
+        private void abortLiveStreams() {
+            for (InputStream in : liveStreams.keySet().toArray(new InputStream[0])) {
+                abortLiveStream(in);
+            }
+        }
+
+        private void abortLiveStream(InputStream in) {
+            try {
+                abortRegistered(in);
+            } catch (Exception e) {
+                logger.warn("Failed to abort stream for [{}]", storageObject.path(), e);
+            }
+        }
+
+        private void abortRegistered(InputStream inner) throws IOException {
+            StorageObject owner = liveStreams.remove(inner);
+            if (owner != null) {
+                owner.abortStream(inner);
+            }
+        }
+
+        /**
+         * Range view that registers the exact inner {@code newStream()} instance so sibling abort
+         * can reach the provider abort path. The reader receives {@link LiveStream}; abort unwraps.
+         */
+        private final class RegisteringRangeStorageObject extends RangeStorageObject {
+            RegisteringRangeStorageObject(StorageObject delegate, long offset, long length) {
+                super(delegate, offset, length);
+            }
+
+            @Override
+            public InputStream newStream() throws IOException {
+                return registerLiveStream(super.newStream());
+            }
+
+            @Override
+            public InputStream newStream(long position, long rangeLength) throws IOException {
+                return registerLiveStream(super.newStream(position, rangeLength));
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                if (stream instanceof LiveStream live) {
+                    abortRegistered(live.inner());
+                    return;
+                }
+                super.abortStream(stream);
+            }
+        }
+
+        /** Unregisters the inner GET on close. Abort must use {@link #inner()}, not this filter. */
+        private final class LiveStream extends FilterInputStream {
+            private final InputStream inner;
+
+            LiveStream(InputStream inner) {
+                super(inner);
+                this.inner = inner;
+            }
+
+            InputStream inner() {
+                return inner;
+            }
+
+            @Override
+            public void close() throws IOException {
+                liveStreams.remove(inner);
+                super.close();
             }
         }
     }

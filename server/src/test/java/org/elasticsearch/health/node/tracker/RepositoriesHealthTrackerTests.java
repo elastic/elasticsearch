@@ -10,7 +10,10 @@
 package org.elasticsearch.health.node.tracker;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.node.HealthIndicatorDisplayValues;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.repositories.InvalidRepository;
@@ -23,6 +26,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +41,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     public void initRepositoriesHealthTracker() throws Exception {
         repositoriesService = mock(RepositoriesService.class);
 
-        repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService);
+        repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, DefaultProjectResolver.INSTANCE);
     }
 
     public void testGetHealthNoRepos() {
@@ -87,6 +91,48 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertEquals(repo.name(), health.invalidRepositories().get(0));
     }
 
+    public void testGetHealthWithUnknownTypeAndMultiProjectCluster() {
+        repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, TestProjectResolvers.allProjects());
+        var repo = createRepositoryMetadata();
+        var projectId = randomUniqueProjectId();
+        when(repositoriesService.getRepositories()).thenReturn(List.of(new UnknownTypeRepository(projectId, repo)));
+
+        var health = repositoriesHealthTracker.determineCurrentHealth();
+
+        assertEquals(1, health.unknownRepositories().size());
+        assertEquals(
+            HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repo.name(), true),
+            health.unknownRepositories().get(0)
+        );
+        assertTrue(health.invalidRepositories().isEmpty());
+    }
+
+    public void testGetHealthWithSameRepositoryNameInDifferentProjects() {
+        repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService, TestProjectResolvers.allProjects());
+        var repoName = randomAlphaOfLength(10);
+        var repoA = createRepositoryMetadata(repoName);
+        var repoB = createRepositoryMetadata(repoName);
+        var projectA = randomUniqueProjectId();
+        var projectB = randomUniqueProjectId();
+        when(repositoriesService.getRepositories()).thenReturn(
+            List.of(
+                new UnknownTypeRepository(projectA, repoA),
+                new InvalidRepository(projectB, repoB, new RepositoryException(repoName, "Test"))
+            )
+        );
+
+        var health = repositoriesHealthTracker.determineCurrentHealth();
+
+        assertThat(
+            health.unknownRepositories(),
+            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectA, repoName, true))
+        );
+        assertThat(
+            health.invalidRepositories(),
+            containsInAnyOrder(HealthIndicatorDisplayValues.getRepositoryDisplayName(projectB, repoName, true))
+        );
+    }
+
     public void testSetBuilder() {
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new RepositoriesHealthInfo(List.of(), List.of());
@@ -97,9 +143,13 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     }
 
     private static RepositoryMetadata createRepositoryMetadata() {
+        return createRepositoryMetadata(randomAlphaOfLength(10));
+    }
+
+    private static RepositoryMetadata createRepositoryMetadata(String name) {
         var generation = randomNonNegativeLong() / 2L;
         return new RepositoryMetadata(
-            randomAlphaOfLength(10),
+            name,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Settings.EMPTY,

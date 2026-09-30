@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
@@ -457,6 +458,60 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("cannot be both snapshotOnly and serverlessOnly"));
     }
 
+    public void testAppliesToRefusesSinceBecauseItCarriesTheVersionItself() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
+                "some_setting",
+                "serverless: unavailable\nstack: experimental 9.6+",
+                false,
+                "9.6.0"
+            )
+        );
+        assertThat(e.getMessage(), containsString("declares both applies_to and since"));
+    }
+
+    public void testAppliesToRefusesServerlessOnlyUnlessTheStackAxisSaysUnavailable() {
+        // checkAppliesToIsSelfSufficient's own comment owns why this rule exists; these cells pin its arms.
+        IllegalStateException omitted = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga", true, "")
+        );
+        assertThat(omitted.getMessage(), containsString("does not state stack: unavailable"));
+
+        // Naming the axis is not enough: a stack value that contradicts the derived badge is what the rule exists
+        // to stop, and a predicate that only looked for "stack:" would publish it.
+        IllegalStateException contradicted = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: ga", true, "")
+        );
+        assertThat(contradicted.getMessage(), containsString("does not state stack: unavailable"));
+
+        // The accepting arm, proven by a call that returns: the axis states what renderSettingDefinition derives.
+        DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: unavailable", true, "");
+    }
+
+    public void testEverySettingSatisfiesTheAppliesToRule() throws IllegalAccessException {
+        // The corpus calls the same rule the renderer calls, rather than restating its conditions here, so the two
+        // cannot drift. Docs generation would throw on a violation; this names the offender instead.
+        for (Field field : QuerySettings.class.getFields()) {
+            if (QuerySettingDef.class.isAssignableFrom(field.getType()) == false) {
+                continue;
+            }
+            Param param = field.getAnnotation(Param.class);
+            if (param == null) {
+                continue;
+            }
+            QuerySettingDef<?> def = asInstanceOf(QuerySettingDef.class, field.get(null));
+            DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
+                param.name(),
+                param.applies_to(),
+                def.serverlessOnly(),
+                param.since()
+            );
+        }
+    }
+
     public void testBuildRejectsMissingStreamFormat() {
         // object(...) sets a JSON/expression reader but no stream format; build() must reject it.
         var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.object("x", p -> p.text(), ex -> null).build());
@@ -683,7 +738,8 @@ public class QuerySettingsTests extends ESTestCase {
                     "esql.query.settings.time_zone",
                     "esql.query.settings.unmapped_fields",
                     "esql.query.settings.column_metadata",
-                    "esql.query.settings.approximation"
+                    "esql.query.settings.approximation",
+                    "esql.query.settings.wildcards_match_datasets"
                 )
             )
         );
@@ -895,6 +951,59 @@ public class QuerySettingsTests extends ESTestCase {
                 .get(QuerySettings.COLUMN_METADATA),
             equalTo(Boolean.FALSE)
         );
+    }
+
+    public void testWildcardsMatchDatasetsDefaultsToFalse() {
+        // Nothing supplied it anywhere (no cluster setting, no body, no SET) — a wildcard matches no dataset,
+        // which is the behavior a FROM pattern had before datasets existed.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_DATASETS), equalTo(Boolean.FALSE));
+    }
+
+    public void testWildcardsMatchDatasetsClusterDefaultApplies() {
+        // The operator's cluster-wide default supplies the value when the query says nothing.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_DATASETS, "true"),
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_DATASETS), equalTo(Boolean.TRUE));
+    }
+
+    public void testWildcardsMatchDatasetsRequestBodyOverridesClusterDefault() {
+        // The operator turned it on cluster-wide; this calling application wants the index-only meaning back.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.WILDCARDS_MATCH_DATASETS, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_DATASETS, "true"),
+            Settings.EMPTY,
+            requestParams,
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_DATASETS), equalTo(Boolean.FALSE));
+    }
+
+    public void testWildcardsMatchDatasetsQuerySetOverridesClusterDefaultAndBody() {
+        // The full chain: the operator leaves it off, the calling application leaves it off, and the query author
+        // opts this one query into wildcard discovery. The narrowest scope of authority wins.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.WILDCARDS_MATCH_DATASETS, Boolean.FALSE);
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "wildcards_match_datasets", new Literal(Source.EMPTY, true, DataType.BOOLEAN))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_DATASETS, "false"),
+            Settings.EMPTY,
+            requestParams,
+            statement,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_DATASETS), equalTo(Boolean.TRUE));
     }
 
     public void testDerivedClusterSettingIsDynamicAndNodeScoped() {

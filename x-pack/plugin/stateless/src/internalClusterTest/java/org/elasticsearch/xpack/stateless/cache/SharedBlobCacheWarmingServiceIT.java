@@ -13,6 +13,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -63,6 +64,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -78,6 +80,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -207,7 +210,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             if (bccInfo.uploadedBcc().primaryTermAndGeneration().generation() == generationToBlock) {
                 logger.info("--> block object store repository");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -272,7 +275,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
             var transportService = MockTransportService.getInstance(indexNodeB);
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -450,7 +453,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 logger.info("--> fail object store repository after warming");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 long generationToBlock = randomLongBetween(2, generation);
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1169,7 +1172,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var stoppedLatch = new CountDownLatch(1);
         final var restartLatch = new CountDownLatch(1);
-        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
+        // We want to stall the getConnection for GetVBCCChunk request which is right after a successful registerCommitForRecovery
         final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
@@ -1193,14 +1196,30 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
-        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action) && stoppedLatch.getCount() > 0) {
-                shouldDelayGetConnection.set(true);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        // Only arm the stall once the commit registration succeeds. A registration can fail with a retryable error,
+        // in which case the search node retries it, and we must not stall the retry's getConnection.
+        // Note that ShardNotFoundException is a valid (and retriable) response to the RegisterCommitForRecovery call,
+        // because the clusterStateVersion in the request comes from a clusterService.state() call,
+        // which might observe the previous cluster state, because RegisterCommitForRecovery is triggered for shard recoveries
+        // (on the generic thread pool), which are triggered from cluster state appliers,
+        // which themselves see the applied state before it's exposed to clusterService.state().
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                        if (stoppedLatch.getCount() > 0) {
+                            shouldDelayGetConnection.set(true);
+                        }
+                        l.onResponse(response);
+                    }).delegateResponse((l, exception) -> {
+                        logger.error("--> encountered unexpected exception during recovery commit registration", exception);
+                    })),
+                    task
+                );
+            });
 
+        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
         final AtomicBoolean restartOnce = new AtomicBoolean(false);
         final IndicesService searchNodeIndicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         searchNodeTransportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
@@ -1391,7 +1410,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         logger.info("--> fail object store repository after access to commits after warming");
         var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node2));
         var transportService = MockTransportService.getInstance(node2);
-        mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.PREFIX + ".*");
+        mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.PREFIX + ".*");
         mockRepository.setRandomControlIOExceptionRate(1.0);
         mockRepository.setRandomDataFileIOExceptionRate(1.0);
         mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1610,7 +1629,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingType -> {
             logger.info("Disabling object store access to generation {}", generationToBlock);
             if (Type.INDEXING == warmingType) {
-                String pattern = ".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
+                String pattern = ".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
                 final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 mockRepositoryB.setRandomIOExceptionPattern(pattern);
@@ -1628,7 +1647,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         runOnWarmingComplete(node, type, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);

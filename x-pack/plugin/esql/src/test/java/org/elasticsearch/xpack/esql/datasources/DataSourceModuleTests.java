@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -42,6 +43,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -159,6 +162,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock file storage provider for testing.
      */
     private static class MockFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("file");
@@ -300,6 +308,11 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class PayloadFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, byte[]> payloadByPath;
 
         PayloadFileStorageProvider(Map<String, byte[]> payloadByPath) {
@@ -335,6 +348,11 @@ public class DataSourceModuleTests extends ESTestCase {
                 throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
             }
             return new StorageObject() {
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(payload);
@@ -1251,6 +1269,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock storage provider for testing custom plugin registration.
      */
     private static class MockStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("custom");

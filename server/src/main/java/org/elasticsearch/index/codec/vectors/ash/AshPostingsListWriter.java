@@ -109,14 +109,11 @@ public class AshPostingsListWriter {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
 
         // Train W using primary assignments only.
-        float[] w = ashQuantizer.train(vectors, centroidGetter);
-
-        // Transpose W once for SIMD-friendly dot products during encoding
+        float[] wT = ashQuantizer.train(vectors, centroidGetter);
         int nDims = ashQuantizer.nDims(originalDim);
-        float[] wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
 
         // Store the projection matrix for later serialization
-        this.ashProjectionMatrix = new AshProjectionMatrix(w, originalDim, nDims);
+        this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims);
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);

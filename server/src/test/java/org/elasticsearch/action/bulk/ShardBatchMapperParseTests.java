@@ -789,4 +789,41 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             closeShards(shard);
         }
     }
+
+    /**
+     * When a {@code nullability=false, on_failure=IGNORE} field has an explicit null value
+     * ({@code f: null}), the columnar path must detect the violation. Since the column is present
+     * in the ESCF schema (with NULL type), {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
+     * throws via its {@code hasNullOrAbsentDoc()} check, triggering sequential fallback, which adds to
+     * {@code _ignored} via {@code enforceRequiredFields()}. This test verifies the fallback happens
+     * correctly.
+     *
+     * <p>Note: because the columnar path falls back to sequential for scalar nulls, {@code mapBatch}
+     * returns {@code null} here. The document is later processed by the sequential path.
+     */
+    public void testScalarNullCausesColumnarFallbackForNullabilityFalse() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":null}")), XContentType.JSON)) {
+                assertNull(
+                    "a nullability=false field with scalar null must cause columnar fallback (hasNullOrAbsentDoc check)",
+                    mapBatch(shard, items, batch)
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
 }

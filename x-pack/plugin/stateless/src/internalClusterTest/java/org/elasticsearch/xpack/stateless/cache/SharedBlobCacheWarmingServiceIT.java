@@ -648,7 +648,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
             // well below the slice size, so a re-evaluated slice is always large enough to be worth rescheduling
             .put(
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_TIMEOUT_SETTING.getKey(),
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(50)
             )
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)

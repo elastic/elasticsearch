@@ -399,10 +399,15 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_TIMEOUT_SETTING = Setting.timeSetting(
-        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_reevaluation_min_timeout",
+    /**
+     * Minimum re-evaluation slice that is worth rescheduling. When the remaining grace-period budget would produce a slice shorter than
+     * this value, the re-evaluation loop terminates and recovery resumes immediately. Setting this too low (approaching zero) risks a
+     * busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
+     */
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING = Setting.timeSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation_abort_threshold",
         TimeValue.timeValueMillis(300L),
-        TimeValue.ZERO,
+        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -488,7 +493,7 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
     private volatile boolean searchRecoveryWarmingTimeoutReevaluationEnabled;
-    private volatile TimeValue searchRecoveryReevaluationMinTimeout;
+    private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
 
@@ -629,8 +634,8 @@ public class SharedBlobCacheWarmingService {
             value -> this.searchRecoveryWarmingTimeoutReevaluationEnabled = value
         );
         clusterSettings.initializeAndWatch(
-            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_TIMEOUT_SETTING,
-            value -> this.searchRecoveryReevaluationMinTimeout = value
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+            value -> this.searchRecoveryReevaluationAbortThreshold = value
         );
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
@@ -1106,8 +1111,6 @@ public class SharedBlobCacheWarmingService {
      * {@link #searchRecoveryWarmingListener}; {@link TimeValue#ZERO} means do not await warming. Use {@link #awaitWarming()} to branch.
      *
      * <p>{@link #totalBudget}: when greater than zero, caps the total accumulated timeout across all re-evaluation slices.
-     * Applies only when the initial plan carries a budget; shutdown-computed plans use {@code 0} (no explicit cap — they terminate
-     * naturally as the grace-period deadline approaches zero).
      */
     public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
 
@@ -1212,13 +1215,18 @@ public class SharedBlobCacheWarmingService {
         final Runnable scheduleOrFireTimeout = new Runnable() {
             @Override
             public void run() {
+                // cancel() on the scheduled task is best-effort: if this command was already dequeued when cancel() ran,
+                // it executes anyway. Without this guard it would reschedule a new task that cancel() never sees.
+                if (race.isDone()) {
+                    return;
+                }
                 if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
-                    final SearchRecoveryTimeout newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
+                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
                     final long timeBudgetMs = initialPlan.totalBudget().millis();
                     final long sliceMs = timeBudgetMs > 0
                         ? Math.clamp(timeBudgetMs - totalOfflineWarmingTimeMs.get(), 0L, newPlan.timeout().millis())
                         : newPlan.timeout().millis();
-                    if (sliceMs >= searchRecoveryReevaluationMinTimeout.millis()) {
+                    if (sliceMs >= searchRecoveryReevaluationAbortThreshold.millis()) {
                         totalOfflineWarmingTimeMs.addAndGet(sliceMs);
                         latestTimeoutContext.set(newPlan.timeoutContext());
                         currentTimeoutTask.set(threadPool.schedule(this, TimeValue.timeValueMillis(sliceMs), threadPool.generic()));

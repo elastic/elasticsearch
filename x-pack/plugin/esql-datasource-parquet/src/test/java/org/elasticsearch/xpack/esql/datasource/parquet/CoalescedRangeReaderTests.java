@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.Byte
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -39,6 +41,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -179,6 +182,96 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("must fit in an int"));
     }
 
+    /**
+     * Two non-mergeable ranges: GET A fails immediately, GET B hangs until its handle is closed.
+     * The first-failure winner must close B's handle before B completes, and the listener must
+     * surface A's exception. Breaker returns to baseline (no leftover buffers).
+     */
+    public void testFirstFailureClosesSiblingInflightHandle() throws Exception {
+        IOException aFailure = new IOException("GET A failed");
+        AtomicBoolean bCancelled = new AtomicBoolean();
+        CountDownLatch bStarted = new CountDownLatch(1);
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        StorageObject storage = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(new byte[0]);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(new byte[(int) length]);
+            }
+
+            @Override
+            public long length() {
+                return 2_000_000;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://sibling-abort.parquet");
+            }
+
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (position == 0) {
+                    listener.onFailure(aFailure);
+                    return () -> {};
+                }
+                bStarted.countDown();
+                return () -> {
+                    bCancelled.set(true);
+                    listener.onFailure(new IOException("GET B cancelled"));
+                };
+            }
+        };
+
+        List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(1_000_000, 10));
+        CoalescedRangeReader.readCoalesced(storage, ranges, 0, breaker, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(CoalescedRangeResult result) {
+                result.release().close();
+                listenerDone.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerDone.countDown();
+            }
+        });
+
+        assertTrue("GET B must start so its handle exists to cancel", bStarted.await(5, TimeUnit.SECONDS));
+        assertTrue("sibling handle must be closed before B completes", bCancelled.get());
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        assertSame(aFailure, error.get());
+        assertEquals("circuit breaker still holds bytes after sibling abort", 0L, breaker.getUsed());
+    }
+
     public void testReadCoalescedParallelDispatch() throws Exception {
         byte[] data = new byte[1024];
         for (int i = 0; i < data.length; i++) {
@@ -187,6 +280,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         AtomicInteger asyncCallCount = new AtomicInteger();
         StorageObject storageObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -293,6 +391,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<Long> requestLengths = new ArrayList<>();
         StorageObject storageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
             }
@@ -392,6 +495,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     public void testReadCoalescedFailure() throws Exception {
         StorageObject failingObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new IOException("test failure");
             }
@@ -485,6 +593,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10));
 
         StorageObject shortReadObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
@@ -591,6 +704,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10), new ByteRange(5000, 10));
 
                 StorageObject injecting = new StorageObject() {
+                    @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
                     @Override
                     public InputStream newStream(long position, long length) {
                         throw new UnsupportedOperationException("async path only");
@@ -757,7 +875,10 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         cache.put(key, data);
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
-            cache.put(new FooterByteCache.Key("memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+            cache.put(
+                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256),
+                sequentialBytes(256)
+            );
         }
         assertNull(cache.get(key));
 
@@ -946,6 +1067,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     private static class CountingStorage implements StorageObject {
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
         private final byte[] data;
         final AtomicInteger asyncGets = new AtomicInteger();
         final AtomicInteger syncGets = new AtomicInteger();

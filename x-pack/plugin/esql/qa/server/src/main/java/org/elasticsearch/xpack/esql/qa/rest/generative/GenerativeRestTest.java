@@ -193,6 +193,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // throwing IllegalArgumentException via PackedValuesBlockHash
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
+        "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -204,7 +205,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
-        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 
@@ -219,6 +219,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "query value .* does not match the type .* of non-index-mapped field",
         // need to refine the MATCH / MATCH_PHRASE function generation: options on a non-index-mapped, non-TEXT field
         "Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[.*\\]",
+        // need to refine the MATCH generation: options other than lenient on a non-index-mapped, non-TEXT field
+        "\\[.*\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -873,11 +875,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
-     * Matches "Options are not supported for [MATCH|MATCH_PHRASE] function call on non-index-mapped[, non-TEXT] field [X]".
-     * This is the error MATCH/MATCH_PHRASE raises when called with options on a renamed/computed field.
+     * Captures field X from MATCH/MATCH_PHRASE option errors on a renamed or computed field.
      */
     private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
-        ".*Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[([^]]+)\\].*",
+        ".*(?:Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field"
+            + "|\\[.+\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field"
+            + ") \\[([^]]+)\\].*",
         Pattern.DOTALL
     );
 

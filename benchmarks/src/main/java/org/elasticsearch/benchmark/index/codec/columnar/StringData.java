@@ -222,6 +222,28 @@ public enum StringData {
     },
 
     /** A trace id: entirely distinct, and long enough that the values dominate the column. */
+    /**
+     * An opaque session identifier, with as many distinct values as a segment holds documents. A term is
+     * held about once per segment and about once per segment in every other segment too, which is the band
+     * where a segment's summary records nothing and the merged column holds the term often enough to name
+     * it. Its bytes do not compress, so escaping one costs its full length once per occurrence.
+     */
+    SESSION_ID {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final String[] vocabulary = new String[100_000];
+            final char[] alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+            final char[] chars = new char[32];
+            for (int i = 0; i < vocabulary.length; i++) {
+                for (int c = 0; c < chars.length; c++) {
+                    chars[c] = alphabet[random.nextInt(alphabet.length)];
+                }
+                vocabulary[i] = new String(chars);
+            }
+            return skewed(vocabulary, count, random, 0.0);
+        }
+    },
+
     TRACE_ID {
         @Override
         BytesRef[] generate(int count, Random random) {

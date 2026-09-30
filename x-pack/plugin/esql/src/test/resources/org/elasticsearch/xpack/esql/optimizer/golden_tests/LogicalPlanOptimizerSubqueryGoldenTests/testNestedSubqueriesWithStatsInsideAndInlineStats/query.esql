@@ -1,0 +1,4 @@
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10010 | STATS c1 = COUNT(*)),
+           (FROM employees | WHERE emp_no > 10090 | STATS c2 = COUNT(*)))
+| INLINE STATS total = COUNT(*)

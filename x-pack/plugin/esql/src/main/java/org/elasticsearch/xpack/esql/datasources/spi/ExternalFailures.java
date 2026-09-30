@@ -137,12 +137,11 @@ public final class ExternalFailures {
     }
 
     /**
-     * A bare filesystem location carries no scheme: an absolute POSIX path of at least two segments
-     * ({@code /data/x.csv}) or a Windows drive path ({@code C:\data}), at the start of the message or after a
-     * delimiter.
+     * A bare filesystem location carries no scheme: an absolute POSIX path ({@code /data}, {@code /data/x.csv}) or a
+     * Windows drive path ({@code C:\data}), at the start of the message or after a delimiter.
      */
     private static final Pattern ABSOLUTE_FILESYSTEM_PATH = Pattern.compile(
-        "(?:^|[\\s\\[(<'\"=,])(?:/[^\\s/\\[\\]()<>'\",]+){2,}|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
+        "(?:^|[\\s\\[(<'\"=,])/[^\\s/\\[\\]()<>'\",]+|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
     );
 
     private static boolean containsStoragePath(String msg) {
@@ -241,7 +240,7 @@ public final class ExternalFailures {
             // IOException messages from storage clients may embed full storage URIs. Log on this node
             // for debugging; do not chain t into the exception so its message and cause chain never
             // cross the wire.
-            logger.log(clientFailureLevel, () -> "External read failed with IO exception (cause logged, not forwarded)", t);
+            logger.log(clientFailureLevel, () -> "External read failed with a client error (cause logged, not forwarded)", t);
             ExternalClientException ioResult = new ExternalClientException(
                 "Failed to read external source: {}",
                 t.getClass().getSimpleName()

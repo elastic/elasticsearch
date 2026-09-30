@@ -493,7 +493,9 @@ public class ExternalFailuresTests extends ESTestCase {
             "Path is not a regular file: /data/private/x.csv",
             "cannot open [/srv/esql/in.parquet]",
             "Directory does not exist: C:\\data\\private",
-            "failed (/var/lib/es/x.orc)" }) {
+            "failed (/var/lib/es/x.orc)",
+            "/tmp",
+            "Directory does not exist: /secrets" }) {
             assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
         }
         for (String safe : new String[] {
@@ -501,8 +503,9 @@ public class ExternalFailuresTests extends ESTestCase {
             "Row [3] of [x.csv]: [3] columns, the schema has [2]",
             "content type application/json is not supported",
             "losing precision above 2^53",
-            "POST /_query failed",
-            "ratio 3/4" }) {
+            "read and/or write",
+            "ratio 3/4",
+            "delimiter [/]" }) {
             assertTrue(safe, ExternalFailures.safeForUserMessage(safe));
         }
     }

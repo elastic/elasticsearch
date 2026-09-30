@@ -404,10 +404,16 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            // ES|QL datafeeds have no indices options, so they are optional from this version on
+            if (in.readBoolean()) {
+                indicesOptions = IndicesOptions.readIndicesOptions(in);
+            } else {
+                indicesOptions = null;
+            }
         } else {
-            indicesOptions = null;
+            // Pre-ES|QL nodes write the indices options unconditionally, without a presence flag
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
         runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
@@ -826,9 +832,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
-        out.writeBoolean(indicesOptions != null);
-        if (indicesOptions != null) {
-            indicesOptions.writeIndicesOptions(out);
+        if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            out.writeBoolean(indicesOptions != null);
+            if (indicesOptions != null) {
+                indicesOptions.writeIndicesOptions(out);
+            }
+        } else {
+            // Pre-ES|QL nodes read the indices options unconditionally, without a presence flag. ES|QL datafeeds (the only
+            // ones without indices options) were already rejected above, so this default is purely defensive.
+            (indicesOptions == null ? IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED : indicesOptions).writeIndicesOptions(out);
         }
         out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {

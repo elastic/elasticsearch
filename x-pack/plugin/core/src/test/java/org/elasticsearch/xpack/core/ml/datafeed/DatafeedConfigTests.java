@@ -47,6 +47,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -1895,6 +1896,69 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
             assertThat(exception.getMessage(), containsString("Cannot send ES|QL datafeed [datafeed1]"));
             assertThat(exception.getMessage(), containsString("upgrade every node before restoring or starting it"));
         }
+    }
+
+    /**
+     * Nodes that predate {@code ML_DATAFEED_ESQL_QUERY} read {@link IndicesOptions} directly, without a presence boolean.
+     * Writing a non-ES|QL datafeed to such a node must therefore keep the original layout, otherwise the old node misparses
+     * the stream (e.g. "Unknown WildcardStates ordinal") during a rolling upgrade.
+     */
+    public void testWireFormatBeforeEsqlSupportMatchesLegacyLayout() throws IOException {
+        TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        DatafeedConfig config = createRandomizedDatafeedConfigBuilder("job1", "datafeed1", 3600000L).build();
+        assertThat(config.getIndicesOptions(), notNullValue());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(legacyVersion);
+            config.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(legacyVersion);
+                IndicesOptions legacyIndicesOptions = readIndicesOptionsWithLegacyLayout(in);
+                assertThat(legacyIndicesOptions, equalTo(config.getIndicesOptions()));
+                assertThat("legacy reader must consume the whole stream", in.available(), equalTo(0));
+            }
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(legacyVersion);
+                assertThat(new DatafeedConfig(in), equalTo(mutateInstanceForVersion(config, legacyVersion)));
+            }
+        }
+    }
+
+    /**
+     * Mirrors the {@code DatafeedConfig(StreamInput)} constructor as it was before ES|QL datafeeds were introduced and returns the
+     * {@link IndicesOptions} read from the stream.
+     */
+    private static IndicesOptions readIndicesOptionsWithLegacyLayout(StreamInput in) throws IOException {
+        in.readString(); // id
+        in.readString(); // job id
+        in.readOptionalTimeValue(); // query delay
+        in.readOptionalTimeValue(); // frequency
+        if (in.readBoolean()) {
+            in.readCollectionAsImmutableList(StreamInput::readString); // indices
+        }
+        QueryProvider.fromStream(in);
+        in.readOptionalWriteable(AggProvider::fromStream);
+        if (in.readBoolean()) {
+            in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
+        }
+        in.readOptionalVInt(); // scroll size
+        in.readOptionalWriteable(ChunkingConfig::new);
+        in.readImmutableMap(StreamInput::readString); // headers
+        in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        in.readOptionalVInt(); // max empty searches
+        IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
+        in.readGenericMap(); // runtime mappings
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
+            in.readOptionalString();
+        }
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+            in.readOptionalWriteable(PersistedCloudCredential::new);
+        }
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+            in.readOptionalInt();
+        }
+        return indicesOptions;
     }
 
     public void testEsqlQueryWithoutSourceTimeFieldShouldReject() {

@@ -496,13 +496,13 @@ public class FileSplitProvider implements SplitProvider {
      * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
      * the full listing's many.
      */
-    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed) throws Exception {
+    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
         if (discovery.schemaListingIsComplete()) {
             // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
             return handed;
         }
-        FileList listed = listForQuery(handed);
+        FileList listed = listForQuery(handed, extents);
         rejectConflictingFormatsPastTheSchemasListing(handed, listed);
         // Everything phase 2 sizes per file is sized from this count, and the coordinator could not charge for it:
         // it ran before this listing existed and stood down because the list it had was a prefix. So this is the one
@@ -636,6 +636,30 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * How far this query's own listing has to run.
+     * <p>
+     * A demand the budget can use is covered by some prefix of the dataset, because rows come from whichever files the
+     * listing returns and no command between the limit and the relation changes how many come out. So the listing can
+     * stop early, and {@link ExternalSourceSettings#FIRST_ATTEMPT_LISTING_FILES} is the guess at how early.
+     * <p>
+     * It is only a guess: how many rows a file holds is read from its footer, after the listing. A prefix that turns
+     * out to hold too few rows is not a slow answer but a wrong one, so {@link #discoverSplits} plans over the prefix,
+     * asks the budget whether it was covered, and lists the whole dataset if it was not. That retry is what makes the
+     * guess safe to make.
+     * <p>
+     * The two guards are {@link RowBudget#of}'s own first two, checked here because both are known before any footer
+     * is read: no usable demand, or an error policy that may drop rows so a record count is not an emitted-row count.
+     * Where either holds the budget can never stop the scan, so a prefix could never cover it and the listing runs in
+     * full.
+     */
+    private ListingExtents listingExtentsForTheDemand(SplitDiscoveryContext context, @Nullable FormatReader reader) {
+        if (RowBudget.of(context, reader).usableForABoundedListing() == false) {
+            return ListingExtents.UNBOUNDED;
+        }
+        return new ListingExtents(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.get(settings));
+    }
+
+    /**
      * Reserves this query's own listing. The context carries the reservation when the query has one; a provider
      * reached outside a query (tests) reserves nothing.
      */
@@ -649,7 +673,7 @@ public class FileSplitProvider implements SplitProvider {
      * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
      */
 
-    private FileList listForQuery(SplitDiscoveryContext context) throws Exception {
+    private FileList listForQuery(SplitDiscoveryContext context, ListingExtents extents) throws Exception {
         String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
         StorageProvider provider = null;
@@ -674,6 +698,12 @@ public class FileSplitProvider implements SplitProvider {
                 context.metadataColumnNames()
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            if (extents.boundsFileSet()) {
+                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
+                // other queries are served whole. This query may read a prefix because its own demand is covered by
+                // one; the next query's demand is not this one's.
+                return listingService.expand(pattern, provider, narrowing, config, storagePath, extents, scanMemory(context));
+            }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
             // filters the cache key already distinguishes. Without this a warm second query over the same dataset
             // pays the listing again, where resolution's own listing would have been served from the cache.
@@ -690,9 +720,42 @@ public class FileSplitProvider implements SplitProvider {
         if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
         }
+        ListingExtents extents = listingExtentsForTheDemand(
+            handedContext,
+            resolveConfiguredReader(handedContext.fileList().path(0), handedContext.config())
+        );
+        Attempt attempt = discoverSplitsOver(handedContext, extents);
+        // Only a listing that actually stopped short can have missed rows. Asking for a bound and getting the whole
+        // dataset back - a dataset smaller than the bound - leaves nothing to list again, and retrying there would
+        // plan every file a second time for no reason.
+        if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+            return attempt.result();
+        }
+        // The prefix held fewer rows than the query asked for, so it is not this query's file set after all: reading it
+        // would answer LIMIT n with fewer than n rows and say nothing. Everything the first attempt planned is
+        // discarded and the dataset is listed in full. The cost of guessing wrong is one extra listing request; the
+        // cost of not retrying would be a short answer.
+        LOGGER.debug(
+            () -> Strings.format(
+                "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",
+                handedContext.metadata() == null ? "?" : handedContext.metadata().location(),
+                handedContext.rowLimit()
+            )
+        );
+        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED).result();
+    }
+
+    /**
+     * One pass of discovery: whether the listing it ran over stopped short of the dataset, and whether the rows it
+     * planned reached what the query asked for. Together they decide whether the prefix was this query's file set
+     * after all - short and covered is an answer, short and uncovered has to be thrown away.
+     */
+    private record Attempt(SplitDiscoveryResult result, boolean listingStoppedShort, boolean coveredTheDemand) {}
+
+    private Attempt discoverSplitsOver(SplitDiscoveryContext handedContext, ListingExtents extents) {
         final SplitDiscoveryContext context;
         try {
-            context = overTheQuerysFileSet(handedContext);
+            context = overTheQuerysFileSet(handedContext, extents);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (Exception e) {
@@ -722,7 +785,13 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get());
+                // No rows were planned, so a demand above zero was not covered. Over a prefix that sends the caller
+                // back for the whole dataset; over a complete listing the flag is never read.
+                return new Attempt(
+                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                    fileList.isTruncated(),
+                    false
+                );
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -786,7 +855,11 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get());
+            return new Attempt(
+                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                fileList.isTruncated(),
+                budget.satisfied()
+            );
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -821,7 +894,13 @@ public class FileSplitProvider implements SplitProvider {
         // Otherwise the file set is a walk of the object store — on the dataset this was measured against, ninety-one
         // sequential page requests — and this method's contract is that the calling thread waits for no such thing.
         discoveryFanOutExecutor(requestedExecutor).execute(
-            ActionRunnable.wrap(listener, resolved -> planSplitsAsync(overTheQuerysFileSet(handedContext), requestedExecutor, resolved))
+            // UNBOUNDED, not the demand's extents: a bounded attempt needs the retry that discoverSplits performs,
+            // and threading a second listing and a second plan through this listener chain is a separate change. So
+            // the async path lists in full and is correct but not yet faster.
+            ActionRunnable.wrap(
+                listener,
+                resolved -> planSplitsAsync(overTheQuerysFileSet(handedContext, ListingExtents.UNBOUNDED), requestedExecutor, resolved)
+            )
         );
     }
 
@@ -2168,6 +2247,15 @@ public class FileSplitProvider implements SplitProvider {
 
         synchronized boolean satisfied() {
             return usable && covered >= demand;
+        }
+
+        /**
+         * Whether this budget could ever stop the scan, known without reading a footer. True does not promise the
+         * budget will be satisfied - the per-file record counts decide that - only that a prefix of the dataset is
+         * worth listing first.
+         */
+        boolean usableForABoundedListing() {
+            return demand != FormatReader.NO_LIMIT;
         }
 
         /** Folds one planned file in, and gives up if it could not say how many records it holds. */

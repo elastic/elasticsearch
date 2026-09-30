@@ -5971,6 +5971,28 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    /** {@link #overAPrefixOf} carrying a row demand, which is what lets discovery list a prefix of its own. */
+    private static SplitDiscoveryContext overAPrefixOfDemanding(List<StorageEntry> everyFile, int rowLimit) {
+        SplitDiscoveryContext prefix = overAPrefixOf(everyFile);
+        return new SplitDiscoveryContext(
+            prefix.metadata(),
+            prefix.fileList(),
+            prefix.schemaMap(),
+            prefix.config(),
+            prefix.partitionInfo(),
+            prefix.filterHints(),
+            prefix.querySchema(),
+            prefix.unifiedSchema(),
+            prefix.maxRecordBytes(),
+            prefix.isCancelled(),
+            prefix.declaredReadSpec(),
+            prefix.metadataColumnNames(),
+            prefix.retainedPartitionKeys(),
+            rowLimit,
+            PlanningMemory.NONE
+        );
+    }
+
     /** {@link #overAPrefixOf} with a reserver attached, so what discovery charges for its own file set is visible. */
     private static SplitDiscoveryContext overAPrefixOfCharging(List<StorageEntry> everyFile, PlanningMemory memory) {
         SplitDiscoveryContext prefix = overAPrefixOf(everyFile);
@@ -6008,6 +6030,62 @@ public class FileSplitProviderTests extends ESTestCase {
      * pay it again, and what it is served must be the whole dataset rather than whatever the first query happened to
      * need.
      */
+    /**
+     * With the first attempt bounded to one file, a demand one file covers is answered from that one listing: the
+     * prefix is this query's file set and nothing goes back for more.
+     */
+    public void testADemandCoveredByThePrefixIsAnsweredFromIt() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicInteger listings = new AtomicInteger();
+        Settings oneFileFirst = Settings.builder().put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1).build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                countingRowCountReader(new AtomicInteger(), 10),
+                null,
+                oneFileFirst,
+                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                new DatasetListingService(oneFileFirst, cache, null, null, null)
+            );
+
+            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfDemanding(everyFile, 1));
+
+            assertEquals("one file was enough, so one listing was enough", 1, listings.get());
+            assertEquals("and only that file is read", 1, result.splits().size());
+            assertTrue("the file set it answered from is a prefix", result.fileSet().isTruncated());
+        }
+    }
+
+    /**
+     * The bound is a guess: how many rows a file holds is read from its footer, after the listing. A prefix holding
+     * fewer rows than the query asked for must not become the answer - that returns fewer rows than the LIMIT and says
+     * nothing about it - so the attempt is thrown away and the dataset is listed in full.
+     * <p>
+     * One file listed first, a demand no single file covers. Without the retry the scan reads that one file and
+     * answers short.
+     */
+    public void testAPrefixThatCannotCoverTheDemandIsDiscarded() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicInteger listings = new AtomicInteger();
+        Settings oneFileFirst = Settings.builder().put(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.getKey(), 1).build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                countingRowCountReader(new AtomicInteger(), 10),
+                null,
+                oneFileFirst,
+                createMultiFileStorageRegistry(payloads, null, everyFile, listings),
+                new DatasetListingService(oneFileFirst, cache, null, null, null)
+            );
+
+            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfDemanding(everyFile, Integer.MAX_VALUE));
+
+            assertEquals("every file is read, not just the one the prefix held", 2, result.splits().size());
+            assertFalse("and the file set it answered from is the whole dataset", result.fileSet().isTruncated());
+            assertEquals("which took a second listing", 2, listings.get());
+        }
+    }
+
     /**
      * The coordinator charges phase 2 per file before discovery runs, from the list the plan carries. When that list
      * is a prefix it stands down, because discovery replaces it and the prefix's structures are never built. This is

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
@@ -140,7 +141,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         // The first shard's replica should receive a simple NO because the corresponding primary is not active yet.
         assertThat(
             decider.canAllocate(harness.unassignedShardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
-            equalTo(Decision.NO)
+            isNoDecisionWithNoExplanation(ThrottlingAllocationDecider.NAME)
         );
 
         // Start the first shard's primary, and initialize the second shard's primary to again reach the 1 concurrency limit.

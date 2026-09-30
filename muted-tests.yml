@@ -669,3 +669,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testRequestCacheWorks
+  issue: https://github.com/elastic/elasticsearch/issues/160611

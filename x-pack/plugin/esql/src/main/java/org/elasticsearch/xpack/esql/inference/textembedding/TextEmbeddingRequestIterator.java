@@ -13,6 +13,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -33,10 +34,19 @@ import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODU
  */
 class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
+    private final InputType inputType;
     private final TimeValue timeout;
 
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize, TimeValue timeout, Warnings warnings) {
+    TextEmbeddingRequestIterator(
+        String inferenceId,
+        BytesRefBlock textBlock,
+        InputType inputType,
+        int batchSize,
+        TimeValue timeout,
+        Warnings warnings
+    ) {
         super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock, batchSize, warnings);
+        this.inputType = inputType;
         this.timeout = timeout;
     }
 
@@ -47,6 +57,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         }
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType)
             .setInput(texts)
+            .setInputType(inputType)
             .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
@@ -61,6 +72,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         String inferenceId,
         TaskType taskType,
         ExpressionEvaluator textEvaluator,
+        InputType inputType,
         int batchSize,
         TimeValue timeout,
         Warnings warnings
@@ -71,6 +83,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             return new TextEmbeddingRequestIterator(
                 inferenceId,
                 (BytesRefBlock) textEvaluator.eval(inputPage),
+                inputType,
                 batchSize,
                 timeout,
                 warnings

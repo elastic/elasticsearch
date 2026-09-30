@@ -767,13 +767,18 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         chunkedFetchUsed.set(true);
                         boolean isShard1 = request.getShardFetchRequest().contextId().equals(ctx1);
                         SearchHit hit = new SearchHit(isShard1 ? 42 : 43).sourceRef(new BytesArray(randomAlphaOfLength(256)));
-                        fetchedBytes.addAndGet(hit.ramBytesUsed());
+                        long hitBytes = hit.ramBytesUsed();
+                        fetchedBytes.addAndGet(hitBytes);
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         fetchResult.setSearchShardTarget(isShard1 ? shardTarget1 : shardTarget2);
                         fetchResult.shardResult(
                             new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
                             null
                         );
+                        // What the real action does: the stream charged for these hits while accumulating them and
+                        // hands the charge over, so the phase must hold it rather than estimate them again.
+                        breaker.addWithoutBreaking(hitBytes);
+                        fetchResult.setCoordinatorSearchHitsSizeBytes(hitBytes, breaker);
                         try {
                             listener.onResponse(new Response(fetchResult));
                         } finally {

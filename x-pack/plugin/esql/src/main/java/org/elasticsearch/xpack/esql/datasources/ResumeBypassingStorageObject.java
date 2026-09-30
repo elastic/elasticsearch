@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.InputStream;
+import java.util.function.Function;
 
 /**
  * Implemented by this package's {@link StorageObject} decorators so a best-effort read during release can reach
@@ -30,5 +31,19 @@ interface ResumeBypassingStorageObject {
     /** {@link #withoutResume(InputStream)} on {@code owner} if it is a decorator from this package, else {@code stream}. */
     static InputStream withoutResume(StorageObject owner, InputStream stream) {
         return owner instanceof ResumeBypassingStorageObject bypassing ? bypassing.withoutResume(stream) : stream;
+    }
+
+    /**
+     * For decorators that wrap the provider stream in a single wrapper of their own: if {@code stream} is a
+     * {@code wrapperType}, unwraps it with {@code inner} and continues on {@code delegate}; else returns {@code stream}
+     * unchanged because it did not come from this decorator.
+     */
+    static <W extends InputStream> InputStream withoutResumeThrough(
+        StorageObject delegate,
+        InputStream stream,
+        Class<W> wrapperType,
+        Function<W, InputStream> inner
+    ) {
+        return wrapperType.isInstance(stream) ? withoutResume(delegate, inner.apply(wrapperType.cast(stream))) : stream;
     }
 }

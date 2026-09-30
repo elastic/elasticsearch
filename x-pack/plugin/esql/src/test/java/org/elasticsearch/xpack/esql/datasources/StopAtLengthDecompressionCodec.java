@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -56,6 +57,9 @@ final class StopAtLengthDecompressionCodec implements DecompressionCodec {
                     return -1;
                 }
                 int n = raw.read(b, off, Math.min(len, remaining));
+                if (n == -1) {
+                    throw new EOFException("raw stream ended with [" + remaining + "] of [" + length + "] bytes still expected");
+                }
                 if (n > 0) {
                     remaining -= n;
                 }

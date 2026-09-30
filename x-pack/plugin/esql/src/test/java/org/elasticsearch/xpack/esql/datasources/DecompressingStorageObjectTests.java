@@ -548,6 +548,41 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         assertEquals(1, abortCalls.get());
     }
 
+    /** An {@link Error} from the end-of-body read is not swallowed, but it still must not skip the abort. */
+    public void testTrailingReadErrorStillAborts() throws IOException {
+        byte[] original = ndjsonLines(between(1, 1_000));
+        byte[] gzipped = gzip(original);
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+            @Override
+            public InputStream newStream() {
+                // Delivers the gzip bytes, then throws an Error instead of returning -1.
+                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        int n = super.read(b, off, len);
+                        if (n < 0) {
+                            throw new AssertionError("simulated error at end of body");
+                        }
+                        return n;
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                abortCalls.incrementAndGet();
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+
+        InputStream stream = decompressing.newStream();
+        assertArrayEquals(original, stream.readAllBytes());
+        AssertionError e = expectThrows(AssertionError.class, stream::close);
+        assertEquals("simulated error at end of body", e.getMessage());
+        assertEquals(1, abortCalls.get());
+    }
+
     @FunctionalInterface
     private interface Compressor {
         byte[] compress(byte[] input) throws IOException;

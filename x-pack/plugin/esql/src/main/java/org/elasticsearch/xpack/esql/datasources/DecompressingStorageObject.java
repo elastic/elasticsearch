@@ -279,7 +279,7 @@ final class DecompressingStorageObject implements StorageObject {
                 primary = e;
             }
             if (primary == null && decoderEof) {
-                drainTrailingRawBytes();
+                drainTrailingRawBytes(owner);
             }
             try {
                 // Unconditional: after a drain that reached the end of the body the provider has already
@@ -320,7 +320,7 @@ final class DecompressingStorageObject implements StorageObject {
          * a fault here must fall through to the abort, not sleep through a backoff and re-open a GET inside
          * {@code close()}. Relies on the decoder not reading {@code raw} again after reporting end-of-stream.
          */
-        private void drainTrailingRawBytes() {
+        private void drainTrailingRawBytes(StorageObject owner) {
             InputStream body = ResumeBypassingStorageObject.withoutResume(rawOwner, raw);
             byte[] scratch = new byte[TRAILING_DRAIN_CHUNK_BYTES];
             long trailing = 0;
@@ -337,6 +337,15 @@ final class DecompressingStorageObject implements StorageObject {
             } catch (IOException | RuntimeException e) {
                 logger.debug(() -> Strings.format("failed to read [%s] to its end after decompression; aborting", rawOwner.path()), e);
                 return;
+            } catch (Error e) {
+                // The drain is best effort, but an Error must not skip the abort: the raw stream would never be
+                // closed and its concurrency permit would never be released.
+                try {
+                    owner.abortStream(raw);
+                } catch (Exception abortFailure) {
+                    e.addSuppressed(abortFailure);
+                }
+                throw e;
             }
             if (trailing > 0) {
                 // Bytes after the decoder's end-of-stream are not decoded. For gzip this is either trailing

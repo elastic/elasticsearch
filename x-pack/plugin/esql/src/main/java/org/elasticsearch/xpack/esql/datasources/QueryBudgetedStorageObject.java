@@ -130,9 +130,12 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
 
     @Override
     public InputStream withoutResume(InputStream stream) {
-        return stream instanceof PermitReleasingInputStream wrapper
-            ? ResumeBypassingStorageObject.withoutResume(delegate, wrapper.inner())
-            : stream;
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
     }
 
     @Override

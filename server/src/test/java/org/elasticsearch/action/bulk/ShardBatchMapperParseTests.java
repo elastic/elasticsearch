@@ -921,4 +921,54 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             closeShards(shard);
         }
     }
+
+    /**
+     * Verifies all-null array nullability enforcement in {@code mapColumnBatchUnordered}, the code path
+     * taken when {@code storesArrayOrderInline()==false}. That happens when {@code multi_value=false}
+     * (no offsets sidecar needed, so {@code arrayOrderBinaryDocValues} is never set). Unlike scalar nulls
+     * (which cause columnar fallback via {@code hasNullOrAbsentDoc}), all-null arrays are a distinct ESCF
+     * column type; the unordered path enforces them at the doc boundary with the
+     * {@code nullElementSeenThisDoc} flag, which is the only mechanism that covers this shape there.
+     *
+     * <p>Unlike {@link #testAllNullArrayAppearsInIgnoredOnIgnoreFailure}, the columnar path stays active
+     * here: {@code mapBatch} returns non-null, and the violation is recorded in {@code _ignored} without
+     * falling back to the sequential path.
+     */
+    public void testAllNullArrayAppearsInIgnoredOnIgnoreFailureUnorderedPath() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "doc_values": { "nullability": false, "on_failure": "ignore", "multi_value": false }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":[null,null]}")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("on_failure=IGNORE all-null array must not cause columnar fallback (unordered path)", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setVersion(0, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                final List<IndexableField> fields = cursor.fields();
+
+                assertTrue(
+                    "_ignored must be present when nullability=false on_failure=ignore and f has all-null array (unordered path)",
+                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
 }

@@ -83,6 +83,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -1701,8 +1702,9 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         // File-level statistics: a live harvest from this query's schema resolution, or the same
         // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
-        // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
-        // tryRangeAwareSplits emit a whole-file split without opening the footer again.
+        // never harvested (no cache entry). tryRangeAwareSplits emits a whole-file split without
+        // opening the footer again only when readableUnitCount is 1 and the harvest has column
+        // statistics. A slim record still reports a unit count of 1 and must not skip.
         @Nullable SourceStatistics statistics,
         // Coordinator fold (sourceMetadata on the relation). Copied onto each harvest or
         // footer range so split merge cannot serve a column the fold already dropped.
@@ -2318,8 +2320,10 @@ public class FileSplitProvider implements SplitProvider {
 
         // One independently readable unit (one Parquet row group / ORC stripe): discovery would
         // reopen the same footer only to emit a single range. The file-level harvest is that
-        // unit's extrema, so emit the whole-file split and skip the open.
-        if (fileStatistics != null && fileStatistics.readableUnitCount().orElse(-1) == 1) {
+        // unit's extrema only when it carries column statistics. A slim record still reports
+        // readableUnitCount == 1 but has no per-column map; skipping would stamp an empty harvest
+        // and filtered MIN/MAX would scan. Those files fall through to discoverSplitRanges.
+        if (singleUnitHarvest(fileStatistics)) {
             Map<String, Object> stats = normalizeSplitStats(
                 SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
                 readSchema,
@@ -2377,6 +2381,15 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         }
+    }
+
+    /** A one-unit harvest can skip a second footer open only when it still carries column stats. */
+    private static boolean singleUnitHarvest(@Nullable SourceStatistics fileStatistics) {
+        if (fileStatistics == null || fileStatistics.readableUnitCount().orElse(-1) != 1) {
+            return false;
+        }
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = fileStatistics.columnStatistics();
+        return columns.isPresent() && columns.get().isEmpty() == false;
     }
 
     private void tryRangeAwareSplitsAsync(

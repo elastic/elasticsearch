@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -108,7 +110,30 @@ import static org.mockito.Mockito.when;
  */
 public class ExternalPlanningBreakerTests extends ESTestCase {
 
-    private static final long PHASE2_BYTES_PER_FILE = 1160L;
+    private static final long PHASE2_BYTES_PER_FILE = FileList.PHASE2_BYTES_PER_FILE;
+
+    /**
+     * The pre-charge counts the files the plan carries, which is only the dataset when the schema's listing was
+     * complete. Over a prefix it stands down: discovery replaces that list with the set it discovers for itself
+     * before anything is built over it, so the prefix's survivor maps and split shells are never allocated and the
+     * provider charges the discovered count instead. Charging here as well would reserve for structures that do
+     * not exist, and a run that trips on them would refuse a query the node could have served.
+     */
+    public void testLocalPhase2PreChargeStandsDownForAPrefix() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        long baseline = breaker.getUsed();
+        ComputeService service = service(breaker, new AtomicInteger());
+        EsqlExecutionInfo info = executionInfo();
+        ExternalSourceExec exec = relation(truncatedFiles(2), Map.of()).toPhysicalExec();
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
+        PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
+
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
+
+        done.actionGet(30, TimeUnit.SECONDS);
+        assertEquals("a prefix's phase-2 structures are never built, so nothing is reserved for them", 0L, run.held());
+        assertEquals(baseline, breaker.getUsed());
+    }
 
     public void testLocalPhase2ChargesResolvedFilesBeforeDiscovery() throws Exception {
         AtomicInteger discoveries = new AtomicInteger();
@@ -417,6 +442,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             }
         };
         return new ExternalRelation(Source.EMPTY, "file:///data/*.parquet", metadata, attrs, files, Map.of());
+    }
+
+    /** A listing that reports itself a prefix of its dataset, which is what stands the pre-charge down. */
+    private static FileList truncatedFiles(int count) {
+        List<StorageEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            entries.add(new StorageEntry(StoragePath.of("file:///f" + i + ".parquet"), 1000L, Instant.EPOCH));
+        }
+        return GlobExpander.truncatedFileListOf(entries, "file:///*.parquet");
     }
 
     private static FileList resolvedFiles(int count) {

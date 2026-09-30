@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -126,6 +127,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -5969,6 +5971,28 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    /** {@link #overAPrefixOf} with a reserver attached, so what discovery charges for its own file set is visible. */
+    private static SplitDiscoveryContext overAPrefixOfCharging(List<StorageEntry> everyFile, PlanningMemory memory) {
+        SplitDiscoveryContext prefix = overAPrefixOf(everyFile);
+        return new SplitDiscoveryContext(
+            prefix.metadata(),
+            prefix.fileList(),
+            prefix.schemaMap(),
+            prefix.config(),
+            prefix.partitionInfo(),
+            prefix.filterHints(),
+            prefix.querySchema(),
+            prefix.unifiedSchema(),
+            prefix.maxRecordBytes(),
+            prefix.isCancelled(),
+            prefix.declaredReadSpec(),
+            prefix.metadataColumnNames(),
+            prefix.retainedPartitionKeys(),
+            prefix.rowLimit(),
+            memory
+        );
+    }
+
     private static List<StorageEntry> twoParquetFiles(Map<String, byte[]> payloads) {
         payloads.put("a.parquet", new byte[2000]);
         payloads.put("b.parquet", new byte[2000]);
@@ -5984,6 +6008,57 @@ public class FileSplitProviderTests extends ESTestCase {
      * pay it again, and what it is served must be the whole dataset rather than whatever the first query happened to
      * need.
      */
+    /**
+     * The coordinator charges phase 2 per file before discovery runs, from the list the plan carries. When that list
+     * is a prefix it stands down, because discovery replaces it and the prefix's structures are never built. This is
+     * the charge that replaces it: one allowance per file of the set discovery listed for itself, taken before the
+     * first structure is built over that set.
+     * <p>
+     * Two files discovered from a one-file prefix, so a charge computed over the prefix would be a third of the right
+     * answer and a missing charge would be none of it.
+     */
+    public void testDiscoveryChargesPhase2ForTheFileSetItDiscovered() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicLong reserved = new AtomicLong();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            FileSplitProvider provider = rangeAwareProvider(
+                createMockRangeReader(List.of(new SplitRange(0, 2000))),
+                null,
+                Settings.EMPTY,
+                createMultiFileStorageRegistry(payloads, null, everyFile, new AtomicInteger()),
+                new DatasetListingService(Settings.EMPTY, cache, null, null, null)
+            );
+
+            SplitDiscoveryResult result = provider.discoverSplits(overAPrefixOfCharging(everyFile, reserved::addAndGet));
+
+            assertEquals("both files were discovered from a one-file prefix", 2, result.splits().size());
+            long listingBytes = 2 * FileList.LISTING_BYTES_PER_ENTRY;
+            long phase2Bytes = 2 * FileList.PHASE2_BYTES_PER_FILE;
+            assertEquals("the walk's entries plus one phase-2 allowance per discovered file", listingBytes + phase2Bytes, reserved.get());
+        }
+    }
+
+    /** A complete listing is the query's own file set, so discovery neither re-lists nor charges: the coordinator did. */
+    public void testDiscoveryOverACompleteListingChargesNothing() throws Exception {
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = twoParquetFiles(payloads);
+        AtomicLong reserved = new AtomicLong();
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile, new AtomicInteger()),
+            null
+        );
+
+        provider.discoverSplits(
+            overAPrefixOfCharging(everyFile, reserved::addAndGet).withScanFileSet(GlobExpander.fileListOf(everyFile, "s3://b/*.parquet"))
+        );
+
+        assertEquals("nothing is charged twice for a listing discovery did not perform", 0L, reserved.get());
+    }
+
     public void testASecondQueryOverTheSameDatasetIsServedItsListingFromTheCache() throws Exception {
         Map<String, byte[]> payloads = new HashMap<>();
         List<StorageEntry> everyFile = twoParquetFiles(payloads);

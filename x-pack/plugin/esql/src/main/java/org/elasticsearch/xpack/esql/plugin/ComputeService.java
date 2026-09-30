@@ -77,7 +77,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -186,15 +186,6 @@ public class ComputeService {
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
-    /**
-     * Fixed per-file allowance for phase 2: 1000 for the frozen survivor map and 160 for one split shell.
-     * Not a measured deep size. Counted per file, not per split — a text or compressed file can become many
-     * splits, and that count is only known after the discovery this reservation precedes, so those files are
-     * under-charged. {@link org.elasticsearch.xpack.esql.datasources.spi.FileList#planningBytes()} adds the
-     * columnar partition-value allowance {@code estimatedBytes()} leaves out, and 760 is the per-file
-     * schema-map allowance charged with the listing.
-     */
-    private static final long PHASE2_BYTES_PER_FILE = 1160L;
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -290,32 +281,42 @@ public class ComputeService {
     /**
      * Reserves survivor-map and split-shell memory for every resolved {@link ExternalSourceExec} before local
      * split discovery. Unresolved lists are omitted. A breaker trip is not recorded on the run.
+     * <p>
+     * A truncated list is omitted too, and that is not a gap. Discovery replaces a prefix with the file set it
+     * lists for itself before anything is built over it, so the prefix's structures are never allocated and a
+     * charge for them would be a charge for nothing. The provider charges the count it discovered instead - see
+     * {@link FileList#PHASE2_BYTES_PER_FILE}. Exactly one of the two runs per relation.
      */
     private void chargeResolvedExternalSources(PhysicalPlan plan, ExternalPlanningReservation.Run run) {
         long[] files = { 0L };
         plan.forEachDown(ExternalSourceExec.class, exec -> {
             FileList list = exec.fileList();
-            if (list != null && list.isResolved()) {
+            if (list != null && list.isResolved() && list.isTruncated() == false) {
                 files[0] += list.fileCount();
             }
         });
         chargePhase2(files[0], run);
     }
 
-    /** Reserves phase-2 memory from the fragment relation's file count, before that relation is lowered. */
+    /**
+     * Reserves phase-2 memory from the fragment relation's file count, before that relation is lowered. Stands
+     * down on a truncated list for the reason {@link #chargeResolvedExternalSources} gives.
+     */
     private static void chargeRelationFileCount(ExternalRelation relation, ExternalPlanningReservation.Run run) {
         FileList list = relation.fileList();
-        if (list == null || list.isResolved() == false) {
+        if (list == null || list.isResolved() == false || list.isTruncated()) {
             return;
         }
         chargePhase2(list.fileCount(), run);
     }
 
     /**
-     * The reserver split discovery's own listing draws on. A relation whose schema listing was a prefix lists the
-     * dataset again during discovery, and those entries are heap this query is about to hold: {@code GlobExpander}
-     * reserves them in batches as the walk grows, so a dataset larger than the node can hold trips partway through
-     * its own listing rather than after the list exists.
+     * The reserver split discovery draws on for the heap it holds while planning. A relation whose schema listing
+     * was a prefix lists the dataset again during discovery and then builds per-file structures over what it
+     * found, and neither was charged before: {@code GlobExpander} reserves the entries in batches as the walk
+     * grows, so a dataset larger than the node can hold trips partway through its own listing rather than after
+     * the list exists, and the provider reserves {@link FileList#PHASE2_BYTES_PER_FILE} per discovered file
+     * before the first structure is built over it.
      * <p>
      * The run rather than the query is the right budget, and the listing's lifetime is why: a discovered listing
      * does not outlive the execution that listed it, because the plan carrying it does not - the run closes when
@@ -327,15 +328,15 @@ public class ComputeService {
      * returns such an exec unchanged and {@code rewriteFragmentListing} is never handed it - and that relation
      * reads its whole listing. The run still covers it; being dropped is not what makes the budget right.
      */
-    private static ListingMemory discoveryListingMemory(ExternalPlanningReservation.Run run) {
-        return run == null ? ListingMemory.NONE : run::charge;
+    private static PlanningMemory discoveryMemory(ExternalPlanningReservation.Run run) {
+        return run == null ? PlanningMemory.NONE : run::charge;
     }
 
     private static void chargePhase2(long fileCount, ExternalPlanningReservation.Run run) {
         if (fileCount <= 0 || run == null) {
             return;
         }
-        run.charge(fileCount * PHASE2_BYTES_PER_FILE);
+        run.charge(fileCount * FileList.PHASE2_BYTES_PER_FILE);
     }
 
     PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
@@ -385,7 +386,7 @@ public class ComputeService {
                 isCancelled,
                 List.of(),
                 FormatReader.NO_LIMIT,
-                discoveryListingMemory(run),
+                discoveryMemory(run),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -873,7 +874,7 @@ public class ComputeService {
                     guarded.filters(),
                     guarded.rowLimit(),
                     // No reservation reaches the synchronous path, which only tests take.
-                    ListingMemory.NONE
+                    PlanningMemory.NONE
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -968,7 +969,7 @@ public class ComputeService {
             isCancelled,
             work.guarded().filters(),
             work.guarded().rowLimit(),
-            discoveryListingMemory(run),
+            discoveryMemory(run),
             ioExecutor,
             ActionListener.wrap(result -> {
                 try {

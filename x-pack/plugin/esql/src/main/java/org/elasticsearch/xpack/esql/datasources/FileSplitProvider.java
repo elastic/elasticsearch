@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -504,6 +504,12 @@ public class FileSplitProvider implements SplitProvider {
         }
         FileList listed = listForQuery(handed);
         rejectConflictingFormatsPastTheSchemasListing(handed, listed);
+        // Everything phase 2 sizes per file is sized from this count, and the coordinator could not charge for it:
+        // it ran before this listing existed and stood down because the list it had was a prefix. So this is the one
+        // charge for those structures, and it is taken here because the first of them is allocated on the next line -
+        // withScanFileSet builds the columnar partition values and the per-file schema map over every discovered
+        // path, before any survivor or split shell exists.
+        scanMemory(handed).reserve(listed.fileCount() * FileList.PHASE2_BYTES_PER_FILE);
         LOGGER.debug(
             () -> Strings.format(
                 "the schema's listing held %d files of [%s]; discovered %d for the query",
@@ -633,8 +639,8 @@ public class FileSplitProvider implements SplitProvider {
      * Reserves this query's own listing. The context carries the reservation when the query has one; a provider
      * reached outside a query (tests) reserves nothing.
      */
-    private static ListingMemory scanMemory(SplitDiscoveryContext context) {
-        return context.listingMemory() == null ? ListingMemory.NONE : context.listingMemory();
+    private static PlanningMemory scanMemory(SplitDiscoveryContext context) {
+        return context.listingMemory() == null ? PlanningMemory.NONE : context.listingMemory();
     }
 
     /**

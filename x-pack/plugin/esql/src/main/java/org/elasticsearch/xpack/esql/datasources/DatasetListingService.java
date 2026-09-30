@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -126,7 +126,7 @@ public final class DatasetListingService {
         Map<String, Object> config,
         StoragePath storagePath,
         ListingExtents extents,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
@@ -156,7 +156,7 @@ public final class DatasetListingService {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws Exception {
         ListingCacheKey listingKey = ListingCacheKey.build(
             storagePath.scheme(),

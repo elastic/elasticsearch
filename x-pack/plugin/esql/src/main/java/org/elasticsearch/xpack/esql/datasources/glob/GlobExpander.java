@@ -139,7 +139,7 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
     }
 
@@ -163,7 +163,7 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ListingExtents extents,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws IOException {
         FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, extents, memory);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
@@ -214,7 +214,7 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
     }
 
@@ -227,7 +227,7 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ListingExtents extents,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
@@ -301,7 +301,7 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         ListingExtents extents,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
@@ -459,7 +459,7 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
     }
 
@@ -496,7 +496,7 @@ public final class GlobExpander {
             nameFilter,
             fileOrder,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
     }
 
@@ -511,7 +511,7 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         ListingExtents extents,
-        ListingMemory memory
+        PlanningMemory memory
     ) throws IOException {
         return doExpandGlob(
             pattern,
@@ -545,7 +545,7 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
         ListingExtents extents,
-        ListingMemory memory,
+        PlanningMemory memory,
         boolean allowRewrite
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
@@ -908,7 +908,7 @@ public final class GlobExpander {
      * @param flush reserve whatever is left over, however small - for the end of a walk
      * @return the new high-water mark, to be passed back on the next call
      */
-    private static int reserveRetained(ListingMemory memory, int retained, int reservedUpTo, boolean flush) {
+    private static int reserveRetained(PlanningMemory memory, int retained, int reservedUpTo, boolean flush) {
         if (retained <= reservedUpTo || (flush == false && retained < reservedUpTo + LISTING_RESERVE_BATCH)) {
             return reservedUpTo;
         }
@@ -1243,7 +1243,7 @@ public final class GlobExpander {
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
                     ListingExtents.UNBOUNDED,
-                    ListingMemory.NONE
+                    PlanningMemory.NONE
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

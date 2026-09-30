@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 
 import java.util.List;
 import java.util.Map;
@@ -69,7 +69,7 @@ public record SplitDiscoveryContext(
     // Reserves heap for the listing this query performs when the schema's listing was a prefix of the dataset.
     // Null when nothing is accounting for the query (tests, and providers reached outside a query). Live like
     // isCancelled rather than data: it draws on the query's own reservation and must not outlive it.
-    @Nullable ListingMemory listingMemory
+    @Nullable PlanningMemory listingMemory
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,

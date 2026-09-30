@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -261,7 +261,7 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             seedFilters,
             FormatReader.NO_LIMIT,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
     }
 
@@ -276,7 +276,7 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         List<Expression> seedFilters,
         int seedRowLimit,
-        ListingMemory listingMemory
+        PlanningMemory listingMemory
     ) {
         ScanStats stats = new ScanStats();
         Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
@@ -312,7 +312,7 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             seedFilters,
             FormatReader.NO_LIMIT,
-            ListingMemory.NONE,
+            PlanningMemory.NONE,
             executor,
             listener
         );
@@ -326,7 +326,7 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         List<Expression> seedFilters,
         int seedRowLimit,
-        ListingMemory listingMemory,
+        PlanningMemory listingMemory,
         Executor executor,
         ActionListener<Result> listener
     ) {
@@ -367,7 +367,7 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
-        ListingMemory listingMemory
+        PlanningMemory listingMemory
     ) {}
 
     private static void resolveRecursiveAsync(

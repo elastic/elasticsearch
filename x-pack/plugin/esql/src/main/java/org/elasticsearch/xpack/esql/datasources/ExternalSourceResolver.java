@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -350,9 +350,9 @@ public class ExternalSourceResolver {
      * partway through its own listing rather than once the whole thing is in heap. That ordering is the point: a
      * reservation taken after the allocation reports the memory but cannot refuse it.
      */
-    private ListingMemory planningMemory() {
+    private PlanningMemory planningMemory() {
         ExternalPlanningReservation reservation = planningReservation;
-        return reservation == null ? ListingMemory.NONE : reservation::chargeQuery;
+        return reservation == null ? PlanningMemory.NONE : reservation::chargeQuery;
     }
 
     /**

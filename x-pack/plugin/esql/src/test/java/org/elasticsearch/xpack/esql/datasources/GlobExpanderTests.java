@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -5015,7 +5015,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertEquals("the bound is a key budget, so it decides the file count here", 1000, result.fileCount());
@@ -5045,7 +5045,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(10),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
         FileList complete = GlobExpander.expand(
             "s3://bucket/data/" + "**/*.parquet",
@@ -5056,7 +5056,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -5093,7 +5093,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertEquals(5000, result.fileCount());
@@ -5123,7 +5123,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertEquals("the file past the bound is still found", 1, result.fileCount());
@@ -5152,7 +5152,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
@@ -5182,7 +5182,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertEquals(2, result.fileCount());
@@ -5211,7 +5211,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue(result.isTruncated());
@@ -5241,7 +5241,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue(result.isTruncated());
@@ -5270,7 +5270,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
         FileList unbounded = GlobExpander.expand(
             "s3://bucket/data/" + "**/*.parquet",
@@ -5281,7 +5281,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -5324,7 +5324,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             new ListingExtents(1000),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
         FileList full = GlobExpander.expandAndCompact(
             pattern,
@@ -5336,7 +5336,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             ListingExtents.UNBOUNDED,
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue(bounded.isTruncated());
@@ -5429,7 +5429,7 @@ public class GlobExpanderTests extends ESTestCase {
             MAX,
             MAX,
             new ListingExtents(1),
-            ListingMemory.NONE
+            PlanningMemory.NONE
         );
 
         assertTrue("the extents are the caller's decision, and this caller asked for one key", bounded.isTruncated());

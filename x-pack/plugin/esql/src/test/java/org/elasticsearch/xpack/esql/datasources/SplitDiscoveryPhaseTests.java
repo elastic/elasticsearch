@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.glob.ListingMemory;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -717,14 +717,14 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
      * listing was a prefix lists the dataset again inside discovery, and those entries are heap the query holds: if
      * the phase drops the reserver on the way down, that listing is allocated against nothing and the breaker never
      * sees it. Reserving a byte through what the provider was handed is what proves the wire, so a phase passing
-     * ListingMemory.NONE - or null - leaves the counter at zero and fails here.
+     * PlanningMemory.NONE - or null - leaves the counter at zero and fails here.
      */
     public void testTheListingReserverReachesSyncAndAsyncDiscovery() {
         ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
         RecordingSplitProvider recorder = new RecordingSplitProvider();
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
         AtomicLong reserved = new AtomicLong();
-        ListingMemory memory = reserved::addAndGet;
+        PlanningMemory memory = reserved::addAndGet;
 
         SplitDiscoveryPhase.resolveExternalSplitsWithStats(
             exec,
@@ -769,7 +769,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(recorder)));
 
-        assertSame(ListingMemory.NONE, recorder.lastContext.listingMemory());
+        assertSame(PlanningMemory.NONE, recorder.lastContext.listingMemory());
         recorder.lastContext.listingMemory().reserve(Long.MAX_VALUE);
     }
 

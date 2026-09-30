@@ -57,11 +57,14 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
 
     private record Shape(String name, Function<BinaryDocValuesQueries, Query> build, Class<? extends Query> columnar) {}
 
+    /** Both framings the column holds, payload and single-valued alike, are answered by it. */
     public void testColumnarFormatReachesTheColumn() {
-        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
-        for (Shape shape : shapes()) {
-            final Query query = shape.build().apply(queries);
-            assertEquals(shape.name(), shape.columnar(), query.getClass());
+        for (BinaryDocValuesFormat format : List.of(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, BinaryDocValuesFormat.PLAIN)) {
+            final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(format);
+            for (Shape shape : shapes()) {
+                final Query query = shape.build().apply(queries);
+                assertEquals(format + " " + shape.name(), shape.columnar(), query.getClass());
+            }
         }
     }
 

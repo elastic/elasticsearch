@@ -1,0 +1,5 @@
+pr: 160669
+summary: Feed the `SORT _score DESC` TopN bound back into Lucene
+area: ES|QL
+type: enhancement
+issues: []

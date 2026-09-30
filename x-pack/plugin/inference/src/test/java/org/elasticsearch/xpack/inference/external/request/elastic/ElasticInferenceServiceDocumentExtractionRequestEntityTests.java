@@ -41,7 +41,8 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
     public void testToXContent_SingleDocument() throws IOException {
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
-            modelId
+            modelId,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -58,7 +59,8 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
                 new InferenceString(DataType.IMAGE, DataFormat.BASE64, imageDocValue),
                 new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue2)
             ),
-            modelId
+            modelId,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -71,6 +73,21 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
                 ]
             }
             """, modelId, pdfDocValue1, imageDocValue, pdfDocValue2)));
+    }
+
+    public void testToXContent_WithOutputFormat() throws IOException {
+        var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
+            List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
+            modelId,
+            "markdown"
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "model": "%s",
+                "output_format": "markdown",
+                "input": [{"content": {"type":"pdf","format":"base64","value":"%s"}}]
+            }""", modelId, pdfDocValue1)));
     }
 
     private String xContentEntityToString(ElasticInferenceServiceDocumentExtractionRequestEntity entity) throws IOException {

@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDocumentExtractionRequest;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -66,6 +67,38 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("model"), is(modelId));
+        assertThat(
+            requestMap.get("input"),
+            is(documents.stream().map(document -> Map.of("content", InferenceStringTests.inferenceStringToMap(document))).toList())
+        );
+    }
+
+    public void testCreatesExpectedRequestBody_WithOutputFormatFromTaskSettings() throws IOException {
+        var documents = List.of(randomPdfDocument());
+        var modelId = "my-model-id";
+        var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
+            "http://eis-gateway.com",
+            modelId,
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")
+        );
+
+        var request = new ElasticInferenceServiceDocumentExtractionRequest(
+            documents,
+            model,
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomElasticInferenceServiceRequestMetadata(),
+            null,
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
+        );
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get("model"), is(modelId));
+        assertThat(requestMap.get("output_format"), is("markdown"));
         assertThat(
             requestMap.get("input"),
             is(documents.stream().map(document -> Map.of("content", InferenceStringTests.inferenceStringToMap(document))).toList())

@@ -28,8 +28,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.jsonEntity;
 
 /**
- * A request to the Elastic Inference Service document extraction endpoint. The extracted content format is not configurable: the
- * Elastic Inference Service gateway selects the format of the underlying provider (markdown for Jina Reader) and reports it per result.
+ * A request to the Elastic Inference Service document extraction endpoint.
  */
 public class ElasticInferenceServiceDocumentExtractionRequest extends ElasticInferenceServiceRequest
     implements
@@ -57,7 +56,13 @@ public class ElasticInferenceServiceDocumentExtractionRequest extends ElasticInf
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(getURI());
         httpPost.setEntity(
-            jsonEntity(new ElasticInferenceServiceDocumentExtractionRequestEntity(documents, model.getServiceSettings().modelId()))
+            jsonEntity(
+                new ElasticInferenceServiceDocumentExtractionRequestEntity(
+                    documents,
+                    model.getServiceSettings().modelId(),
+                    model.getTaskSettings().outputFormat()
+                )
+            )
         );
 
         traceContextHandler.propagateTraceContext(httpPost);

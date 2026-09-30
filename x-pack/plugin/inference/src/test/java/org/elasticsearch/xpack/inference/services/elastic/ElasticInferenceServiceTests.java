@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -821,8 +822,45 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithoutOutputFormat() throws IOException {
+        assertDocumentExtractionInferSendsRequest(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS, Map.of(), null);
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredOutputFormat() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown"),
+            Map.of(),
+            "markdown"
+        );
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestOutputFormat() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
+            Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "text"),
+            "text"
+        );
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestOutputFormatOverridesStoredOne() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown"),
+            Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "text"),
+            "text"
+        );
+    }
+
+    /**
+     * Runs a document extraction inference against a model carrying {@code storedTaskSettings} with {@code requestTaskSettings} in the
+     * request body and asserts that the request sent to the Elastic Inference Service carries {@code expectedOutputFormat} (or no
+     * {@code output_format} field at all when null).
+     */
     @SuppressWarnings("unchecked")
-    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest() throws IOException {
+    private void assertDocumentExtractionInferSendsRequest(
+        ElasticInferenceServiceDocumentExtractionTaskSettings storedTaskSettings,
+        Map<String, Object> requestTaskSettings,
+        @Nullable String expectedOutputFormat
+    ) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var elasticInferenceServiceURL = getUrl(webServer);
 
@@ -842,15 +880,15 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var modelId = randomAlphaOfLength(8);
-            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(elasticInferenceServiceURL, modelId);
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
+                elasticInferenceServiceURL,
+                modelId,
+                storedTaskSettings
+            );
 
             var documents = List.of(
                 new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
             );
-            // Request task settings may arrive as an immutable map; the service must cope with that when parsing them
-            var requestTaskSettings = randomBoolean()
-                ? Map.<String, Object>of()
-                : Map.<String, Object>of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "markdown");
             var documentExtractionRequest = new DocumentExtractionRequest(documents, requestTaskSettings);
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -865,6 +903,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(documentExtractionResults.getFirst().get("format"), is("markdown"));
             assertThat(documentExtractionResults.getFirst().get("metadata"), is(Map.of("title", "Annual Report 2025")));
 
+            // The per-request model copy must not leak the request task settings into the stored model
+            assertThat(model.getTaskSettings(), is(storedTaskSettings));
+
             // Verify the outgoing HTTP request
             var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
@@ -872,18 +913,14 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             // Verify the outgoing request body
+            var expectedRequestMap = new HashMap<String, Object>();
+            expectedRequestMap.put("model", modelId);
+            expectedRequestMap.put("input", documents.stream().map(document -> Map.of("content", inferenceStringToMap(document))).toList());
+            if (expectedOutputFormat != null) {
+                expectedRequestMap.put("output_format", expectedOutputFormat);
+            }
             Map<String, Object> requestMap = entityAsMap(request.getBody());
-            assertThat(
-                requestMap,
-                is(
-                    Map.of(
-                        "model",
-                        modelId,
-                        "input",
-                        documents.stream().map(document -> Map.of("content", inferenceStringToMap(document))).toList()
-                    )
-                )
-            );
+            assertThat(requestMap, is(expectedRequestMap));
         }
     }
 
@@ -1897,6 +1934,15 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "updatable": true,
                                "type": "int",
                                "supported_task_types": ["sparse_embedding"]
+                           },
+                           "output_format": {
+                               "description": "The format of the extracted document content. Can be overridden per request via task_settings.",
+                               "label": "Output Format",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": true,
+                               "type": "str",
+                               "supported_task_types": ["document_extraction"]
                            }
                        }
                    }
@@ -1948,6 +1994,15 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                                "updatable": true,
                                "type": "int",
                                "supported_task_types": ["sparse_embedding"]
+                           },
+                           "output_format": {
+                               "description": "The format of the extracted document content. Can be overridden per request via task_settings.",
+                               "label": "Output Format",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": true,
+                               "type": "str",
+                               "supported_task_types": ["document_extraction"]
                            }
                        }
                    }

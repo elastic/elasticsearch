@@ -62,6 +62,17 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         );
     }
 
+    public void testFromMap_WithEmptyOutputFormat_Throws() {
+        var map = new HashMap<String, Object>(Map.of(OUTPUT_FORMAT, ""));
+
+        var exception = expectThrows(ValidationException.class, () -> ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(map));
+
+        assertThat(
+            exception.getMessage(),
+            containsString("[task_settings] Invalid value empty string. [output_format] must be a non-empty string")
+        );
+    }
+
     public void testOf_RequestSettingsOverrideStoredSettings() {
         var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown");
         var request = new ElasticInferenceServiceDocumentExtractionTaskSettings("text");

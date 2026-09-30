@@ -41,11 +41,21 @@ public class ElasticInferenceServiceDocumentExtractionModelTests extends ESTestC
     }
 
     public static ElasticInferenceServiceDocumentExtractionModel createModel(String url, String modelId) {
+        return createModel(url, modelId, ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS);
+    }
+
+    public static ElasticInferenceServiceDocumentExtractionModel createModel(
+        String url,
+        String modelId,
+        ElasticInferenceServiceDocumentExtractionTaskSettings taskSettings
+    ) {
         return new ElasticInferenceServiceDocumentExtractionModel(
             "id",
             TaskType.DOCUMENT_EXTRACTION,
             new ElasticInferenceServiceDocumentExtractionServiceSettings(modelId),
-            ElasticInferenceServiceComponents.of(url)
+            taskSettings,
+            ElasticInferenceServiceComponents.of(url),
+            null
         );
     }
 

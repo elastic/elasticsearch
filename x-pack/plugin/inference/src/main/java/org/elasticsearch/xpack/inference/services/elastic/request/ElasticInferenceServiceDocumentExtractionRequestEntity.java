@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,18 +22,24 @@ import java.util.Objects;
  * <pre>
  * {
  *   "model": "jina-reader",
+ *   "output_format": "markdown",
  *   "input": [
  *     {
  *       "content": {"type": "pdf", "format": "base64", "value": "data:application/pdf;base64,..."}
  *     }
  *   ]
  * }</pre>
+ * {@code output_format} is the resolved task setting (request {@code task_settings} on top of the ones stored on the endpoint). It is
+ * omitted when neither sets it so the Elastic Inference Service falls back to the provider's default format.
  */
-public record ElasticInferenceServiceDocumentExtractionRequestEntity(List<InferenceString> documents, String modelId)
-    implements
-        ToXContentObject {
+public record ElasticInferenceServiceDocumentExtractionRequestEntity(
+    List<InferenceString> documents,
+    String modelId,
+    @Nullable String outputFormat
+) implements ToXContentObject {
 
     private static final String MODEL_FIELD = "model";
+    private static final String OUTPUT_FORMAT_FIELD = "output_format";
     private static final String INPUT_FIELD = "input";
     private static final String CONTENT_FIELD = "content";
 
@@ -46,6 +53,10 @@ public record ElasticInferenceServiceDocumentExtractionRequestEntity(List<Infere
         builder.startObject();
 
         builder.field(MODEL_FIELD, modelId);
+
+        if (outputFormat != null) {
+            builder.field(OUTPUT_FORMAT_FIELD, outputFormat);
+        }
 
         builder.startArray(INPUT_FIELD);
         for (InferenceString document : documents) {

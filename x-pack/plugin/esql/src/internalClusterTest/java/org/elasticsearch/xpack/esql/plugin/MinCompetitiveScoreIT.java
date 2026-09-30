@@ -83,6 +83,7 @@ public class MinCompetitiveScoreIT extends AbstractEsqlIntegTestCase {
      * skip most of the others.
      */
     public void testSkipsDocuments() {
+        assumeTrue("needs the page_size pragma, which release builds reject", canUseQueryPragmas());
         createIndex(1);
         int numDocs = 20_000;
         Set<Integer> hot = new HashSet<>();
@@ -108,14 +109,14 @@ public class MinCompetitiveScoreIT extends AbstractEsqlIntegTestCase {
         updateClusterSettings(Settings.builder().put(PlannerSettings.MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED.getKey(), false));
         long offRows;
         List<List<Object>> off;
-        try (EsqlQueryResponse resp = run(profiled(query))) {
+        try (EsqlQueryResponse resp = run(smallPages(profiled(query)))) {
             off = getValuesList(resp);
             offRows = luceneSourceRowsEmitted(resp);
         }
         updateClusterSettings(Settings.builder().put(PlannerSettings.MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED.getKey(), true));
         long onRows;
         List<List<Object>> on;
-        try (EsqlQueryResponse resp = run(profiled(query))) {
+        try (EsqlQueryResponse resp = run(smallPages(profiled(query)))) {
             on = getValuesList(resp);
             onRows = luceneSourceRowsEmitted(resp);
         }
@@ -186,13 +187,20 @@ public class MinCompetitiveScoreIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Profile the query so we can count the rows the source emitted. Use small pages because
-     * the TopN can only publish a bound once it received a page, so a single page containing the
-     * whole index could never skip anything.
+     * Profile the query so we can count the rows the source emitted.
      */
     private static EsqlQueryRequest profiled(String query) {
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.profile(true);
+        return request;
+    }
+
+    /**
+     * Use small pages because the TopN can only publish a bound once it received a page, so a
+     * single page containing the whole index could never skip anything. Pragmas are rejected on
+     * release builds, callers must check {@link #canUseQueryPragmas()} first.
+     */
+    private static EsqlQueryRequest smallPages(EsqlQueryRequest request) {
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), 500).build()));
         return request;
     }

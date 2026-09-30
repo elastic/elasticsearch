@@ -4,11 +4,20 @@ _meta:
   description: Default mappings for the Prometheus metric exemplars index template installed by x-pack
   managed: true
 template:
+  settings:
+    index.mapping.total_fields.limit: 10000
   mappings:
+    date_detection: false
     properties:
+      "@timestamp":
+        type: date
       data_stream.type:
         type: constant_keyword
         value: exemplars
+      data_stream.dataset:
+        type: constant_keyword
+      data_stream.namespace:
+        type: constant_keyword
       value:
         type: double
       labels:

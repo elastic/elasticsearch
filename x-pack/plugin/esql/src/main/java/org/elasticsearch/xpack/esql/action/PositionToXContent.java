@@ -75,6 +75,16 @@ public abstract class PositionToXContent {
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
         throws IOException;
 
+    /**
+     * Re-emits an already serialised value token by token, converting between content types on the way if needed.
+     */
+    private static XContentBuilder copyStructure(XContentBuilder builder, BytesArray bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, bytes)) {
+            parser.nextToken();
+            return builder.copyCurrentStructure(parser);
+        }
+    }
+
     public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, ZoneId zoneId, BytesRef scratch) {
         return switch (columnInfo.type()) {
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
@@ -243,15 +253,33 @@ public abstract class PositionToXContent {
                     return builder.value((String) null);
                 }
             };
-            case SOURCE, FLATTENED -> new PositionToXContent(block) {
+            case SOURCE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
-                        parser.nextToken();
-                        return builder.copyCurrentStructure(parser);
+                    BytesArray bytes = new BytesArray(val);
+                    XContentType sourceType = XContentHelper.xContentType(bytes);
+                    if (sourceType == null) {
+                        // Not recognisable as xcontent, e.g. a compressed _source. Leave it to the general-purpose parser
+                        // factory, which either decompresses it or fails the same way this code always has.
+                        return copyStructure(builder, bytes);
                     }
+                    /*
+                     * _source is already a serialised document, so copying its bytes straight into the response is a lot
+                     * cheaper than parsing it and re-emitting every token. This is the same shortcut the search API takes for
+                     * its hits' _source. The builder only takes it when it is safe - a format that allows raw writes (JSON),
+                     * the same content type, no pretty printing, no filtering - and otherwise falls back to the token-by-token
+                     * copy itself. Both paths produce the same document; only the raw copy also preserves its original formatting.
+                     */
+                    return builder.rawValue(bytes.streamInput(), sourceType);
+                }
+            };
+            case FLATTENED -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return copyStructure(builder, new BytesArray(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case DENSE_VECTOR -> new PositionToXContent(block) {

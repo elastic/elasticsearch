@@ -9,9 +9,11 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,8 +26,10 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -203,11 +207,32 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
 
     /**
      * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing pdf
-     * inputs, which every document extraction request may carry, so we filter those out of the bwc versions to avoid test failures.
+     * inputs, which every document extraction request may carry, and versions before
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format inputs, so we filter those
+     * out of the bwc versions to avoid test failures. The URL-format guard is tested directly by
+     * {@link #testUrlFormatIsNotBackwardsCompatible}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+        return super.bwcVersions().stream()
+            .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
+            .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .toList();
+    }
+
+    /**
+     * Verifies that URL-format inputs cannot be sent to nodes that do not support {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED}.
+     * An {@link DataType#IMAGE} input is used since it pre-dates the audio/video/pdf gate, so the URL-specific error is always the one
+     * raised on any pre-URL node.
+     */
+    public void testUrlFormatIsNotBackwardsCompatible() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        var urlRequest = DocumentExtractionRequest.of(
+            List.of(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/document.png"))
+        );
+        var preUrlVersions = super.bwcVersions().stream().filter(v -> v.supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false).toList();
+
+        assertRequestNotBackwardsCompatible(preUrlVersions, urlRequest);
     }
 
     @Override
@@ -232,6 +257,23 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
 
     public static DocumentExtractionRequest createRandom() {
         return new DocumentExtractionRequest(randomInputs(), Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8)));
+    }
+
+    private void assertRequestNotBackwardsCompatible(List<TransportVersion> preUrlVersions, DocumentExtractionRequest urlRequest) {
+        for (var version : preUrlVersions) {
+            var ex = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> copyWriteable(urlRequest, getNamedWriteableRegistry(), instanceReader(), version)
+            );
+            assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                ex.getMessage(),
+                is(
+                    "Cannot send an inference request with URL format inputs to an older node. "
+                        + "Please wait until all nodes are upgraded before using URL format inputs"
+                )
+            );
+        }
     }
 
     private static List<InferenceString> randomInputs() {

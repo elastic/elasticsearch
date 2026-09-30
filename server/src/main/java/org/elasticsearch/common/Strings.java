@@ -1045,6 +1045,11 @@ public class Strings {
         return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 
+    /**
+     * Look for a character in a string, like indexOf(), but for multiple characters.
+     * <p>
+     * Saves doing multiple passes in case we need to check for presence (or absense) of any of them.
+     */
     public static int indexOfAny(String s, char... chars) {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);

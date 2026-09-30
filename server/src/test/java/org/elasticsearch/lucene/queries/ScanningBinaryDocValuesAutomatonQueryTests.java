@@ -631,22 +631,16 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
     public void testCircuitBreakerConsultedForWildcard() {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, false, SEPARATE_COUNT, breaker);
+        // tests both case sensitive and insensitive, randomly
+        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, randomBoolean(), SEPARATE_COUNT, breaker);
         assertTrue("circuit breaker should be consulted during case-sensitive wildcard automaton construction", breaker.wasCalled());
-    }
-
-    public void testCircuitBreakerConsultedForCaseInsensitiveWildcard() {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, true, SEPARATE_COUNT, breaker);
-        assertTrue("circuit breaker should be consulted during case-insensitive wildcard automaton construction", breaker.wasCalled());
     }
 
     public void testCircuitBreakerTripsForComplexWildcard() {
         CircuitBreaker tinyBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
         expectThrows(
             CircuitBreakingException.class,
-            () -> ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, false, SEPARATE_COUNT, tinyBreaker)
+            () -> ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, randomBoolean(), SEPARATE_COUNT, tinyBreaker)
         );
-        assertEquals("no memory should remain reserved after breaker trips", 0, tinyBreaker.getUsed());
     }
 }

@@ -122,13 +122,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
 
     public void testCircuitBreakerConsultedDuringConstruction() {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "field", COMPLEX_WILDCARD, false, breaker);
+        new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "field", COMPLEX_WILDCARD, randomBoolean(), breaker);
         assertTrue("circuit breaker should be consulted during wildcard automaton construction", breaker.wasCalled());
-    }
-
-    public void testCircuitBreakerConsultedDuringCaseInsensitiveConstruction() {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-        new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "field", COMPLEX_WILDCARD, true, breaker);
-        assertTrue("circuit breaker should be consulted during case-insensitive wildcard automaton construction", breaker.wasCalled());
     }
 }

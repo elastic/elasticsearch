@@ -481,6 +481,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
+    /**
+     * Resolves the sort for a shard a second time: {@link LuceneSliceQueue#create} calls this from the {@link LuceneOperator.Factory}
+     * constructor, before {@link Factory#perShardCollectorProvider} exists, so the sort it builds can't be reused there. Building
+     * a sort is cheap (mapping lookups and a field data lookup), so this isn't worth restructuring the constructors over.
+     */
     private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
@@ -512,7 +517,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      * <p>
      *     Sort fields backed by an {@code IndexFieldData.XFieldComparatorSource} don't override {@code equals()}, so shared
      *     sorts containing them compare by identity and each shard gets its own manager. That is also the correct
-     *     behaviour: those comparator sources hold per-shard field data and must not be shared across shards.
+     *     behaviour: those comparator sources are resolved against each shard's mappings (field data, missing value, sort mode,
+     *     nested), so a manager must not span shards of different indices. In practice only a bare {@code SORT _score DESC}
+     *     shares one manager across shards.
      * </p>
      */
     static class PerShardCollectorProvider {
@@ -585,7 +592,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         /**
          * Whether collectors for {@code sort} share a minimum competitive score through their {@link TopFieldCollectorManager}.
          * Mirrors the check in {@code TopFieldCollector}'s constructor, which only enables it when the first comparator is the
-         * relevance comparator in its natural, descending, order. Revisit on Lucene upgrades.
+         * relevance comparator in its natural, descending, order, and {@code totalHitsThreshold} isn't {@link Integer#MAX_VALUE}
+         * (we always pass {@code 0}). Revisit on Lucene upgrades.
          */
         static boolean sharesMinCompetitiveScore(Sort sort) {
             SortField primary = sort.getSort()[0];

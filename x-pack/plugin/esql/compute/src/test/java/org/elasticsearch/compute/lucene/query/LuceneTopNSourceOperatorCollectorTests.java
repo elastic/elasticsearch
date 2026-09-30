@@ -54,11 +54,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -72,6 +67,12 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
+
+    /**
+     * What {@link #resolveSort} turns every {@link FieldSortBuilder} into. Value-equal, unlike the identity-equal sort fields a real
+     * shard produces; see {@link #resolveSort}.
+     */
+    private static final SortField FIELD_SORT = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
 
     private final Directory directory = newDirectory();
     private final Directory emptyDirectory = newDirectory();
@@ -125,6 +126,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         Sort managerSort = provider.topFieldCollectorManagers.keySet().iterator().next();
         assertThat(managerSort.getSort().length, equalTo(4));
         assertThat(managerSort.getSort()[0], equalTo(SortField.FIELD_SCORE));
+        assertThat(managerSort.getSort()[1], equalTo(FIELD_SORT));
         assertThat(managerSort.getSort()[2], equalTo(SortField.FIELD_DOC));
         assertThat(managerSort.getSort()[3], equalTo(SortField.FIELD_SCORE));
         assertThat(provider.topScoreDocCollectorManager, nullValue());
@@ -144,16 +146,15 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testSharesMinCompetitiveScore() {
-        SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
         SortField scoreAsc = new SortField(null, SortField.Type.SCORE, true);
         assertThat(LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(Sort.RELEVANCE), equalTo(true));
         assertThat(
-            LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(SortField.FIELD_SCORE, field)),
+            LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(SortField.FIELD_SCORE, FIELD_SORT)),
             equalTo(true)
         );
         assertThat(LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(scoreAsc)), equalTo(false));
         assertThat(
-            LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(field, SortField.FIELD_SCORE)),
+            LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(FIELD_SORT, SortField.FIELD_SCORE)),
             equalTo(false)
         );
         assertThat(
@@ -196,11 +197,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         int limit = randomIntBetween(5, 20);
         setupIndex(100);
         ShardContext ctx = createMockShardContext(0);
-        Sort fieldFirst = new Sort(
-            new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN),
-            SortField.FIELD_DOC,
-            SortField.FIELD_SCORE
-        );
+        Sort fieldFirst = new Sort(FIELD_SORT, SortField.FIELD_DOC, SortField.FIELD_SCORE);
         var sharedManager = new TopFieldCollectorManager(fieldFirst, limit, null, 0);
 
         collectIncreasingScores(
@@ -420,30 +417,16 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     private List<TopDocsCollector<?>> createCollectorsConcurrently(
         LuceneTopNSourceOperator.PerShardCollectorProvider provider,
         ShardContext ctx
-    ) throws Exception {
+    ) {
         int numThreads = randomIntBetween(4, 8);
         int callsPerThread = randomIntBetween(5, 15);
-        CyclicBarrier barrier = new CyclicBarrier(numThreads);
-        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         List<TopDocsCollector<?>> collectors = new CopyOnWriteArrayList<>();
 
-        try {
-            List<Future<?>> futures = new ArrayList<>();
-            for (int t = 0; t < numThreads; t++) {
-                futures.add(executor.submit(() -> {
-                    barrier.await(10, TimeUnit.SECONDS);
-                    for (int i = 0; i < callsPerThread; i++) {
-                        collectors.add(provider.newPerShardCollector(ctx).collector);
-                    }
-                    return null;
-                }));
+        startInParallel(numThreads, t -> {
+            for (int i = 0; i < callsPerThread; i++) {
+                collectors.add(provider.newPerShardCollector(ctx).collector);
             }
-            for (var f : futures) {
-                f.get(10, TimeUnit.SECONDS);
-            }
-        } finally {
-            terminate(executor);
-        }
+        });
 
         Set<TopDocsCollector<?>> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
         distinct.addAll(collectors);
@@ -491,9 +474,12 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Resolves sorts the way a real shard would for the test index, the way {@link ScoreSortBuilder} and {@link FieldSortBuilder}
-     * build them: a descending score sort becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an
-     * ascending one a reversed score field, and anything else a numeric sort on {@code s}.
+     * Resolves sorts against the test index. Score sorts match what {@link ScoreSortBuilder} builds exactly: a descending one
+     * becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an ascending one a reversed score field.
+     * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}, which is a stand-in: a real shard
+     * builds a {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource}, which compares by identity, so equal
+     * field sorts on different shards never share a manager in production. {@link #testIdentityEqualSortsGetOneManagerPerShard}
+     * covers that case.
      */
     private static Sort resolveSort(List<SortBuilder<?>> sorts) {
         SortField[] fields = new SortField[sorts.size()];
@@ -501,7 +487,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             if (sorts.get(i) instanceof ScoreSortBuilder score) {
                 fields[i] = score.order() == SortOrder.DESC ? SortField.FIELD_SCORE : new SortField(null, SortField.Type.SCORE, true);
             } else {
-                fields[i] = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
+                fields[i] = FIELD_SORT;
             }
         }
         return new Sort(fields);

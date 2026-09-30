@@ -1330,8 +1330,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // means (or the master already knows because the master initiated it, e.g. by moving the shard)
                 return;
             }
-            // todo: wire local retry count into listener
-            final int nextLocalRetries = 0;
+            final int nextLocalRetries = failureStrategy == FailureStrategy.RETRY && localRecoveryRetryEnabled
+                ? state.getLocalRetries() + 1
+                : 0;
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,

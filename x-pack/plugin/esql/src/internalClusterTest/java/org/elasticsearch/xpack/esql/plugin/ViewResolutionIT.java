@@ -149,15 +149,15 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *-view"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM .system-*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .system-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "system-index");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
                 assertOk(response);
                 // system-index & regular-index matched as indices and only regular-view matched as a view
                 assertResultConcreteIndices(response, "system-index", "regular-index", "regular-index");

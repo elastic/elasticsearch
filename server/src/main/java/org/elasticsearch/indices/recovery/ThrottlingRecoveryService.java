@@ -145,8 +145,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
     private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
-    // If non-null, this field caches the value for PendingRecovery.earliestEnqueuedTimeAbsoluteMillis() for any queued recovery, or
-    // Long.MAX_VALUE if the queue is empty. If null, the value should be computed on demand and cached.
+    // If non-null, this field caches the value for PendingRecovery.enqueuedTimeAbsoluteMillis() for any queued recovery, or Long.MAX_VALUE
+    // if the queue is empty. If null, the value should be computed on demand and cached.
     // We use absoluteTimeInMillis rather than relativeTimeInMillis because the latter has an arbitrary zero point, so there's a chance
     // (though very small!) that it could wrap around while we're running, and then the minimum timestamp wouldn't be the earliest.
     // We deal with the (also very small) chance that we could observe time going backwards in queueLatencyMillis().

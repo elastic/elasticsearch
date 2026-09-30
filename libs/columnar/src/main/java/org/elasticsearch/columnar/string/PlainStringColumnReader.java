@@ -11,11 +11,10 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
-import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -24,93 +23,43 @@ import java.util.function.Predicate;
  * A column that stores its values. Nothing names a value but its own bytes, so every filter the column's
  * order cannot answer compares them, and a page hands them over as they are.
  *
- * <p>What makes that affordable is that a repeated value is stored once: the store answers two addresses in
- * the same run with the same token, so a run is decided once and copied once however many documents carry
- * it.
- *
- * <p>A null is stored as a zero-length value and its address tabled, bytes having no spare value to mean
- * null with the way an ordinal does. So the table is the only thing separating a null from an empty string
- * here, and every read and every filter has to ask it.
+ * <p>A null takes an address like any other slot and stores no bytes. Its stored length is what tells it
+ * from an empty string, so every read and every filter that can meet one asks the lengths.
  */
 public final class PlainStringColumnReader extends StringColumnReader {
 
     /** Whether the column's values repeat often enough that naming a page's values pays, as the writer found. */
     private final boolean valuesWorthNaming;
 
-    private final ValueStream.Reader values;
+    private final PlainValues.Reader values;
 
-    /** The value addresses holding a null, ascending; null when no slot in the column is one. */
-    private final LongValues nullSlots;
-    private final long numNullSlots;
+    private final boolean hasNullSlots;
 
-    /** Index of the first null-slot entry at or after {@link #lastNullQuery}, and that entry's address. */
-    private long nullCursor;
-    private long nullCursorAddress;
-    private long lastNullQuery = -1;
-
-    PlainStringColumnReader(StringColumnMetadata.Plain column, IndexInput data) throws IOException {
-        super(column, data, column.values().valuesPerBlock());
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+        super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
-        this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
-        this.numNullSlots = column.numNullSlots();
-        this.nullSlots = column.hasNullSlots()
-            ? MonotonicReader.open(
-                data,
-                column.nullSlots().meta(),
-                column.numNullSlots(),
-                column.nullSlots().dataOffset(),
-                column.nullSlots().dataLength()
-            )
-            : null;
-        this.nullCursorAddress = nullSlots == null ? Long.MAX_VALUE : nullSlots.get(0);
+        this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
+        this.hasNullSlots = column.hasNullSlots();
     }
 
-    /**
-     * Whether the slot at {@code valueAddress} is null, which only the null-slot table says. Callers walk a
-     * document's addresses in order and documents in order, so this keeps a cursor into that table and
-     * advances it, making a full scan cost one pass over it. A caller that asks about an address behind the
-     * one it last asked about re-seeks by binary search.
-     */
+    @Override
+    public int byteLengthAt(long valueAddress) throws IOException {
+        return values.length(valueAddress);
+    }
+
+    /** Whether the slot at {@code valueAddress} is null, which its stored length says. */
     @Override
     public boolean isNullSlot(long valueAddress) throws IOException {
-        if (nullSlots == null) {
-            return false;
-        }
-        if (valueAddress < lastNullQuery) {
-            seekNullCursor(valueAddress);
-        }
-        lastNullQuery = valueAddress;
-        while (nullCursorAddress < valueAddress) {
-            nullCursor++;
-            nullCursorAddress = nullCursor < numNullSlots ? nullSlots.get(nullCursor) : Long.MAX_VALUE;
-        }
-        return nullCursorAddress == valueAddress;
-    }
-
-    /** Positions the cursor on the first null slot at or after {@code valueAddress}. */
-    private void seekNullCursor(long valueAddress) {
-        long low = 0;
-        long high = numNullSlots - 1;
-        long found = numNullSlots;
-        while (low <= high) {
-            final long mid = (low + high) >>> 1;
-            if (nullSlots.get(mid) >= valueAddress) {
-                found = mid;
-                high = mid - 1;
-            } else {
-                low = mid + 1;
-            }
-        }
-        nullCursor = found;
-        nullCursorAddress = found < numNullSlots ? nullSlots.get(found) : Long.MAX_VALUE;
+        return hasNullSlots && values.isNull(valueAddress);
     }
 
     /**
-     * What one match decided about the last value it saw. A document holding the same value as the one
-     * before it matches exactly as it did, so a run is decided once. Held per match rather than on the
-     * reader, since what it remembers is the answer to one term.
+     * What one match decided about the last value it saw. A value read from the same stored bytes as the one
+     * before it matches exactly as it did. Held per match rather than on the reader, since what it remembers is
+     * the answer to one term.
      */
     private static final class LastSeen {
+        private final BytesRef value = new BytesRef();
         private long identity = -1;
         private int length = -1;
         private boolean matched;
@@ -172,69 +121,109 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Compares the values, for a column with no order to bisect and no ordinals to match instead. A
-     * two-phase iterator, so a scorer fills a window at a time rather than asking one document at a time.
+     * Documents whose value equals {@code exact}, or starts with {@code prefix} when {@code exact} is null, in
+     * two phases. The approximation is the documents holding a slot whose length could match, found a block of
+     * stored lengths at a time; the confirmation compares the bytes. An empty term or prefix is settled by the
+     * length, so its confirmation is free.
      */
     @Override
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
-        final ColumnIterator presence = iterator();
+        final BytesRef target = exact != null ? exact : prefix;
+        final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
+        final Slots candidates = slotsHeld(window);
+        final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
-        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                return matchesRank(presence.rank(), prefix, exact, lastSeen);
+                if (settled) {
+                    return true;
+                }
+                final long first = candidates.firstSlot();
+                final long count = candidates.slotCount();
+                for (long i = 0; i < count; i++) {
+                    final long slot = first + i;
+                    if (window.holds(slot) && matchesSlot(slot, prefix, exact, lastSeen)) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             @Override
             public float matchCost() {
-                return 10f;
+                return settled ? 0f : target.length;
             }
 
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // Settled by the window, so every document of a run it holds matches.
+                return settled ? candidates.docIDRunEnd() : super.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (settled) {
+                    candidates.intoBitSet(upTo, bitSet, offset);
+                } else {
+                    super.intoBitSet(upTo, bitSet, offset);
+                }
+            }
         });
     }
 
-    /** Whether any of a document's values matches, comparing the bytes of each one. */
-    private boolean matchesRank(int rank, BytesRef prefix, BytesRef exact, LastSeen lastSeen) throws IOException {
-        final long first = firstValueAddress(rank);
-        final long count = valueCount(rank);
-        // A document holding the same value as the one before it matches exactly as it did. On a column of
-        // runs that answers most documents without looking at a value at all. A lone null is turned away
-        // first: it is stored as no bytes, so it would otherwise be compared as an empty string.
-        if (count == 1) {
-            if (isNullSlot(first)) {
-                return false;
-            }
-            final long identity = values.read(first, scratch);
-            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
-                return lastSeen.matched;
-            }
-            final boolean matched = matches(scratch, prefix, exact);
-            lastSeen.identity = identity;
-            lastSeen.length = scratch.length;
-            lastSeen.matched = matched;
-            return matched;
+    /** Whether the value at {@code slot}, which is not null, matches; a value read from the same bytes as the last answers as it did. */
+    private boolean matchesSlot(long slot, BytesRef prefix, BytesRef exact, LastSeen lastSeen) throws IOException {
+        final long identity = values.read(slot, lastSeen.value);
+        if (identity == lastSeen.identity && lastSeen.value.length == lastSeen.length) {
+            return lastSeen.matched;
         }
-        for (long i = 0; i < count; i++) {
-            final BytesRef value = valueAt(first + i);
-            // A null is no term and starts with no prefix, so it is passed over rather than compared.
-            if (value != null && matches(value, prefix, exact)) {
-                return true;
-            }
-        }
-        return false;
+        final boolean matched = matches(lastSeen.value, prefix, exact);
+        lastSeen.identity = identity;
+        lastSeen.length = lastSeen.value.length;
+        lastSeen.matched = matched;
+        return matched;
     }
 
     /**
-     * A run is stored once, so consecutive values of it answer with the same token and only the first is
-     * copied into the page. A column sorted on this field is made of runs, and this is where that pays: one
-     * entry a run rather than one a document, without comparing any bytes.
+     * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
+     * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the
+     * answer of the slot before it.
+     */
+    private SlotWindow lengthWindow(long min, long max) {
+        return new SlotWindow(values.codes(), PlainValues.code(min), PlainValues.code(max)) {
+            @Override
+            protected void adjust(long[] block, int count, long[] bits) {
+                // A block never starts with a repeat.
+                for (int i = 1; i < count; i++) {
+                    if (block[i] == PlainValues.REPEAT) {
+                        final int before = i - 1;
+                        if ((bits[before >>> 6] & (1L << before)) != 0) {
+                            bits[i >>> 6] |= 1L << i;
+                        } else {
+                            bits[i >>> 6] &= ~(1L << i);
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    /**
+     * Consecutive equal values take one entry in the page, so a column made of runs takes one a run rather than
+     * one a document.
      */
     @Override
     protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
+        if (pageOfOneApiece()) {
+            // One value a document and every one of them present: the page is the documents, with none of the
+            // accounting below.
+            return appendSingleValuedPage(docCount, null, docCount, sink);
+        }
         if (pageable()) {
-            // One value a document and every one of them present: the page is the documents, and a run tells itself
-            // from the address its value was read at without any of the accounting below.
-            return appendSingleValuedPage(docCount, sink);
+            // One value a document, some documents holding none: the present ones are read as above, and the counts
+            // say which documents they belong to.
+            return appendSingleValuedPage(compactPresentRanks(docCount), pageValueCounts, docCount, sink);
         }
         final int values = countPageValues(docCount);
         growPageValues(Math.max(values, 1));
@@ -244,6 +233,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
         int at = 0;
         for (int i = 0; i < docCount; i++) {
             final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                continue;
+            }
             final long first = firstValueAddress(rank);
             final long held = valueCount(rank);
             for (long s = 0; s < held; s++) {
@@ -273,9 +265,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /** A page of a column holding one value a document, which is the shape a run-encoded column pays off on. */
-    private boolean appendSingleValuedPage(int count, StringBlockSink sink) throws IOException {
+    private boolean appendSingleValuedPage(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
         if (valuesWorthNaming == false) {
-            return appendSingleValuedPageAsValues(count, sink);
+            return appendSingleValuedPageAsValues(count, counts, docCount, sink);
         }
         growPageValues(count);
         pageBytesLength = 0;
@@ -286,14 +278,11 @@ public final class PlainStringColumnReader extends StringColumnReader {
         int previousSlot = -1;
         for (int i = 0; i < count; i++) {
             final long identity = values.read(pageRanks[i], scratch);
-            // A run is stored once, so where a value was read tells a repeat of the one before it from a
-            // new value without looking at any bytes. A value the page held earlier is a different address
-            // and has to be found by its bytes, or the same value would take two slots.
+            // A value read from the same stored bytes as the one before it is a repeat without looking at them.
             if (previousSlot < 0 || identity != previous || scratch.length != previousLength) {
-                // Runs are staged a block at a time, so a run reaching into the next block is stored again
-                // and answers with an address the one before it did not. The slot before is the only one a
-                // column in term order can be repeating, so it is compared before anything is hashed, and
-                // a column in term order then hashes once a value rather than once a block it spans.
+                // The slot before is the only one a column in term order can be repeating, so it is compared
+                // before anything is hashed, and a column in term order then hashes once a run rather than once
+                // a value. A value the page held earlier is found by its bytes, or it would take two slots.
                 final int slot = previousSlot >= 0 && pageSlotHolds(previousSlot, scratch) ? previousSlot : pageSlotFor(scratch, slots);
                 if (slot == slots) {
                     slots++;
@@ -310,10 +299,10 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count, null, count);
+            sink.appendValues(pageValues, count, counts, docCount);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, null, count, pageDictionary, slots);
+        sink.appendOrdinals(pageOrdinals, count, counts, docCount, pageDictionary, slots);
         return true;
     }
 
@@ -325,7 +314,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
      *
      * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
      */
-    private boolean appendSingleValuedPageAsValues(int count, StringBlockSink sink) throws IOException {
+    private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
         growPageValues(count);
         pageBytesLength = 0;
         int runs = 0;
@@ -335,8 +324,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
         for (int i = 0; i < count; i++) {
             final long identity = values.read(pageRanks[i], scratch);
             if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
-                // A run staged across two blocks is stored twice and answers with a new address, so the run
-                // before is compared once by its bytes before a new one is started.
+                // The run before is compared by its bytes before a new one is started.
                 if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
                     appendToPage(runs, scratch);
                     previousRun = runs++;
@@ -350,7 +338,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
         for (int i = 0; i < count; i++) {
             pageValues[i] = pageDictionary[pageOrdinals[i]];
         }
-        sink.appendValues(pageValues, count, null, count);
+        sink.appendValues(pageValues, count, counts, docCount);
         return true;
     }
 }

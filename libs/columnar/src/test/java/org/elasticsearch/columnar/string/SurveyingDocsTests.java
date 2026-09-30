@@ -26,6 +26,7 @@ import java.util.List;
 public class SurveyingDocsTests extends ColumnarStringTestCase {
 
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.0, 0.0);
+    private static final SummaryPolicy ROOMY_SUMMARY = new SummaryPolicy(512 * 1024);
 
     /**
      * A single-valued sparse column: the terms the combined pass finds must equal the terms a standalone survey finds.
@@ -54,7 +55,7 @@ public class SurveyingDocsTests extends ColumnarStringTestCase {
 
     /**
      * A column of entirely distinct values: the combined survey must agree with the standalone survey that
-     * there is no vocabulary worth keeping.
+     * there is no dictionary worth keeping, and on what is left behind for a merge.
      */
     public void testNoVocabularyWhenAllValuesDistinct() throws IOException {
         final int maxDoc = between(200, 1000);
@@ -76,10 +77,10 @@ public class SurveyingDocsTests extends ColumnarStringTestCase {
         final int maxDoc = numDocsWithField < docSlots.length ? docSlots.length : docSlots.length + 1;
 
         // Standalone survey.
-        final Vocabulary.Terms standalone = Vocabulary.survey(cursor(docSlots), ROOMY);
+        final Vocabulary.Terms standalone = Vocabulary.survey(cursor(docSlots), ROOMY, ROOMY_SUMMARY);
 
         // Combined path: SurveyingDocs wrapped around the cursor, fed through ColumnIteratorWriter.
-        final Vocabulary.Surveyor surveyor = Vocabulary.surveyor(ROOMY);
+        final Vocabulary.Surveyor surveyor = Vocabulary.surveyor(ROOMY, ROOMY_SUMMARY);
         final SurveyingDocs docs = new SurveyingDocs(cursor(docSlots), surveyor, numDocsWithField);
         final ByteBuffersDataOutput buf = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(buf, "test", "test")) {
@@ -94,14 +95,25 @@ public class SurveyingDocsTests extends ColumnarStringTestCase {
             return;
         }
 
-        // The terms must be identical in count and content.
-        assertEquals("vocabulary size", standalone.size(), combined.size());
+        // The dictionary and summary terms must be identical in count and content.
+        assertSameTerms("dictionary", standalone, standalone.dictionaryIds(), combined, combined.dictionaryIds());
+        assertSameTerms("summary", standalone, standalone.summaryIds(), combined, combined.summaryIds());
+    }
+
+    private static void assertSameTerms(
+        String what,
+        Vocabulary.Terms standalone,
+        int[] standaloneIds,
+        Vocabulary.Terms combined,
+        int[] combinedIds
+    ) {
+        assertEquals(what + " size", standaloneIds.length, combinedIds.length);
         final BytesRef sa = new BytesRef();
         final BytesRef cb = new BytesRef();
-        for (int ordinal = 0; ordinal < standalone.size(); ordinal++) {
-            standalone.terms().get(standalone.sortedIds()[ordinal], sa);
-            combined.terms().get(combined.sortedIds()[ordinal], cb);
-            assertEquals("term at ordinal " + ordinal, sa, cb);
+        for (int ordinal = 0; ordinal < standaloneIds.length; ordinal++) {
+            standalone.terms().get(standaloneIds[ordinal], sa);
+            combined.terms().get(combinedIds[ordinal], cb);
+            assertEquals(what + " term at ordinal " + ordinal, sa, cb);
         }
     }
 

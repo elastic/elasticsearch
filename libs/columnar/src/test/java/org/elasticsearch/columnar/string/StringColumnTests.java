@@ -356,7 +356,7 @@ public class StringColumnTests extends ColumnarStringTestCase {
         );
     }
 
-    public void testDictionaryRejectedWhenEscapeBytesExceedCoveredBytes() throws IOException {
+    public void testDictionaryRejectedWhenTooManyValuesEscape() throws IOException {
         final BytesRef[] docs = new BytesRef[2000];
         final String[] frequent = { "alpha", "bravo", "char.", "delta", "echo." };
         for (int i = 0; i < 1000; i++) {
@@ -369,26 +369,26 @@ public class StringColumnTests extends ColumnarStringTestCase {
             escape[1] = (byte) ((i >> 8) & 0xff);
             docs[1000 + i] = new BytesRef(escape);
         }
-        // Covered bytes = 5000, column bytes = 55000: byte coverage ~9%.
-        // A 50% byte-coverage threshold rejects the dictionary; 91% of the column would gain nothing from it.
+        // NOTE: the five named terms answer half the reads and the rest escape, so a bar above a half refuses
+        // the dictionary however little those escapes weigh.
+        withColumn(
+            docs,
+            randomValidBlockSize(),
+            ChunkCodec.ZSTD,
+            64 * 1024,
+            new DictionaryPolicy(512 * 1024, 0.9, 0.2),
+            (metadata, reader) -> {
+                plainOf(metadata);
+                assertColumnValues(docs, reader);
+            }
+        );
+        // A bar at a half admits it, since exactly half the reads are answered by an ordinal.
         withColumn(
             docs,
             randomValidBlockSize(),
             ChunkCodec.ZSTD,
             64 * 1024,
             new DictionaryPolicy(512 * 1024, 0.5, 0.2),
-            (metadata, reader) -> {
-                plainOf(metadata);
-                assertColumnValues(docs, reader);
-            }
-        );
-        // A 5% threshold accepts the dictionary because the covered terms are present.
-        withColumn(
-            docs,
-            randomValidBlockSize(),
-            ChunkCodec.ZSTD,
-            64 * 1024,
-            new DictionaryPolicy(512 * 1024, 0.05, 0.2),
             (metadata, reader) -> {
                 dictionaryOf(metadata);
                 assertColumnValues(docs, reader);
@@ -405,7 +405,13 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
         assertEquals("numValues", numValues(docSlots), reader.numValues());
         assertEquals("numNullSlots", numNullSlots(docSlots), metadata.numNullSlots());
-        assertEquals("multi-valued", numValues(docSlots) > numDocsWithField(docSlots), metadata.multiValued());
+        boolean someDocumentHoldsSeveral = false;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                someDocumentHoldsSeveral |= slots.length > 1;
+            }
+        }
+        assertEquals("multi-valued", someDocumentHoldsSeveral, metadata.multiValued());
 
         int seenDocs = 0;
         ColumnIterator iterator = reader.iterator();

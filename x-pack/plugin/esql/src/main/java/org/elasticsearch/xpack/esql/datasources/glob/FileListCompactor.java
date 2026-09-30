@@ -37,14 +37,23 @@ final class FileListCompactor {
      * Compacts a raw file list into the smallest faithful representation available, or returns the
      * original list when compaction does not apply or overflows.
      * <p>
-     * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — not
-     * because it needs the partition values (it does not read them), but as a cost heuristic: that is
-     * the signal a layout has repeated directories worth grouping. {@link GlobExpander} attaches no
-     * partition metadata when hive partitioning is off, so such listings take the dictionary encoding
-     * directly.
+     * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — that is
+     * the cost heuristic for layouts with repeated directories worth grouping. Building that candidate also
+     * rewrites its partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so identical
+     * Hive tuples are stored once per directory; if the dictionary encoding is then kept, the shared copy is
+     * discarded with the candidate and the dictionary list carries the unshared metadata. {@link GlobExpander}
+     * attaches no partition metadata when hive partitioning is off, so such listings take the dictionary
+     * encoding directly.
      */
     static FileList compact(String basePath, GenericFileList raw) {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
+            return raw;
+        }
+        // Neither compacted encoding carries the truncation flag, so compacting would report a bounded listing as
+        // a complete one. Refused here rather than at the caller so a future caller cannot drop the flag. The
+        // cost: a listing bounded at a raised partition_sample_size is carried uncompacted through planning.
+        // Teaching the encodings to carry the flag would remove the trade-off.
+        if (raw.isTruncated()) {
             return raw;
         }
         String normalizedBase = normalizeBase(basePath);
@@ -216,6 +225,12 @@ final class FileListCompactor {
             }
         }
 
+        PartitionMetadata pm = raw.partitionMetadata();
+        if (pm != null && pm.isEmpty() == false) {
+            // One value row per directory group when that shrinks storage (Hive tuples are per-directory).
+            // Sharing runs only for the directory-grouped encoding; dictionary compaction keeps one row per file.
+            pm = pm.shareByGroups(fileGroups, numGroups);
+        }
         return new DirectoryGroupedFileList(
             normalizedBase,
             dirs.toArray(new String[0]),
@@ -226,7 +241,7 @@ final class FileListCompactor {
             leafNames,
             sharedExt,
             raw.originalPattern(),
-            raw.partitionMetadata(),
+            pm,
             count,
             raw.fileSetFingerprint(),
             raw.listingWarnings()

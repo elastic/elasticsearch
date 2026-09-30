@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -105,7 +105,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                         token
                     );
                 }
-                value = XContentUtils.readValue(parser, token);
+                value = XContentParserUtils.parseFieldsValue(parser);
                 token = parser.nextToken();
                 if (token != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException(

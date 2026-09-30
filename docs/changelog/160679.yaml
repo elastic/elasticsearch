@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 160679
+summary: Evaluate lazy CASE one arm at a time
+type: enhancement

@@ -23,7 +23,7 @@ import java.util.Set;
  * Base class for the ES|QL yaml suites. Before every ES|QL query it waits until all nodes have applied every cluster state published
  * so far. A {@code bulk} with {@code refresh=true} that adds a field through dynamic mapping can return before some search nodes have
  * applied the new mapping, and ES|QL resolves its columns from a single node's local mapping, so a query issued right after such a
- * bulk could otherwise fail with {@code Unknown column}. See https://github.com/elastic/elasticsearch-serverless/issues/7829.
+ * bulk could otherwise fail with {@code Unknown column}.
  */
 public abstract class EsqlClientYamlTestCase extends ESClientYamlSuiteTestCase {
 
@@ -59,6 +59,8 @@ public abstract class EsqlClientYamlTestCase extends ESClientYamlSuiteTestCase {
                 NodeSelector nodeSelector
             ) throws IOException {
                 if (QUERY_APIS.contains(apiName)) {
+                    // These suites check what a query returns once its data is written, not how quickly a new mapping reaches
+                    // every node, so waiting for the cluster state to settle doesn't hide anything they are meant to catch.
                     waitForAllNodesToApplyClusterState();
                 }
                 return super.callApi(apiName, method, params, bodies, headers, nodeSelector);

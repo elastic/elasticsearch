@@ -651,6 +651,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             )
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
+        getMostRecentQueueLatencyMetrics(dataNodes);
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
@@ -669,10 +671,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         range(0, writeThreadPoolSize + 1).forEach(i -> writeThreadPool.execute(() -> safeAwait(latch)));
         final long delayMillis = randomIntBetween(100, 200);
         safeSleep(delayMillis);
+        // Refresh cluster info while the task is still queued, so peekMaxQueueLatencyInQueueMillis() is
+        // guaranteed to observe the full queuing duration. Refreshing after latch.countDown() risks a race
+        // where the WRITE thread dequeues the task between getMaxQueueLatencyMillisSinceLastPollAndReset()
+        // and peekMaxQueueLatencyInQueueMillis(), causing the latency to be missed or underreported.
+        refreshClusterInfo();
         // Unblock the pool
         latch.countDown();
-
-        refreshClusterInfo();
         mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
         assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
@@ -768,7 +773,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     private Map<String, Double> getMostRecentAverageWriteLoadMetrics() {
         final var telemetryPlugin = getTelemetryPluginForNode(internalCluster().getMasterName());
         telemetryPlugin.collect();
-        final var measurements = telemetryPlugin.getDoubleGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
+        final var measurements = telemetryPlugin.getDoubleAsyncGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
         return measurements.stream()
             .collect(
                 Collectors.toMap(

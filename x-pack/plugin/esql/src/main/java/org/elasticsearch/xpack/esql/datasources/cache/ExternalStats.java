@@ -66,6 +66,28 @@ public final class ExternalStats {
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
 
     /**
+     * The widest row the producing read would have accepted, stamped alongside the licence so the crossing can be
+     * checked rather than assumed.
+     * <p>
+     * The licence above says a committed {@code FAIL_FAST} count is the file's physical record count. That is true of
+     * the read that produced it and not of every read of the same file, because reads do not all bound a row's width
+     * the same way: a positional read is bounded by the pinned schema's width, a declared read by the bound file's own
+     * header, and a headerless declared read not at all. So a declared read of a file whose later rows are wider than
+     * the pinned width completes and commits the physical count where the positional read aborts — and the licence
+     * alone would carry that count back to the reader that cannot produce it, which then answers where its own scan
+     * errors. A masked abort, flapping with cache state.
+     * <p>
+     * With the bound recorded, a count crosses only toward a read that is at least as tolerant: a producer that
+     * completed under a tighter bound would have completed under a looser one, so that direction is safe, and the
+     * unsafe direction is refused. A format with no width concept (NDJSON binds by key) stamps
+     * {@link #NO_WIDTH_BOUND}, which crosses to anything. Absence is treated as unknown and refuses the crossing.
+     */
+    public static final String ROW_COUNT_WIDTH_BOUND_KEY = "_stats.row_count_width_bound";
+
+    /** Stamped by a format that cannot fail on row width, so its count crosses to any read. */
+    public static final int NO_WIDTH_BOUND = 0;
+
+    /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
      * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
      * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds

@@ -892,7 +892,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     schema,
                     "csv",
                     path,
-                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred"),
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-inferred",
+                        // This reader's own bound: a row wider than its one pinned column aborts it.
+                        ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY,
+                        1
+                    ),
                     Map.of()
                 )
             );
@@ -902,6 +910,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
             licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            // Bounded no more loosely than the entry's own read, so the producer completing proves the consumer would.
+            licensed.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 1);
             licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
@@ -2781,4 +2791,84 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
+
+    /**
+     * The direction the licence must refuse. A declared read of a file whose later rows are wider than the pinned
+     * schema's width completes and commits the physical record count; the positional reader that pinned the narrower
+     * width aborts on the same file. Carrying that count across would make the positional query answer where its own
+     * scan errors, and flap with cache state — a masked abort rather than a wrong number.
+     * <p>
+     * Three cases, one per way a producer can be looser than its consumer: a wider declared bound, no bound at all
+     * (a headerless declared read), and a producer that stated nothing.
+     */
+    public void testTheLicenceDoesNotCrossToAStricterlyBoundedRead() throws Exception {
+        for (Integer producerBound : new Integer[] { 4, Integer.MAX_VALUE, null }) {
+            try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+                String path = "s3://bucket/data/wide.csv";
+                long mtime = 1000L;
+                SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of("format", "csv"));
+                List<Attribute> schema = List.of(
+                    new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+                );
+                Map<String, Object> entryMeta = new LinkedHashMap<>();
+                entryMeta.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+                entryMeta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-positional");
+                entryMeta.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, 2);
+                service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, entryMeta, Map.of()));
+
+                Map<String, Object> licensed = new LinkedHashMap<>();
+                licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+                licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+                licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
+                licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                if (producerBound != null) {
+                    licensed.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, producerBound);
+                }
+                licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
+
+                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                assertFalse(
+                    "a count from a read bounded at ["
+                        + producerBound
+                        + "] must not cross to a read bounded at [2]: it would answer where its own scan errors",
+                    entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                );
+            }
+        }
+    }
+
+    /** A format with no row-width concept crosses to anything: NDJSON binds by key and cannot fail on width. */
+    public void testTheLicenceCrossesFromAFormatWithNoWidthConcept() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of("format", "ndjson"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            Map<String, Object> entryMeta = new LinkedHashMap<>();
+            entryMeta.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            entryMeta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-a");
+            entryMeta.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, ExternalStats.NO_WIDTH_BOUND);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "ndjson", path, entryMeta, Map.of()));
+
+            Map<String, Object> licensed = new LinkedHashMap<>();
+            licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-b");
+            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            licensed.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, ExternalStats.NO_WIDTH_BOUND);
+            licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "a format that cannot fail on row width still licenses its count across read configurations",
+                42L,
+                entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
 }

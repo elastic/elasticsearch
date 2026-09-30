@@ -715,6 +715,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
                                 rowCountReadConfigIndependent,
+                                // NDJSON binds by key and has no row-width concept, so its count cannot be masking a
+                                // width abort and crosses to any read.
+                                ExternalStats.NO_WIDTH_BOUND,
                                 fullSchema
                             );
                         }

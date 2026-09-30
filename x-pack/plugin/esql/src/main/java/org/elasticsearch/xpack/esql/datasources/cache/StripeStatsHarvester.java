@@ -177,6 +177,7 @@ public final class StripeStatsHarvester {
      * @param chunkBytes        bytes this chunk consumed (decompressed coordinate); {@code <= 0} ⇒ safe miss
      * @param pinnedMtimeMillis mtime pinned at iterator open
      * @param fingerprint       config fingerprint over the full file schema
+     * @param rowCountWidthBound the widest row the producing read would accept, or {@link ExternalStats#NO_WIDTH_BOUND}
      * @param schema            full file schema (drives the per-column serialization)
      */
     public void emit(
@@ -187,6 +188,7 @@ public final class StripeStatsHarvester {
         String fingerprint,
         String readConfig,
         boolean rowCountReadConfigIndependent,
+        int rowCountWidthBound,
         List<Attribute> schema
     ) {
         if (chunkBytes <= 0) {
@@ -223,6 +225,9 @@ public final class StripeStatsHarvester {
             // read could never license the crossing an unchunked one can, purely because of how the file was split.
             if (rowCountReadConfigIndependent) {
                 base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                // Rides per fragment with the licence, for the same reason the licence does: a chunked read must be
+                // able to license exactly what an unchunked one can, and no more.
+                base.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, rowCountWidthBound);
             }
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             base.put(ExternalStats.STRIPE_SIZE_KEY, stripeSize);

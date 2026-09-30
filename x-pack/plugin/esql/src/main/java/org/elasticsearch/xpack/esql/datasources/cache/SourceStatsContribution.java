@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -41,7 +42,8 @@ sealed interface SourceStatsContribution {
         long mtimeMillis,
         String configFingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent
+        boolean rowCountReadConfigIndependent,
+        @Nullable Integer rowCountWidthBound
     ) implements SourceStatsContribution {}
 
     /**
@@ -74,6 +76,7 @@ sealed interface SourceStatsContribution {
         String configFingerprint,
         String readConfig,
         boolean rowCountReadConfigIndependent,
+        @Nullable Integer rowCountWidthBound,
         long stripeSize,
         long ordinal,
         long start,
@@ -118,8 +121,11 @@ sealed interface SourceStatsContribution {
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         String readConfig = raw.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         boolean rowCountReadConfigIndependent = Boolean.TRUE.equals(raw.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        // Rides with the licence: without it the crossing check compares against null and refuses every crossing, so
+        // a strict dataset would silently stop warming rather than silently answer where it should error.
+        Integer widthBound = raw.get(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY) instanceof Number n ? n.intValue() : null;
         if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
-            return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent);
+            return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent, widthBound);
         }
         long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
         long ordinal = raw.get(ExternalStats.STRIPE_ORDINAL_KEY) instanceof Number n ? n.longValue() : -1L;
@@ -134,6 +140,7 @@ sealed interface SourceStatsContribution {
             fingerprint,
             readConfig,
             rowCountReadConfigIndependent,
+            widthBound,
             stripeSize,
             ordinal,
             start,

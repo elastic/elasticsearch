@@ -862,6 +862,8 @@ public final class SourceStatisticsSerializer {
         String agreed = null;
         boolean mixed = false;
         boolean allLicensed = true;
+        Integer widthBound = null;
+        boolean sawUnboundedSplit = false;
         boolean first = true;
         for (Map<String, Object> stats : splitStats) {
             String fingerprint = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false
@@ -874,6 +876,13 @@ public final class SourceStatisticsSerializer {
                 mixed = true;
             }
             allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+            // The loosest bound any split enforced governs the merged count: the merged number is only as safe to
+            // cross as the least-bounded read that contributed to it.
+            if (stats.get(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY) instanceof Number n) {
+                widthBound = widthBound == null ? n.intValue() : Math.max(widthBound, n.intValue());
+            } else {
+                sawUnboundedSplit = true;
+            }
         }
         if (mixed) {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
@@ -882,6 +891,11 @@ public final class SourceStatisticsSerializer {
         }
         if (allLicensed) {
             merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            // A split that stamped no bound leaves the merged count unable to say what it enforced, so it stamps
+            // nothing and the crossing is refused rather than guessed.
+            if (sawUnboundedSplit == false && widthBound != null) {
+                merged.put(ExternalStats.ROW_COUNT_WIDTH_BOUND_KEY, widthBound);
+            }
         }
     }
 

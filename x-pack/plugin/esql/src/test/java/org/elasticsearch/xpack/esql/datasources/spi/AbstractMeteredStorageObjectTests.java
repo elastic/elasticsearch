@@ -24,6 +24,11 @@ public class AbstractMeteredStorageObjectTests extends ESTestCase {
     /** Concrete leaf with the read methods stubbed; only the metering scaffolding is under test. */
     private static final class TestStorageObject extends AbstractMeteredStorageObject {
         @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
+        @Override
         public InputStream newStream(long position, long length) {
             throw new UnsupportedOperationException();
         }

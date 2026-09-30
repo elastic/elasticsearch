@@ -312,6 +312,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         assertThat(response.isPartial(), equalTo(true));
     }
 
+    public static void assertEmpty(EsqlQueryResponse response) {
+        assertThat(response.rows().iterator().hasNext(), equalTo(false));
+    }
+
     public static void assertColumnContainsInAnyOrder(EsqlQueryResponse response, String column, Object... indices) {
         var indexColumn = findColumnIndex(response, column);
         assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));

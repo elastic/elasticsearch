@@ -22,6 +22,24 @@ public class InferenceSettingsTests extends ESTestCase {
         );
     }
 
+    public void testDenseVectorBatchSizeIsNotExplicitWhenUnset() {
+        assertThat(new InferenceSettings(Settings.EMPTY).denseVectorBatchSizeExplicit(), equalTo(false));
+    }
+
+    /** Configuring the default value still counts as configured. */
+    public void testDenseVectorBatchSizeIsExplicitWhenSetToTheDefaultValue() {
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+            .build();
+        assertThat(new InferenceSettings(settings).denseVectorBatchSizeExplicit(), equalTo(true));
+    }
+
+    public void testDenseVectorBatchSizeIsExplicitWhenConfigured() {
+        int batchSize = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), batchSize).build();
+        assertThat(new InferenceSettings(settings).denseVectorBatchSizeExplicit(), equalTo(true));
+    }
+
     public void testDenseVectorBatchSizeReadsConfiguredValue() {
         int batchSize = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
         Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), batchSize).build();

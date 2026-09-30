@@ -4791,7 +4791,11 @@ public class FileSplitProviderTests extends ESTestCase {
         FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
             entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, statsWithUnits(1234L, 1))
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(refAttr("id"))),
+                null,
+                statsWithColumns(1234L, 1, Map.of("id", columnStats(1L, 9L, 1234L)))
+            )
         );
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
@@ -4831,6 +4835,7 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<String, Object> cached = new HashMap<>();
         cached.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1234L);
         cached.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        cached.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
         SourceStatistics reconstructed = SourceStatisticsSerializer.extractStatistics(cached).orElseThrow();
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
             entry.path(),
@@ -4855,6 +4860,36 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1234L, fs.statistics().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertNull(fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
         assertEquals(0, discoverCalls.get());
+    }
+
+    public void testRangeAwareSingleUnitWithoutColumnStatsDoesNotSkipDiscovery() {
+        AtomicInteger discoverCalls = new AtomicInteger();
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 400, Map.of("_stats.row_count", 999L))),
+            discoverCalls
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/wide.parquet"), 80L * 1024 * 1024, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, statsWithUnits(1234L, 1))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+
+        assertEquals("a slim readableUnitCount of 1 must still open the footer", 1, discoverCalls.get());
+        assertEquals(1, splits.size());
+        assertEquals("true", ((FileSplit) splits.get(0)).config().get(FileSplitProvider.RANGE_SPLIT_KEY));
     }
 
     public void testRangeAwareTwoUnitHarvestUsesRangeDiscovery() {

@@ -816,6 +816,26 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(2025, value(result, files, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "year"));
     }
 
+    /**
+     * Many files in one directory stay one row per file until {@code shareByGroups}.
+     * {@code planningBytes()} is that columnar layout: {@code 64 + 24*cols + 8*cols*files}.
+     */
+    public void testDeepLayoutPlanningBytesBeforeSharing() {
+        int files = 40;
+        int cols = 3;
+        List<StorageEntry> entries = new ArrayList<>(files);
+        for (int i = 0; i < files; i++) {
+            entries.add(entry("s3://bucket/year=2024/month=01/day=02/part-" + i + ".parquet"));
+        }
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+
+        assertEquals(cols, result.partitionColumns().size());
+        assertEquals(files, result.fileCount());
+        assertEquals(files, result.rowCount());
+        assertEquals(64L + 24L * cols + 8L * cols * files, result.planningBytes());
+    }
+
     /** Empty pieces from {@code //} drop. The object name drops, including when a trailing slash follows it. */
     public void testDirectorySegmentsDropsObjectNameAndEmptyPieces() {
         assertEquals(List.of("data", "year=2024"), HivePartitionDetector.directorySegments("/data/year=2024/file.parquet"));

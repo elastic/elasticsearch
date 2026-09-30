@@ -32,7 +32,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
 
 import java.io.IOException;
 import java.util.ArrayList;

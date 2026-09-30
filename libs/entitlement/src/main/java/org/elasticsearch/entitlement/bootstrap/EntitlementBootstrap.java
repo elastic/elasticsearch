@@ -201,7 +201,6 @@ public class EntitlementBootstrap {
 
         return new PolicyManager(
             HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
-            HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             pluginSyntheticModuleNames,
             scopeResolver,

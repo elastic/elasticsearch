@@ -143,6 +143,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1833,7 +1834,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
          * for real; only the notification that it finished is deferred until {@link #releaseSearchWarmingCompletion()}.
          */
         void holdSearchWarmingCompletion() {
-            ESTestCase.assertTrue(searchWarmingCompletionGate.compareAndSet(null, new SubscribableListener<>()));
+            assertTrue(searchWarmingCompletionGate.compareAndSet(null, new SubscribableListener<>()));
         }
 
         /** Idempotent, so tests can also release the gate from a {@code finally} block. */

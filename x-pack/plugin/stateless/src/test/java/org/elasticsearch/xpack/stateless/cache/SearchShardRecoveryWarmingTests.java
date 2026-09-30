@@ -1209,7 +1209,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
-                () -> null,
+                () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -1243,7 +1243,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
-                () -> null,
+                () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -1274,7 +1274,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                         TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                         randomAlphaOfLength(10)
                     ),
-                    () -> null,
+                    () -> null, // unused in this test case
                     randomMockIndexShard(),
                     mockDirectory(),
                     randomNonNegativeLong(),
@@ -1432,7 +1432,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
                 new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "initial-ctx", budget),
-                () -> null,
+                () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
                 0L,
@@ -1535,7 +1535,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
                 new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "initial", budget),
-                () -> null,
+                () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
                 0L,
@@ -1570,7 +1570,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
                 new SharedBlobCacheWarmingService.SearchRecoveryTimeout(timeout, timeoutContext),
-                () -> null,
+                () -> null, // unused in this test case
                 mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
                 // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
                 mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),

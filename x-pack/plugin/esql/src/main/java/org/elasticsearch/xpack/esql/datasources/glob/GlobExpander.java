@@ -1149,9 +1149,11 @@ public final class GlobExpander {
         boolean recursive = matcher.needsRecursion();
         List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
 
+        // Count objects seen during slot construction so fan-out drains start from a correct baseline.
+        AtomicInteger sharedListedCount = new AtomicInteger();
         List<Slot> slots = null;
         try {
-            slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS);
+            slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
         } catch (IOException e) {
             logger.debug(() -> "Prefix fan-out for [" + pattern + "] could not build slots; falling back to flat listing", e);
         }
@@ -1174,7 +1176,8 @@ public final class GlobExpander {
                 concurrency,
                 isCancelled,
                 fanOutExecutor,
-                listener
+                listener,
+                sharedListedCount
             );
         } else {
             // Too few directories for fan-out: use the flat drain.
@@ -1212,7 +1215,8 @@ public final class GlobExpander {
      * to the flat drain in all these cases.
      */
     @Nullable
-    private static List<Slot> buildSlots(StorageProvider provider, StoragePath root, int budget) throws IOException {
+    private static List<Slot> buildSlots(StorageProvider provider, StoragePath root, int budget, AtomicInteger listedCount)
+        throws IOException {
         List<Slot> prefixFileSlots = new ArrayList<>();
         StoragePath current = root;
         int remaining = budget;
@@ -1223,6 +1227,7 @@ public final class GlobExpander {
                 // Provider does not support listChildren
                 return null;
             }
+            listedCount.addAndGet(children.files().size() + children.directories().size());
             List<StorageEntry> files = children.files();
             List<StoragePath> dirs = children.directories();
 
@@ -1244,27 +1249,22 @@ public final class GlobExpander {
                 continue;
             }
 
-            // Multiple directories: build the final slot list by merging files and dirs in key order.
-            // Since the provider lists in key order, comparing file path against dir path + "/" gives the
-            // correct interleaved order that a flat listing would produce.
+            // Multiple directories: build the final slot list by merging all three sequences in key order.
+            // prefixFileSlots are files from ancestor levels (tunnel-through) whose paths may sort anywhere
+            // relative to the current-level dirs, so a sort over all entries gives correct flat-listing order.
             List<Slot> slots = new ArrayList<>(prefixFileSlots.size() + files.size() + dirs.size());
             slots.addAll(prefixFileSlots);
-            int fi = 0, di = 0;
-            while (fi < files.size() && di < dirs.size()) {
-                String filePath = files.get(fi).path().toString();
-                String dirPath = dirs.get(di).toString() + "/";
-                if (filePath.compareTo(dirPath) <= 0) {
-                    slots.add(new Slot.File(files.get(fi++)));
-                } else {
-                    slots.add(new Slot.Folder(dirs.get(di++)));
-                }
+            for (StorageEntry f : files) {
+                slots.add(new Slot.File(f));
             }
-            while (fi < files.size()) {
-                slots.add(new Slot.File(files.get(fi++)));
+            for (StoragePath d : dirs) {
+                slots.add(new Slot.Folder(d));
             }
-            while (di < dirs.size()) {
-                slots.add(new Slot.Folder(dirs.get(di++)));
-            }
+            slots.sort((a, b) -> {
+                String ka = a instanceof Slot.File f ? f.entry().path().toString() : ((Slot.Folder) a).prefix().toString() + "/";
+                String kb = b instanceof Slot.File f ? f.entry().path().toString() : ((Slot.Folder) b).prefix().toString() + "/";
+                return ka.compareTo(kb);
+            });
             return slots;
         }
         // Budget exhausted
@@ -1395,16 +1395,19 @@ public final class GlobExpander {
         int concurrency,
         BooleanSupplier isCancelled,
         Executor fanOutExecutor,
-        ActionListener<FileList> listener
+        ActionListener<FileList> listener,
+        AtomicInteger sharedListedCount
     ) {
         int size = slots.size();
         AtomicReferenceArray<SlotResult> results = new AtomicReferenceArray<>(size);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        AtomicInteger sharedListedCount = new AtomicInteger();
         AtomicInteger sharedKeptCount = new AtomicInteger();
 
         ThrottledIterator.run(indexIterator(size), (releasable, i) -> {
             if (failure.get() != null || isCancelled.getAsBoolean()) {
+                // Record cancellation so the completion callback propagates TaskCancelledException rather
+                // than returning an empty FileList that the caller would misread as "no files matched".
+                failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
                 releasable.close();
                 return;
             }
@@ -1425,7 +1428,7 @@ public final class GlobExpander {
                 }
                 case Slot.Folder(StoragePath prefix) -> {
                     // Folder slots block on I/O — submit to the fan-out executor so the calling thread is free.
-                    fanOutExecutor.execute(() -> {
+                    Runnable drain = () -> {
                         try {
                             if (failure.get() == null && isCancelled.getAsBoolean() == false) {
                                 results.set(
@@ -1451,7 +1454,18 @@ public final class GlobExpander {
                         } finally {
                             releasable.close();
                         }
-                    });
+                    };
+                    try {
+                        fanOutExecutor.execute(drain);
+                    } catch (Exception submitEx) {
+                        // Executor rejected the task (e.g. shutting down): record and release the permit
+                        // so ThrottledIterator's ref count reaches zero and the completion callback fires.
+                        try {
+                            failure.compareAndSet(null, submitEx);
+                        } finally {
+                            releasable.close();
+                        }
+                    }
                 }
             }
         }, Math.max(1, concurrency), () -> {
@@ -1461,13 +1475,37 @@ public final class GlobExpander {
                 return;
             }
             // Merge slot results in slot order (= flat listing key order for key-ordered providers).
-            SlotResult merged = SlotResult.empty();
+            // Pre-allocate the combined list to avoid O(N²) copies from repeated ArrayList construction.
+            int totalMatched = 0;
+            for (int i = 0; i < size; i++) {
+                SlotResult r = results.get(i);
+                if (r != null) totalMatched += r.matched().size();
+            }
+            List<StorageEntry> allMatched = new ArrayList<>(totalMatched);
+            StorageEntry mergedAnchor = null;
+            int mergedExcluded = 0, mergedKept = 0;
+            String mergedExcludedExample = null, mergedExcludedExampleEntry = null;
             for (int i = 0; i < size; i++) {
                 SlotResult r = results.get(i);
                 if (r != null) {
-                    merged = merged.merge(r);
+                    allMatched.addAll(r.matched());
+                    if (mergedAnchor == null) mergedAnchor = r.fileHintAnchor();
+                    mergedExcluded += r.excludedCount();
+                    mergedKept += r.globKeptCount();
+                    if (mergedExcludedExample == null) {
+                        mergedExcludedExample = r.excludedExample();
+                        mergedExcludedExampleEntry = r.excludedExampleEntry();
+                    }
                 }
             }
+            SlotResult merged = new SlotResult(
+                allMatched,
+                mergedAnchor,
+                mergedExcluded,
+                mergedKept,
+                mergedExcludedExample,
+                mergedExcludedExampleEntry
+            );
             List<String> listingWarnings = new ArrayList<>();
             List<StorageEntry> matched = merged.matched();
             if (merged.excludedCount() > 0) {
@@ -1494,7 +1532,11 @@ public final class GlobExpander {
             fileOrder.apply(matched);
             PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
             listener.onResponse(new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, false));
-        }, fanOutExecutor, e -> failure.compareAndSet(null, e));
+        }, fanOutExecutor, e -> {
+            if (failure.compareAndSet(null, e) == false) {
+                logger.debug("Additional failure during fan-out drain (suppressed by first failure)", e);
+            }
+        });
     }
 
     /** An {@link Iterator} over the integers {@code [0, count)}. */

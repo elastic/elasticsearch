@@ -116,15 +116,19 @@ public class AutomatonQueries {
      *   step by step by {@link CircuitBreakingRegExp}
      * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
      * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
+     * If {@code circuitBreaker} is {@code null}, both steps run without accounting.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
+        if (circuitBreaker == null) {
+            return Operations.determinize(nfa, maxDeterminizedStates);
+        }
         return determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -437,7 +435,7 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames)
         );
 
         SplitDiscoveryResult result;
@@ -491,7 +489,7 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames)
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
@@ -572,36 +570,6 @@ public final class SplitDiscoveryPhase {
             }
         }
         return exec.withSplits(splits);
-    }
-
-    /**
-     * Keys the post-prune exec still needs on each split. Hive names are the query schema intersected with
-     * the listing's partition columns. The five stored {@code _file.*} constants are included only when bound
-     * as metadata. {@code _file.record_ref} is composed per row and is not a map key.
-     */
-    private static Set<String> retainedPartitionKeys(
-        ExternalSchema querySchema,
-        @Nullable PartitionMetadata partitionInfo,
-        Set<String> metadataColumnNames
-    ) {
-        Set<String> retained = new LinkedHashSet<>();
-        if (partitionInfo != null) {
-            Set<String> hive = partitionInfo.partitionColumns().keySet();
-            for (String name : querySchema.names()) {
-                if (hive.contains(name)) {
-                    retained.add(name);
-                }
-            }
-        }
-        for (String name : FileMetadataColumns.NAMES) {
-            if (name.equals(FileMetadataColumns.RECORD_REF)) {
-                continue;
-            }
-            if (metadataColumnNames.contains(name)) {
-                retained.add(name);
-            }
-        }
-        return Set.copyOf(retained);
     }
 
     /**

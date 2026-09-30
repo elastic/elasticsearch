@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -229,10 +230,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                             previewClient,
                             effectiveDatafeedConfig,
                             job.getDataDescription().getTimeField(),
-                            l.delegateFailure((l2, isDateNanos) -> runPreview(dataExtractorFactory, request, isDateNanos, l2))
+                            l.delegateFailure(
+                                (l2, isDateNanos) -> runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, isDateNanos, l2)
+                            )
                         );
                     } else {
-                        runPreview(dataExtractorFactory, request, true, l);
+                        runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, true, l);
                     }
                 })
             );
@@ -262,13 +265,14 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     private void runPreview(
+        DatafeedConfig datafeed,
         DataExtractorFactory dataExtractorFactory,
         PreviewDatafeedAction.Request request,
         boolean isDateNanos,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
         final long start = request.getStartTime().orElse(0);
-        final long end = resolvePreviewEndTime(request, isDateNanos);
+        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
     }
@@ -283,8 +287,21 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     /**
      * Visible for testing
      */
-    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos) {
-        return request.getEndTime().orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
+    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos, DatafeedConfig datafeed) {
+        if (request.getEndTime().isPresent() == false) {
+            return isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
+        }
+        long end = request.getEndTime().getAsLong();
+        if (datafeed.getEsqlQuery() == null) {
+            return end;
+        }
+        // An ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // extractor factory floors the window end so an open bucket is never extracted. A preview is a
+        // diagnostic view of the requested range, so round the end up to keep the bucket containing it
+        // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
+        long alignedEnd = Intervals.alignToCeil(end, datafeed.getGroupingInterval().millis());
+        // alignToCeil overflows for ends within one interval of Long.MAX_VALUE; keep the requested end then.
+        return alignedEnd >= end ? alignedEnd : end;
     }
 
     /**

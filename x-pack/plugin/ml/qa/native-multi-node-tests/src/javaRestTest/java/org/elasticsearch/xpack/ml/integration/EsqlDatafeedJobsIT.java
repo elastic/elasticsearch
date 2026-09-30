@@ -55,8 +55,8 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     // a lookback via flushJob's skip_time. Anchoring to a real-looking (13-digit) millis timestamp keeps every
     // absolute time value used here safely past that ambiguity. It must also be a whole multiple of BUCKET_SPAN:
     // ChunkedDataExtractorFactory aligns the extraction window to the datafeed's grouping interval by rounding
-    // the start up (alignToCeil) and the end down (alignToFloor), so an unaligned anchor can silently round
-    // start and end to the same instant and collapse the window to zero width.
+    // the start down (alignToFloor) and the end down (alignToFloor), so an unaligned anchor can silently round
+    // the end back to the start and collapse the window to zero width.
     private static final long BASE_TIME = 472_222 * BUCKET_SPAN.millis();
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
     private static final long SECOND_WINDOW_END = FIRST_WINDOW_END + BUCKET_SPAN.millis();

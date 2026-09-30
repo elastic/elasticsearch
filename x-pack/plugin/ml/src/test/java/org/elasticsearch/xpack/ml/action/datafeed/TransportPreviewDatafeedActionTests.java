@@ -151,9 +151,41 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
     public void testPreviewShouldUseRequestWindowNotPersistedCheckpoint() {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
-        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 9_000_000L);
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 7_200_000L);
         assertThat(request.getStartTime(), equalTo(OptionalLong.of(1_000L)));
-        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true), equalTo(9_000_000L));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(7_200_000L));
+    }
+
+    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndUnalignedEnd_ShouldCoverBucketContainingEnd() {
+        long hour = TimeValue.timeValueHours(1).millis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        // 09:29:53: the bucket [09:00, 10:00) overlaps the requested range and must be part of the preview
+        long unalignedEnd = 9 * hour + 29 * 60_000L + 53_000L;
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 9 * hour, unalignedEnd);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
+    }
+
+    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndAlignedEnd_ShouldKeepEnd() {
+        long hour = TimeValue.timeValueHours(1).millis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 9 * hour, 10 * hour);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
+    }
+
+    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndNoEnd_ShouldStayUnbounded() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testResolvePreviewEndTime_GivenClassicDatafeed_ShouldNotAlignEnd() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(5_123L));
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {

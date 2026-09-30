@@ -44,7 +44,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
-            timeAligner.alignToCeil(start),
+            alignStart(timeAligner, start),
             timeAligner.alignToFloor(end),
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
@@ -53,6 +53,18 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getEsqlQuery() != null
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
+    }
+
+    /**
+     * Classic aggregated datafeeds round the start up so a partial first bucket is skipped. An ES|QL row is
+     * stamped with its bucket <em>start</em> and is computed from the raw documents inside the queried window,
+     * so rounding the start up would discard the bucket containing an unaligned start, and a window that lies
+     * inside one bucket would collapse to nothing. Rounding down instead extracts that bucket from its complete
+     * raw data. The end is still rounded down for both kinds, so the bucket still open at the end is never
+     * extracted (real-time relies on this to avoid emitting a bucket before it is complete).
+     */
+    private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
+        return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
     }
 
     @Override

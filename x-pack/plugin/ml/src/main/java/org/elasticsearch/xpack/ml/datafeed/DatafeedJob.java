@@ -283,13 +283,22 @@ class DatafeedJob {
                 return resumeFromMs;
             }
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
-            request.setSkipTime(String.valueOf(startTime));
+            request.setSkipTime(String.valueOf(skipTimeFor(startTime)));
             request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
+    }
+
+    /**
+     * Autodetect rounds a skip time up to the next bucket boundary, which would drop the bucket containing an
+     * unaligned ES|QL start (its row is stamped with the bucket start and the extractor now includes it).
+     * Skipping to the start of that bucket keeps it.
+     */
+    private long skipTimeFor(long startTime) {
+        return isEsqlDatafeed && groupingIntervalMs > 0 ? Intervals.alignToFloor(startTime, groupingIntervalMs) : startTime;
     }
 
     private long sourceWindowStart(long configuredStart) {

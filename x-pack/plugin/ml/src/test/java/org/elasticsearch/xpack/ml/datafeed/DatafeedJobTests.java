@@ -1455,6 +1455,23 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(expectedAdvanceTime, lessThan(frequencyAlignedEnd));
     }
 
+    public void testEsqlLookbackFromUnalignedStartShouldSkipToBucketStartContainingIt() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long unalignedStart = 9 * hour + 14 * 60_000L + 53_000L;
+        // a job that has already processed data: the lookback resumes with a skip_time flush, which autodetect rounds
+        // up to the next bucket boundary unless it is already aligned, dropping the bucket containing an unaligned start
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(12 * hour);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(9 * hour)));
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, hour, null);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(unalignedStart, 12 * hour));
+
+        assertThat(flushJobRequests.getAllValues().get(0).getSkipTime(), equalTo(String.valueOf(9 * hour)));
+        verify(dataExtractorFactory).newExtractor(9 * hour, 12 * hour);
+    }
+
     public void testEsqlCheckpointShouldAdvanceAfterSuccessfulWindow() throws Exception {
         long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
         AtomicLong persistedSourceEnd = new AtomicLong(-1);

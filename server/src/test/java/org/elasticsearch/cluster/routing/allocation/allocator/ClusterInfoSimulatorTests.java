@@ -66,6 +66,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.NODE_LEFT;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
@@ -666,8 +667,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
         assertThat(
             "Should not allocate index-3 on node-0 (not enough space)",
-            decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation).type(),
-            equalTo(Decision.Type.NO)
+            decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation),
+            isNoDecision(DiskThresholdDecider.NAME)
         );
     }
 
@@ -739,8 +740,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         assertThat(
             "Should not allocate index-3 on node-0 (not enough space)",
-            decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation).type(),
-            equalTo(Decision.Type.NO)
+            decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation),
+            isNoDecision(DiskThresholdDecider.NAME)
         );
     }
 

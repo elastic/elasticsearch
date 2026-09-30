@@ -52,6 +52,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
@@ -112,16 +114,18 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             state.getRoutingNodes().node("node1"),
             allocation
         );
-        assertEquals(Type.NO, decision.type());
-        if (primaryShard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            assertEquals(
-                "initial allocation of the shrunken index is only allowed on nodes [_id:\"node2\"] that "
-                    + "hold a copy of every shard in the index",
-                decision.getExplanation()
-            );
-        } else {
-            assertEquals("initial allocation of the index is only allowed on nodes [_id:\"node2\"]", decision.getExplanation());
-        }
+        assertThat(
+            decision,
+            isNoDecisionWithExplanationMatching(
+                FilterAllocationDecider.NAME,
+                primaryShard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                    ? equalTo(
+                        "initial allocation of the shrunken index is only allowed on nodes [_id:\"node2\"] that "
+                            + "hold a copy of every shard in the index"
+                    )
+                    : equalTo("initial allocation of the index is only allowed on nodes [_id:\"node2\"]")
+            )
+        );
 
         state = service.reroute(state, "try allocate again", ActionListener.noop());
         routingTable = state.routingTable();
@@ -412,32 +416,56 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
             equalTo(Type.YES)
         );
-        assertThat(decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
-        assertThat(decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("bad_node"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
+        assertThat(
+            decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("no_allocate"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(decider.getForcedInitialShardAllocationToNodes(routing1a, allocation), isEmpty());
 
         // project 1, index-b: requires "good_node_n"
         ShardRouting routing1b = new TestShardRouting.Builder(new ShardId(project1.index("index-b").getIndex(), 0), null, true, UNASSIGNED)
             .build();
-        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("good_node_s"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(
             decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
             equalTo(Type.YES)
         );
-        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
-        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("bad_node"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
+        assertThat(
+            decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("no_allocate"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(decider.getForcedInitialShardAllocationToNodes(routing1b, allocation), isEmpty());
 
         // project 2, index-a: excludes "special:true"
         ShardRouting routing2a = new TestShardRouting.Builder(new ShardId(project2.index("index-a").getIndex(), 0), null, true, UNASSIGNED)
             .build();
-        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("good_node_s"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(
             decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
             equalTo(Type.YES)
         );
-        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
-        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("bad_node"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
+        assertThat(
+            decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("no_allocate"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(decider.getForcedInitialShardAllocationToNodes(routing2a, allocation), isEmpty());
 
         // project 2, index-b: fore initial allocation to good_node_s
@@ -448,9 +476,18 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(),
             equalTo(Type.YES)
         );
-        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(), equalTo(Type.NO));
-        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
-        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("good_node_n"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
+        assertThat(
+            decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("bad_node"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
+        assertThat(
+            decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("no_allocate"), allocation),
+            isNoDecision(FilterAllocationDecider.NAME)
+        );
         assertThat(decider.getForcedInitialShardAllocationToNodes(routing2b, allocation), isPresentWith(contains("good_node_s")));
     }
 

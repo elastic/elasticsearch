@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,7 +121,10 @@ public class AbstractEstimatedHeapAllocationDeciderTests extends ESAllocationTes
         final var decider = new TestHeapDecider();
         decider.highWatermarkEnabled = false;
         final var allocation = allocation(decider, clusterInfo());
-        assertThat(decider.canAllocate(shard, node(false), allocation).type(), equalTo(Decision.Type.NO));
+        assertThat(
+            decider.canAllocate(shard, node(false), allocation),
+            isNoDecisionWithExplanationMatching("test_heap", containsString("insufficient test heap available on node"))
+        );
         final var decision = decider.canRemain(indexMetadata, shard, node(false), allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("can remain disabled"));

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -51,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
@@ -128,7 +128,11 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
             explainRequest.setIndex(indexNameA).setPrimary(true).setShard(0);
             final var explainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, explainRequest));
             var canRemainDecision = explainResponse.getExplanation().getShardAllocationDecision().getMoveDecision().getCanRemainDecision();
-            assertThat(canRemainDecision.getDecisions().toString(), canRemainDecision.type(), equalTo(Decision.Type.NO));
+            assertThat(
+                canRemainDecision.getDecisions().toString(),
+                canRemainDecision,
+                isNoDecision(EstimatedHeapUsageAllocationDecider.NAME)
+            );
         }
 
         // canAllocate should return NO for new shards because all the nodes are above the heap usage watermark.

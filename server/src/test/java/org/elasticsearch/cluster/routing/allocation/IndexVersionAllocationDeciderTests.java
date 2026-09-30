@@ -72,6 +72,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -622,15 +623,17 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         decision = allocationDecider.canAllocate(ShardRoutingHelper.initialize(primaryShard, "newNode"), oldNode, routingAllocation);
-        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            is(
-                "cannot relocate primary shard from a node with index version ["
-                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with older index version ["
-                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "]"
+            decision,
+            isNoDecisionWithExplanationMatching(
+                IndexVersionAllocationDecider.NAME,
+                is(
+                    "cannot relocate primary shard from a node with index version ["
+                        + newNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "] to a node with older index version ["
+                        + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "]"
+                )
             )
         );
 
@@ -653,15 +656,17 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             oldNode,
             routingAllocation
         );
-        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            is(
-                "max supported index version ["
-                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] is older than the snapshot version ["
-                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "]"
+            decision,
+            isNoDecisionWithExplanationMatching(
+                IndexVersionAllocationDecider.NAME,
+                is(
+                    "max supported index version ["
+                        + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "] is older than the snapshot version ["
+                        + newNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "]"
+                )
             )
         );
 
@@ -692,15 +697,17 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         decision = allocationDecider.canAllocate(replicaShard, oldNode, routingAllocation);
-        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            is(
-                "cannot allocate replica shard to a node with index version ["
-                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] since this is older than the primary index version ["
-                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "]"
+            decision,
+            isNoDecisionWithExplanationMatching(
+                IndexVersionAllocationDecider.NAME,
+                is(
+                    "cannot allocate replica shard to a node with index version ["
+                        + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "] since this is older than the primary index version ["
+                        + newNode.node().getMaxIndexVersion().toReleaseVersion()
+                        + "]"
+                )
             )
         );
 

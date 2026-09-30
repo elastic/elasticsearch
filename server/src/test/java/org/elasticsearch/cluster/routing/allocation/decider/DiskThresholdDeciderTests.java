@@ -82,6 +82,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.containsString;
@@ -937,17 +938,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             firstRoutingNode,
             routingAllocation
         );
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            containsString(
-                testMaxHeadroom
-                    ? "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=110gb] and there is less than the required [110gb] "
-                        + "free space on node, actual free: [40gb], actual used: [99.6%]"
-                    : "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
-                        + "on node, actual free: [20b], actual used: [80%]"
+            decision,
+            isNoDecisionWithExplanationMatching(
+                DiskThresholdDecider.NAME,
+                containsString(
+                    testMaxHeadroom
+                        ? "the shard cannot remain on this node because it is above the high watermark cluster setting "
+                            + "[cluster.routing.allocation.disk.watermark.high.max_headroom=110gb] and there is less than the required "
+                            + "[110gb] free space on node, actual free: [40gb], actual used: [99.6%]"
+                        : "the shard cannot remain on this node because it is above the high watermark cluster setting "
+                            + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
+                            + "on node, actual free: [20b], actual used: [80%]"
+                )
             )
         );
 
@@ -1012,32 +1015,29 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        if (fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE) {
-            assertThat(
-                decision.getExplanation(),
-                containsString(
-                    testMaxHeadroom
-                        ? "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark"
-                            + ".high.max_headroom=110gb], having less than the minimum required [110gb] free space, actual free: "
-                            + "[40gb], actual used: [99.6%]"
-                        : "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], "
-                            + "having less than the minimum required [30b] free space, actual free: [20b], actual used: [80%]"
-                )
-            );
-        } else {
-            assertThat(
-                decision.getExplanation(),
-                containsString(
-                    testMaxHeadroom
-                        ? "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low"
-                            + ".max_headroom=150gb], having less than the minimum required [150gb] free space, actual free: [40gb], actual "
-                            + "used: [99.6%]"
-                        : "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], "
-                            + "having less than the minimum required [40b] free space, actual free: [20b], actual used: [80%]"
-                )
-            );
-        }
+        assertThat(
+            decision,
+            isNoDecisionWithExplanationMatching(
+                DiskThresholdDecider.NAME,
+                fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE
+                    ? containsString(
+                        testMaxHeadroom
+                            ? "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark"
+                                + ".high.max_headroom=110gb], having less than the minimum required [110gb] free space, actual free: "
+                                + "[40gb], actual used: [99.6%]"
+                            : "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], "
+                                + "having less than the minimum required [30b] free space, actual free: [20b], actual used: [80%]"
+                    )
+                    : containsString(
+                        testMaxHeadroom
+                            ? "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low"
+                                + ".max_headroom=150gb], having less than the minimum required [150gb] free space, actual free: [40gb], "
+                                + "actual used: [99.6%]"
+                            : "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], "
+                                + "having less than the minimum required [40b] free space, actual free: [20b], actual used: [80%]"
+                    )
+            )
+        );
 
         // Creating AllocationService instance and the services it depends on...
         AllocationService strategy = createAllocationService(
@@ -1186,17 +1186,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState.getRoutingNodes().node("data"),
             routingAllocation
         );
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            containsString(
-                testMaxHeadroom
-                    ? "the shard cannot remain on this node because it is above the high watermark cluster setting [cluster"
-                        + ".routing.allocation.disk.watermark.high.max_headroom=110gb] and there is less than the required [110gb] free "
-                        + "space on node, actual free: [40gb], actual used: [99.6%]"
-                    : "the shard cannot remain on this node because it is above the high watermark cluster setting"
-                        + " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
-                        + "on node, actual free: [20b], actual used: [80%]"
+            decision,
+            isNoDecisionWithExplanationMatching(
+                DiskThresholdDecider.NAME,
+                containsString(
+                    testMaxHeadroom
+                        ? "the shard cannot remain on this node because it is above the high watermark cluster setting [cluster"
+                            + ".routing.allocation.disk.watermark.high.max_headroom=110gb] and there is less than the required [110gb] "
+                            + "free space on node, actual free: [40gb], actual used: [99.6%]"
+                        : "the shard cannot remain on this node because it is above the high watermark cluster setting"
+                            + " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
+                            + "on node, actual free: [20b], actual used: [80%]"
+                )
             )
         );
     }

@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
@@ -131,11 +132,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .filter(d -> d.type() == Decision.Type.NO)
             .findFirst()
             .orElseThrow(() -> new IllegalStateException("Unable to find NO can_remain decision"));
-        assertEquals(Decision.Type.NO, decision.type());
-        assertEquals("disk_threshold", decision.label());
         assertThat(
-            decision.getExplanation(),
-            startsWith("the shard cannot remain on this node because it is above the high watermark cluster setting")
+            decision,
+            isNoDecisionWithExplanationMatching(
+                "disk_threshold",
+                startsWith("the shard cannot remain on this node because it is above the high watermark cluster setting")
+            )
         );
     }
 

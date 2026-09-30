@@ -13,34 +13,61 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
+
+import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
 
     private final Decision.Type expectedType;
-    private final String expectedLabel;
+    private final Matcher<String> expectedLabel;
     private final Matcher<String> explanationMatcher;
 
-    public AllocationDecisionMatcher(Decision.Type expectedType, String expectedLabel, Matcher<String> explanationMatcher) {
+    public AllocationDecisionMatcher(Decision.Type expectedType, Matcher<String> expectedLabel, Matcher<String> explanationMatcher) {
         this.expectedType = expectedType;
         this.expectedLabel = expectedLabel;
         this.explanationMatcher = explanationMatcher;
     }
 
+    public static AllocationDecisionMatcher isNoDecision() {
+        return new AllocationDecisionMatcher(Decision.Type.NO, any(String.class), anyOf(any(String.class), nullValue(String.class)));
+    }
+
     public static AllocationDecisionMatcher isNoDecision(String expectedLabel) {
-        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, Matchers.any(String.class));
+        return new AllocationDecisionMatcher(Decision.Type.NO, equalTo(expectedLabel), anyOf(any(String.class), nullValue(String.class)));
     }
 
     public static AllocationDecisionMatcher isNoDecisionWithNoExplanation(String expectedLabel) {
-        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, Matchers.nullValue(String.class));
+        return new AllocationDecisionMatcher(Decision.Type.NO, equalTo(expectedLabel), nullValue(String.class));
     }
 
     public static AllocationDecisionMatcher isNoDecisionWithExplanationMatching(String expectedLabel, Matcher<String> explanationMatcher) {
-        return new AllocationDecisionMatcher(Decision.Type.NO, expectedLabel, explanationMatcher);
+        return new AllocationDecisionMatcher(Decision.Type.NO, equalTo(expectedLabel), explanationMatcher);
+    }
+
+    public static AllocationDecisionMatcher isNotPreferredDecision() {
+        return new AllocationDecisionMatcher(
+            Decision.Type.NOT_PREFERRED,
+            any(String.class),
+            anyOf(any(String.class), nullValue(String.class))
+        );
     }
 
     public static AllocationDecisionMatcher isNotPreferredDecision(String expectedLabel) {
-        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED, expectedLabel, Matchers.any(String.class));
+        return new AllocationDecisionMatcher(
+            Decision.Type.NOT_PREFERRED,
+            equalTo(expectedLabel),
+            anyOf(any(String.class), nullValue(String.class))
+        );
+    }
+
+    public static AllocationDecisionMatcher isNotPreferredDecisionWithExplanationMatching(
+        String expectedLabel,
+        Matcher<String> explanationMatcher
+    ) {
+        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED, equalTo(expectedLabel), explanationMatcher);
     }
 
     @Override
@@ -49,8 +76,8 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
             return false;
         }
         return decision.type() == expectedType
-            && expectedLabel.equals(decision.label())
-            && explanationMatcher.matches(decision.getExplanation());
+            && expectedLabel.matches(decision.label())
+            && explanationMatcher.matches(safeGetExplanation(decision));
     }
 
     @Override
@@ -60,8 +87,9 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
                 .appendValue(decision.type())
                 .appendText(" and label ")
                 .appendValue(decision.label())
-                .appendText(" and explanation ")
-                .appendValue(decision.getExplanation());
+                .appendText(" and explanation = {")
+                .appendValue(safeGetExplanation(decision))
+                .appendText("}");
         } else {
             mismatchDescription.appendText("was not a Decision");
         }
@@ -72,8 +100,20 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
         description.appendText("a Decision with type ")
             .appendValue(expectedType)
             .appendText(" and label ")
-            .appendValue(expectedLabel)
-            .appendText(" and explanation ")
-            .appendDescriptionOf(explanationMatcher);
+            .appendDescriptionOf(expectedLabel)
+            .appendText(" and explanation = {")
+            .appendDescriptionOf(explanationMatcher)
+            .appendText("}");
+    }
+
+    /**
+     * {@link Decision.Multi#getExplanation} throws an {@link UnsupportedOperationException} so this
+     * method just returns null for those.
+     *
+     * @param decision The Decision
+     * @return The explanation string, or null if the Decision is a {@link Decision.Multi}
+     */
+    private static String safeGetExplanation(Decision decision) {
+        return decision instanceof Decision.Multi ? null : decision.getExplanation();
     }
 }

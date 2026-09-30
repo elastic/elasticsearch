@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -250,7 +251,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         // make sure all excluded nodes returned a NO decision
         for (NodeAllocationResult nodeResult : rebalanceDecision.getNodeDecisions()) {
             if (excludeNodes.contains(nodeResult.getNode().getId())) {
-                assertEquals(Type.NO, nodeResult.getCanAllocateDecision().type());
+                assertThat(nodeResult.getCanAllocateDecision(), isNoDecision());
             }
         }
     }

@@ -44,6 +44,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -270,28 +272,24 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var decision = doCanRemain(
             new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES), new FirstNotPreferredDecider()))
         );
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
-        assertThat(decision.label(), equalTo(FirstNotPreferredDecider.NAME));
+        assertThat(decision, isNotPreferredDecision(FirstNotPreferredDecider.NAME));
     }
 
     public void testCanRemainLabelNoDecision() {
         var decision = doCanRemain(new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES), new NoDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo(NoDecider.NAME));
+        assertThat(decision, isNoDecision(NoDecider.NAME));
     }
 
     public void testCanRemainLabelNoOverridesNotPreferred() {
         // When a NOT_PREFERRED is followed by a NO, the NO decision is returned with its label
         var decision = doCanRemain(new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new NoDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo(NoDecider.NAME));
+        assertThat(decision, isNoDecision(NoDecider.NAME));
     }
 
     public void testCanRemainLabelFirstNotPreferredWins() {
         // When multiple NOT_PREFERRED deciders, the first one's decision (and label) is returned
         var decision = doCanRemain(new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new SecondNotPreferredDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
-        assertThat(decision.label(), equalTo(FirstNotPreferredDecider.NAME));
+        assertThat(decision, isNotPreferredDecision(FirstNotPreferredDecider.NAME));
     }
 
     public void testCanRemainLabelThrottleDecision() {
@@ -330,8 +328,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         allocation.addIgnoreShardForNode(shardId, currentNodeId);
 
         var decision = deciders.canRemain(shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo("ignored_shards_for_node"));
+        assertThat(decision, isNoDecision("ignored_shards_for_node"));
     }
 
     private Decision doCanRemain(AllocationDeciders deciders) {
@@ -369,21 +366,18 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     public void testCanAllocateLabelNoOverridesNotPreferred() {
         // Labeled NO from NoDecider overrides labeled NOT_PREFERRED from FirstNotPreferredDecider
         var decision = doCanAllocate(new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new NoDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo(NoDecider.NAME));
+        assertThat(decision, isNoDecision(NoDecider.NAME));
     }
 
     public void testCanAllocateLabelNotPreferredDecision() {
         var decision = doCanAllocate(new AllocationDeciders(List.of(new FirstNotPreferredDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
-        assertThat(decision.label(), equalTo(FirstNotPreferredDecider.NAME));
+        assertThat(decision, isNotPreferredDecision(FirstNotPreferredDecider.NAME));
     }
 
     public void testCanAllocateLabelFirstNotPreferredWins() {
         // When multiple NOT_PREFERRED deciders, the first one's decision (and label) is returned
         var decision = doCanAllocate(new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new SecondNotPreferredDecider())));
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
-        assertThat(decision.label(), equalTo(FirstNotPreferredDecider.NAME));
+        assertThat(decision, isNotPreferredDecision(FirstNotPreferredDecider.NAME));
     }
 
     private Decision doCanAllocate(AllocationDeciders deciders) {

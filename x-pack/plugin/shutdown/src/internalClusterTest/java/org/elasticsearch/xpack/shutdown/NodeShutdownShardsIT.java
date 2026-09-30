@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -206,7 +208,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
             .findFirst()
             .ifPresentOrElse(nodeAllocationResult -> {
-                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+                assertThat(nodeAllocationResult.getCanAllocateDecision(), isNoDecision(NodeReplacementAllocationDecider.NAME));
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()
@@ -275,7 +277,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
             .findFirst()
             .ifPresentOrElse(nodeAllocationResult -> {
-                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+                assertThat(nodeAllocationResult.getCanAllocateDecision(), isNoDecision(NodeReplacementAllocationDecider.NAME));
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()

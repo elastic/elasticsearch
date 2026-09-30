@@ -57,6 +57,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -132,10 +134,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                     "insufficient estimated heap available on node *exceeds high watermark*"
                 )
             );
-            assertThat(decider.canAllocate(shard, node, allocation).type(), equalTo(Decision.Type.NO));
+            assertThat(decider.canAllocate(shard, node, allocation), isNoDecision(EstimatedHeapUsageAllocationDecider.NAME));
             assertThat(
-                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation).type(),
-                equalTo(Decision.Type.NO)
+                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation),
+                isNoDecision(EstimatedHeapUsageAllocationDecider.NAME)
             );
             mockLog.assertAllExpectationsMatched();
         }
@@ -180,10 +182,13 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
         final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
-        assertThat(decision.toString(), decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            decision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+            decision.toString(),
+            decision,
+            isNoDecisionWithExplanationMatching(
+                EstimatedHeapUsageAllocationDecider.NAME,
+                containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+            )
         );
     }
 
@@ -284,7 +289,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             );
             assertTrue("move decision should be taken for started shard", explainDecision.getMoveDecision().isDecisionTaken());
             final Decision canRemainDecision = explainDecision.getMoveDecision().getCanRemainDecision();
-            assertThat(canRemainDecision.type(), equalTo(Decision.Type.NO));
+            assertThat(canRemainDecision, isNoDecision(EstimatedHeapUsageAllocationDecider.NAME));
             assertCanRemainResults(
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),
@@ -355,7 +360,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             );
             assertTrue("move decision should be taken for started shard", explainDecision.getMoveDecision().isDecisionTaken());
             final Decision canRemainDecision = explainDecision.getMoveDecision().getCanRemainDecision();
-            assertThat(canRemainDecision.getDecisions().toString(), canRemainDecision.type(), equalTo(Decision.Type.NO));
+            assertThat(canRemainDecision, isNoDecision(EstimatedHeapUsageAllocationDecider.NAME));
             assertCanRemainResults(
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),

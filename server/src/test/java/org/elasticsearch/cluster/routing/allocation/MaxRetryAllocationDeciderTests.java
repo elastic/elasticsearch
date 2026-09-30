@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -189,12 +190,14 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             final var allocation = newRoutingAllocation(clusterState);
             allocation.debugDecision(true);
             final var decision = decider.canForceAllocatePrimary(unassignedPrimary, null, allocation);
-            assertEquals(Decision.Type.NO, decision.type());
             assertThat(
-                decision.getExplanation(),
-                allOf(
-                    containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed")
+                decision,
+                isNoDecisionWithExplanationMatching(
+                    MaxRetryAllocationDecider.NAME,
+                    allOf(
+                        containsString("shard has exceeded the maximum number of retries"),
+                        containsString("POST /_cluster/reroute?retry_failed")
+                    )
                 )
             );
         }
@@ -306,12 +309,14 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0),
                 allocation
             );
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(
-                decision.getExplanation(),
-                allOf(
-                    containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed")
+                decision,
+                isNoDecisionWithExplanationMatching(
+                    MaxRetryAllocationDecider.NAME,
+                    allOf(
+                        containsString("shard has exceeded the maximum number of retries"),
+                        containsString("POST /_cluster/reroute?retry_failed")
+                    )
                 )
             );
         });
@@ -491,8 +496,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             allocation.debugDecision(true);
             var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
             final var decision = decider.canAllocate(source, allocation);
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+            assertThat(
+                decision,
+                isNoDecisionWithExplanationMatching(
+                    MaxRetryAllocationDecider.NAME,
+                    containsString("shard has exceeded the maximum number of retries")
+                )
+            );
         });
     }
 
@@ -617,8 +627,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         withRoutingAllocation(clusterState, alloc -> {
             alloc.debugDecision(true);
             final var decision = decider.canAllocate(exhaustedReplica, alloc);
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+            assertThat(
+                decision,
+                isNoDecisionWithExplanationMatching(
+                    MaxRetryAllocationDecider.NAME,
+                    containsString("shard has exceeded the maximum number of retries")
+                )
+            );
         });
     }
 

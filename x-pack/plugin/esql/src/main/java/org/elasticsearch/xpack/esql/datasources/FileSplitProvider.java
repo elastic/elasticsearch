@@ -659,6 +659,7 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
 
         int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
@@ -706,6 +707,7 @@ public class FileSplitProvider implements SplitProvider {
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
                 FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
+                spec.aliasIdentityValues(values);
                 // Filter against the full listing map. The frozen survivor map may drop keys the hint still needs.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(values);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -715,6 +717,10 @@ public class FileSplitProvider implements SplitProvider {
                         ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
                         : listingValues;
                     if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
+                        certifiedSkips++;
+                        continue;
+                    }
+                    if (spec.overlapsExpressions(values, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }

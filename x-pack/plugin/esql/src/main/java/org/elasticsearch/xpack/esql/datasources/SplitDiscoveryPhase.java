@@ -404,7 +404,7 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
         ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
@@ -465,7 +465,7 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
         ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
         Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());

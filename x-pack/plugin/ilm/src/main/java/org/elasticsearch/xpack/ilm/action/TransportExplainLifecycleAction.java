@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.local.TransportLocalProjectMetadataActio
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -58,6 +59,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
 
     private final NamedXContentRegistry xContentRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -73,7 +75,8 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -85,6 +88,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         );
         this.xContentRegistry = xContentRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
 
         transportService.registerRequestHandler(
             actionName,
@@ -118,6 +122,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
             project.cluster().metadata().settings()
         );
+        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
         Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
             final IndexLifecycleExplainResponse indexResponse;
@@ -128,7 +133,8 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
                     request.onlyErrors(),
                     request.onlyManaged(),
                     xContentRegistry,
-                    rolloverOnlyIfHasDocuments
+                    rolloverOnlyIfHasDocuments,
+                    defaultLifecycleForTimeSeriesEnabled
                 );
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
@@ -151,7 +157,8 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         boolean onlyErrors,
         boolean onlyManaged,
         NamedXContentRegistry xContentRegistry,
-        boolean rolloverOnlyIfHasDocuments
+        boolean rolloverOnlyIfHasDocuments,
+        boolean defaultLifecycleForTimeSeriesEnabled
     ) throws IOException {
         IndexMetadata indexMetadata = project.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
@@ -196,7 +203,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (project.isIndexManagedByILM(indexMetadata)) {
+        if (project.isIndexManagedByILM(indexMetadata, defaultLifecycleForTimeSeriesEnabled)) {
             final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             final boolean policyExists = indexLifecycleMetadata.getPolicies().containsKey(policyName);
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy

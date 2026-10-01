@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -40,6 +41,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final LongSupplier nowSupplier;
     private final Map<String, Step.StepKey> indexToStepKeysForAsyncActions;
     private Step.StepKey nextStepKey = null;
@@ -52,7 +54,8 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         Step startStep,
         PolicyStepsRegistry policyStepsRegistry,
         IndexLifecycleRunner lifecycleRunner,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(projectId, index, startStep.getKey());
         this.policy = policy;
@@ -60,6 +63,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         this.policyStepsRegistry = policyStepsRegistry;
         this.nowSupplier = nowSupplier;
         this.lifecycleRunner = lifecycleRunner;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.indexToStepKeysForAsyncActions = new HashMap<>();
     }
 
@@ -240,12 +244,13 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             }
         }
         assert indexToStepKeysForAsyncActions.size() <= 1 : "we expect a maximum of one single spawned index currently";
+        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
         for (Map.Entry<String, Step.StepKey> indexAndStepKey : indexToStepKeysForAsyncActions.entrySet()) {
             final String indexName = indexAndStepKey.getKey();
             final Step.StepKey nextStep = indexAndStepKey.getValue();
             final IndexMetadata indexMeta = newState.metadata().index(indexName);
             if (indexMeta != null) {
-                if (newState.metadata().isIndexManagedByILM(indexMeta)) {
+                if (newState.metadata().isIndexManagedByILM(indexMeta, defaultLifecycleForTimeSeriesEnabled)) {
                     if (nextStep != null && nextStep != TerminalPolicyStep.KEY) {
                         logger.trace(
                             "[{}] index has been spawed from a different index's ({}) "

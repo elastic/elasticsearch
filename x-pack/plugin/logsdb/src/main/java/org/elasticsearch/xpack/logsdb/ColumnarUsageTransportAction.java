@@ -60,7 +60,9 @@ public class ColumnarUsageTransportAction extends XPackUsageFeatureTransportActi
         final var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
             projectMetadata,
             clusterService.getClusterSettings(),
-            IndexMode.COLUMNAR
+            IndexMode.COLUMNAR,
+            // Default lifecycle does not apply to columnar
+            false
         );
 
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);

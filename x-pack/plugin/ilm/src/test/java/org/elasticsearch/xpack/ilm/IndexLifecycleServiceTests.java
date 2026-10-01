@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -64,6 +67,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -100,6 +104,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     @SuppressWarnings("rawtypes")
     private MasterServiceTaskQueue mockTaskQueue;
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -135,6 +140,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
+        dataStreamLifecycleSettings = createDataStreamLifecycleSettings(randomBoolean());
+
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(
             Settings.EMPTY,
@@ -145,7 +152,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             () -> now,
             null,
             null,
-            null
+            null,
+            dataStreamLifecycleSettings
         );
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
@@ -188,6 +196,55 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
         Mockito.verify(mockTaskQueue, Mockito.never()).submitTask(anyString(), any(), any());
+    }
+
+    /**
+     * A backing index of a time series data stream without a configured lifecycle that does not prefer ILM should only be
+     * processed by ILM when the default lifecycle for time series is disabled.
+     */
+    @SuppressWarnings("unchecked")
+    public void testTimeSeriesIndexSkippedWhenDefaultLifecycleEnabled() {
+        String policyName = randomAlphaOfLengthBetween(1, 20);
+        Step.StepKey currentStepKey = randomStepKey();
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
+            currentStepKey,
+            randomStepKey()
+        );
+        MockAction mockAction = new MockAction(List.of(mockStep));
+        Phase phase = new Phase("phase", TimeValue.ZERO, Map.of("action", mockAction));
+        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Map.of(phase.getName(), phase));
+        SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
+        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(currentStepKey.phase());
+        lifecycleState.setAction(currentStepKey.action());
+        lifecycleState.setStep(currentStepKey.name());
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexSettings.PREFER_ILM, false)
+            )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
+            .put(indexMetadata, false)
+            .put(dataStream);
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
+        indexLifecycleService.applyClusterState(event);
+        indexLifecycleService.triggerPolicies(currentState, true);
+        Mockito.verify(mockTaskQueue, times(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled() ? 0 : 1))
+            .submitTask(anyString(), any(), any());
     }
 
     public void testRequestedStopOnShrink() {
@@ -455,7 +512,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             () -> now,
             null,
             null,
-            null
+            null,
+            dataStreamLifecycleSettings
         );
 
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
@@ -485,7 +543,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             () -> now,
             null,
             null,
-            null
+            null,
+            dataStreamLifecycleSettings
         ) {
 
             @Override
@@ -672,5 +731,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             // The dangerous index should be calculated as being in danger now
             assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "shutdown_node"), equalTo(false));
         }
+    }
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
+        var dataStreamLifecycleSettings = mock(DataStreamLifecycleSettings.class);
+        when(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()).thenReturn(enabled);
+        return dataStreamLifecycleSettings;
     }
 }

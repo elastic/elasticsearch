@@ -1167,6 +1167,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 );
                 case REBALANCE -> {
                 }
+                default -> {
+                    assert false : "Unexpected move type [" + type + "]";
+                }
             }
         }
 
